@@ -1,0 +1,10 @@
+# Python
+.venv/
+__pycache__/
+*.pyc
+.env
+.pytest_cache/
+
+# Never commit scraped HTML dumps or captured portal responses
+*.html
+captures/

@@ -1,0 +1,22 @@
+@import "tailwindcss";
+
+/* Skipp brand tokens — dark-first. See CLAUDE.md §7.5 */
+@theme {
+  --color-background: #0b0b0f; /* near-black app background */
+  --color-surface: #16161d; /* cards */
+  --color-accent: #7c5cff; /* electric violet — primary */
+  --color-success: #3dd68c; /* attendance safe */
+  --color-warning: #ffb020; /* attendance tight */
+  --color-danger: #ff5c5c; /* below threshold */
+  --color-text-primary: #f5f5f7; /* headings */
+  --color-text-muted: #9a9aa5; /* labels */
+
+  --font-sans: var(--font-geist-sans);
+  --font-mono: var(--font-geist-mono);
+}
+
+body {
+  background: var(--color-background);
+  color: var(--color-text-primary);
+  font-family: var(--font-sans), Arial, Helvetica, sans-serif;
+}
