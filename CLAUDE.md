@@ -270,11 +270,84 @@ clarity on attendance/marks numbers.
 ---
 
 ## 10. Open questions to resolve while building
-- Exact login sequence of the Zoho-based portal (tokens, cookies, redirects)?
-- Exact HTML structure of attendance / marks / timetable pages (drives the parsers)?
-- Does the portal block concurrent logins or rate-limit? (affects session handling)
-- Default attendance threshold — confirm it's 75%.
+- ✅ **Login sequence — SOLVED** (see §11). Zoho IAM, plaintext password over HTTPS.
+- ⏳ Exact HTML structure of attendance/marks pages — timetable structure known (§11), attendance pending.
+- ⏳ Does the portal block concurrent logins or rate-limit? (affects session handling)
+- Default attendance threshold — assume **75%** unless told otherwise.
 
 > When starting in Claude Code: begin with **Phase 1, the scraper spike**. Everything else
 > depends on whether we can reliably log in and fetch the HTML. Don't build UI polish until
 > the data pipeline works end to end.
+
+---
+
+## 11. Progress + reverse-engineering notes (KEEP UPDATED)
+
+**Full detail lives in [PLAN.md](PLAN.md).** Quick status — **Phase 1 spike essentially done**:
+login + app-session + Creator-page fetch + parse is proven end-to-end (see §11 detail). Timetable
+data is live and parses; attendance (`My_Attendance`) is **admin-gated at semester start** (403),
+so we're building session.py + timetable.py now and scaffolding attendance for when it re-enables.
+
+- **Phase 0 ✅** — scaffolded. Frontend = **Next 16 + React 19 + Tailwind v4** (not the 14
+  in §2; `create-next-app@latest` shipped newer). Tailwind v4 uses `@theme` in
+  `globals.css`, no `tailwind.config.ts`. `@ducanh2912/next-pwa` deferred to Phase 5.
+  Backend = FastAPI, `/health` works. Python 3.14 → deps unpinned (`>=`) for wheels.
+- **Backend venv:** `cd backend && ./.venv/bin/python …`. Spike runner: `spike_login.py`
+  (prompts for creds via getpass; dumps to gitignored `captures/`).
+
+### Login flow — WORKING (in `backend/core/session.py`)
+Zoho IAM inside an iframe. `uriPrefix = /accounts/p/40-10002227248`.
+- **CSRF:** double-submit — value of `iamcsr` cookie → header `X-ZCSRF-TOKEN: iamcsrcoo=<v>`.
+- **Password encryption OFF** (`encryption/script` → `encryptData.enabled=false`) → plaintext/HTTPS, no RSA.
+- **Identifier = full email** `<netid>@srmist.edu.in` (portal appends the domain; bare netid → "User does not exists").
+1. `GET {prefix}/signin?...` → sets `iamcsr`, `stk`.
+2. `POST {prefix}/signin/v2/lookup/{urlencoded email}` body `mode=primary&cli_time=…&orgtype=40&service_language=en` → `{lookup:{identifier:<zuid>, digest}}`.
+3. `POST {prefix}/signin/v2/primary/{zuid}/password?digest=…&…` JSON `{"passwordauth":{"password":"…"}}` → 201, code `SI303`, returns `passwordauth.redirect_uri` (a `/preannouncement/block-sessions` interstitial → follow `.../next`).
+
+### ✅ RESOLVED — app-session handoff (browser capture via chrome-devtools MCP, 2026-07-21)
+Old blocker was: after login we held only IAM cookies (`iamcsr/stk/_iamtt`), **no Zoho
+Creator app-session cookie**, so every app URL returned the ~8KB SPA shell.
+
+**Fix confirmed by capture:** a working app request to a Creator page carries these cookies —
+the missing one is **`JSESSIONID`** (the Zoho Creator app session), plus the IAM auth tokens
+`_iamadt_client_<zaid>` / `_iambdt_client_<zaid>` / `__Secure-iamsdt_client_<zaid>` and the
+WMS token `wms-tkp-token_client_<zaid>`. These are minted when the browser follows the
+post-login redirect chain all the way back to the app root (`https://academia.srmist.edu.in/`).
+**session.py fix:** after IAM `SI303` success, follow `redirect_uri` → the block-sessions
+interstitial → `.../next` → land on the app root so the app sets `JSESSIONID`. Then send the
+full cookie jar (IAM tokens + JSESSIONID + wms token) on Creator page GETs with headers
+`X-Requested-With: XMLHttpRequest` and `Referer: https://academia.srmist.edu.in/`.
+(Exact working cookie header saved in gitignored `backend/captures/`.)
+
+### Page structure (from a real browser capture, 2026-07-21)
+Portal is a Zoho Creator SPA. Each section is a server-rendered **Creator page** fetched via
+`GET /srm_university/academia-academic-services/page/<PAGENAME>` (header
+`X-Requested-With: XMLHttpRequest`). The table HTML is embedded inside a
+`pageSanitizer.sanitize('…')` JS string (unescape `\xNN`/`\x22`/`\x27` then parse the HTML).
+- App link name: **`academia-academic-services`**
+- **Timetable + course list** page: **`My_Time_Table_2023_24`** (PAGEID `2727643000074006011`,
+  `ISAPPMODE:true`, display name "My Time Table 2024-25"). This is the "My Time Table &
+  Attendance" menu item (`#My_Time_Table_Attendance`). ✅ Fetches 200, parses cleanly.
+  Contains: student info block (Reg No, Name, Batch, Program, Dept+Section, Semester) + a
+  `course_tbl` table with columns **S.No, Course Code, Course Title, Credit, Regn. Type,
+  Category, Course Type, Faculty Name, Slot, Room No., Academic Year**. NO attendance %/hours
+  columns — this page is registration/timetable only.
+- **Attendance** page: **`My_Attendance`** — CONFIRMED to exist (returns **403 "Page
+  inaccessible … contact your administrator"**, not 404). All other guesses (`My_Marks`,
+  `My_Attendance_Details`, year-suffixed variants) → **404**.
+
+### ⏳ CURRENT STATE — attendance/marks pages admin-gated at semester start
+It's **AY2026-27 ODD, Semester 5**, freshly registered. `My_Attendance` (403) and marks pages
+are **disabled by the SRM admin** until classes are held and attendance is recorded. This is
+outside our control — the data pipeline (login → app session → fetch Creator page → parse
+`pageSanitizer` HTML) is proven end-to-end on the timetable page; attendance will use the
+identical mechanism once `My_Attendance` is re-enabled.
+
+### NEXT STEP
+1. ✅ chrome-devtools MCP working (plugin server; the redundant broken `.mcp.json` was removed).
+2. Port the proven browser flow into `backend/core/session.py`: follow the post-login redirect
+   to the app root to obtain `JSESSIONID`, then fetch `page/My_Time_Table_2023_24`.
+3. Write `backend/services/timetable.py` first (data is available) — parse the `course_tbl`.
+4. Write `backend/services/attendance.py` against `My_Attendance` — structure unknown until the
+   page is re-enabled; scaffold the parser + a clean "attendance not yet available" typed error
+   for the 403 case, and finish parsing once we can capture a populated page mid-semester.

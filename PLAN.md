@@ -15,12 +15,27 @@
 - [x] Confirmed both run: frontend `npm run build` passes; backend `/health` → `{"status":"ok"}`
 - **Exit:** ✅ login shell renders; `/health` returns OK. Commit next.
 
-## Phase 1 — Scraper spike ⚠️ make-or-break
-- [ ] Capture real login flow (HAR / live inspection): CSRF/token → form POST → cookies → attendance URL
-- [ ] `core/session.py`: reproduce login with httpx, get authenticated session
-- [ ] Fetch attendance HTML, dump to file for inspection
+## Phase 1 — Scraper spike ⚠️ make-or-break — *in progress*
+- [x] Environment CAN reach `academia.srmist.edu.in` directly (no HAR needed — inspected live)
+- [x] Mapped the login flow (see write-up below). It's **Zoho IAM**, embedded via iframe.
+- [x] `core/client.py` + `core/session.py`: full login implemented with typed errors
+- [x] Verified end-to-end through the **lookup** step (fake netid → clean `UserNotFound`)
+- [x] **Password step works** with a real account (status 201, code `SI303` "SignIn success with pre announcement redirection", returns `passwordauth.redirect_uri`)
+- [x] Handle post-login announcement interstitial (`/preannouncement/block-sessions` → `.../next`)
+- [ ] ⚠️ **App-session handoff incomplete:** after login we hold only IAM cookies (`iamcsr/stk/_iamtt`), no Creator app-session cookie → every app URL returns the ~8KB SPA shell. Root cause: we sign in **without service context** (`servicename`/`serviceurl`) so IAM never redirects us back into the app to mint its session cookie.
+- [ ] ⏳ **Get the real attendance request via DevTools capture** (URL + method + cookies the browser actually sends). Then either (a) replay with the right service params, or (b) reproduce the browser's app-session bootstrap.
 - **Exit:** logged-in session + real attendance HTML printed.
-- **Fallback:** if portal too locked down → pivot to manual-entry mode. Decide HERE.
+- **Fallback:** if the app session can't be reproduced headless → manual-entry mode.
+
+### Login flow (reverse-engineered, verified)
+Portal login is a Zoho IAM flow inside an iframe (`{BASE}/accounts/p/40-10002227248/signin`).
+- **CSRF:** double-submit — `iamcsr` cookie value echoed in header `X-ZCSRF-TOKEN: iamcsrcoo=<v>`.
+- **Password encryption: OFF** (`encryption/script` ships `encryptData.enabled = false`) → plaintext over HTTPS, no RSA.
+1. `GET {prefix}/signin?...` → sets `iamcsr` (+ `zalb_*`, `stk`, `JSESSIONID`).
+2. `POST {prefix}/signin/v2/lookup/{netid}` body `mode=primary&cli_time=…&orgtype=40&service_language=en` → `{lookup:{identifier:<zuid>, digest:<d>}}` (or `U401` "User does not exists").
+3. `POST {prefix}/signin/v2/primary/{zuid}/password?digest={d}&cli_time=…` JSON body `{"passwordauth":{"password":"…"}}` → auth cookies.
+
+where `prefix = /accounts/p/40-10002227248`. **Unverified w/o real login:** exact success `status_code`s, bad-password error code, and the redirect that hands off to the academia app session.
 
 ## Phase 2 — Parse + serve attendance
 - [ ] `services/attendance.py`: BeautifulSoup → `Attendance` JSON (CLAUDE.md §5)
