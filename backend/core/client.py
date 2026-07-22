@@ -54,6 +54,11 @@ APP_SESSION_COOKIE = "JSESSIONID"
 # columns. Attendance lives on a sibling page, `My_Attendance`.
 PAGE_TIMETABLE = "My_Time_Table_2023_24"
 PAGE_ATTENDANCE = "My_Attendance"
+# Day-order enrichment pages. TODO: discover these from the portal menu instead
+# of hard-coding — the batch number and AY/semester vary per student/term.
+# (This student: Batch 2, AY 2026-27 ODD.)
+PAGE_UNIFIED_TIMETABLE = "Unified_Time_Table_2025_batch_2"
+PAGE_ACADEMIC_PLANNER = "Academic_Planner_2026_27_ODD"
 
 
 def page_url(page_name: str) -> str:

@@ -28,10 +28,40 @@ export type Course = {
   academicYear: string | null;
 };
 
+export type ClassPeriod = {
+  hour: number;
+  start: string; // "08:00"
+  end: string;
+  startMin: number; // minutes since midnight (24h)
+  endMin: number;
+  slot: string;
+  code: string;
+  title: string;
+  abbrev: string;
+  faculty: string | null;
+  room: string | null;
+  isLab: boolean;
+};
+
+export type DayOrderSchedule = {
+  dayOrder: number;
+  classes: ClassPeriod[];
+};
+
+export type CalendarDay = {
+  date: string; // ISO YYYY-MM-DD
+  weekday: string;
+  dayOrder: number | null;
+  event: string | null;
+  isHoliday: boolean;
+};
+
 export type Timetable = {
   student: StudentInfo;
   courses: Course[];
   academicYear: string | null;
+  dayOrders: DayOrderSchedule[];
+  calendar: CalendarDay[];
 };
 
 // ---- Attendance (backend/models/attendance.py) ----

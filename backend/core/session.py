@@ -96,6 +96,14 @@ class CaptchaRequired(LoginError):
     """
 
 
+class SignInLimitReached(LoginError):
+    """Zoho's per-account daily sign-in cap (code SI503).
+
+    A hard limit that resets after ~24h — no login is possible until then. The
+    on-device session persistence exists partly to avoid burning sign-ins.
+    """
+
+
 class PortalError(LoginError):
     """Portal returned something we didn't expect (shape change / outage)."""
 
@@ -250,11 +258,7 @@ def login(netid: str, password: str) -> Session:
             code = _first_error_code(lookup)
             if code in {"U401"}:  # observed: "User does not exists"
                 raise UserNotFound(lookup.get("localized_message", "Account not found."))
-            if _is_captcha(code, lookup):
-                raise CaptchaRequired(
-                    "The portal is asking for a CAPTCHA (too many recent "
-                    "attempts). Wait a while and try again."
-                )
+            _raise_if_blocked(lookup)
             raise PortalError(f"Unexpected lookup response: {lookup!r}")
 
         info = lookup["lookup"]
@@ -270,11 +274,7 @@ def login(netid: str, password: str) -> Session:
 
         if pw.get("status_code") != 201:
             code = _first_error_code(pw)
-            if _is_captcha(code, pw):
-                raise CaptchaRequired(
-                    "The portal is asking for a CAPTCHA (too many recent "
-                    "attempts). Wait a while and try again."
-                )
+            _raise_if_blocked(pw)
             # Zoho uses IAM error codes for bad password / lockouts.
             if code in {"IN201", "PWE1", "INVALID_PASSWORD"} or "password" in str(
                 pw.get("localized_message", "")
@@ -348,6 +348,29 @@ def _is_captcha(code: str | None, resp: dict) -> bool:
         return True
     blob = f"{resp.get('message', '')} {resp.get('localized_message', '')}".lower()
     return "hip" in blob or "captcha" in blob
+
+
+def _is_signin_limit(code: str | None, resp: dict) -> bool:
+    """Zoho daily sign-in cap — code SI503 / 'maximum sign-in threshold'."""
+    if code == "SI503":
+        return True
+    blob = f"{resp.get('message', '')} {resp.get('localized_message', '')}".lower()
+    return "sign-in threshold" in blob or "sign-in limit" in blob
+
+
+def _raise_if_blocked(resp: dict) -> None:
+    """Raise the typed anti-automation error for a lookup/password response."""
+    code = _first_error_code(resp)
+    if _is_captcha(code, resp):
+        raise CaptchaRequired(
+            "The portal is asking for a CAPTCHA (too many recent attempts). "
+            "Wait a while and try again."
+        )
+    if _is_signin_limit(code, resp):
+        raise SignInLimitReached(
+            "You've hit the portal's daily sign-in limit. It resets after about "
+            "a day — try again tomorrow."
+        )
 
 
 # Matches Zoho's post-login announcement continuation, e.g.

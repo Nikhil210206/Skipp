@@ -10,10 +10,18 @@ from fastapi import FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel, Field
 
-from core.client import PAGE_ATTENDANCE, PAGE_TIMETABLE
+import logging
+
+from core.client import (
+    PAGE_ACADEMIC_PLANNER,
+    PAGE_ATTENDANCE,
+    PAGE_TIMETABLE,
+    PAGE_UNIFIED_TIMETABLE,
+)
 from core.session import (
     AppSessionError,
     CaptchaRequired,
+    SignInLimitReached,
     InvalidCredentials,
     PageError,
     PageInaccessible,
@@ -24,11 +32,17 @@ from core.session import (
 )
 from models.attendance import Attendance
 from models.marks import Marks
+from models.schedule import CalendarDay
 from models.timetable import Timetable
+from services.academic_planner import parse_planner, semester_anchor
 from services.attendance import AttendanceUnavailable, parse_attendance
 from services.creator import PageEmptyError
 from services.marks import MarksUnavailable, parse_marks
+from services.schedule import build_day_orders
 from services.timetable import parse_timetable
+from services.unified_timetable import parse_unified_timetable
+
+log = logging.getLogger("skipp.api")
 
 # Attendance and marks both render on the attendance page; marks appears once
 # the university publishes internal assessments.
@@ -67,7 +81,7 @@ def _login_or_4xx(req: LoginRequest):
         raise HTTPException(status_code=404, detail=str(e)) from e
     except InvalidCredentials as e:
         raise HTTPException(status_code=401, detail=str(e)) from e
-    except CaptchaRequired as e:
+    except (CaptchaRequired, SignInLimitReached) as e:
         raise HTTPException(status_code=429, detail=str(e)) from e
     except PortalError as e:
         raise HTTPException(status_code=502, detail=str(e)) from e
@@ -75,19 +89,40 @@ def _login_or_4xx(req: LoginRequest):
 
 @app.post("/timetable", response_model=Timetable)
 def timetable(req: LoginRequest) -> Timetable:
-    """Log in and return the student's registered courses + info."""
+    """Log in and return courses + day-order schedules + semester calendar.
+
+    All three pages are fetched in one session. The day-order enrichment is
+    best-effort: if the unified time table or planner can't be fetched/parsed,
+    we still return the course list (empty dayOrders/calendar).
+    """
     session = _login_or_4xx(req)
     try:
-        raw = session.fetch_page(PAGE_TIMETABLE)
-        return parse_timetable(raw)
+        tt = parse_timetable(session.fetch_page(PAGE_TIMETABLE))
+        _enrich_with_day_orders(session, tt)
+        return tt
     except PageEmptyError as e:
         raise HTTPException(status_code=502, detail=str(e)) from e
     except PageNotFound as e:
         raise HTTPException(status_code=404, detail=str(e)) from e
-    except PageError as e:
+    except (AppSessionError, PageError) as e:
         raise HTTPException(status_code=502, detail=str(e)) from e
     finally:
         session.close()
+
+
+def _enrich_with_day_orders(session, tt: Timetable) -> None:
+    """Add day-order schedules + calendar to a parsed Timetable, best-effort."""
+    try:
+        grid = parse_unified_timetable(session.fetch_page(PAGE_UNIFIED_TIMETABLE))
+        tt.day_orders = build_day_orders(tt.courses, grid)
+    except Exception as e:  # noqa: BLE001 — enrichment must never fail the call
+        log.warning("day-order enrichment failed: %s", e)
+    try:
+        year, month = semester_anchor(PAGE_ACADEMIC_PLANNER)
+        raw = session.fetch_page(PAGE_ACADEMIC_PLANNER)
+        tt.calendar = [CalendarDay(**d) for d in parse_planner(raw, year, month)]
+    except Exception as e:  # noqa: BLE001
+        log.warning("calendar enrichment failed: %s", e)
 
 
 @app.post("/attendance", response_model=Attendance)

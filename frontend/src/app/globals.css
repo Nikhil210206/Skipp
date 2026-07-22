@@ -1,15 +1,17 @@
 @import "tailwindcss";
 
-/* Skipp brand tokens — dark-first. See CLAUDE.md §7.5 */
+/* Skipp brand tokens — black + orange, dark-first. */
 @theme {
-  --color-background: #0b0b0f; /* near-black app background */
-  --color-surface: #16161d; /* cards */
-  --color-accent: #7c5cff; /* electric violet — primary */
+  --color-background: #08080a; /* near-black app background */
+  --color-surface: #141417; /* cards */
+  --color-surface-2: #1d1d21; /* raised elements, chips */
+  --color-accent: #ff6a1a; /* electric orange — primary */
+  --color-accent-soft: #ff8a45; /* lighter orange for gradients */
   --color-success: #3dd68c; /* attendance safe */
   --color-warning: #ffb020; /* attendance tight */
-  --color-danger: #ff5c5c; /* below threshold */
-  --color-text-primary: #f5f5f7; /* headings */
-  --color-text-muted: #9a9aa5; /* labels */
+  --color-danger: #ff5555; /* below threshold / holidays */
+  --color-text-primary: #f6f6f8; /* headings */
+  --color-text-muted: #86868f; /* labels */
 
   --font-sans: var(--font-geist-sans);
   --font-mono: var(--font-geist-mono);
@@ -19,4 +21,14 @@ body {
   background: var(--color-background);
   color: var(--color-text-primary);
   font-family: var(--font-sans), Arial, Helvetica, sans-serif;
+  -webkit-font-smoothing: antialiased;
+}
+
+/* Hide scrollbars on horizontal scroll strips while keeping scroll. */
+.no-scrollbar::-webkit-scrollbar {
+  display: none;
+}
+.no-scrollbar {
+  -ms-overflow-style: none;
+  scrollbar-width: none;
 }

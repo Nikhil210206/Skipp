@@ -3,111 +3,201 @@
 import Link from "next/link";
 import { motion } from "framer-motion";
 import AppShell from "@/components/AppShell";
-import Ring from "@/components/Ring";
-import { Spinner } from "@/components/StatePanel";
 import { useSession } from "@/context/SessionContext";
 import { useResource } from "@/hooks/useResource";
 import { fetchAttendance } from "@/lib/api";
+import {
+  focusDay,
+  nextClass,
+  nowMinutes,
+  scheduleFor,
+  upcomingHoliday,
+} from "@/lib/schedule";
+import type { ClassPeriod } from "@/types";
 
 export default function DashboardPage() {
-  const { student } = useSession();
+  const { student, timetable } = useSession();
   const att = useResource(fetchAttendance);
 
+  const focus = timetable ? focusDay(timetable) : null;
+  const schedule = timetable
+    ? scheduleFor(timetable.dayOrders, focus?.dayOrder ?? null)
+    : undefined;
+  const classes = schedule?.classes ?? [];
+  const upNext =
+    focus?.label === "TODAY"
+      ? nextClass(schedule, nowMinutes())
+      : (classes[0] ?? null);
+
+  const nextHoliday =
+    timetable && focus
+      ? upcomingHoliday(timetable.calendar, focus.date)
+      : undefined;
+
   return (
-    <AppShell title="skipp">
-      {/* Student card */}
-      <motion.section
-        initial={{ opacity: 0, y: 10 }}
-        animate={{ opacity: 1, y: 0 }}
-        className="mb-4 rounded-2xl bg-surface p-5"
-      >
-        <p className="text-lg font-semibold">{student?.name ?? "—"}</p>
-        <p className="mt-1 text-sm text-text-muted">
-          {student?.registrationNumber}
+    <AppShell title="skipp" greeting={student?.name ?? undefined}>
+      {/* Focus day header */}
+      <div className="mb-3 flex items-baseline justify-between px-1">
+        <p className="text-xs font-semibold uppercase tracking-[0.2em] text-text-muted">
+          {focus?.dayOrder != null ? (
+            <>
+              day order{" "}
+              <span className="text-accent">{focus.dayOrder}</span>
+              <span className="mx-1.5 text-accent">•</span>
+              {focus.label.toLowerCase()}
+            </>
+          ) : (
+            "no classes"
+          )}
         </p>
-        <div className="mt-3 flex flex-wrap gap-2 text-xs text-text-muted">
-          {student?.department && (
-            <span className="rounded-full bg-background px-2.5 py-1">
-              {student.department}
-            </span>
-          )}
-          {student?.section && (
-            <span className="rounded-full bg-background px-2.5 py-1">
-              Section {student.section}
-            </span>
-          )}
-          {student?.semester && (
-            <span className="rounded-full bg-background px-2.5 py-1">
-              Sem {student.semester}
-            </span>
-          )}
-        </div>
-      </motion.section>
-
-      {/* Overall attendance */}
-      <motion.section
-        initial={{ opacity: 0, y: 10 }}
-        animate={{ opacity: 1, y: 0 }}
-        transition={{ delay: 0.05 }}
-        className="mb-4 flex items-center gap-4 rounded-2xl bg-surface p-5"
-      >
-        {att.status === "ready" ? (
-          <>
-            <Ring
-              percentage={att.data.overallPercentage}
-              threshold={att.data.threshold}
-              size={84}
-            />
-            <div>
-              <p className="text-sm text-text-muted">Overall attendance</p>
-              <p className="text-2xl font-bold">
-                {att.data.overallPercentage.toFixed(1)}%
-              </p>
-              <Link href="/attendance" className="text-sm text-accent">
-                see the breakdown →
-              </Link>
-            </div>
-          </>
-        ) : att.status === "loading" ? (
-          <div className="flex h-[84px] w-full items-center justify-center">
-            <Spinner />
-          </div>
-        ) : (
-          <div>
-            <p className="text-sm text-text-muted">Overall attendance</p>
-            <p className="mt-1 text-sm text-warning">
-              {att.status === "gated"
-                ? "Not on the portal yet."
-                : "Couldn't load attendance."}
-            </p>
-          </div>
-        )}
-      </motion.section>
-
-      {/* Quick links */}
-      <div className="grid grid-cols-2 gap-3">
-        {[
-          { href: "/marks", label: "Marks", icon: "◆" },
-          { href: "/timetable", label: "Timetable", icon: "▤" },
-        ].map((l, i) => (
-          <motion.div
-            key={l.href}
-            initial={{ opacity: 0, y: 10 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ delay: 0.1 + i * 0.05 }}
-          >
-            <Link
-              href={l.href}
-              className="flex h-24 flex-col items-center justify-center gap-1 rounded-2xl bg-surface transition-colors hover:bg-white/5"
-            >
-              <span className="text-2xl text-accent">{l.icon}</span>
-              <span className="text-sm">{l.label}</span>
-            </Link>
-          </motion.div>
-        ))}
       </div>
 
-      <div className="h-6" />
+      {/* Class strip */}
+      {classes.length > 0 ? (
+        <div className="no-scrollbar -mx-4 mb-6 flex gap-3 overflow-x-auto px-4 pb-1">
+          {classes.map((c, i) => (
+            <ClassChip key={`${c.slot}-${i}`} c={c} highlight={c === upNext} />
+          ))}
+        </div>
+      ) : (
+        <RestCard focus={focus} />
+      )}
+
+      {/* Up-next hero */}
+      {upNext && (
+        <motion.section
+          initial={{ opacity: 0, y: 14 }}
+          animate={{ opacity: 1, y: 0 }}
+          className="mb-6"
+        >
+          <div className="mb-2 flex items-center gap-3 px-1">
+            <span className="text-xs font-medium uppercase tracking-[0.2em] text-text-muted">
+              {focus?.label === "TODAY" ? "up next" : `${focus?.weekday}'s first`}
+            </span>
+            <span className="h-px flex-1 bg-white/10" />
+            <span className="text-xs font-semibold tracking-widest text-text-muted">
+              {upNext.room ?? ""}
+            </span>
+          </div>
+          <h2 className="px-1 text-5xl font-extrabold leading-[0.95] tracking-tight">
+            {upNext.title.length > 22
+              ? upNext.title.slice(0, 20).trimEnd() + "…"
+              : upNext.title.toLowerCase()}
+          </h2>
+          <div className="mt-3 flex items-center justify-between rounded-2xl bg-surface px-4 py-3">
+            <span className="flex items-center gap-2 text-sm">
+              <span className="size-2 rounded-full bg-accent" />
+              <span className="font-semibold">{upNext.abbrev}</span>
+              <span className="text-text-muted">· {upNext.slot}</span>
+            </span>
+            <span className="text-sm text-text-muted">
+              {upNext.start} – {upNext.end}
+            </span>
+          </div>
+        </motion.section>
+      )}
+
+      {/* Quick cards */}
+      <div className="flex flex-col gap-3 pb-4">
+        <QuickCard
+          href="/attendance"
+          tone="accent"
+          title="attendance"
+          value={
+            att.status === "ready"
+              ? `${att.data.overallPercentage.toFixed(1)}% overall`
+              : att.status === "gated"
+                ? "not on the portal yet"
+                : att.status === "loading"
+                  ? "loading…"
+                  : "unavailable"
+          }
+        />
+        <QuickCard
+          href="/calendar"
+          tone="plain"
+          title="academic alerts"
+          value={
+            nextHoliday
+              ? `next: ${nextHoliday.event?.replace(/ - Holiday$/i, "")}`
+              : "no upcoming holidays"
+          }
+        />
+        <QuickCard href="/marks" tone="plain" title="marks" value="view internals" />
+      </div>
     </AppShell>
+  );
+}
+
+function ClassChip({ c, highlight }: { c: ClassPeriod; highlight: boolean }) {
+  return (
+    <motion.div
+      initial={{ opacity: 0, scale: 0.94 }}
+      animate={{ opacity: 1, scale: 1 }}
+      className={`flex min-w-[104px] flex-col rounded-2xl border p-3 ${
+        highlight
+          ? "border-accent/60 bg-accent/10"
+          : "border-white/[0.06] bg-surface"
+      }`}
+    >
+      <span className="text-[10px] tracking-wider text-text-muted">
+        {c.room ?? "—"}
+      </span>
+      <span className="mt-1 text-2xl font-extrabold tracking-tight">
+        {c.abbrev}
+      </span>
+      <span
+        className={`mt-1 text-[11px] ${highlight ? "text-accent" : "text-text-muted"}`}
+      >
+        {c.start} – {c.end}
+      </span>
+    </motion.div>
+  );
+}
+
+function RestCard({
+  focus,
+}: {
+  focus: ReturnType<typeof focusDay>;
+}) {
+  return (
+    <div className="mb-6 rounded-2xl bg-surface p-6 text-center">
+      <p className="text-3xl">🌤️</p>
+      <p className="mt-2 font-semibold">
+        {focus?.isHoliday ? focus.event?.replace(/ - Holiday$/i, "") : "No classes"}
+      </p>
+      <p className="mt-1 text-sm text-text-muted">
+        {focus?.isHoliday ? "Enjoy the holiday." : "Nothing scheduled — go bunk-free."}
+      </p>
+    </div>
+  );
+}
+
+function QuickCard({
+  href,
+  title,
+  value,
+  tone,
+}: {
+  href: string;
+  title: string;
+  value: string;
+  tone: "accent" | "plain";
+}) {
+  return (
+    <Link
+      href={href}
+      className={`flex items-center justify-between rounded-2xl border px-4 py-4 transition-colors ${
+        tone === "accent"
+          ? "border-accent/30 bg-accent/[0.07] hover:bg-accent/10"
+          : "border-white/[0.06] bg-surface hover:bg-white/[0.03]"
+      }`}
+    >
+      <div>
+        <p className="font-semibold lowercase">{title}</p>
+        <p className="text-sm text-text-muted">{value}</p>
+      </div>
+      <span className={tone === "accent" ? "text-accent" : "text-text-muted"}>›</span>
+    </Link>
   );
 }

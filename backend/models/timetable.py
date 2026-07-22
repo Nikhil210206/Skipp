@@ -1,16 +1,25 @@
-"""Response schemas for the timetable / course-registration page.
+"""Response schemas for the timetable page.
 
-The academia "My Time Table & Attendance" page (`My_Time_Table_2023_24`) is, in
-practice, the student's registered-course list plus an info header — not a
-day/time grid. We model exactly what the page provides; a true weekly grid needs
-the slot -> time mapping, which is a later enhancement.
+The "My Time Table & Attendance" page (`My_Time_Table_2023_24`) gives the
+student's registered courses + info header. We enrich the response with the
+day-order schedules (from the Unified Time Table) and the semester calendar
+(from the Academic Planner) so one login powers home + timetable + calendar.
+
+JSON is camelCase (aliases) so the frontend `types/` mirror it directly.
 """
 from __future__ import annotations
 
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, ConfigDict, Field
+from pydantic.alias_generators import to_camel
+
+from models.schedule import CalendarDay, DayOrderSchedule
 
 
-class StudentInfo(BaseModel):
+class _CamelModel(BaseModel):
+    model_config = ConfigDict(alias_generator=to_camel, populate_by_name=True)
+
+
+class StudentInfo(_CamelModel):
     """The identity header shown above the course table."""
 
     registration_number: str | None = Field(None, description="e.g. RA24...574")
@@ -23,7 +32,7 @@ class StudentInfo(BaseModel):
     mobile: str | None = None
 
 
-class Course(BaseModel):
+class Course(_CamelModel):
     """One registered course row from the course table."""
 
     code: str = Field(description='course code, e.g. "21CSC302J"')
@@ -38,11 +47,14 @@ class Course(BaseModel):
     academic_year: str | None = Field(None, description='e.g. "AY2026-27-ODD"')
 
 
-class Timetable(BaseModel):
-    """Parsed result of the timetable / course-registration page."""
+class Timetable(_CamelModel):
+    """Parsed timetable + day-order schedules + semester calendar."""
 
     student: StudentInfo
     courses: list[Course]
     academic_year: str | None = Field(
         None, description="AY of the course list, e.g. AY2026-27-ODD"
     )
+    # Enrichment (empty if the unified TT / planner couldn't be fetched):
+    day_orders: list[DayOrderSchedule] = Field(default_factory=list)
+    calendar: list[CalendarDay] = Field(default_factory=list)

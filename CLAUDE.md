@@ -283,11 +283,34 @@ clarity on attendance/marks numbers.
 
 ## 11. Progress + reverse-engineering notes (KEEP UPDATED)
 
-**Full detail lives in [PLAN.md](PLAN.md).** Quick status — **Phase 1 DONE, Phase 2 core done**:
-login → app-auth (`serviceurl` fix) → Creator-page fetch → parse is proven end-to-end in Python
-(`spike_login.py` parses the live timetable — 9 courses). `/timetable` + `/attendance` routes wired
-in `main.py`. Attendance (`My_Attendance`) is **admin-gated at semester start** (403 →
-`PageInaccessible`); its parser lands once the page is populated mid-semester.
+**Full detail lives in [PLAN.md](PLAN.md).** Quick status — **Phases 1-4 built, verified live end-to-end**:
+login → app-auth (`serviceurl` fix) → fetch Creator pages → parse works against the real portal.
+Full PWA UI is built (black+orange) and rendering with real data. Attendance/marks parsers are
+written but their pages are **admin-gated at semester start** (503) — they auto-work once enabled.
+
+### ✅ Day-order timetable + calendar (Phase 4, 2026-07-22) — the big feature
+SRM runs a **Day Order** system (1-5, rotating; holidays don't advance it), not weekday-based.
+Built + validated against a real capture AND a friend's app (exact match on DO2/DO3):
+- **Data sources (3 Creator pages, fetched in ONE login by `/timetable`):**
+  - `My_Time_Table_2023_24` → student courses (slot per course).
+  - `Unified_Time_Table_2025_batch_2` → the slot × day-order × time grid (batch-specific;
+    this student is **Batch 2**). `services/unified_timetable.py`.
+  - `Academic_Planner_2026_27_ODD` → date → day order + holidays (HTML-entity-encoded month
+    grid, 6 month-blocks × 5 cols `[Date,Weekday,Event,DayOrder,-]`). `services/academic_planner.py`.
+- **Fusion:** `services/schedule.py` maps slot→course (theory letters A-G; lab ranges like
+  `P37-P38-`/`L51-L52-` expand to grid P##/L## cells) → per-day-order timed class list +
+  auto-abbreviations (initials, override map e.g. 21CSE742P→"DBMS"). `/timetable` returns
+  `{student, courses, dayOrders[5], calendar[180]}`.
+- **UI:** Home (today's day-order strip + "up next" hero), Timetable (day-order timeline w/
+  breaks + DO 1-5 selector), Calendar (month grid w/ day-order superscripts + holidays).
+  Page-name/batch/AY constants are hard-coded in `client.py` — TODO: discover from the menu.
+- ⚠️ "today's day order" needs the real clock to fall inside the term; `focusDay()` falls back
+  to the first working day when it doesn't (the AY2026-27 data is "future" vs a real clock).
+
+### ✅ On-device session persistence (Phase 3 security, `frontend/src/lib/crypto.ts`)
+Non-exportable AES-GCM key in IndexedDB, encrypted creds blob in localStorage. `SessionContext`
+rehydrates on load (decrypt → refetch timetable) so a return visit **doesn't retype the password**.
+Clearing browser data wipes both (kill switch). Creds still never persisted server-side.
 
 - **Phase 0 ✅** — scaffolded. Frontend = **Next 16 + React 19 + Tailwind v4** (not the 14
   in §2; `create-next-app@latest` shipped newer). Tailwind v4 uses `@theme` in
@@ -363,8 +386,24 @@ Two anti-automation gates surfaced while smoke-testing the full stack:
   Surfaced as typed `CaptchaRequired` → HTTP 429. It clears on its own after a
   cooldown; **don't hammer the portal** (CLAUDE.md §9). Interactive CAPTCHA solving
   (show HIP image to user, submit `hipcode` + `cdigest`) is a future enhancement.
+- **Daily sign-in cap (code `SI503`, "maximum sign-in threshold for the day").**
+  A HARD per-account limit — no login works until it resets (~24h). Surfaced as
+  typed `SignInLimitReached` → HTTP 429. The strongest reason to **cache/persist
+  the session** (frontend now encrypts creds on-device, AES-GCM, so a return
+  visit rehydrates without a new sign-in) and to never auto-retry logins in a loop.
 - `SKIPP_DEBUG_LOGIN=1` dumps handoff/shell HTML to gitignored `captures/` and logs
   cookie *names* (never values) — the tool used to diagnose all of the above.
+
+### ⚠️ KEY RISK — one Zoho sign-in per data fetch (drives SI503)
+The backend is stateless: **every** `/timetable`, `/attendance`, `/marks` call does a full
+fresh Zoho login. So one browsing session (home→attendance→marks, plus reloads) can fire
+4-5 sign-ins and march toward the daily `SI503` cap. On-device persistence stops the user
+**re-typing** the password, but does NOT reduce backend sign-ins.
+**Fix (high priority, next):** one login fetches everything and caches it. Options:
+(a) a combined `/refresh` route that logs in once and returns timetable+attendance+marks;
+(b) frontend caches attendance/marks in `SessionContext` so pages don't refetch;
+(c) reuse a backend session across a short window instead of per-request. Do (a)+(b).
+Until then: minimise logins, never auto-retry, lean on the cached timetable.
 
 ### ⏳ CURRENT STATE — attendance/marks pages admin-gated at semester start
 It's **AY2026-27 ODD, Semester 5**, freshly registered. `My_Attendance` (403) and marks pages
