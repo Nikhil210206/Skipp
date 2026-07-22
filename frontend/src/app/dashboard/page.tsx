@@ -4,8 +4,6 @@ import Link from "next/link";
 import { motion } from "framer-motion";
 import AppShell from "@/components/AppShell";
 import { useSession } from "@/context/SessionContext";
-import { useResource } from "@/hooks/useResource";
-import { fetchAttendance } from "@/lib/api";
 import {
   focusDay,
   nextClass,
@@ -16,8 +14,7 @@ import {
 import type { ClassPeriod } from "@/types";
 
 export default function DashboardPage() {
-  const { student, timetable } = useSession();
-  const att = useResource(fetchAttendance);
+  const { student, timetable, attendance, attendanceState } = useSession();
 
   const focus = timetable ? focusDay(timetable) : null;
   const schedule = timetable
@@ -104,11 +101,11 @@ export default function DashboardPage() {
           tone="accent"
           title="attendance"
           value={
-            att.status === "ready"
-              ? `${att.data.overallPercentage.toFixed(1)}% overall`
-              : att.status === "gated"
+            attendanceState === "ready" && attendance
+              ? `${attendance.overallPercentage.toFixed(1)}% overall`
+              : attendanceState === "gated"
                 ? "not on the portal yet"
-                : att.status === "loading"
+                : attendanceState === "loading"
                   ? "loading…"
                   : "unavailable"
           }

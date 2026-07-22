@@ -30,9 +30,12 @@ from core.session import (
     UserNotFound,
     login,
 )
+from datetime import datetime, timezone
+
 from models.attendance import Attendance
 from models.marks import Marks
 from models.schedule import CalendarDay
+from models.snapshot import Snapshot
 from models.timetable import Timetable
 from services.academic_planner import parse_planner, semester_anchor
 from services.attendance import AttendanceUnavailable, parse_attendance
@@ -108,6 +111,64 @@ def timetable(req: LoginRequest) -> Timetable:
         raise HTTPException(status_code=502, detail=str(e)) from e
     finally:
         session.close()
+
+
+@app.post("/refresh", response_model=Snapshot)
+def refresh(req: LoginRequest) -> Snapshot:
+    """Everything from ONE login: timetable + attendance + marks.
+
+    This is the endpoint the app should use — a whole browsing session costs a
+    single Zoho sign-in (which is daily-capped). Only a timetable failure is
+    fatal; attendance/marks each carry their own status (ready/gated/error).
+    """
+    session = _login_or_4xx(req)
+    try:
+        tt = parse_timetable(session.fetch_page(PAGE_TIMETABLE))
+        _enrich_with_day_orders(session, tt)
+
+        att, att_status, att_msg = _try_section(
+            lambda: parse_attendance(session.fetch_page(PAGE_ATTENDANCE)),
+            _GATED_MSG,
+        )
+        marks, marks_status, marks_msg = _try_section(
+            lambda: parse_marks(session.fetch_page(PAGE_MARKS)),
+            _MARKS_GATED_MSG,
+        )
+        return Snapshot(
+            timetable=tt,
+            attendance=att,
+            attendance_status=att_status,
+            attendance_message=att_msg,
+            marks=marks,
+            marks_status=marks_status,
+            marks_message=marks_msg,
+            fetched_at=datetime.now(timezone.utc).isoformat(),
+        )
+    except PageEmptyError as e:
+        raise HTTPException(status_code=502, detail=str(e)) from e
+    except PageNotFound as e:
+        raise HTTPException(status_code=404, detail=str(e)) from e
+    except (AppSessionError, PageError) as e:
+        raise HTTPException(status_code=502, detail=str(e)) from e
+    finally:
+        session.close()
+
+
+def _try_section(fetch, gated_msg: str) -> tuple:
+    """Run a section fetch, mapping gated/failed states to a status tuple.
+
+    Returns (data_or_None, status, message). Never raises — a gated or broken
+    section must not sink the whole snapshot.
+    """
+    try:
+        return fetch(), "ready", None
+    except (PageInaccessible, AttendanceUnavailable, MarksUnavailable):
+        return None, "gated", gated_msg
+    except (PageNotFound, AppSessionError, PageEmptyError, PageError) as e:
+        return None, "error", str(e)
+    except Exception as e:  # noqa: BLE001 — defensive: a parser bug is non-fatal
+        log.warning("section fetch failed: %s", e)
+        return None, "error", "Couldn't load this section."
 
 
 def _enrich_with_day_orders(session, tt: Timetable) -> None:

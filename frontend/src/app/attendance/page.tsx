@@ -4,8 +4,7 @@ import { motion } from "framer-motion";
 import AppShell from "@/components/AppShell";
 import Ring from "@/components/Ring";
 import StatePanel, { Spinner } from "@/components/StatePanel";
-import { useResource } from "@/hooks/useResource";
-import { fetchAttendance } from "@/lib/api";
+import { useSession } from "@/context/SessionContext";
 import type { Subject } from "@/types";
 
 function predictorLine(s: Subject): { text: string; tone: string } {
@@ -19,56 +18,56 @@ function predictorLine(s: Subject): { text: string; tone: string } {
 }
 
 export default function AttendancePage() {
-  const att = useResource(fetchAttendance);
+  const { attendance, attendanceState, attendanceMessage } = useSession();
 
   return (
     <AppShell title="attendance">
-      {att.status === "loading" && (
+      {attendanceState === "loading" && (
         <div className="flex flex-1 items-center justify-center">
           <Spinner />
         </div>
       )}
 
-      {att.status === "gated" && (
+      {attendanceState === "gated" && (
         <StatePanel
           icon="⏳"
           tone="warning"
           title="Not live yet"
-          message={att.message}
+          message={attendanceMessage ?? undefined}
         />
       )}
 
-      {att.status === "error" && (
+      {attendanceState === "error" && (
         <StatePanel
           icon="⚠️"
           tone="danger"
           title="Couldn't load attendance"
-          message={att.message}
+          message={attendanceMessage ?? undefined}
         />
       )}
 
-      {att.status === "ready" && (
+      {attendanceState === "ready" && attendance && (
         <>
           <div className="mb-4 flex items-center gap-4 rounded-2xl bg-surface p-5">
             <Ring
-              percentage={att.data.overallPercentage}
-              threshold={att.data.threshold}
+              percentage={attendance.overallPercentage}
+              threshold={attendance.threshold}
               size={84}
               label="overall"
             />
             <div>
               <p className="text-sm text-text-muted">Overall</p>
               <p className="text-2xl font-bold">
-                {att.data.overallPercentage.toFixed(1)}%
+                {attendance.overallPercentage.toFixed(1)}%
               </p>
               <p className="text-xs text-text-muted">
-                target {att.data.threshold}%
+                target {attendance.threshold}%
               </p>
             </div>
           </div>
 
           <ul className="flex flex-col gap-3 pb-6">
-            {att.data.subjects.map((s, i) => {
+            {attendance.subjects.map((s, i) => {
               const p = predictorLine(s);
               return (
                 <motion.li
@@ -80,7 +79,7 @@ export default function AttendancePage() {
                 >
                   <Ring
                     percentage={s.percentage}
-                    threshold={att.data.threshold}
+                    threshold={attendance.threshold}
                     size={60}
                     stroke={6}
                   />

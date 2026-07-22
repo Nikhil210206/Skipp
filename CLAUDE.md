@@ -394,16 +394,19 @@ Two anti-automation gates surfaced while smoke-testing the full stack:
 - `SKIPP_DEBUG_LOGIN=1` dumps handoff/shell HTML to gitignored `captures/` and logs
   cookie *names* (never values) — the tool used to diagnose all of the above.
 
-### ⚠️ KEY RISK — one Zoho sign-in per data fetch (drives SI503)
-The backend is stateless: **every** `/timetable`, `/attendance`, `/marks` call does a full
-fresh Zoho login. So one browsing session (home→attendance→marks, plus reloads) can fire
-4-5 sign-ins and march toward the daily `SI503` cap. On-device persistence stops the user
-**re-typing** the password, but does NOT reduce backend sign-ins.
-**Fix (high priority, next):** one login fetches everything and caches it. Options:
-(a) a combined `/refresh` route that logs in once and returns timetable+attendance+marks;
-(b) frontend caches attendance/marks in `SessionContext` so pages don't refetch;
-(c) reuse a backend session across a short window instead of per-request. Do (a)+(b).
-Until then: minimise logins, never auto-retry, lean on the cached timetable.
+### ✅ RESOLVED — one Zoho sign-in per session (was the SI503 driver)
+Previously every `/timetable`, `/attendance`, `/marks` call did a fresh login, so one
+browsing session could fire 4-5 sign-ins toward the daily `SI503` cap. **Fixed 2026-07-22:**
+- **`POST /refresh`** (`models/snapshot.py`, `main.py`) logs in ONCE and returns
+  `{timetable(+dayOrders+calendar), attendance, marks}` — attendance/marks each carry a
+  `status` (ready/gated/error) so a gated section doesn't sink the call (`_try_section`).
+- **Frontend** calls `/refresh` once on login/rehydrate and caches the whole snapshot in
+  `SessionContext`; dashboard/attendance/marks read from cache (no per-page login). A manual
+  `refresh()` is exposed for a deliberate re-pull.
+- Net: a whole session (all tabs + reloads, thanks to on-device persistence) = **one sign-in**.
+- Single-section routes (`/timetable` etc.) still exist but the app doesn't use them by default.
+- ⏳ **Untested live** (built during the `SI503` lockout) — verify with tomorrow's first login:
+  one login should populate home/timetable/calendar and both gated panels.
 
 ### ⏳ CURRENT STATE — attendance/marks pages admin-gated at semester start
 It's **AY2026-27 ODD, Semester 5**, freshly registered. `My_Attendance` (403) and marks pages

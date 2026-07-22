@@ -3,43 +3,42 @@
 import { motion } from "framer-motion";
 import AppShell from "@/components/AppShell";
 import StatePanel, { Spinner } from "@/components/StatePanel";
-import { useResource } from "@/hooks/useResource";
-import { fetchMarks } from "@/lib/api";
+import { useSession } from "@/context/SessionContext";
 
 function pct(scored: number, max: number): number {
   return max > 0 ? (scored / max) * 100 : 0;
 }
 
 export default function MarksPage() {
-  const marks = useResource(fetchMarks);
+  const { marks, marksState, marksMessage } = useSession();
 
   return (
     <AppShell title="marks">
-      {marks.status === "loading" && (
+      {marksState === "loading" && (
         <div className="flex flex-1 items-center justify-center">
           <Spinner />
         </div>
       )}
 
-      {marks.status === "gated" && (
+      {marksState === "gated" && (
         <StatePanel
           icon="⏳"
           tone="warning"
           title="No marks yet"
-          message={marks.message}
+          message={marksMessage ?? undefined}
         />
       )}
 
-      {marks.status === "error" && (
+      {marksState === "error" && (
         <StatePanel
           icon="⚠️"
           tone="danger"
           title="Couldn't load marks"
-          message={marks.message}
+          message={marksMessage ?? undefined}
         />
       )}
 
-      {marks.status === "ready" && marks.data.subjects.length === 0 && (
+      {marksState === "ready" && marks && marks.subjects.length === 0 && (
         <StatePanel
           icon="◆"
           title="Nothing graded yet"
@@ -47,9 +46,9 @@ export default function MarksPage() {
         />
       )}
 
-      {marks.status === "ready" && marks.data.subjects.length > 0 && (
+      {marksState === "ready" && marks && marks.subjects.length > 0 && (
         <ul className="flex flex-col gap-3 pb-6">
-          {marks.data.subjects.map((s, i) => (
+          {marks.subjects.map((s, i) => (
             <motion.li
               key={s.code}
               initial={{ opacity: 0, y: 10 }}

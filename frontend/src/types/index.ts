@@ -101,3 +101,17 @@ export type Marks = {
   subjects: SubjectMarks[];
   lastUpdated: string;
 };
+
+// ---- Combined snapshot (backend/models/snapshot.py) — one login ----
+export type SectionStatus = "ready" | "gated" | "error";
+
+export type Snapshot = {
+  timetable: Timetable;
+  attendance: Attendance | null;
+  attendanceStatus: SectionStatus;
+  attendanceMessage: string | null;
+  marks: Marks | null;
+  marksStatus: SectionStatus;
+  marksMessage: string | null;
+  fetchedAt: string;
+};

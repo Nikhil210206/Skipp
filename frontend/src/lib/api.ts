@@ -2,7 +2,13 @@
 // Credentials are POSTed per request (the backend is stateless) over HTTPS and
 // never stored server-side. See CLAUDE.md §3.
 
-import type { Attendance, Credentials, Marks, Timetable } from "@/types";
+import type {
+  Attendance,
+  Credentials,
+  Marks,
+  Snapshot,
+  Timetable,
+} from "@/types";
 
 const BASE_URL =
   process.env.NEXT_PUBLIC_API_URL?.replace(/\/$/, "") ?? "http://127.0.0.1:8000";
@@ -55,6 +61,10 @@ async function post<T>(path: string, creds: Credentials): Promise<T> {
   throw new PortalError(detail ?? `Something went wrong (${res.status}).`);
 }
 
+/** One login → timetable + attendance + marks. Prefer this over the singles. */
+export const fetchSnapshot = (c: Credentials) => post<Snapshot>("/refresh", c);
+
+// Single-section endpoints (each does its own login — use sparingly).
 export const fetchTimetable = (c: Credentials) =>
   post<Timetable>("/timetable", c);
 export const fetchAttendance = (c: Credentials) =>
