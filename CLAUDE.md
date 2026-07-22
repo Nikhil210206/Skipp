@@ -283,10 +283,11 @@ clarity on attendance/marks numbers.
 
 ## 11. Progress + reverse-engineering notes (KEEP UPDATED)
 
-**Full detail lives in [PLAN.md](PLAN.md).** Quick status — **Phase 1 spike essentially done**:
-login + app-session + Creator-page fetch + parse is proven end-to-end (see §11 detail). Timetable
-data is live and parses; attendance (`My_Attendance`) is **admin-gated at semester start** (403),
-so we're building session.py + timetable.py now and scaffolding attendance for when it re-enables.
+**Full detail lives in [PLAN.md](PLAN.md).** Quick status — **Phase 1 DONE, Phase 2 core done**:
+login → app-auth (`serviceurl` fix) → Creator-page fetch → parse is proven end-to-end in Python
+(`spike_login.py` parses the live timetable — 9 courses). `/timetable` + `/attendance` routes wired
+in `main.py`. Attendance (`My_Attendance`) is **admin-gated at semester start** (403 →
+`PageInaccessible`); its parser lands once the page is populated mid-semester.
 
 - **Phase 0 ✅** — scaffolded. Frontend = **Next 16 + React 19 + Tailwind v4** (not the 14
   in §2; `create-next-app@latest` shipped newer). Tailwind v4 uses `@theme` in
@@ -304,20 +305,30 @@ Zoho IAM inside an iframe. `uriPrefix = /accounts/p/40-10002227248`.
 2. `POST {prefix}/signin/v2/lookup/{urlencoded email}` body `mode=primary&cli_time=…&orgtype=40&service_language=en` → `{lookup:{identifier:<zuid>, digest}}`.
 3. `POST {prefix}/signin/v2/primary/{zuid}/password?digest=…&…` JSON `{"passwordauth":{"password":"…"}}` → 201, code `SI303`, returns `passwordauth.redirect_uri` (a `/preannouncement/block-sessions` interstitial → follow `.../next`).
 
-### ✅ RESOLVED — app-session handoff (browser capture via chrome-devtools MCP, 2026-07-21)
-Old blocker was: after login we held only IAM cookies (`iamcsr/stk/_iamtt`), **no Zoho
-Creator app-session cookie**, so every app URL returned the ~8KB SPA shell.
+### ✅ RESOLVED — app-session handoff (browser capture via chrome-devtools MCP, 2026-07-22)
+Old blocker: after login we held only IAM cookies (`iamcsr/stk/_iamtt`) + `JSESSIONID`, but
+every Creator page still returned the **login shell** — the app treated us as logged out.
 
-**Fix confirmed by capture:** a working app request to a Creator page carries these cookies —
-the missing one is **`JSESSIONID`** (the Zoho Creator app session), plus the IAM auth tokens
-`_iamadt_client_<zaid>` / `_iambdt_client_<zaid>` / `__Secure-iamsdt_client_<zaid>` and the
-WMS token `wms-tkp-token_client_<zaid>`. These are minted when the browser follows the
-post-login redirect chain all the way back to the app root (`https://academia.srmist.edu.in/`).
-**session.py fix:** after IAM `SI303` success, follow `redirect_uri` → the block-sessions
-interstitial → `.../next` → land on the app root so the app sets `JSESSIONID`. Then send the
-full cookie jar (IAM tokens + JSESSIONID + wms token) on Creator page GETs with headers
-`X-Requested-With: XMLHttpRequest` and `Referer: https://academia.srmist.edu.in/`.
-(Exact working cookie header saved in gitignored `backend/captures/`.)
+**Root cause (confirmed by capturing a fresh browser login):** the signin session must be
+registered with the academia **service URL**
+`https://academia.srmist.edu.in/portal/academia-academic-services/redirectFromLogin`,
+passed as `serviceurl` on the **signin GET**. Only then does the post-password redirect
+(`…/preannouncement/block-sessions/next` → **302** → `redirectFromLogin`) mint the app
+authorization cookies **`_iamadt_client_<zaid>`** / `_iambdt_client_<zaid>` /
+`__Secure-iamsdt_client_<zaid>`. Without `serviceurl`, IAM has nowhere to route `…/next`, so it
+never grants the app token — `JSESSIONID` alone is necessary but NOT sufficient.
+
+**The fix (working, proven end-to-end in Python 2026-07-22):**
+- `client.py`: `SIGNIN_PAGE` now appends `&serviceurl=<url-encoded redirectFromLogin>`.
+- `session.py`: after `SI303`, `_clear_announcements()` follows `redirect_uri` → the
+  block-sessions interstitial → `.../next` (httpx `follow_redirects` walks the 302 to
+  `redirectFromLogin`, minting `_iamadt_client_*`), then `_bootstrap_app_session()` GETs `/`
+  for `JSESSIONID`. `Session.fetch_page(name)` then fetches Creator pages with headers
+  `X-Requested-With: XMLHttpRequest` + `Referer: https://academia.srmist.edu.in/`, raising typed
+  `PageInaccessible` (403) / `PageNotFound` (404) / `AppSessionError` (login-shell) errors.
+- Verified: `spike_login.py` logs in and parses the live timetable page (9 courses); attendance
+  returns the real 403 → `PageInaccessible`. (Exact working cookie header in gitignored
+  `backend/captures/`.)
 
 ### Page structure (from a real browser capture, 2026-07-21)
 Portal is a Zoho Creator SPA. Each section is a server-rendered **Creator page** fetched via
