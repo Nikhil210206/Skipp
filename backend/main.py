@@ -10,8 +10,10 @@ from fastapi import FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel, Field
 
-from core.client import PAGE_TIMETABLE
+from core.client import PAGE_ATTENDANCE, PAGE_TIMETABLE
 from core.session import (
+    AppSessionError,
+    CaptchaRequired,
     InvalidCredentials,
     PageError,
     PageInaccessible,
@@ -20,9 +22,17 @@ from core.session import (
     UserNotFound,
     login,
 )
+from models.attendance import Attendance
+from models.marks import Marks
 from models.timetable import Timetable
+from services.attendance import AttendanceUnavailable, parse_attendance
 from services.creator import PageEmptyError
+from services.marks import MarksUnavailable, parse_marks
 from services.timetable import parse_timetable
+
+# Attendance and marks both render on the attendance page; marks appears once
+# the university publishes internal assessments.
+PAGE_MARKS = PAGE_ATTENDANCE
 
 app = FastAPI(title="Skipp API", version="0.0.1")
 
@@ -57,6 +67,8 @@ def _login_or_4xx(req: LoginRequest):
         raise HTTPException(status_code=404, detail=str(e)) from e
     except InvalidCredentials as e:
         raise HTTPException(status_code=401, detail=str(e)) from e
+    except CaptchaRequired as e:
+        raise HTTPException(status_code=429, detail=str(e)) from e
     except PortalError as e:
         raise HTTPException(status_code=502, detail=str(e)) from e
 
@@ -78,31 +90,53 @@ def timetable(req: LoginRequest) -> Timetable:
         session.close()
 
 
-@app.post("/attendance")
-def attendance(req: LoginRequest) -> dict:
-    """Log in and return attendance.
+@app.post("/attendance", response_model=Attendance)
+def attendance(req: LoginRequest) -> Attendance:
+    """Log in and return attendance + the bunk predictor.
 
     The `My_Attendance` page is admin-gated at semester start; until it's live
-    we surface a clean 503 rather than a 500. The parser lands once we can
-    capture a populated page.
+    we return a clean 503. Once populated, the parser runs automatically.
     """
     session = _login_or_4xx(req)
     try:
-        session.fetch_page("My_Attendance")
-        # TODO(phase 2): parse_attendance(raw) once the page is populated.
-        raise HTTPException(
-            status_code=501,
-            detail="Attendance parsing not implemented yet.",
-        )
-    except PageInaccessible as e:
-        raise HTTPException(
-            status_code=503,
-            detail="Attendance isn't available on the portal yet "
-            "(the university enables it once classes are recorded).",
-        ) from e
+        raw = session.fetch_page(PAGE_ATTENDANCE)
+        return parse_attendance(raw)
+    except (PageInaccessible, AttendanceUnavailable) as e:
+        raise HTTPException(status_code=503, detail=_GATED_MSG) from e
     except PageNotFound as e:
         raise HTTPException(status_code=404, detail=str(e)) from e
-    except PageError as e:
+    except (AppSessionError, PageEmptyError, PageError) as e:
         raise HTTPException(status_code=502, detail=str(e)) from e
     finally:
         session.close()
+
+
+@app.post("/marks", response_model=Marks)
+def marks(req: LoginRequest) -> Marks:
+    """Log in and return internal marks per subject.
+
+    Marks publish onto the attendance page once assessments happen; until then
+    this returns a clean 503, then works automatically.
+    """
+    session = _login_or_4xx(req)
+    try:
+        raw = session.fetch_page(PAGE_MARKS)
+        return parse_marks(raw)
+    except (PageInaccessible, MarksUnavailable) as e:
+        raise HTTPException(status_code=503, detail=_MARKS_GATED_MSG) from e
+    except PageNotFound as e:
+        raise HTTPException(status_code=404, detail=str(e)) from e
+    except (AppSessionError, PageEmptyError, PageError) as e:
+        raise HTTPException(status_code=502, detail=str(e)) from e
+    finally:
+        session.close()
+
+
+_GATED_MSG = (
+    "Attendance isn't available on the portal yet "
+    "(the university enables it once classes are recorded)."
+)
+_MARKS_GATED_MSG = (
+    "Marks aren't published on the portal yet "
+    "(they appear once internal assessments are graded)."
+)

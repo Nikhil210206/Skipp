@@ -347,6 +347,25 @@ Portal is a Zoho Creator SPA. Each section is a server-rendered **Creator page**
   inaccessible … contact your administrator"**, not 404). All other guesses (`My_Marks`,
   `My_Attendance_Details`, year-suffixed variants) → **404**.
 
+### ⚠️ Login robustness — concurrent-session block + CAPTCHA (2026-07-22)
+Two anti-automation gates surfaced while smoke-testing the full stack:
+- **Concurrent-session limit (2 max).** If the account already has 2 active IAM
+  sessions, the post-login interstitial becomes Zoho's *"Maximum concurrent
+  sessions limit exceeded"* (ConcurrentBlock) page, and `.../next` bounces back to
+  it forever (never mints `_iamadt_client`). Fix in `session.py`:
+  `_clear_announcements` detects the `terminateAllSession` marker and issues the
+  page's own `DELETE {IAM_PREFIX}/webclient/v1/announcement/pre/blocksessions`
+  (double-submit CSRF header) once, then re-follows `.../next`. Also:
+  `Session.close()` now logs out server-side (`GET {IAM_PREFIX}/logout?serviceurl=…`)
+  so scrapes don't pile up sessions and hit the limit in the first place.
+- **HIP / CAPTCHA (code `IN108`, "HIP REQUIRED").** After many rapid logins IAM
+  demands a CAPTCHA at the lookup (or password) step. Can't be solved headlessly.
+  Surfaced as typed `CaptchaRequired` → HTTP 429. It clears on its own after a
+  cooldown; **don't hammer the portal** (CLAUDE.md §9). Interactive CAPTCHA solving
+  (show HIP image to user, submit `hipcode` + `cdigest`) is a future enhancement.
+- `SKIPP_DEBUG_LOGIN=1` dumps handoff/shell HTML to gitignored `captures/` and logs
+  cookie *names* (never values) — the tool used to diagnose all of the above.
+
 ### ⏳ CURRENT STATE — attendance/marks pages admin-gated at semester start
 It's **AY2026-27 ODD, Semester 5**, freshly registered. `My_Attendance` (403) and marks pages
 are **disabled by the SRM admin** until classes are held and attendance is recorded. This is
