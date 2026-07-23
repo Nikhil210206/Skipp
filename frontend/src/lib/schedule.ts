@@ -1,6 +1,84 @@
 // Day-order helpers shared by home / timetable / calendar.
 
-import type { CalendarDay, ClassPeriod, DayOrderSchedule, Timetable } from "@/types";
+import type {
+  CalendarDay,
+  ClassPeriod,
+  CustomClass,
+  DayOrderSchedule,
+  Timetable,
+} from "@/types";
+
+/** A unified schedule row — an official class or a user-added custom one. */
+export type ScheduleItem = {
+  id: string;
+  start: string;
+  end: string;
+  startMin: number;
+  endMin: number;
+  title: string;
+  abbrev: string;
+  room: string | null;
+  faculty: string | null;
+  isLab: boolean;
+  isCustom: boolean;
+  slot: string | null;
+};
+
+/** Portal-style time from minutes: 490 -> "08:10", 800 -> "01:20" (no am/pm). */
+export function fmtTime(min: number): string {
+  let h = Math.floor(min / 60);
+  const m = min % 60;
+  if (h > 12) h -= 12;
+  return `${String(h).padStart(2, "0")}:${String(m).padStart(2, "0")}`;
+}
+
+function periodToItem(p: ClassPeriod): ScheduleItem {
+  return {
+    id: `${p.slot}-${p.hour}`,
+    start: p.start,
+    end: p.end,
+    startMin: p.startMin,
+    endMin: p.endMin,
+    title: p.title,
+    abbrev: p.abbrev,
+    room: p.room,
+    faculty: p.faculty,
+    isLab: p.isLab,
+    isCustom: false,
+    slot: p.slot,
+  };
+}
+
+function customToItem(c: CustomClass): ScheduleItem {
+  return {
+    id: c.id,
+    start: fmtTime(c.startMin),
+    end: fmtTime(c.endMin),
+    startMin: c.startMin,
+    endMin: c.endMin,
+    title: c.title,
+    abbrev: c.abbrev,
+    room: c.room,
+    faculty: c.faculty,
+    isLab: false,
+    isCustom: true,
+    slot: null,
+  };
+}
+
+/** Official classes for a day order merged with the user's custom ones, sorted. */
+export function daySchedule(
+  officialClasses: ClassPeriod[],
+  custom: CustomClass[],
+  dayOrder: number | null,
+): ScheduleItem[] {
+  const off = officialClasses.map(periodToItem);
+  const cust =
+    dayOrder == null
+      ? []
+      : custom.filter((c) => c.dayOrder === dayOrder).map(customToItem);
+  return [...off, ...cust].sort((a, b) => a.startMin - b.startMin);
+}
 
 /** Local date as YYYY-MM-DD (not UTC — matches the portal's local calendar). */
 export function todayISO(d = new Date()): string {
@@ -30,13 +108,12 @@ export function scheduleFor(
   return dayOrders.find((d) => d.dayOrder === n);
 }
 
-/** The next class today after `nowMin`, or null. */
+/** The next schedule item today after `nowMin`, or null. */
 export function nextClass(
-  schedule: DayOrderSchedule | undefined,
+  items: ScheduleItem[],
   nowMin: number,
-): ClassPeriod | null {
-  if (!schedule) return null;
-  return schedule.classes.find((c) => c.endMin > nowMin) ?? null;
+): ScheduleItem | null {
+  return items.find((c) => c.endMin > nowMin) ?? null;
 }
 
 export type FocusDay = {
@@ -101,29 +178,24 @@ function pick(d: CalendarDay) {
   };
 }
 
-/** Interleave classes with "break" gaps for a timeline view. */
+/** Interleave schedule items with "break" gaps for a timeline view. */
 export type TimelineItem =
-  | { kind: "class"; period: ClassPeriod }
+  | { kind: "class"; item: ScheduleItem }
   | { kind: "break"; start: string; end: string; minutes: number };
 
-export function timeline(classes: ClassPeriod[]): TimelineItem[] {
-  const items: TimelineItem[] = [];
-  classes.forEach((c, i) => {
+export function timeline(items: ScheduleItem[]): TimelineItem[] {
+  const out: TimelineItem[] = [];
+  items.forEach((c, i) => {
     if (i > 0) {
-      const prev = classes[i - 1];
+      const prev = items[i - 1];
       const gap = c.startMin - prev.endMin;
       if (gap > 0) {
-        items.push({
-          kind: "break",
-          start: prev.end,
-          end: c.start,
-          minutes: gap,
-        });
+        out.push({ kind: "break", start: prev.end, end: c.start, minutes: gap });
       }
     }
-    items.push({ kind: "class", period: c });
+    out.push({ kind: "class", item: c });
   });
-  return items;
+  return out;
 }
 
 /** Pretty date like "Wed, Jul 22". */

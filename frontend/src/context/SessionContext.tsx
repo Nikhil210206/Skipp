@@ -9,6 +9,7 @@ import { createContext, useContext, useEffect, useMemo, useState } from "react";
 import type {
   Attendance,
   Credentials,
+  CustomClass,
   Marks,
   SectionStatus,
   Snapshot,
@@ -21,6 +22,11 @@ import {
   loadCredentials,
   saveCredentials,
 } from "@/lib/crypto";
+import {
+  loadCustomClasses,
+  newCustomId,
+  saveCustomClasses,
+} from "@/lib/customClasses";
 
 type SectionState = SectionStatus | "loading";
 
@@ -38,6 +44,9 @@ type SessionValue = {
   isAuthed: boolean;
   restoring: boolean;
   refreshing: boolean;
+  customClasses: CustomClass[];
+  addCustomClass: (c: Omit<CustomClass, "id">) => void;
+  removeCustomClass: (id: string) => void;
   login: (creds: Credentials) => Promise<void>;
   refresh: () => Promise<void>;
   logout: () => void;
@@ -50,6 +59,15 @@ export function SessionProvider({ children }: { children: React.ReactNode }) {
   const [snapshot, setSnapshot] = useState<Snapshot | null>(null);
   const [restoring, setRestoring] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
+  const [customClasses, setCustomClasses] = useState<CustomClass[]>([]);
+
+  const reg = snapshot?.timetable.student.registrationNumber ?? null;
+
+  // Load this student's custom classes from on-device storage once we know who
+  // they are (keyed by registration number).
+  useEffect(() => {
+    setCustomClasses(reg ? loadCustomClasses(reg) : []);
+  }, [reg]);
 
   // Rehydrate an encrypted session from a prior visit (one login).
   useEffect(() => {
@@ -94,6 +112,17 @@ export function SessionProvider({ children }: { children: React.ReactNode }) {
       isAuthed: creds !== null,
       restoring,
       refreshing,
+      customClasses,
+      addCustomClass(c) {
+        const next = [...customClasses, { ...c, id: newCustomId() }];
+        setCustomClasses(next);
+        if (reg) saveCustomClasses(reg, next);
+      },
+      removeCustomClass(id) {
+        const next = customClasses.filter((c) => c.id !== id);
+        setCustomClasses(next);
+        if (reg) saveCustomClasses(reg, next);
+      },
       async login(next) {
         const snap = await fetchSnapshot(next);
         setCreds(next);
@@ -115,7 +144,7 @@ export function SessionProvider({ children }: { children: React.ReactNode }) {
         clearCredentials();
       },
     };
-  }, [creds, snapshot, restoring, refreshing]);
+  }, [creds, snapshot, restoring, refreshing, customClasses, reg]);
 
   return (
     <SessionContext.Provider value={value}>{children}</SessionContext.Provider>

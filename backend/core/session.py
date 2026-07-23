@@ -198,6 +198,8 @@ class Session:
             raise PageError(
                 f"'{page_name}' returned HTTP {resp.status_code}."
             )
+        if _DEBUG:
+            _dump(f"page_{page_name}.html", resp.text)
         if _LOGIN_SHELL_MARKER in resp.text:
             if _DEBUG:
                 log.warning(

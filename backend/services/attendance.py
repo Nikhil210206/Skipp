@@ -55,6 +55,16 @@ def _to_float(text: str) -> float | None:
     return float(m.group()) if m else None
 
 
+# SRM course code, e.g. 21CSC302J / 21MAB302T. The attendance cell appends the
+# registration type ("21CSC302JRegular"), so extract just the code.
+_COURSE_CODE = re.compile(r"\d{2}[A-Z]{2,4}\d{3}[A-Z]?")
+
+
+def _course_code(cell: str) -> str:
+    m = _COURSE_CODE.search(cell or "")
+    return m.group() if m else _clean(cell)
+
+
 def parse_attendance(raw: str, threshold: float = 75.0) -> Attendance:
     """Parse the raw Creator-page response into an Attendance object."""
     html = extract_page_html(raw)
@@ -82,7 +92,7 @@ def parse_attendance(raw: str, threshold: float = 75.0) -> Attendance:
             idx = col_index.get(field)
             return row[idx] if idx is not None and idx < len(row) else ""
 
-        code = cell("code")
+        code = _course_code(cell("code"))
         if not code:
             continue
 

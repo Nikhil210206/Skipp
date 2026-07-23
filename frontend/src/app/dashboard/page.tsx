@@ -5,25 +5,31 @@ import { motion } from "framer-motion";
 import AppShell from "@/components/AppShell";
 import { useSession } from "@/context/SessionContext";
 import {
+  daySchedule,
   focusDay,
   nextClass,
   nowMinutes,
   scheduleFor,
   upcomingHoliday,
+  type ScheduleItem,
 } from "@/lib/schedule";
-import type { ClassPeriod } from "@/types";
 
 export default function DashboardPage() {
-  const { student, timetable, attendance, attendanceState } = useSession();
+  const { student, timetable, attendance, attendanceState, customClasses } =
+    useSession();
 
   const focus = timetable ? focusDay(timetable) : null;
   const schedule = timetable
     ? scheduleFor(timetable.dayOrders, focus?.dayOrder ?? null)
     : undefined;
-  const classes = schedule?.classes ?? [];
+  const classes = daySchedule(
+    schedule?.classes ?? [],
+    customClasses,
+    focus?.dayOrder ?? null,
+  );
   const upNext =
     focus?.label === "TODAY"
-      ? nextClass(schedule, nowMinutes())
+      ? nextClass(classes, nowMinutes())
       : (classes[0] ?? null);
 
   const nextHoliday =
@@ -85,7 +91,9 @@ export default function DashboardPage() {
             <span className="flex items-center gap-2 text-sm">
               <span className="size-2 rounded-full bg-accent" />
               <span className="font-semibold">{upNext.abbrev}</span>
-              <span className="text-text-muted">· {upNext.slot}</span>
+              <span className="text-text-muted">
+                · {upNext.isCustom ? "custom" : upNext.slot}
+              </span>
             </span>
             <span className="text-sm text-text-muted">
               {upNext.start} – {upNext.end}
@@ -126,7 +134,7 @@ export default function DashboardPage() {
   );
 }
 
-function ClassChip({ c, highlight }: { c: ClassPeriod; highlight: boolean }) {
+function ClassChip({ c, highlight }: { c: ScheduleItem; highlight: boolean }) {
   return (
     <motion.div
       initial={{ opacity: 0, scale: 0.94 }}

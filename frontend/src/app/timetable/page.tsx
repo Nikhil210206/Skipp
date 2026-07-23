@@ -4,23 +4,28 @@ import { useState } from "react";
 import { motion } from "framer-motion";
 import AppShell from "@/components/AppShell";
 import StatePanel from "@/components/StatePanel";
+import CustomClassSheet from "@/components/CustomClassSheet";
 import { useSession } from "@/context/SessionContext";
 import {
   calendarDay,
+  daySchedule,
   scheduleFor,
   timeline,
   todayISO,
+  type ScheduleItem,
   type TimelineItem,
 } from "@/lib/schedule";
 
 export default function TimetablePage() {
-  const { timetable } = useSession();
+  const { timetable, customClasses, addCustomClass, removeCustomClass } =
+    useSession();
   const dayOrders = timetable?.dayOrders ?? [];
   const todayDO = timetable
     ? (calendarDay(timetable.calendar, todayISO())?.dayOrder ?? null)
     : null;
 
   const [selected, setSelected] = useState<number>(todayDO ?? 1);
+  const [sheetOpen, setSheetOpen] = useState(false);
 
   if (dayOrders.length === 0) {
     return (
@@ -35,7 +40,7 @@ export default function TimetablePage() {
   }
 
   const schedule = scheduleFor(dayOrders, selected);
-  const classes = schedule?.classes ?? [];
+  const classes = daySchedule(schedule?.classes ?? [], customClasses, selected);
   const items = timeline(classes);
   const first = classes[0];
   const last = classes.at(-1);
@@ -58,7 +63,7 @@ export default function TimetablePage() {
       </div>
 
       {/* DO selector */}
-      <div className="mb-5 flex items-center gap-1 rounded-full bg-surface p-1">
+      <div className="mb-4 flex items-center gap-1 rounded-full bg-surface p-1">
         <span className="px-3 text-xs font-bold uppercase tracking-wider text-accent">
           DO
         </span>
@@ -84,6 +89,22 @@ export default function TimetablePage() {
           );
         })}
       </div>
+
+      {/* Add custom class */}
+      <button
+        onClick={() => setSheetOpen(true)}
+        className="mb-4 flex w-full items-center gap-3 rounded-2xl border border-dashed border-white/15 px-4 py-3 text-left transition-colors hover:border-accent/50"
+      >
+        <span className="flex size-9 items-center justify-center rounded-full bg-surface-2 text-lg text-accent">
+          +
+        </span>
+        <span>
+          <span className="block font-semibold lowercase">custom class</span>
+          <span className="block text-xs text-text-muted">
+            add an extra class to day order {selected}
+          </span>
+        </span>
+      </button>
 
       {/* Day overview */}
       {classes.length > 0 ? (
@@ -111,14 +132,35 @@ export default function TimetablePage() {
       <ul className="relative flex flex-col gap-3 pb-6 pl-4">
         <span className="absolute bottom-6 left-[7px] top-2 w-px bg-white/10" />
         {items.map((item, i) => (
-          <TimelineRow key={i} item={item} index={i} />
+          <TimelineRow
+            key={i}
+            item={item}
+            index={i}
+            onRemove={removeCustomClass}
+          />
         ))}
       </ul>
+
+      <CustomClassSheet
+        open={sheetOpen}
+        dayOrder={selected}
+        dayOrders={dayOrders.map((d) => d.dayOrder)}
+        onClose={() => setSheetOpen(false)}
+        onAdd={addCustomClass}
+      />
     </AppShell>
   );
 }
 
-function TimelineRow({ item, index }: { item: TimelineItem; index: number }) {
+function TimelineRow({
+  item,
+  index,
+  onRemove,
+}: {
+  item: TimelineItem;
+  index: number;
+  onRemove: (id: string) => void;
+}) {
   if (item.kind === "break") {
     return (
       <li className="flex items-center gap-3 py-0.5 opacity-50">
@@ -132,7 +174,7 @@ function TimelineRow({ item, index }: { item: TimelineItem; index: number }) {
       </li>
     );
   }
-  const c = item.period;
+  const c: ScheduleItem = item.item;
   return (
     <motion.li
       initial={{ opacity: 0, x: 8 }}
@@ -140,26 +182,62 @@ function TimelineRow({ item, index }: { item: TimelineItem; index: number }) {
       transition={{ delay: Math.min(index * 0.03, 0.25) }}
       className="relative"
     >
-      <span className="absolute -left-4 top-4 size-3 rounded-full border-2 border-background bg-accent" />
-      <div className="rounded-2xl bg-surface p-4">
+      <span
+        className={`absolute -left-4 top-4 size-3 rounded-full border-2 border-background ${
+          c.isCustom ? "bg-warning" : "bg-accent"
+        }`}
+      />
+      <div
+        className={`rounded-2xl p-4 ${
+          c.isCustom ? "border border-warning/25 bg-warning/[0.06]" : "bg-surface"
+        }`}
+      >
         <div className="mb-1 flex items-center gap-2 text-sm text-text-muted">
           <span>🕐</span>
           <span className="font-medium">
             {c.start} – {c.end}
           </span>
-          {c.isLab && (
-            <span className="rounded-full bg-accent/15 px-2 py-0.5 text-[10px] font-semibold uppercase text-accent">
-              lab
-            </span>
+          {c.isLab && <Tag>lab</Tag>}
+          {c.isCustom && <Tag tone="warning">custom</Tag>}
+          {c.isCustom && (
+            <button
+              onClick={() => onRemove(c.id)}
+              className="ml-auto text-xs text-text-muted hover:text-danger"
+              aria-label="Remove custom class"
+            >
+              remove
+            </button>
           )}
         </div>
         <h3 className="text-2xl font-extrabold tracking-tight">{c.abbrev}</h3>
         <p className="text-sm text-text-muted">{c.title}</p>
-        <div className="mt-3 flex items-center gap-4 border-t border-white/5 pt-3 text-xs text-text-muted">
-          {c.room && <span>📍 {c.room}</span>}
-          {c.faculty && <span className="truncate">👤 {c.faculty}</span>}
-        </div>
+        {(c.room || c.faculty) && (
+          <div className="mt-3 flex items-center gap-4 border-t border-white/5 pt-3 text-xs text-text-muted">
+            {c.room && <span>📍 {c.room}</span>}
+            {c.faculty && <span className="truncate">👤 {c.faculty}</span>}
+          </div>
+        )}
       </div>
     </motion.li>
+  );
+}
+
+function Tag({
+  children,
+  tone = "accent",
+}: {
+  children: React.ReactNode;
+  tone?: "accent" | "warning";
+}) {
+  return (
+    <span
+      className={`rounded-full px-2 py-0.5 text-[10px] font-semibold uppercase ${
+        tone === "warning"
+          ? "bg-warning/15 text-warning"
+          : "bg-accent/15 text-accent"
+      }`}
+    >
+      {children}
+    </span>
   );
 }

@@ -102,6 +102,18 @@ export type Marks = {
   lastUpdated: string;
 };
 
+// ---- User-added custom classes (on-device only) ----
+export type CustomClass = {
+  id: string;
+  dayOrder: number;
+  startMin: number; // minutes since midnight (24h)
+  endMin: number;
+  title: string;
+  abbrev: string;
+  room: string | null;
+  faculty: string | null;
+};
+
 // ---- Combined snapshot (backend/models/snapshot.py) — one login ----
 export type SectionStatus = "ready" | "gated" | "error";
 

@@ -48,12 +48,12 @@ def parse_marks(raw: str) -> Marks:
         )
 
     subjects: list[SubjectMarks] = []
-    for code, title, marks_cell in _course_rows(table):
-        components = _parse_components(marks_cell)
+    for code, marks_cell in _course_rows(table):
+        components = _parse_components(marks_cell) if marks_cell else []
         subjects.append(
             SubjectMarks(
                 code=code,
-                title=title,
+                title="",  # marks table has no title column — enriched from timetable
                 components=components,
                 scored_total=round(sum(c.scored for c in components), 2),
                 max_total=round(sum(c.max for c in components), 2),
@@ -75,23 +75,20 @@ def _find_marks_table(soup: BeautifulSoup) -> Tag | None:
 
 
 def _course_rows(table: Tag):
-    """Yield (code, title, marks_cell) per course row.
+    """Yield (code, marks_cell_or_None) per course row.
 
-    A course row is one whose first cell looks like a course code and which
-    contains a nested table (the component grid).
+    A course row is one whose first cell looks like a course code. The marks
+    cell (nested component table) may be absent before any tests are graded — we
+    still yield the course so it shows with "no components yet".
     """
     for tr in table.find_all("tr"):
         cells = tr.find_all("td", recursive=False) or tr.find_all("td")
         if not cells:
             continue
         code = _clean(cells[0].get_text())
-        if not re.match(r"^[0-9A-Z]{6,}$", code):
-            continue  # header / non-course row
-        nested = tr.find("table")
-        if nested is None:
-            continue
-        title = _clean(cells[1].get_text()) if len(cells) > 1 else ""
-        yield code, title, nested
+        if not re.match(r"^\d{2}[A-Z]{2,4}\d{3}[A-Z]?$", code):
+            continue  # header / course-type / non-course row
+        yield code, tr.find("table")
 
 
 def _parse_components(nested: Tag) -> list[MarkComponent]:

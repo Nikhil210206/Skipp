@@ -134,6 +134,10 @@ def refresh(req: LoginRequest) -> Snapshot:
             lambda: parse_marks(session.fetch_page(PAGE_MARKS)),
             _MARKS_GATED_MSG,
         )
+        if marks:  # the marks table has no title column — fill from the timetable
+            titles = {c.code: c.title for c in tt.courses}
+            for s in marks.subjects:
+                s.title = titles.get(s.code, s.code)
         return Snapshot(
             timetable=tt,
             attendance=att,

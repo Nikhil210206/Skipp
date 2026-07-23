@@ -307,6 +307,16 @@ Built + validated against a real capture AND a friend's app (exact match on DO2/
 - ⚠️ "today's day order" needs the real clock to fall inside the term; `focusDay()` falls back
   to the first working day when it doesn't (the AY2026-27 data is "future" vs a real clock).
 
+### ✅ Custom classes (user-added, on-device only, 2026-07-23)
+Users can add extra classes the portal doesn't list (makeup/extra classes) to any day order.
+Frontend-only — the backend stores nothing. `CustomClass` persisted in localStorage keyed by
+reg number (`lib/customClasses.ts`), managed in `SessionContext` (`addCustomClass`/`removeCustomClass`).
+`lib/schedule.ts` `daySchedule()` merges official `ClassPeriod`s + custom into a sorted
+`ScheduleItem[]` (shared display type; official + custom both map to it). Timetable page has a
+"+ custom class" bottom sheet (`components/CustomClassSheet.tsx`, day order + name + start/end +
+room); custom rows show an amber "custom" badge + remove button; they also flow into the Home
+strip/up-next. Typechecks + builds; **not yet clicked live** (built during SI503 lockout).
+
 ### ✅ On-device session persistence (Phase 3 security, `frontend/src/lib/crypto.ts`)
 Non-exportable AES-GCM key in IndexedDB, encrypted creds blob in localStorage. `SessionContext`
 rehydrates on load (decrypt → refetch timetable) so a return visit **doesn't retype the password**.
@@ -408,12 +418,24 @@ browsing session could fire 4-5 sign-ins toward the daily `SI503` cap. **Fixed 2
 - ⏳ **Untested live** (built during the `SI503` lockout) — verify with tomorrow's first login:
   one login should populate home/timetable/calendar and both gated panels.
 
-### ⏳ CURRENT STATE — attendance/marks pages admin-gated at semester start
-It's **AY2026-27 ODD, Semester 5**, freshly registered. `My_Attendance` (403) and marks pages
-are **disabled by the SRM admin** until classes are held and attendance is recorded. This is
-outside our control — the data pipeline (login → app session → fetch Creator page → parse
-`pageSanitizer` HTML) is proven end-to-end on the timetable page; attendance will use the
-identical mechanism once `My_Attendance` is re-enabled.
+### ✅ LIVE + verified end-to-end (2026-07-23) — attendance/marks enabled
+`My_Attendance` went live once classes started. Full app verified in-browser against real data:
+- **`My_Attendance` holds BOTH tables:** an **attendance** table (`Course Code | Course Title |
+  Category | Faculty | Slot | Room No | Hours Conducted | Hours Absent | Attn %`) AND a **marks**
+  table (`Course Code | Course Type | Test Performance`(nested)). So marks parse the same page
+  (`PAGE_MARKS = PAGE_ATTENDANCE`).
+- **Fixes made against the real HTML (were blind before):**
+  - Attendance code cell is `21CSC302JRegular` (code+regn-type) → `_course_code()` regex-extracts
+    the clean code (`services/attendance.py`).
+  - Marks table has NO title column (col 2 is Course Type) → parser sets `title=""`, and `/refresh`
+    enriches titles from the timetable courses by code (`main.py`).
+  - **Planner was silently empty live**: `parse_planner` needs HTML-entity-*unescaped* input, but
+    the route passed raw encoded HTML → now `academic_planner.parse_planner` unescapes internally.
+- **Verified live:** attendance 92.9% + bunk predictor; marks (titles correct, 0 components — no
+  tests yet 2 days in); calendar (today Jul 23 = DO3, superscripts + holidays); home day-order +
+  "next: Independence Day"; one-login `/refresh` caches all; session rehydrate on reload; **custom
+  classes** (add → merge/sort → CUSTOM badge → remove, persisted on-device).
+- `SKIPP_DEBUG_LOGIN=1` also dumps each fetched Creator page to `captures/page_<name>.html`.
 
 ### NEXT STEP
 1. ✅ chrome-devtools MCP working (plugin server; the redundant broken `.mcp.json` was removed).

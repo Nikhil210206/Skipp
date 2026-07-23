@@ -11,6 +11,7 @@ weekday, day order (or None), event text, and a holiday flag.
 """
 from __future__ import annotations
 
+import html as _html
 import re
 from calendar import monthrange
 from datetime import date
@@ -34,10 +35,11 @@ def parse_planner(
 ) -> list[dict]:
     """Return [{date, weekday, dayOrder|None, event|None, isHoliday}, ...].
 
-    `raw` is the *unescaped* planner HTML. `first_year`/`first_month` anchor the
-    leftmost month block (e.g. 2026, 7 for the 2026-27 ODD semester).
+    `first_year`/`first_month` anchor the leftmost month block (e.g. 2026, 7 for
+    the 2026-27 ODD semester). The planner ships HTML-entity-encoded (`&lt;td&gt;`
+    …), so we unescape first; idempotent if already decoded.
     """
-    soup = BeautifulSoup(raw, "html.parser")
+    soup = BeautifulSoup(_html.unescape(raw), "html.parser")
     table = _find_calendar_table(soup)
     if table is None:
         raise AcademicPlannerError("Calendar table not found.")
