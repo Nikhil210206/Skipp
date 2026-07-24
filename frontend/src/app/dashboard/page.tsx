@@ -15,18 +15,26 @@ import {
 } from "@/lib/schedule";
 
 export default function DashboardPage() {
-  const { student, timetable, attendance, attendanceState, customClasses } =
-    useSession();
+  const {
+    student,
+    timetable,
+    attendance,
+    attendanceState,
+    customClasses,
+    optionalCourses,
+  } = useSession();
 
   const focus = timetable ? focusDay(timetable) : null;
   const schedule = timetable
     ? scheduleFor(timetable.dayOrders, focus?.dayOrder ?? null)
     : undefined;
+  // Home features the classes you actually attend — optional ones are excluded.
   const classes = daySchedule(
     schedule?.classes ?? [],
     customClasses,
     focus?.dayOrder ?? null,
-  );
+    optionalCourses,
+  ).filter((c) => !c.isOptional);
   const upNext =
     focus?.label === "TODAY"
       ? nextClass(classes, nowMinutes())

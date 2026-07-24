@@ -28,3 +28,24 @@ export function saveCustomClasses(reg: string, list: CustomClass[]): void {
 export function newCustomId(): string {
   return `c_${Date.now().toString(36)}_${Math.random().toString(36).slice(2, 7)}`;
 }
+
+// Course codes the student has marked "optional" (don't regularly attend).
+const optKey = (reg: string) => `skipp.optional.${reg}`;
+
+export function loadOptionalCourses(reg: string): string[] {
+  try {
+    const raw = localStorage.getItem(optKey(reg));
+    const parsed = raw ? JSON.parse(raw) : [];
+    return Array.isArray(parsed) ? (parsed as string[]) : [];
+  } catch {
+    return [];
+  }
+}
+
+export function saveOptionalCourses(reg: string, codes: string[]): void {
+  try {
+    localStorage.setItem(optKey(reg), JSON.stringify(codes));
+  } catch {
+    /* non-fatal */
+  }
+}

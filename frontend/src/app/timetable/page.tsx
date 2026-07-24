@@ -17,8 +17,14 @@ import {
 } from "@/lib/schedule";
 
 export default function TimetablePage() {
-  const { timetable, customClasses, addCustomClass, removeCustomClass } =
-    useSession();
+  const {
+    timetable,
+    customClasses,
+    addCustomClass,
+    removeCustomClass,
+    optionalCourses,
+    toggleOptional,
+  } = useSession();
   const dayOrders = timetable?.dayOrders ?? [];
   const todayDO = timetable
     ? (calendarDay(timetable.calendar, todayISO())?.dayOrder ?? null)
@@ -40,10 +46,17 @@ export default function TimetablePage() {
   }
 
   const schedule = scheduleFor(dayOrders, selected);
-  const classes = daySchedule(schedule?.classes ?? [], customClasses, selected);
+  const classes = daySchedule(
+    schedule?.classes ?? [],
+    customClasses,
+    selected,
+    optionalCourses,
+  );
   const items = timeline(classes);
-  const first = classes[0];
-  const last = classes.at(-1);
+  // The day-overview reflects classes you actually attend (optional excluded).
+  const attending = classes.filter((c) => !c.isOptional);
+  const first = attending[0];
+  const last = attending.at(-1);
 
   return (
     <AppShell title="timetable">
@@ -118,7 +131,7 @@ export default function TimetablePage() {
             <span className="font-bold text-accent">{last?.end}</span>
           </span>
           <span className="text-sm">
-            <span className="font-bold">{classes.length}</span>
+            <span className="font-bold">{attending.length}</span>
             <span className="text-text-muted"> classes</span>
           </span>
         </div>
@@ -137,6 +150,7 @@ export default function TimetablePage() {
             item={item}
             index={i}
             onRemove={removeCustomClass}
+            onToggleOptional={toggleOptional}
           />
         ))}
       </ul>
@@ -156,10 +170,12 @@ function TimelineRow({
   item,
   index,
   onRemove,
+  onToggleOptional,
 }: {
   item: TimelineItem;
   index: number;
   onRemove: (id: string) => void;
+  onToggleOptional: (code: string) => void;
 }) {
   if (item.kind === "break") {
     return (
@@ -175,6 +191,11 @@ function TimelineRow({
     );
   }
   const c: ScheduleItem = item.item;
+  const dot = c.isCustom
+    ? "bg-warning"
+    : c.isOptional
+      ? "bg-white/25"
+      : "bg-accent";
   return (
     <motion.li
       initial={{ opacity: 0, x: 8 }}
@@ -183,14 +204,14 @@ function TimelineRow({
       className="relative"
     >
       <span
-        className={`absolute -left-4 top-4 size-3 rounded-full border-2 border-background ${
-          c.isCustom ? "bg-warning" : "bg-accent"
-        }`}
+        className={`absolute -left-4 top-4 size-3 rounded-full border-2 border-background ${dot}`}
       />
       <div
-        className={`rounded-2xl p-4 ${
-          c.isCustom ? "border border-warning/25 bg-warning/[0.06]" : "bg-surface"
-        }`}
+        className={`rounded-2xl p-4 transition-opacity ${
+          c.isCustom
+            ? "border border-warning/25 bg-warning/[0.06]"
+            : "bg-surface"
+        } ${c.isOptional ? "opacity-45" : ""}`}
       >
         <div className="mb-1 flex items-center gap-2 text-sm text-text-muted">
           <span>🕐</span>
@@ -199,7 +220,8 @@ function TimelineRow({
           </span>
           {c.isLab && <Tag>lab</Tag>}
           {c.isCustom && <Tag tone="warning">custom</Tag>}
-          {c.isCustom && (
+          {c.isOptional && <Tag tone="muted">optional</Tag>}
+          {c.isCustom ? (
             <button
               onClick={() => onRemove(c.id)}
               className="ml-auto text-xs text-text-muted hover:text-danger"
@@ -207,9 +229,22 @@ function TimelineRow({
             >
               remove
             </button>
+          ) : (
+            <button
+              onClick={() => onToggleOptional(c.code)}
+              className="ml-auto text-xs text-text-muted hover:text-text-primary"
+            >
+              {c.isOptional ? "make required" : "mark optional"}
+            </button>
           )}
         </div>
-        <h3 className="text-2xl font-extrabold tracking-tight">{c.abbrev}</h3>
+        <h3
+          className={`text-2xl font-extrabold tracking-tight ${
+            c.isOptional ? "line-through decoration-white/30" : ""
+          }`}
+        >
+          {c.abbrev}
+        </h3>
         <p className="text-sm text-text-muted">{c.title}</p>
         {(c.room || c.faculty) && (
           <div className="mt-3 flex items-center gap-4 border-t border-white/5 pt-3 text-xs text-text-muted">
@@ -227,15 +262,17 @@ function Tag({
   tone = "accent",
 }: {
   children: React.ReactNode;
-  tone?: "accent" | "warning";
+  tone?: "accent" | "warning" | "muted";
 }) {
+  const cls =
+    tone === "warning"
+      ? "bg-warning/15 text-warning"
+      : tone === "muted"
+        ? "bg-white/10 text-text-muted"
+        : "bg-accent/15 text-accent";
   return (
     <span
-      className={`rounded-full px-2 py-0.5 text-[10px] font-semibold uppercase ${
-        tone === "warning"
-          ? "bg-warning/15 text-warning"
-          : "bg-accent/15 text-accent"
-      }`}
+      className={`rounded-full px-2 py-0.5 text-[10px] font-semibold uppercase ${cls}`}
     >
       {children}
     </span>

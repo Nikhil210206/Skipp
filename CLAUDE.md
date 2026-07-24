@@ -307,6 +307,14 @@ Built + validated against a real capture AND a friend's app (exact match on DO2/
 - ⚠️ "today's day order" needs the real clock to fall inside the term; `focusDay()` falls back
   to the first working day when it doesn't (the AY2026-27 data is "future" vs a real clock).
 
+### ✅ Optional classes + nav reorder (2026-07-24)
+Students can mark any official course **optional** (electives they don't attend): dimmed +
+strikethrough + grey "optional" badge in the timetable (toggle "mark optional"/"make required"),
+excluded from Home's up-next/strip and the day-overview count. Per-course (by code, so all its
+periods dim). Stored on-device (`skipp.optional.<reg>` in localStorage), managed in `SessionContext`
+(`optionalCourses`/`toggleOptional`); `daySchedule()` takes `optionalCodes` and sets
+`ScheduleItem.isOptional`. Bottom nav reordered to **marks · attnd · home · time · cal** (Home centered).
+
 ### ✅ Custom classes (user-added, on-device only, 2026-07-23)
 Users can add extra classes the portal doesn't list (makeup/extra classes) to any day order.
 Frontend-only — the backend stores nothing. `CustomClass` persisted in localStorage keyed by

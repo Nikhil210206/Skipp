@@ -11,6 +11,7 @@ import type {
 /** A unified schedule row — an official class or a user-added custom one. */
 export type ScheduleItem = {
   id: string;
+  code: string;
   start: string;
   end: string;
   startMin: number;
@@ -21,6 +22,7 @@ export type ScheduleItem = {
   faculty: string | null;
   isLab: boolean;
   isCustom: boolean;
+  isOptional: boolean;
   slot: string | null;
 };
 
@@ -32,9 +34,10 @@ export function fmtTime(min: number): string {
   return `${String(h).padStart(2, "0")}:${String(m).padStart(2, "0")}`;
 }
 
-function periodToItem(p: ClassPeriod): ScheduleItem {
+function periodToItem(p: ClassPeriod, optional: string[]): ScheduleItem {
   return {
     id: `${p.slot}-${p.hour}`,
+    code: p.code,
     start: p.start,
     end: p.end,
     startMin: p.startMin,
@@ -45,6 +48,7 @@ function periodToItem(p: ClassPeriod): ScheduleItem {
     faculty: p.faculty,
     isLab: p.isLab,
     isCustom: false,
+    isOptional: optional.includes(p.code),
     slot: p.slot,
   };
 }
@@ -52,6 +56,7 @@ function periodToItem(p: ClassPeriod): ScheduleItem {
 function customToItem(c: CustomClass): ScheduleItem {
   return {
     id: c.id,
+    code: "",
     start: fmtTime(c.startMin),
     end: fmtTime(c.endMin),
     startMin: c.startMin,
@@ -62,17 +67,20 @@ function customToItem(c: CustomClass): ScheduleItem {
     faculty: c.faculty,
     isLab: false,
     isCustom: true,
+    isOptional: false,
     slot: null,
   };
 }
 
-/** Official classes for a day order merged with the user's custom ones, sorted. */
+/** Official classes for a day order merged with the user's custom ones, sorted.
+ * `optionalCodes` marks official courses the student flagged as optional. */
 export function daySchedule(
   officialClasses: ClassPeriod[],
   custom: CustomClass[],
   dayOrder: number | null,
+  optionalCodes: string[] = [],
 ): ScheduleItem[] {
-  const off = officialClasses.map(periodToItem);
+  const off = officialClasses.map((p) => periodToItem(p, optionalCodes));
   const cust =
     dayOrder == null
       ? []

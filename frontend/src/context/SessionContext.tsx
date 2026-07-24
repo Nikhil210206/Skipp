@@ -24,8 +24,10 @@ import {
 } from "@/lib/crypto";
 import {
   loadCustomClasses,
+  loadOptionalCourses,
   newCustomId,
   saveCustomClasses,
+  saveOptionalCourses,
 } from "@/lib/customClasses";
 
 type SectionState = SectionStatus | "loading";
@@ -47,6 +49,8 @@ type SessionValue = {
   customClasses: CustomClass[];
   addCustomClass: (c: Omit<CustomClass, "id">) => void;
   removeCustomClass: (id: string) => void;
+  optionalCourses: string[];
+  toggleOptional: (code: string) => void;
   login: (creds: Credentials) => Promise<void>;
   refresh: () => Promise<void>;
   logout: () => void;
@@ -60,13 +64,15 @@ export function SessionProvider({ children }: { children: React.ReactNode }) {
   const [restoring, setRestoring] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [customClasses, setCustomClasses] = useState<CustomClass[]>([]);
+  const [optionalCourses, setOptionalCourses] = useState<string[]>([]);
 
   const reg = snapshot?.timetable.student.registrationNumber ?? null;
 
-  // Load this student's custom classes from on-device storage once we know who
-  // they are (keyed by registration number).
+  // Load this student's on-device schedule prefs once we know who they are
+  // (keyed by registration number).
   useEffect(() => {
     setCustomClasses(reg ? loadCustomClasses(reg) : []);
+    setOptionalCourses(reg ? loadOptionalCourses(reg) : []);
   }, [reg]);
 
   // Rehydrate an encrypted session from a prior visit (one login).
@@ -123,6 +129,14 @@ export function SessionProvider({ children }: { children: React.ReactNode }) {
         setCustomClasses(next);
         if (reg) saveCustomClasses(reg, next);
       },
+      optionalCourses,
+      toggleOptional(code) {
+        const next = optionalCourses.includes(code)
+          ? optionalCourses.filter((c) => c !== code)
+          : [...optionalCourses, code];
+        setOptionalCourses(next);
+        if (reg) saveOptionalCourses(reg, next);
+      },
       async login(next) {
         const snap = await fetchSnapshot(next);
         setCreds(next);
@@ -144,7 +158,7 @@ export function SessionProvider({ children }: { children: React.ReactNode }) {
         clearCredentials();
       },
     };
-  }, [creds, snapshot, restoring, refreshing, customClasses, reg]);
+  }, [creds, snapshot, restoring, refreshing, customClasses, optionalCourses, reg]);
 
   return (
     <SessionContext.Provider value={value}>{children}</SessionContext.Provider>
