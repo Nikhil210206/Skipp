@@ -30,8 +30,12 @@ export default function TimetablePage() {
     ? (calendarDay(timetable.calendar, todayISO())?.dayOrder ?? null)
     : null;
 
-  const [selected, setSelected] = useState<number>(todayDO ?? 1);
+  // `selected` is null until the user picks a day order — so the view always
+  // defaults to today's day order (resolved once the snapshot loads), and a
+  // reload/relaunch lands on today again rather than sticking on a stale DO.
+  const [selected, setSelected] = useState<number | null>(null);
   const [sheetOpen, setSheetOpen] = useState(false);
+  const activeDO = selected ?? todayDO ?? dayOrders[0]?.dayOrder ?? 1;
 
   if (dayOrders.length === 0) {
     return (
@@ -45,11 +49,11 @@ export default function TimetablePage() {
     );
   }
 
-  const schedule = scheduleFor(dayOrders, selected);
+  const schedule = scheduleFor(dayOrders, activeDO);
   const classes = daySchedule(
     schedule?.classes ?? [],
     customClasses,
-    selected,
+    activeDO,
     optionalCourses,
   );
   const items = timeline(classes);
@@ -63,7 +67,7 @@ export default function TimetablePage() {
       {/* Big day-order number */}
       <div className="mb-4 text-center">
         <p className="text-xs uppercase tracking-[0.25em] text-text-muted">
-          {selected === todayDO ? (
+          {activeDO === todayDO ? (
             <>
               <span className="text-accent">today</span> · day order
             </>
@@ -72,12 +76,12 @@ export default function TimetablePage() {
           )}
         </p>
         <motion.p
-          key={selected}
+          key={activeDO}
           initial={{ opacity: 0, y: 8 }}
           animate={{ opacity: 1, y: 0 }}
           className="text-7xl font-extrabold tracking-tight"
         >
-          {String(selected).padStart(2, "0")}
+          {String(activeDO).padStart(2, "0")}
         </motion.p>
       </div>
 
@@ -87,7 +91,7 @@ export default function TimetablePage() {
           DO
         </span>
         {dayOrders.map((d) => {
-          const active = d.dayOrder === selected;
+          const active = d.dayOrder === activeDO;
           return (
             <button
               key={d.dayOrder}
@@ -123,7 +127,7 @@ export default function TimetablePage() {
         <span>
           <span className="block font-semibold lowercase">custom class</span>
           <span className="block text-xs text-text-muted">
-            add an extra class to day order {selected}
+            add an extra class to day order {activeDO}
           </span>
         </span>
       </button>
@@ -146,7 +150,7 @@ export default function TimetablePage() {
         </div>
       ) : (
         <p className="mb-4 rounded-2xl bg-surface px-4 py-6 text-center text-sm text-text-muted">
-          No classes on day order {selected}.
+          No classes on day order {activeDO}.
         </p>
       )}
 
@@ -166,7 +170,7 @@ export default function TimetablePage() {
 
       <CustomClassSheet
         open={sheetOpen}
-        dayOrder={selected}
+        dayOrder={activeDO}
         dayOrders={dayOrders.map((d) => d.dayOrder)}
         onClose={() => setSheetOpen(false)}
         onAdd={addCustomClass}
