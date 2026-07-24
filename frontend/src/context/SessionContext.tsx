@@ -24,9 +24,11 @@ import {
 } from "@/lib/crypto";
 import {
   loadCustomClasses,
+  loadDisplayName,
   loadOptionalCourses,
   newCustomId,
   saveCustomClasses,
+  saveDisplayName,
   saveOptionalCourses,
 } from "@/lib/customClasses";
 
@@ -51,6 +53,8 @@ type SessionValue = {
   removeCustomClass: (id: string) => void;
   optionalCourses: string[];
   toggleOptional: (code: string) => void;
+  displayName: string; // custom name if set, else official first name
+  setDisplayName: (name: string) => void;
   login: (creds: Credentials) => Promise<void>;
   refresh: () => Promise<void>;
   logout: () => void;
@@ -65,15 +69,21 @@ export function SessionProvider({ children }: { children: React.ReactNode }) {
   const [refreshing, setRefreshing] = useState(false);
   const [customClasses, setCustomClasses] = useState<CustomClass[]>([]);
   const [optionalCourses, setOptionalCourses] = useState<string[]>([]);
+  const [customName, setCustomName] = useState<string | null>(null);
+  const [loadedReg, setLoadedReg] = useState<string | null>(null);
 
   const reg = snapshot?.timetable.student.registrationNumber ?? null;
+  const officialFirst = snapshot?.timetable.student.name?.split(" ")[0] ?? "";
 
-  // Load this student's on-device schedule prefs once we know who they are
-  // (keyed by registration number).
-  useEffect(() => {
+  // Load this student's on-device prefs when the logged-in student changes.
+  // Done during render (React's recommended reset-on-change pattern) rather than
+  // in an effect, so the loaded prefs are available on the first paint.
+  if (reg !== loadedReg) {
+    setLoadedReg(reg);
     setCustomClasses(reg ? loadCustomClasses(reg) : []);
     setOptionalCourses(reg ? loadOptionalCourses(reg) : []);
-  }, [reg]);
+    setCustomName(reg ? loadDisplayName(reg) : null);
+  }
 
   // Rehydrate an encrypted session from a prior visit (one login).
   useEffect(() => {
@@ -141,6 +151,12 @@ export function SessionProvider({ children }: { children: React.ReactNode }) {
         setOptionalCourses(next);
         if (reg) saveOptionalCourses(reg, next);
       },
+      displayName: customName || officialFirst || "there",
+      setDisplayName(name) {
+        const trimmed = name.trim();
+        setCustomName(trimmed || null);
+        if (reg) saveDisplayName(reg, trimmed);
+      },
       async login(next) {
         const snap = await fetchSnapshot(next);
         setCreds(next);
@@ -162,7 +178,17 @@ export function SessionProvider({ children }: { children: React.ReactNode }) {
         clearCredentials();
       },
     };
-  }, [creds, snapshot, restoring, refreshing, customClasses, optionalCourses, reg]);
+  }, [
+    creds,
+    snapshot,
+    restoring,
+    refreshing,
+    customClasses,
+    optionalCourses,
+    customName,
+    officialFirst,
+    reg,
+  ]);
 
   return (
     <SessionContext.Provider value={value}>{children}</SessionContext.Provider>

@@ -16,7 +16,6 @@ import {
 
 export default function DashboardPage() {
   const {
-    student,
     timetable,
     attendance,
     attendanceState,
@@ -46,7 +45,7 @@ export default function DashboardPage() {
       : undefined;
 
   return (
-    <AppShell title="skipp" greeting={student?.name ?? undefined}>
+    <AppShell title="skipp" greeting>
       {/* Focus day header */}
       <div className="mb-3 flex items-baseline justify-between px-1">
         <p className="text-xs font-semibold uppercase tracking-[0.2em] text-text-muted">

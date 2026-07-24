@@ -49,3 +49,23 @@ export function saveOptionalCourses(reg: string, codes: string[]): void {
     /* non-fatal */
   }
 }
+
+// A custom display name (overrides the official name in the greeting).
+const nameKey = (reg: string) => `skipp.name.${reg}`;
+
+export function loadDisplayName(reg: string): string | null {
+  try {
+    return localStorage.getItem(nameKey(reg));
+  } catch {
+    return null;
+  }
+}
+
+export function saveDisplayName(reg: string, name: string): void {
+  try {
+    if (name.trim()) localStorage.setItem(nameKey(reg), name.trim());
+    else localStorage.removeItem(nameKey(reg));
+  } catch {
+    /* non-fatal */
+  }
+}

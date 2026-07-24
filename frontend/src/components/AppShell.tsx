@@ -1,24 +1,26 @@
 "use client";
 
-import { useRouter } from "next/navigation";
+import Link from "next/link";
+import { usePathname, useRouter } from "next/navigation";
 import { useEffect } from "react";
 import { useSession } from "@/context/SessionContext";
 import BottomNav from "./BottomNav";
 
 // Wraps the authenticated pages: redirects to login if there's no session,
-// renders a header and the bottom navigation.
+// renders a header (with a profile button) and the bottom navigation.
 
 export default function AppShell({
   title,
-  greeting,
+  greeting = false,
   children,
 }: {
   title: string;
-  greeting?: string; // when set, renders the friendly "sup! <name>" home header
+  greeting?: boolean; // Home uses the friendly "sup! <name>" header
   children: React.ReactNode;
 }) {
   const router = useRouter();
-  const { isAuthed, restoring, student, logout } = useSession();
+  const pathname = usePathname();
+  const { isAuthed, restoring, student, displayName } = useSession();
 
   useEffect(() => {
     if (!restoring && !isAuthed) router.replace("/");
@@ -36,23 +38,21 @@ export default function AppShell({
   }
   if (!isAuthed) return null;
 
-  const firstName = (greeting ?? "").split(" ")[0].toLowerCase();
+  const showProfileBtn = pathname !== "/profile";
 
   return (
     <div className="mx-auto flex min-h-full w-full max-w-md flex-1 flex-col">
       {greeting ? (
         <header className="flex items-center justify-between px-5 pb-4 pt-7">
-          <div className="flex size-11 items-center justify-center rounded-2xl bg-surface text-xl">
-            🎓
-          </div>
-          <div className="text-right">
+          <div className="text-left">
             <p className="text-xs uppercase tracking-[0.2em] text-text-muted">
               sup!
             </p>
-            <p className="-mt-0.5 text-2xl font-extrabold tracking-tight">
-              {firstName}
+            <p className="-mt-0.5 text-2xl font-extrabold lowercase tracking-tight">
+              {displayName}
             </p>
           </div>
+          {showProfileBtn && <ProfileButton name={displayName} />}
         </header>
       ) : (
         <header className="flex items-center justify-between px-5 pb-3 pt-7">
@@ -62,24 +62,29 @@ export default function AppShell({
             </h1>
             {student?.name && (
               <p className="text-xs text-text-muted">
-                {student.name.split(" ")[0]} ·{" "}
-                {student.section ?? student.program}
+                {displayName} ·{" "}
+                {student.section ?? student.program ?? ""}
               </p>
             )}
           </div>
-          <button
-            onClick={() => {
-              logout();
-              router.replace("/");
-            }}
-            className="rounded-lg px-3 py-1.5 text-xs text-text-muted transition-colors hover:text-danger"
-          >
-            log out
-          </button>
+          {showProfileBtn && <ProfileButton name={displayName} />}
         </header>
       )}
       <main className="flex flex-1 flex-col px-4">{children}</main>
       <BottomNav />
     </div>
+  );
+}
+
+function ProfileButton({ name }: { name: string }) {
+  const initial = (name.trim()[0] ?? "🎓").toUpperCase();
+  return (
+    <Link
+      href="/profile"
+      aria-label="Profile"
+      className="flex size-11 items-center justify-center rounded-2xl bg-accent text-lg font-extrabold text-background transition-opacity hover:opacity-90"
+    >
+      {initial}
+    </Link>
   );
 }

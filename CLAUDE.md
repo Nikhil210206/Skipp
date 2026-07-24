@@ -307,6 +307,16 @@ Built + validated against a real capture AND a friend's app (exact match on DO2/
 - ⚠️ "today's day order" needs the real clock to fall inside the term; `focusDay()` falls back
   to the first working day when it doesn't (the AY2026-27 data is "future" vs a real clock).
 
+### ✅ Profile page (2026-07-24)
+Orange avatar button (first initial) in every page header (top-right, hidden on `/profile`) → the
+`/profile` page. Contains: editable **display name** (custom, on-device `skipp.name.<reg>`, overrides
+the "sup!" greeting), academic summary (attendance %, course count, total credits), full student
+details (name, reg no, program, dept, section, sem, batch, mobile, AY), the course list (code/title/
+credit/category/faculty/slot), customization counts (custom classes, optional courses), disclaimer,
+and the **log out** button (moved out of the header). `SessionContext` gained `displayName` /
+`setDisplayName`. Note: `AppShell`'s `greeting` prop is now a boolean (Home), not a name string.
+⏳ Built + typecheck/lint/build clean; **not yet clicked live** (hit the 429 daily-login cap again).
+
 ### ✅ Optional classes + nav reorder (2026-07-24)
 Students can mark any official course **optional** (electives they don't attend): dimmed +
 strikethrough + grey "optional" badge in the timetable (toggle "mark optional"/"make required"),

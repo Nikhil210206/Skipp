@@ -16,7 +16,7 @@ const WEEKDAYS = ["M", "T", "W", "T", "F", "S", "S"];
 
 export default function CalendarPage() {
   const { timetable } = useSession();
-  const cal = timetable?.calendar ?? [];
+  const cal = useMemo(() => timetable?.calendar ?? [], [timetable]);
 
   const byDate = useMemo(() => {
     const m = new Map<string, CalendarDay>();
