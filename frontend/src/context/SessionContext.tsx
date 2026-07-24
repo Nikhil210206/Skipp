@@ -16,7 +16,7 @@ import type {
   StudentInfo,
   Timetable,
 } from "@/types";
-import { fetchSnapshot } from "@/lib/api";
+import { AuthError, fetchSnapshot } from "@/lib/api";
 import {
   clearCredentials,
   loadCredentials,
@@ -90,8 +90,12 @@ export function SessionProvider({ children }: { children: React.ReactNode }) {
           setCreds(saved);
           setSnapshot(snap);
         }
-      } catch {
-        clearCredentials(); // stale/invalid — force a fresh login
+      } catch (e) {
+        // Only forget the saved session on a real auth failure (wrong/expired
+        // credentials). A transient error (backend down, network blip, rate
+        // limit) keeps the encrypted creds so a reload retries without the user
+        // re-typing their password.
+        if (e instanceof AuthError) clearCredentials();
       } finally {
         if (!cancelled) setRestoring(false);
       }

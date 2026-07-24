@@ -63,7 +63,13 @@ export default function TimetablePage() {
       {/* Big day-order number */}
       <div className="mb-4 text-center">
         <p className="text-xs uppercase tracking-[0.25em] text-text-muted">
-          current day order
+          {selected === todayDO ? (
+            <>
+              <span className="text-accent">today</span> · day order
+            </>
+          ) : (
+            "day order"
+          )}
         </p>
         <motion.p
           key={selected}
@@ -98,6 +104,9 @@ export default function TimetablePage() {
                 />
               )}
               <span className="relative">{d.dayOrder}</span>
+              {d.dayOrder === todayDO && !active && (
+                <span className="absolute bottom-1 left-1/2 size-1 -translate-x-1/2 rounded-full bg-accent" />
+              )}
             </button>
           );
         })}
