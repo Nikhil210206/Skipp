@@ -17,18 +17,23 @@ export default function Ring({
   size = 72,
   stroke = 7,
   label,
+  decimals = 0,
 }: {
   percentage: number;
   threshold?: number;
   size?: number;
   stroke?: number;
   label?: string;
+  /** Decimal places on the value inside the ring. */
+  decimals?: number;
 }) {
   const r = (size - stroke) / 2;
   const circumference = 2 * Math.PI * r;
   const clamped = Math.max(0, Math.min(100, percentage));
   const offset = circumference * (1 - clamped / 100);
   const color = colorFor(percentage, threshold);
+  // The readout scales with the ring so a hero ring is not stuck at text-sm.
+  const valueSize = size >= 120 ? "text-3xl" : size >= 96 ? "text-xl" : "text-sm";
 
   return (
     <div
@@ -61,8 +66,8 @@ export default function Ring({
         />
       </svg>
       <div className="absolute inset-0 flex flex-col items-center justify-center">
-        <span className="text-sm font-bold" style={{ color }}>
-          {percentage.toFixed(0)}%
+        <span className={`${valueSize} font-bold`} style={{ color }}>
+          {percentage.toFixed(decimals)}%
         </span>
         {label && <span className="text-[10px] text-text-muted">{label}</span>}
       </div>

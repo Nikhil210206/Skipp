@@ -1,13 +1,8 @@
-// Project attendance forward from planned leave / attending / OD-ML days.
-// For each selected date we look up its day order, then the classes on that day
-// order per subject, and apply the impact:
-//   leave:     class conducted but missed      (conducted +1)
-//   attending: class conducted and attended    (attended +1, conducted +1)
-//   odml:      condoned, counted present       (attended +1, conducted +1)
+// Project attendance forward from planned leave days. For each selected date we
+// look up its day order, then the classes on that day order per subject, and
+// count them as conducted but missed (conducted +1, attended unchanged).
 
 import type { Attendance, CalendarDay, DayOrderSchedule } from "@/types";
-
-export type DayKind = "leave" | "attending" | "odml";
 
 export type ProjectedSubject = {
   code: string;
@@ -53,9 +48,10 @@ export function projectAttendance(opts: {
   attendance: Attendance;
   calendar: CalendarDay[];
   dayOrders: DayOrderSchedule[];
-  selections: Record<string, DayKind>;
+  /** Dates the student plans to take off, as YYYY-MM-DD. */
+  leaveDates: string[];
 }): Projection {
-  const { attendance, calendar, dayOrders, selections } = opts;
+  const { attendance, calendar, dayOrders, leaveDates } = opts;
   const dateToDO = new Map(calendar.map((d) => [d.date, d.dayOrder]));
 
   const subjects: ProjectedSubject[] = [];
@@ -77,15 +73,14 @@ export function projectAttendance(opts: {
   }
 
   let affectedDays = 0;
-  for (const [date, kind] of Object.entries(selections)) {
+  for (const date of leaveDates) {
     const counts = classesByKey(dayOrders, dateToDO.get(date) ?? null);
     if (counts.size === 0) continue;
     affectedDays++;
     for (const [k, n] of counts) {
       const subj = byKey.get(k);
       if (!subj) continue;
-      subj.conductedAfter += n;
-      if (kind !== "leave") subj.attendedAfter += n;
+      subj.conductedAfter += n; // missed, so conducted rises but attended does not
     }
   }
 

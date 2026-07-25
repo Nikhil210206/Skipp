@@ -21,7 +21,8 @@ export default function AttendancePage() {
   const subjects = attendance?.subjects ?? [];
   const totalAttended = subjects.reduce((s, x) => s + x.attended, 0);
   const totalConducted = subjects.reduce((s, x) => s + x.conducted, 0);
-  const overall = predict(totalAttended, totalConducted, THRESHOLD);
+  const overallPct =
+    totalConducted > 0 ? (totalAttended / totalConducted) * 100 : 0;
 
   return (
     <AppShell title="attendance">
@@ -52,34 +53,17 @@ export default function AttendancePage() {
       {attendanceState === "ready" && attendance && (
         <>
           {/* Overall */}
-          <div className="mb-3 flex items-center gap-4 rounded-2xl bg-surface p-5">
+          <div className="mb-3 flex flex-col items-center gap-3 rounded-2xl bg-surface px-5 py-6">
+            <p className="text-xs uppercase tracking-[0.2em] text-text-muted">
+              overall attendance
+            </p>
             <Ring
-              percentage={overall.percentage}
+              percentage={overallPct}
               threshold={THRESHOLD}
-              size={84}
-              label="overall"
+              size={132}
+              stroke={10}
+              decimals={1}
             />
-            <div className="min-w-0">
-              <p className="text-xs uppercase tracking-wider text-text-muted">
-                overall · {overall.percentage.toFixed(1)}%
-              </p>
-              <p
-                className={`text-5xl font-extrabold leading-none ${
-                  overall.isSafe ? "text-success" : "text-danger"
-                }`}
-              >
-                {overall.isSafe ? overall.canSkip : overall.mustAttend}
-              </p>
-              <p
-                className={`text-sm font-medium ${
-                  overall.isSafe ? "text-success" : "text-danger"
-                }`}
-              >
-                {overall.isSafe
-                  ? "classes to spare"
-                  : `required to reach ${THRESHOLD}%`}
-              </p>
-            </div>
           </div>
 
           {/* Predict button */}

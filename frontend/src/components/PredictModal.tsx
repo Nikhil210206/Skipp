@@ -4,7 +4,7 @@ import { useMemo, useState } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import { useSession } from "@/context/SessionContext";
 import { todayISO } from "@/lib/schedule";
-import { projectAttendance, type DayKind } from "@/lib/leavePredictor";
+import { projectAttendance } from "@/lib/leavePredictor";
 import { predict } from "@/lib/predictor";
 import NumBadge from "@/components/NumBadge";
 import {
@@ -24,23 +24,6 @@ const MONTHS = [
 ];
 const WEEKDAYS = ["M", "T", "W", "T", "F", "S", "S"];
 
-const TABS: { kind: DayKind; label: string }[] = [
-  { kind: "leave", label: "leaves" },
-  { kind: "attending", label: "attending" },
-  { kind: "odml", label: "od·ml" },
-];
-
-const KIND_BG: Record<DayKind, string> = {
-  leave: "bg-danger",
-  attending: "bg-success",
-  odml: "bg-accent",
-};
-const KIND_TEXT: Record<DayKind, string> = {
-  leave: "text-danger",
-  attending: "text-success",
-  odml: "text-accent",
-};
-
 export default function PredictModal({
   open,
   onClose,
@@ -55,18 +38,20 @@ export default function PredictModal({
     const m = new Map(cal.map((d) => [d.date, d]));
     return m;
   }, [cal]);
+  const today = todayISO();
+  // Only months from the current one onward: predicting days that already
+  // happened tells the student nothing.
   const months = useMemo(() => {
     const set = new Set(cal.map((d) => d.date.slice(0, 7)));
-    return [...set].sort();
-  }, [cal]);
-
-  const today = todayISO();
+    const all = [...set].sort();
+    const future = all.filter((m) => m >= today.slice(0, 7));
+    return future.length > 0 ? future : all;
+  }, [cal, today]);
   const [ym, setYm] = useState(
     () => months.find((m) => m === today.slice(0, 7)) ?? months[0] ?? today.slice(0, 7),
   );
-  const [tab, setTab] = useState<DayKind>("leave");
   const [mode, setMode] = useState<"single" | "range">("single");
-  const [selections, setSelections] = useState<Record<string, DayKind>>({});
+  const [selections, setSelections] = useState<string[]>([]);
   const [rangeStart, setRangeStart] = useState<string | null>(null);
   const [showResult, setShowResult] = useState(false);
 
@@ -78,36 +63,35 @@ export default function PredictModal({
   const iso = (d: number) =>
     `${year}-${String(month0 + 1).padStart(2, "0")}-${String(d).padStart(2, "0")}`;
 
-  const selectedCount = Object.keys(selections).length;
-  const isWorking = (date: string) => byDate.get(date)?.dayOrder != null;
+  const selectedCount = selections.length;
+  // Selectable = a working day that has not already happened.
+  const isOpen = (date: string) =>
+    byDate.get(date)?.dayOrder != null && date >= today;
 
   function toggle(date: string) {
-    if (!isWorking(date)) return;
+    if (!isOpen(date)) return;
     if (mode === "range") {
       if (!rangeStart) {
         setRangeStart(date);
-        setSelections((s) => ({ ...s, [date]: tab }));
+        setSelections((s) => (s.includes(date) ? s : [...s, date]));
         return;
       }
       const [a, b] = [rangeStart, date].sort();
-      const next = { ...selections };
+      const next = new Set(selections);
       let cur = new Date(a + "T00:00:00");
       const end = new Date(b + "T00:00:00");
       while (cur <= end) {
         const ds = todayISO(cur);
-        if (isWorking(ds)) next[ds] = tab;
+        if (isOpen(ds)) next.add(ds);
         cur = new Date(cur.getTime() + 86400000);
       }
-      setSelections(next);
+      setSelections([...next].sort());
       setRangeStart(null);
       return;
     }
-    setSelections((s) => {
-      const next = { ...s };
-      if (next[date] === tab) delete next[date];
-      else next[date] = tab;
-      return next;
-    });
+    setSelections((s) =>
+      s.includes(date) ? s.filter((d) => d !== date) : [...s, date].sort(),
+    );
   }
 
   const projection =
@@ -116,12 +100,12 @@ export default function PredictModal({
           attendance,
           calendar: cal,
           dayOrders: timetable?.dayOrders ?? [],
-          selections,
+          leaveDates: selections,
         })
       : null;
 
   function reset() {
-    setSelections({});
+    setSelections([]);
     setRangeStart(null);
     setShowResult(false);
   }
@@ -142,7 +126,7 @@ export default function PredictModal({
                 <h1 className="text-4xl font-extrabold uppercase tracking-tight">
                   predict
                 </h1>
-                <p className={`text-sm lowercase ${KIND_TEXT[tab]}`}>
+                <p className="text-sm lowercase text-danger">
                   {showResult ? "your forecast" : "plan your leaves"}
                 </p>
               </div>
@@ -162,31 +146,6 @@ export default function PredictModal({
               <ResultView projection={projection} onBack={() => setShowResult(false)} />
             ) : (
               <>
-                {/* Tabs */}
-                <div className="mb-5 flex shrink-0 gap-1 rounded-full bg-surface p-1">
-                  {TABS.map((t) => {
-                    const active = t.kind === tab;
-                    return (
-                      <button
-                        key={t.kind}
-                        onClick={() => setTab(t.kind)}
-                        className={`relative flex-1 rounded-full py-2.5 text-sm font-bold uppercase tracking-wide transition-colors ${
-                          active ? "text-background" : "text-text-muted"
-                        }`}
-                      >
-                        {active && (
-                          <motion.span
-                            layoutId="predict-tab"
-                            className={`absolute inset-0 rounded-full ${KIND_BG[t.kind]}`}
-                            transition={{ type: "spring", stiffness: 400, damping: 32 }}
-                          />
-                        )}
-                        <span className="relative">{t.label}</span>
-                      </button>
-                    );
-                  })}
-                </div>
-
                 {/* Scrollable middle */}
                 <div className="flex min-h-0 flex-1 flex-col overflow-y-auto">
                 {/* Month nav */}
@@ -226,22 +185,22 @@ export default function PredictModal({
                     ))}
                     {Array.from({ length: daysInMonth }, (_, i) => i + 1).map((d) => {
                       const ds = iso(d);
-                      const working = isWorking(ds);
-                      const sel = selections[ds];
+                      const open = isOpen(ds);
+                      const sel = selections.includes(ds);
                       const isStart = rangeStart === ds;
                       const isToday = ds === today;
                       return (
                         <button
                           key={d}
                           onClick={() => toggle(ds)}
-                          disabled={!working}
+                          disabled={!open}
                           className="flex flex-col items-center py-1"
                         >
                           <span
                             className={`flex size-9 items-center justify-center rounded-xl text-sm font-semibold ${
                               sel
-                                ? `${KIND_BG[sel]} text-background`
-                                : working
+                                ? "bg-danger text-background"
+                                : open
                                   ? "text-text-primary"
                                   : "text-text-muted/40"
                             } ${isStart ? "ring-2 ring-accent" : ""} ${
@@ -251,7 +210,7 @@ export default function PredictModal({
                             {d}
                           </span>
                           <span className="mt-0.5 h-1.5">
-                            {working && !sel && (
+                            {open && !sel && (
                               <span className="block size-1 rounded-full bg-danger/70" />
                             )}
                           </span>
