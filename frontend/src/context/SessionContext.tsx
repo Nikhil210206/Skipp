@@ -5,7 +5,15 @@
 // cache it, so switching tabs never triggers another Zoho sign-in (which is
 // daily-capped). Credentials are persisted encrypted on-device (lib/crypto).
 
-import { createContext, useContext, useEffect, useMemo, useState } from "react";
+import {
+  createContext,
+  useCallback,
+  useContext,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+} from "react";
 import type {
   Attendance,
   Credentials,
@@ -26,9 +34,10 @@ import {
   saveSnapshot,
 } from "@/lib/crypto";
 
-// Re-fetch a cached snapshot in the background only when it's older than this,
-// so reloads within a session cost no Zoho sign-ins (which are daily-capped).
-const STALE_MS = 3 * 60 * 60 * 1000; // 3 hours
+// Background-refresh the cached snapshot only when it's older than this — fresh
+// enough that a class update shows soon after you open the app, but capped so
+// rapid reloads/focus events don't burn Zoho sign-ins (which are daily-limited).
+const STALE_MS = 15 * 60 * 1000; // 15 minutes
 
 function isStale(fetchedAt: string): boolean {
   const t = Date.parse(fetchedAt);
@@ -155,6 +164,38 @@ export function SessionProvider({ children }: { children: React.ReactNode }) {
     };
   }, []);
 
+  // Silent background refresh (used by focus + pull-to-refresh's stale checks).
+  const bgRefreshing = useRef(false);
+  const refreshIfStale = useCallback(async () => {
+    if (!creds || !snapshot || bgRefreshing.current) return;
+    if (!isStale(snapshot.fetchedAt)) return;
+    bgRefreshing.current = true;
+    try {
+      const fresh = await fetchSnapshot(creds);
+      setSnapshot(fresh);
+      void saveSnapshot(fresh);
+    } catch {
+      // keep cache
+    } finally {
+      bgRefreshing.current = false;
+    }
+  }, [creds, snapshot]);
+
+  // Refresh when the app is reopened / brought back to the foreground, if the
+  // cached data has gone stale — so a class update shows up without any manual
+  // action, while the 15-min guard keeps sign-ins rare.
+  useEffect(() => {
+    const onFocus = () => {
+      if (document.visibilityState === "visible") void refreshIfStale();
+    };
+    document.addEventListener("visibilitychange", onFocus);
+    window.addEventListener("focus", onFocus);
+    return () => {
+      document.removeEventListener("visibilitychange", onFocus);
+      window.removeEventListener("focus", onFocus);
+    };
+  }, [refreshIfStale]);
+
   const value = useMemo<SessionValue>(() => {
     const sectionState = (s: SectionStatus | undefined): SectionState =>
       creds && !snapshot ? "loading" : (s ?? "loading");
@@ -211,6 +252,9 @@ export function SessionProvider({ children }: { children: React.ReactNode }) {
           const fresh = await fetchSnapshot(creds);
           setSnapshot(fresh);
           void saveSnapshot(fresh);
+        } catch {
+          // Rate-limited or offline — keep showing the cached snapshot rather
+          // than erroring. (A daily-cap hit just means "no update right now".)
         } finally {
           setRefreshing(false);
         }

@@ -53,10 +53,14 @@ PAGE_MARKS = PAGE_ATTENDANCE
 
 app = FastAPI(title="Skipp API", version="0.0.1")
 
-# Dev CORS: the Next.js frontend runs on :3000. Tighten for production.
+# Dev CORS: the Next.js frontend runs on :3000, on localhost or a LAN IP (so a
+# phone on the same Wi-Fi can reach it). Tighten to the real origin in production.
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["http://localhost:3000"],
+    allow_origin_regex=(
+        r"http://(localhost|127\.0\.0\.1|"
+        r"(?:192\.168|10|172\.(?:1[6-9]|2\d|3[01]))\.\d+\.\d+):3000"
+    ),
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],

@@ -307,6 +307,18 @@ Built + validated against a real capture AND a friend's app (exact match on DO2/
 - ⚠️ "today's day order" needs the real clock to fall inside the term; `focusDay()` falls back
   to the first working day when it doesn't (the AY2026-27 data is "future" vs a real clock).
 
+### ✅ Freshness: 15-min window + refresh-on-focus + pull-to-refresh (2026-07-25)
+So a class/attendance update shows without manual action, while staying under the sign-in cap:
+- `STALE_MS` lowered 3h → **15 min**. Cached data shows instantly; a background refresh runs only
+  if older than 15 min.
+- **Refresh-on-focus:** `SessionContext` listens for `visibilitychange`/`focus` and does a silent
+  `refreshIfStale()` (guarded by a ref + the 15-min check) when the app is reopened/foregrounded.
+- **Pull-to-refresh:** `components/PullToRefresh.tsx` wraps the header+content in `AppShell`
+  (onRefresh = `refresh()`). Touch-drag from the very top rubber-bands the content (spring) and
+  reveals an orange indicator; arrow flips ↓→↑ past the 70px threshold; release parks at 54px with
+  a spinner, then snaps back. `overscroll-behavior-y: none` on body disables the browser's own P2R.
+  Verified live via synthetic touch events (gesture fires `/refresh`, animation renders).
+
 ### ✅ Encrypted snapshot cache — instant, login-free reloads (2026-07-25)
 The big fix for the daily sign-in cap (`SI503`/429). The last `/refresh` snapshot is now cached
 **encrypted** on-device (same non-exportable AES-GCM key, `skipp.snap` in localStorage;

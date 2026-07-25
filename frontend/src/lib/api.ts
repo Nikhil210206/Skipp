@@ -10,8 +10,17 @@ import type {
   Timetable,
 } from "@/types";
 
-const BASE_URL =
-  process.env.NEXT_PUBLIC_API_URL?.replace(/\/$/, "") ?? "http://127.0.0.1:8000";
+// Backend base URL. Prefer an explicit env (prod), else talk to the backend on
+// the SAME host the app was opened from (port 8000) — so it works on the laptop
+// (localhost) AND a phone on the LAN (http://<laptop-ip>:3000) with no config.
+function apiBase(): string {
+  const env = process.env.NEXT_PUBLIC_API_URL;
+  if (env) return env.replace(/\/$/, "");
+  if (typeof window !== "undefined") {
+    return `${window.location.protocol}//${window.location.hostname}:8000`;
+  }
+  return "http://127.0.0.1:8000";
+}
 
 /** A section (attendance/marks) that the portal hasn't enabled yet (HTTP 503). */
 export class NotAvailableError extends Error {
@@ -31,7 +40,7 @@ export class PortalError extends Error {
 async function post<T>(path: string, creds: Credentials): Promise<T> {
   let res: Response;
   try {
-    res = await fetch(`${BASE_URL}${path}`, {
+    res = await fetch(`${apiBase()}${path}`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify(creds),
