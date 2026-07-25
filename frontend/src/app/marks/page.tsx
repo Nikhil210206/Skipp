@@ -2,6 +2,7 @@
 
 import { motion } from "framer-motion";
 import AppShell from "@/components/AppShell";
+import MarksCalculator from "@/components/MarksCalculator";
 import StatePanel, { Spinner } from "@/components/StatePanel";
 import { useSession } from "@/context/SessionContext";
 
@@ -14,6 +15,8 @@ export default function MarksPage() {
 
   return (
     <AppShell title="marks">
+      <MarksCalculator />
+
       {marksState === "loading" && (
         <div className="flex flex-1 items-center justify-center">
           <Spinner />
@@ -50,7 +53,7 @@ export default function MarksPage() {
         <ul className="flex flex-col gap-3 pb-6">
           {marks.subjects.map((s, i) => (
             <motion.li
-              key={s.code}
+              key={`${s.code}-${i}`}
               initial={{ opacity: 0, y: 10 }}
               animate={{ opacity: 1, y: 0 }}
               transition={{ delay: Math.min(i * 0.04, 0.3) }}

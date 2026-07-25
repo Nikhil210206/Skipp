@@ -21,12 +21,16 @@ export function predict(
   const t = threshold / 100;
   const isSafe = pct >= threshold;
 
+  // Epsilon guards: floating-point error can push an exact 7 to 7.0000002 and
+  // flip floor/ceil by one (e.g. mustAttend showing 8 instead of 7).
+  const EPS = 1e-9;
   let canSkip = 0;
   let mustAttend = 0;
   if (isSafe) {
-    canSkip = t > 0 ? Math.max(0, Math.floor(attended / t - conducted)) : 0;
+    canSkip = t > 0 ? Math.max(0, Math.floor(attended / t - conducted + EPS)) : 0;
   } else {
-    mustAttend = t < 1 ? Math.max(0, Math.ceil((t * conducted - attended) / (1 - t))) : 0;
+    mustAttend =
+      t < 1 ? Math.max(0, Math.ceil((t * conducted - attended) / (1 - t) - EPS)) : 0;
   }
   return { percentage: Math.round(pct * 100) / 100, canSkip, mustAttend, isSafe };
 }

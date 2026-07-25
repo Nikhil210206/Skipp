@@ -10,9 +10,11 @@ import {
   nextClass,
   nowMinutes,
   scheduleFor,
+  todayISO,
   upcomingHoliday,
   type ScheduleItem,
 } from "@/lib/schedule";
+import { buildAlerts } from "@/lib/alerts";
 
 export default function DashboardPage() {
   const {
@@ -43,6 +45,17 @@ export default function DashboardPage() {
     timetable && focus
       ? upcomingHoliday(timetable.calendar, focus.date)
       : undefined;
+  const daysToHoliday = nextHoliday ? daysBetween(todayISO(), nextHoliday.date) : null;
+
+  const alerts = buildAlerts({
+    attendance,
+    attendanceReady: attendanceState === "ready",
+    threshold: attendance?.threshold,
+    nextClass: upNext,
+    nextClassLabel: focus?.label === "TODAY" ? "today" : (focus?.weekday ?? "next"),
+    holiday: nextHoliday ?? null,
+    daysToHoliday,
+  }).slice(0, 4);
 
   return (
     <AppShell title="skipp" greeting>
@@ -109,6 +122,29 @@ export default function DashboardPage() {
         </motion.section>
       )}
 
+      {/* Alerts */}
+      {alerts.length > 0 && (
+        <section className="mb-4">
+          <p className="mb-2 px-1 text-xs font-semibold uppercase tracking-[0.2em] text-text-muted">
+            alerts
+          </p>
+          <div className="flex flex-col gap-2">
+            {alerts.map((a, i) => (
+              <motion.div
+                key={a.id}
+                initial={{ opacity: 0, x: -8 }}
+                animate={{ opacity: 1, x: 0 }}
+                transition={{ delay: Math.min(i * 0.05, 0.3) }}
+                className={`flex items-center gap-3 rounded-2xl border px-4 py-3 ${toneCls(a.tone)}`}
+              >
+                <span className="text-lg">{a.icon}</span>
+                <span className="text-sm font-medium">{a.title}</span>
+              </motion.div>
+            ))}
+          </div>
+        </section>
+      )}
+
       {/* Quick cards */}
       <div className="flex flex-col gap-3 pb-4">
         <QuickCard
@@ -125,20 +161,29 @@ export default function DashboardPage() {
                   : "unavailable"
           }
         />
-        <QuickCard
-          href="/calendar"
-          tone="plain"
-          title="academic alerts"
-          value={
-            nextHoliday
-              ? `next: ${nextHoliday.event?.replace(/ - Holiday$/i, "")}`
-              : "no upcoming holidays"
-          }
-        />
         <QuickCard href="/marks" tone="plain" title="marks" value="view internals" />
       </div>
     </AppShell>
   );
+}
+
+function toneCls(tone: "danger" | "warning" | "success" | "muted"): string {
+  switch (tone) {
+    case "danger":
+      return "border-danger/30 bg-danger/[0.08]";
+    case "warning":
+      return "border-warning/30 bg-warning/[0.07]";
+    case "success":
+      return "border-success/25 bg-success/[0.06]";
+    default:
+      return "border-white/[0.06] bg-surface";
+  }
+}
+
+function daysBetween(fromISO: string, toISO: string): number {
+  const a = new Date(fromISO + "T00:00:00");
+  const b = new Date(toISO + "T00:00:00");
+  return Math.round((b.getTime() - a.getTime()) / 86400000);
 }
 
 function ClassChip({ c, highlight }: { c: ScheduleItem; highlight: boolean }) {

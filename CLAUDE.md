@@ -307,6 +307,22 @@ Built + validated against a real capture AND a friend's app (exact match on DO2/
 - ⚠️ "today's day order" needs the real clock to fall inside the term; `focusDay()` falls back
   to the first working day when it doesn't (the AY2026-27 data is "future" vs a real clock).
 
+### ✅ Feature batch: bunk planner+, marks calc, PWA, alerts (2026-07-25)
+- **Bunk planner+** (attendance page): adjustable target chips (75/80/85/90) recompute all numbers
+  client-side (`lib/predictor.ts`, mirrors backend + EPS guards for float ceil/floor); per-subject
+  expandable "if I skip N" simulator with projected % + safe/unsafe.
+- **Marks target calculator** (`components/MarksCalculator.tsx` on marks page): enter internal
+  scored/max + final max → needed final-exam score per grade (O/A+/A/B+/B/C), secured/not-reachable.
+- **Installable PWA:** `app/manifest.ts` (standalone, theme #08080a, start_url /), real PNG icons in
+  `public/` (192/512/maskable + apple-icon, generated via canvas), `public/sw.js` (network-first
+  runtime cache, offline) registered in prod only (`components/PWARegister.tsx`), apple-web-app +
+  theme-color meta in `layout.tsx`. Installable on localhost/HTTPS; phone needs HTTPS (tunnel/deploy).
+- **Notifications = in-app alerts feed** (`lib/alerts.ts`, on Home): danger (below-target subjects
+  "attend N to fix") → warning (on-the-line "don't bunk it") → next class → holiday → "all safe".
+  True push deferred to post-deploy (needs a push service).
+- Also: API base now derives from `window.location.hostname` so LAN/phone works with no env
+  (`lib/api.ts`); backend CORS uses a LAN-origin regex + binds `0.0.0.0` for phone testing.
+
 ### ✅ Freshness: 15-min window + refresh-on-focus + pull-to-refresh (2026-07-25)
 So a class/attendance update shows without manual action, while staying under the sign-in cap:
 - `STALE_MS` lowered 3h → **15 min**. Cached data shows instantly; a background refresh runs only
