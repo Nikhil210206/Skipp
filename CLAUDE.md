@@ -307,7 +307,21 @@ Built + validated against a real capture AND a friend's app (exact match on DO2/
 - ⚠️ "today's day order" needs the real clock to fall inside the term; `focusDay()` falls back
   to the first working day when it doesn't (the AY2026-27 data is "future" vs a real clock).
 
-### ✅ Feature batch: bunk planner+, marks calc, PWA, alerts (2026-07-25)
+### ✅ PREDICT leave planner (2026-07-25) — replaced the inline bunk simulator
+Attendance page is clean again (overall ring + per-subject rings/lines at 75%, no threshold chips)
+with a prominent orange **PREDICT** button → full-screen `components/PredictModal.tsx` (matches the
+reference app): **leaves / attending / od·ml** tabs, month calendar (day-order dots, working days
+selectable, today ringed), **single day / date range** modes, total-days + confirm → a forecast
+view (overall before→after with ▼/▲ delta + per-subject before→after). `lib/leavePredictor.ts`
+projects attendance: for each selected date → its day order → class periods per subject, applying
+leave (conducted+1) / attending·od-ml (attended+1, conducted+1). **Keyed by code + lab-ness**
+(`::th`/`::lab`) because a course has separate Theory + Practical attendance rows sharing one code
+(e.g. 21CSC302J) — theory periods hit the theory row, lab periods the practical row. Verified live
+(3 leave days: 95.2%→52.6%, CN 3/3→3/6=50%).
+- Forecast shows **recovery classes** (the actionable bit): per subject below 75% → "attend N more to
+  recover 75%" (mustAttend on the after-numbers), plus an overall "attend N more to get back to 75%".
+- Modal + result both use pinned header/tabs/confirm (`shrink-0`) + a scrollable middle
+  (`min-h-0 flex-1 overflow-y-auto`) — the earlier no-scroll bug on short viewports.
 - **Bunk planner+** (attendance page): adjustable target chips (75/80/85/90) recompute all numbers
   client-side (`lib/predictor.ts`, mirrors backend + EPS guards for float ceil/floor); per-subject
   expandable "if I skip N" simulator with projected % + safe/unsafe.
