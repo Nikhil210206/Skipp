@@ -47,7 +47,9 @@ export default function MarksPage() {
       )}
 
       {marksState === "ready" && marks && marks.subjects.length > 0 && (
-        <ul className="flex flex-col gap-3 pb-6">
+        <>
+          <MarksTotal subjects={marks.subjects} />
+          <ul className="flex flex-col gap-3 pb-6">
           {marks.subjects.map((s, i) => (
             <motion.li
               key={`${s.code}-${i}`}
@@ -92,8 +94,40 @@ export default function MarksPage() {
               </div>
             </motion.li>
           ))}
-        </ul>
+          </ul>
+        </>
       )}
     </AppShell>
   );
+}
+
+function MarksTotal({
+  subjects,
+}: {
+  subjects: { scoredTotal: number; maxTotal: number }[];
+}) {
+  const scored = subjects.reduce((x, s) => x + s.scoredTotal, 0);
+  const max = subjects.reduce((x, s) => x + s.maxTotal, 0);
+  return (
+    <div className="mb-4 flex items-center justify-between rounded-2xl bg-surface p-5">
+      <div>
+        <p className="text-xs uppercase tracking-wider text-text-muted">
+          total marks
+        </p>
+        <p className="mt-1 text-4xl font-extrabold leading-none">
+          {round(scored)}
+          <span className="text-2xl text-text-muted"> / {round(max)}</span>
+        </p>
+      </div>
+      {max > 0 && (
+        <span className="text-3xl font-extrabold text-accent">
+          {pct(scored, max).toFixed(0)}%
+        </span>
+      )}
+    </div>
+  );
+}
+
+function round(n: number): number {
+  return Math.round(n * 100) / 100;
 }
