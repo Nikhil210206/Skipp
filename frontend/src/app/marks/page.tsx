@@ -2,7 +2,6 @@
 
 import { motion } from "framer-motion";
 import AppShell from "@/components/AppShell";
-import MarksCalculator from "@/components/MarksCalculator";
 import StatePanel, { Spinner } from "@/components/StatePanel";
 import { useSession } from "@/context/SessionContext";
 
@@ -15,8 +14,6 @@ export default function MarksPage() {
 
   return (
     <AppShell title="marks">
-      <MarksCalculator />
-
       {marksState === "loading" && (
         <div className="flex flex-1 items-center justify-center">
           <Spinner />
