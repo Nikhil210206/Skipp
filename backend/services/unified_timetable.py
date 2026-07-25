@@ -10,7 +10,7 @@ Captured grid shape (batch 2):
     Day1:  P1   P2/X  P3/X   P4   P5    A     A     F     F    G    L11  L12
     Day2:  B    B/X   G/X    G    A     P16   ...
     ...
-Cells may carry a `/X` secondary marker — we keep the primary slot before `/`.
+Cells may carry a `/X` secondary marker, we keep the primary slot before `/`.
 Slots: A-G = theory, P## = practical periods, L## = end-of-day lab slots.
 """
 from __future__ import annotations

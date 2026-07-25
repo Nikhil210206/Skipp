@@ -10,7 +10,7 @@ Reverse-engineered from the live signin page during the Phase 1 spike:
 
 Password encryption is DISABLED on this portal (encryption/script ships
 `encryptData.enabled = Boolean("")` == false), so the password is sent as
-plaintext over HTTPS — no client-side RSA step required.
+plaintext over HTTPS, no client-side RSA step required.
 
 Security: the password is only ever an argument here, held in memory for the
 duration of one call. Never log it, never persist it, never write it to disk.
@@ -77,7 +77,7 @@ def normalize_netid(netid: str) -> str:
 
 
 class LoginError(Exception):
-    """Base class for login failures — surfaced to the API as typed 4xx."""
+    """Base class for login failures: surfaced to the API as typed 4xx."""
 
 
 class UserNotFound(LoginError):
@@ -99,7 +99,7 @@ class CaptchaRequired(LoginError):
 class SignInLimitReached(LoginError):
     """Zoho's per-account daily sign-in cap (code SI503).
 
-    A hard limit that resets after ~24h — no login is possible until then. The
+    A hard limit that resets after ~24h, no login is possible until then. The
     on-device session persistence exists partly to avoid burning sign-ins.
     """
 
@@ -117,7 +117,7 @@ class PageInaccessible(PageError):
 
     Seen at semester start: `My_Attendance` returns "Page inaccessible … contact
     your administrator" until attendance is actually being recorded. Not our bug
-    and not the student's — surface it as a friendly "not available yet".
+    and not the student's, surface it as a friendly "not available yet".
     """
 
 
@@ -129,12 +129,12 @@ class AppSessionError(PageError):
     """A page fetch came back as the login/SPA shell, not a Creator page.
 
     Means the session lacks the academia app-authorization token
-    (`_iamadt_client_<zaid>` family) even though IAM login succeeded — so the
+    (`_iamadt_client_<zaid>` family) even though IAM login succeeded, so the
     Creator app treats us as logged out and returns its login shell (HTTP 200).
     """
 
 
-# Signature of the portal's login shell — its <title> when unauthenticated.
+# Signature of the portal's login shell, its <title> when unauthenticated.
 _LOGIN_SHELL_MARKER = "Academic Web Services Login"
 
 
@@ -144,13 +144,13 @@ class Session:
 
     Callers use `session.client` for subsequent authed requests (attendance,
     marks, timetable) and MUST call `.close()` when done (or use as a
-    context manager) so the cookie jar — and the credentials-derived session —
+    context manager) so the cookie jar (and the credentials-derived session)
     is destroyed promptly.
     """
 
     client: httpx.Client
     zuid: str
-    # Raw IAM responses — kept only for the Phase 1 spike/diagnostics.
+    # Raw IAM responses, kept only for the Phase 1 spike/diagnostics.
     password_response: dict | None = None
 
     def close(self) -> None:
@@ -203,13 +203,13 @@ class Session:
         if _LOGIN_SHELL_MARKER in resp.text:
             if _DEBUG:
                 log.warning(
-                    "fetch_page('%s') got login shell — app_token=%s cookies=%s",
+                    "fetch_page('%s') got login shell, app_token=%s cookies=%s",
                     page_name, _has_app_token(self.client),
                     sorted(self.client.cookies.keys()),
                 )
                 _dump(f"shell_{page_name}.html", resp.text)
             raise AppSessionError(
-                "Got the login shell instead of a Creator page — the app "
+                "Got the login shell instead of a Creator page. The app "
                 "session lacks the academia app-authorization token."
             )
         return resp.text
@@ -228,7 +228,7 @@ def _csrf_headers(client: httpx.Client) -> dict[str, str]:
     """Build the Zoho double-submit CSRF headers from the iamcsr cookie."""
     token = client.cookies.get(CSRF_COOKIE)
     if not token:
-        raise PortalError("CSRF cookie missing — signin page did not load correctly.")
+        raise PortalError("CSRF cookie missing, signin page did not load correctly.")
     return {
         "Content-Type": "application/x-www-form-urlencoded;charset=UTF-8",
         "X-ZCSRF-TOKEN": f"{CSRF_PARAM}={token}",
@@ -327,7 +327,7 @@ def _bootstrap_app_session(client: httpx.Client) -> None:
     """Land on the academia app root so Zoho Creator mints the app session.
 
     A GET of `/` returns the SPA shell but, crucially, sets the `JSESSIONID`
-    (app session) cookie in the jar — the piece IAM login alone doesn't grant.
+    (app session) cookie in the jar, which is the piece IAM login alone does not grant.
     Best-effort: a network hiccup here shouldn't fail an otherwise-good login,
     since the first real page fetch would surface any genuine session problem.
     """
@@ -345,7 +345,7 @@ def _first_error_code(resp: dict) -> str | None:
 
 
 def _is_captcha(code: str | None, resp: dict) -> bool:
-    """Zoho HIP (CAPTCHA) challenge — code IN108 / a 'HIP REQUIRED' message."""
+    """Zoho HIP (CAPTCHA) challenge: code IN108 / a 'HIP REQUIRED' message."""
     if code == "IN108":
         return True
     blob = f"{resp.get('message', '')} {resp.get('localized_message', '')}".lower()
@@ -353,7 +353,7 @@ def _is_captcha(code: str | None, resp: dict) -> bool:
 
 
 def _is_signin_limit(code: str | None, resp: dict) -> bool:
-    """Zoho daily sign-in cap — code SI503 / 'maximum sign-in threshold'."""
+    """Zoho daily sign-in cap: code SI503 / 'maximum sign-in threshold'."""
     if code == "SI503":
         return True
     blob = f"{resp.get('message', '')} {resp.get('localized_message', '')}".lower()
@@ -371,7 +371,7 @@ def _raise_if_blocked(resp: dict) -> None:
     if _is_signin_limit(code, resp):
         raise SignInLimitReached(
             "You've hit the portal's daily sign-in limit. It resets after about "
-            "a day — try again tomorrow."
+            "a day, try again tomorrow."
         )
 
 
@@ -420,7 +420,7 @@ def _clear_announcements(client: httpx.Client, redirect: str, max_hops: int = 6)
 
         m = _ANNOUNCE_NEXT.search(body)
         if not m:
-            break  # no further announcement step — we've landed in the app
+            break  # no further announcement step, we've landed in the app
         url = BASE_URL + m.group(1)
 
 

@@ -2,10 +2,11 @@
 
 import { animate, motion, useMotionValue, useTransform } from "framer-motion";
 import { useEffect, useRef, useState } from "react";
+import { IconArrowDown } from "./Icons";
 
 // Pull-down-from-the-top to refresh. Engages only when the page is scrolled to
 // the very top; drag past the threshold and release to trigger onRefresh. The
-// content rubber-bands down and a spinner reveals — all spring-animated.
+// content rubber-bands down and a spinner reveals, all spring-animated.
 
 const THRESHOLD = 70; // px of pull needed to trigger
 const MAX = 120; // max rubber-band travel
@@ -94,13 +95,13 @@ export default function PullToRefresh({
       >
         <motion.div
           style={{ scale }}
-          className="flex size-10 items-center justify-center rounded-full border border-white/10 bg-surface shadow-lg shadow-black/50"
+          className="flex size-10 items-center justify-center rounded-full border border-line-strong bg-surface shadow-lg shadow-black/30"
         >
           {refreshing ? (
-            <span className="size-4 animate-spin rounded-full border-2 border-white/20 border-t-accent" />
+            <span className="size-4 animate-spin rounded-full border-2 border-line-strong border-t-accent" />
           ) : (
-            <motion.span style={{ rotate }} className="text-lg text-accent">
-              ↓
+            <motion.span style={{ rotate }} className="text-accent">
+              <IconArrowDown size={18} />
             </motion.span>
           )}
         </motion.div>

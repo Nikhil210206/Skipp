@@ -78,7 +78,7 @@ export default function CustomClassSheet({
           exit={{ opacity: 0 }}
         >
           <div
-            className="absolute inset-0 bg-black/60"
+            className="absolute inset-0 bg-black/50"
             onClick={onClose}
             aria-hidden
           />
@@ -87,9 +87,9 @@ export default function CustomClassSheet({
             animate={{ y: 0 }}
             exit={{ y: "100%" }}
             transition={{ type: "spring", stiffness: 380, damping: 36 }}
-            className="relative w-full max-w-md rounded-t-3xl border-t border-white/10 bg-surface p-5 pb-8"
+            className="relative w-full max-w-md rounded-t-3xl border-t border-line-strong bg-surface p-5 pb-8"
           >
-            <div className="mx-auto mb-4 h-1 w-10 rounded-full bg-white/15" />
+            <div className="mx-auto mb-4 h-1 w-10 rounded-full bg-line-strong" />
             <h2 className="mb-4 text-xl font-extrabold lowercase tracking-tight">
               add a custom class
             </h2>
@@ -119,7 +119,7 @@ export default function CustomClassSheet({
                 value={title}
                 onChange={(e) => setTitle(e.target.value)}
                 placeholder="e.g. Extra ML Lab"
-                className="w-full rounded-xl border border-white/10 bg-background px-4 py-3 outline-none focus:border-accent"
+                className="w-full rounded-xl border border-line-strong bg-background px-4 py-3 outline-none focus:border-accent"
               />
             </Field>
 
@@ -129,7 +129,7 @@ export default function CustomClassSheet({
                   type="time"
                   value={start}
                   onChange={(e) => setStart(e.target.value)}
-                  className="w-full rounded-xl border border-white/10 bg-background px-3 py-3 outline-none focus:border-accent [color-scheme:dark]"
+                  className="w-full rounded-xl border border-line-strong bg-background px-3 py-3 outline-none focus:border-accent [color-scheme:dark]"
                 />
               </Field>
               <Field label="end">
@@ -137,7 +137,7 @@ export default function CustomClassSheet({
                   type="time"
                   value={end}
                   onChange={(e) => setEnd(e.target.value)}
-                  className="w-full rounded-xl border border-white/10 bg-background px-3 py-3 outline-none focus:border-accent [color-scheme:dark]"
+                  className="w-full rounded-xl border border-line-strong bg-background px-3 py-3 outline-none focus:border-accent [color-scheme:dark]"
                 />
               </Field>
             </div>
@@ -147,7 +147,7 @@ export default function CustomClassSheet({
                 value={room}
                 onChange={(e) => setRoom(e.target.value)}
                 placeholder="e.g. TP101"
-                className="w-full rounded-xl border border-white/10 bg-background px-4 py-3 outline-none focus:border-accent"
+                className="w-full rounded-xl border border-line-strong bg-background px-4 py-3 outline-none focus:border-accent"
               />
             </Field>
 

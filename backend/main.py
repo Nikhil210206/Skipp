@@ -1,4 +1,4 @@
-"""Skipp backend — FastAPI scraper for the SRM academia portal.
+"""Skipp backend: FastAPI scraper for the SRM academia portal.
 
 Routes: /health, POST /timetable, POST /attendance. Marks lands later.
 
@@ -121,7 +121,7 @@ def timetable(req: LoginRequest) -> Timetable:
 def refresh(req: LoginRequest) -> Snapshot:
     """Everything from ONE login: timetable + attendance + marks.
 
-    This is the endpoint the app should use — a whole browsing session costs a
+    This is the endpoint the app should use: a whole browsing session costs a
     single Zoho sign-in (which is daily-capped). Only a timetable failure is
     fatal; attendance/marks each carry their own status (ready/gated/error).
     """
@@ -138,7 +138,7 @@ def refresh(req: LoginRequest) -> Snapshot:
             lambda: parse_marks(session.fetch_page(PAGE_MARKS)),
             _MARKS_GATED_MSG,
         )
-        if marks:  # the marks table has no title column — fill from the timetable
+        if marks:  # the marks table has no title column, fill from the timetable
             titles = {c.code: c.title for c in tt.courses}
             for s in marks.subjects:
                 s.title = titles.get(s.code, s.code)
@@ -165,7 +165,7 @@ def refresh(req: LoginRequest) -> Snapshot:
 def _try_section(fetch, gated_msg: str) -> tuple:
     """Run a section fetch, mapping gated/failed states to a status tuple.
 
-    Returns (data_or_None, status, message). Never raises — a gated or broken
+    Returns (data_or_None, status, message). It never raises: a gated or broken
     section must not sink the whole snapshot.
     """
     try:
@@ -174,7 +174,7 @@ def _try_section(fetch, gated_msg: str) -> tuple:
         return None, "gated", gated_msg
     except (PageNotFound, AppSessionError, PageEmptyError, PageError) as e:
         return None, "error", str(e)
-    except Exception as e:  # noqa: BLE001 — defensive: a parser bug is non-fatal
+    except Exception as e:  # noqa: BLE001  (a parser bug is non-fatal)
         log.warning("section fetch failed: %s", e)
         return None, "error", "Couldn't load this section."
 
@@ -184,7 +184,7 @@ def _enrich_with_day_orders(session, tt: Timetable) -> None:
     try:
         grid = parse_unified_timetable(session.fetch_page(PAGE_UNIFIED_TIMETABLE))
         tt.day_orders = build_day_orders(tt.courses, grid)
-    except Exception as e:  # noqa: BLE001 — enrichment must never fail the call
+    except Exception as e:  # noqa: BLE001  (enrichment must never fail the call)
         log.warning("day-order enrichment failed: %s", e)
     try:
         year, month = semester_anchor(PAGE_ACADEMIC_PLANNER)

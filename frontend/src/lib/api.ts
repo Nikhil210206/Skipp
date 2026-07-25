@@ -11,7 +11,7 @@ import type {
 } from "@/types";
 
 // Backend base URL. Prefer an explicit env (prod), else talk to the backend on
-// the SAME host the app was opened from (port 8000) — so it works on the laptop
+// the SAME host the app was opened from (port 8000), so it works on the laptop
 // (localhost) AND a phone on the LAN (http://<laptop-ip>:3000) with no config.
 function apiBase(): string {
   const env = process.env.NEXT_PUBLIC_API_URL;
@@ -61,7 +61,7 @@ async function post<T>(path: string, creds: Credentials): Promise<T> {
   }
   if (res.status === 429) {
     throw new AuthError(
-      detail ?? "Too many attempts — the portal wants a CAPTCHA. Try later.",
+      detail ?? "Too many attempts. The portal wants a CAPTCHA, try later.",
     );
   }
   if (res.status === 503) {
@@ -70,10 +70,10 @@ async function post<T>(path: string, creds: Credentials): Promise<T> {
   throw new PortalError(detail ?? `Something went wrong (${res.status}).`);
 }
 
-/** One login → timetable + attendance + marks. Prefer this over the singles. */
+/** One login gives timetable, attendance and marks. Prefer this over the singles. */
 export const fetchSnapshot = (c: Credentials) => post<Snapshot>("/refresh", c);
 
-// Single-section endpoints (each does its own login — use sparingly).
+// Single-section endpoints (each does its own login, so use sparingly).
 export const fetchTimetable = (c: Credentials) =>
   post<Timetable>("/timetable", c);
 export const fetchAttendance = (c: Credentials) =>

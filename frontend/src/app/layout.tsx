@@ -2,6 +2,7 @@ import type { Metadata, Viewport } from "next";
 import { Geist, Geist_Mono } from "next/font/google";
 import "./globals.css";
 import { SessionProvider } from "@/context/SessionContext";
+import { THEME_INIT_SCRIPT } from "@/lib/themeScript";
 import PWARegister from "@/components/PWARegister";
 
 const geistSans = Geist({
@@ -15,9 +16,9 @@ const geistMono = Geist_Mono({
 });
 
 export const metadata: Metadata = {
-  title: "Skipp — know before you bunk",
+  title: "Skipp, know before you bunk",
   description:
-    "Your SRM attendance, marks & timetable — minus the portal. Not affiliated with SRM.",
+    "Your SRM attendance, marks and timetable, minus the portal. Not affiliated with SRM.",
   applicationName: "Skipp",
   appleWebApp: {
     capable: true,
@@ -45,8 +46,13 @@ export default function RootLayout({
   return (
     <html
       lang="en"
+      suppressHydrationWarning
       className={`${geistSans.variable} ${geistMono.variable} h-full antialiased`}
     >
+      <head>
+        {/* Applies the saved theme before paint so there is no flash. */}
+        <script dangerouslySetInnerHTML={{ __html: THEME_INIT_SCRIPT }} />
+      </head>
       <body className="min-h-full flex flex-col">
         <SessionProvider>{children}</SessionProvider>
         <PWARegister />

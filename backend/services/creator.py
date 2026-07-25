@@ -47,13 +47,13 @@ def extract_page_html(raw: str) -> str:
     """Return the unescaped inner HTML from a Creator page response.
 
     Concatenates every pageSanitizer.sanitize('…') block found (a page can have
-    more than one). Raises PageEmptyError if none are present — which is what a
+    more than one). Raises PageEmptyError if none are present, which is what a
     bare SPA shell / an error page looks like.
     """
     blocks = _SANITIZE_CALL.findall(raw)
     if not blocks:
         raise PageEmptyError(
-            "No pageSanitizer content — got the SPA shell or an error page, "
+            "No pageSanitizer content, got the SPA shell or an error page, "
             "not a rendered Creator page."
         )
     return "\n".join(js_unescape(b) for b in blocks)

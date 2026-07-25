@@ -12,7 +12,7 @@ export default function PWARegister() {
       "serviceWorker" in navigator
     ) {
       navigator.serviceWorker.register("/sw.js").catch(() => {
-        /* offline support unavailable — app still works */
+        /* offline support unavailable, the app still works */
       });
     }
   }, []);

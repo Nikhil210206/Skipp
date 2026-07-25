@@ -1,6 +1,6 @@
 """Parse the academia attendance page (`My_Attendance`) into JSON.
 
-⚠️ Built against the documented SRM academia attendance layout — the page is
+NOTE: built against the documented SRM academia attendance layout; the page is
 admin-gated at semester start, so this parser is written defensively (matches
 columns by header text, tolerates ordering/naming variation) and will need a
 one-line sanity check against a real capture once the page goes live. The rest
@@ -73,7 +73,7 @@ def parse_attendance(raw: str, threshold: float = 75.0) -> Attendance:
     table = _find_attendance_table(soup)
     if table is None:
         raise AttendanceUnavailable(
-            "No attendance table found — page structure differs from expected "
+            "No attendance table found, page structure differs from expected "
             "(capture a live page to finalize the parser)."
         )
 

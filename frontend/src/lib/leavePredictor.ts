@@ -1,9 +1,9 @@
 // Project attendance forward from planned leave / attending / OD-ML days.
 // For each selected date we look up its day order, then the classes on that day
 // order per subject, and apply the impact:
-//   leave     → class conducted but missed        (conducted +1)
-//   attending → class conducted and attended       (attended +1, conducted +1)
-//   od-ml     → condoned (counted present)          (attended +1, conducted +1)
+//   leave:     class conducted but missed      (conducted +1)
+//   attending: class conducted and attended    (attended +1, conducted +1)
+//   odml:      condoned, counted present       (attended +1, conducted +1)
 
 import type { Attendance, CalendarDay, DayOrderSchedule } from "@/types";
 

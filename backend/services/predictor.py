@@ -1,4 +1,4 @@
-"""Attendance bunk predictor — the math from CLAUDE.md §6.
+"""Attendance bunk predictor: the math from CLAUDE.md §6.
 
 Given classes attended (a) and conducted (c) and a target percentage T:
 

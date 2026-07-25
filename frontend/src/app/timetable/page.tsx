@@ -6,6 +6,7 @@ import AppShell from "@/components/AppShell";
 import StatePanel from "@/components/StatePanel";
 import CustomClassSheet from "@/components/CustomClassSheet";
 import { useSession } from "@/context/SessionContext";
+import { IconLocation, IconTimetable, IconUser } from "@/components/Icons";
 import {
   calendarDay,
   daySchedule,
@@ -35,7 +36,7 @@ export default function TimetablePage() {
   // working day's order.
   const upcomingDO = todayDO == null ? (nextWorkingDay(cal)?.dayOrder ?? null) : null;
 
-  // `selected` is null until the user picks a day order — so the view always
+  // `selected` is null until the user picks a day order, so the view always
   // defaults to today's (or the upcoming) day order, and a reload/relaunch lands
   // there again rather than sticking on a stale DO.
   const [selected, setSelected] = useState<number | null>(null);
@@ -47,7 +48,7 @@ export default function TimetablePage() {
     return (
       <AppShell title="timetable">
         <StatePanel
-          icon="▦"
+          icon={<IconTimetable size={30} />}
           title="Timetable unavailable"
           message="Couldn't load the day-order grid. Try again in a bit."
         />
@@ -74,7 +75,7 @@ export default function TimetablePage() {
       {holiday && (
         <div className="mb-4 rounded-2xl border border-success/25 bg-success/[0.08] p-4 text-center">
           <p className="text-sm font-bold lowercase text-success">
-            🎉 holiday today — enjoy!{" "}
+            holiday today, enjoy!{" "}
             <span className="text-text-muted">
               {holiday.event?.replace(/ - Holiday$/i, "")}
             </span>
@@ -141,7 +142,7 @@ export default function TimetablePage() {
       {/* Add custom class */}
       <button
         onClick={() => setSheetOpen(true)}
-        className="mb-4 flex w-full items-center gap-3 rounded-2xl border border-dashed border-white/15 px-4 py-3 text-left transition-colors hover:border-accent/50"
+        className="mb-4 flex w-full items-center gap-3 rounded-2xl border border-dashed border-line-strong px-4 py-3 text-left transition-colors hover:border-accent/50"
       >
         <span className="flex size-9 items-center justify-center rounded-full bg-surface-2 text-lg text-accent">
           +
@@ -178,7 +179,7 @@ export default function TimetablePage() {
 
       {/* Timeline */}
       <ul className="relative flex flex-col gap-3 pb-6 pl-4">
-        <span className="absolute bottom-6 left-[7px] top-2 w-px bg-white/10" />
+        <span className="absolute bottom-6 left-[7px] top-2 w-px bg-line-strong" />
         {items.map((item, i) => (
           <TimelineRow
             key={i}
@@ -215,12 +216,12 @@ function TimelineRow({
   if (item.kind === "break") {
     return (
       <li className="flex items-center gap-3 py-0.5 opacity-50">
-        <span className="-ml-4 size-2 rounded-full bg-white/20" />
+        <span className="-ml-4 size-2 rounded-full bg-line-strong" />
         <span className="text-xs uppercase tracking-wider text-text-muted">
           short break
         </span>
         <span className="ml-auto text-xs text-text-muted">
-          {item.start} – {item.end}
+          {item.start} to {item.end}
         </span>
       </li>
     );
@@ -229,7 +230,7 @@ function TimelineRow({
   const dot = c.isCustom
     ? "bg-warning"
     : c.isOptional
-      ? "bg-white/25"
+      ? "bg-text-muted"
       : "bg-accent";
   return (
     <motion.li
@@ -249,9 +250,8 @@ function TimelineRow({
         } ${c.isOptional ? "opacity-45" : ""}`}
       >
         <div className="mb-1 flex items-center gap-2 text-sm text-text-muted">
-          <span>🕐</span>
           <span className="font-medium">
-            {c.start} – {c.end}
+            {c.start} to {c.end}
           </span>
           {c.isLab && <Tag>lab</Tag>}
           {c.isCustom && <Tag tone="warning">custom</Tag>}
@@ -275,16 +275,26 @@ function TimelineRow({
         </div>
         <h3
           className={`text-2xl font-extrabold tracking-tight ${
-            c.isOptional ? "line-through decoration-white/30" : ""
+            c.isOptional ? "line-through decoration-text-muted" : ""
           }`}
         >
           {c.abbrev}
         </h3>
         <p className="text-sm text-text-muted">{c.title}</p>
         {(c.room || c.faculty) && (
-          <div className="mt-3 flex items-center gap-4 border-t border-white/5 pt-3 text-xs text-text-muted">
-            {c.room && <span>📍 {c.room}</span>}
-            {c.faculty && <span className="truncate">👤 {c.faculty}</span>}
+          <div className="mt-3 flex items-center gap-4 border-t border-line pt-3 text-xs text-text-muted">
+            {c.room && (
+              <span className="flex items-center gap-1.5">
+                <IconLocation size={13} />
+                {c.room}
+              </span>
+            )}
+            {c.faculty && (
+              <span className="flex min-w-0 items-center gap-1.5">
+                <IconUser size={13} />
+                <span className="truncate">{c.faculty}</span>
+              </span>
+            )}
           </div>
         )}
       </div>
@@ -303,7 +313,7 @@ function Tag({
     tone === "warning"
       ? "bg-warning/15 text-warning"
       : tone === "muted"
-        ? "bg-white/10 text-text-muted"
+        ? "bg-line-strong text-text-muted"
         : "bg-accent/15 text-accent";
   return (
     <span

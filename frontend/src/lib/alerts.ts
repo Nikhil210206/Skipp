@@ -1,12 +1,13 @@
 // Build the in-app alert feed from the current snapshot. (True push
-// notifications need a server + push service — a deploy-time enhancement; this
-// is the on-device surface that drives them.)
+// notifications need a server and a push service, which is a deploy-time
+// enhancement; this is the on-device surface that drives them.)
 
 import type { Attendance, CalendarDay } from "@/types";
 import type { ScheduleItem } from "./schedule";
 
 export type AlertTone = "danger" | "warning" | "success" | "muted";
-export type Alert = { id: string; icon: string; title: string; tone: AlertTone };
+export type AlertKind = "risk" | "edge" | "class" | "holiday" | "safe";
+export type Alert = { id: string; kind: AlertKind; title: string; tone: AlertTone };
 
 const ORDER: Record<AlertTone, number> = {
   danger: 0,
@@ -33,16 +34,16 @@ export function buildAlerts(opts: {
       if (!s.isSafe) {
         alerts.push({
           id: `low-${s.code}`,
-          icon: "🚨",
+          kind: "risk",
           tone: "danger",
-          title: `${short(s.title || s.code)} at ${s.percentage.toFixed(0)}% — attend ${s.mustAttend} to fix`,
+          title: `${short(s.title || s.code)} at ${s.percentage.toFixed(0)}%, attend ${s.mustAttend} to fix`,
         });
       } else if (s.canSkip === 0) {
         alerts.push({
           id: `edge-${s.code}`,
-          icon: "⚡",
+          kind: "edge",
           tone: "warning",
-          title: `${short(s.title || s.code)} is right on ${threshold}% — don't bunk it`,
+          title: `${short(s.title || s.code)} is right on ${threshold}%, don't bunk it`,
         });
       }
     }
@@ -52,7 +53,7 @@ export function buildAlerts(opts: {
     const c = opts.nextClass;
     alerts.push({
       id: "next",
-      icon: "📚",
+      kind: "class",
       tone: "muted",
       title: `${opts.nextClassLabel === "today" ? "Next up" : `${opts.nextClassLabel}'s first`}: ${c.abbrev} at ${c.start}${c.room ? ` · ${c.room}` : ""}`,
     });
@@ -62,18 +63,23 @@ export function buildAlerts(opts: {
     const name = opts.holiday.event?.replace(/ - Holiday$/i, "") ?? "Holiday";
     const when =
       opts.daysToHoliday === 0
-        ? "today 🎉"
+        ? "is today"
         : `in ${opts.daysToHoliday} day${opts.daysToHoliday === 1 ? "" : "s"}`;
-    alerts.push({ id: "holiday", icon: "🎉", tone: "success", title: `${name} ${when}` });
+    alerts.push({
+      id: "holiday",
+      kind: "holiday",
+      tone: "success",
+      title: `${name} ${when}`,
+    });
   }
 
   const hasRisk = alerts.some((a) => a.tone === "danger" || a.tone === "warning");
   if (opts.attendanceReady && !hasRisk) {
     alerts.unshift({
       id: "safe",
-      icon: "✅",
+      kind: "safe",
       tone: "success",
-      title: "All subjects safe — bunk freely",
+      title: "All subjects safe, bunk freely",
     });
   }
 

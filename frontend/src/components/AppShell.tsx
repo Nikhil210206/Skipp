@@ -31,7 +31,7 @@ export default function AppShell({
     return (
       <div className="flex min-h-full flex-1 items-center justify-center">
         <div
-          className="size-8 animate-spin rounded-full border-2 border-white/15 border-t-accent"
+          className="size-8 animate-spin rounded-full border-2 border-line-strong border-t-accent"
           aria-label="Restoring session"
         />
       </div>
@@ -80,7 +80,7 @@ export default function AppShell({
 }
 
 function ProfileButton({ name }: { name: string }) {
-  const initial = (name.trim()[0] ?? "🎓").toUpperCase();
+  const initial = (name.trim()[0] ?? "s").toUpperCase();
   return (
     <Link
       href="/profile"

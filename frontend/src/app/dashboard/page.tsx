@@ -15,7 +15,15 @@ import {
   upcomingHoliday,
   type ScheduleItem,
 } from "@/lib/schedule";
-import { buildAlerts } from "@/lib/alerts";
+import { buildAlerts, type AlertKind } from "@/lib/alerts";
+import {
+  IconAlert,
+  IconBolt,
+  IconCalendar,
+  IconCheckCircle,
+  IconChevronRight,
+  IconClock,
+} from "@/components/Icons";
 
 export default function DashboardPage() {
   const {
@@ -31,7 +39,7 @@ export default function DashboardPage() {
   const schedule = timetable
     ? scheduleFor(timetable.dayOrders, focus?.dayOrder ?? null)
     : undefined;
-  // Home features the classes you actually attend — optional ones are excluded.
+  // Home features the classes you actually attend; optional ones are excluded.
   const classes = daySchedule(
     schedule?.classes ?? [],
     customClasses,
@@ -66,13 +74,12 @@ export default function DashboardPage() {
         <motion.div
           initial={{ opacity: 0, y: 10 }}
           animate={{ opacity: 1, y: 0 }}
-          className="mb-4 rounded-2xl border border-success/25 bg-success/[0.08] p-5 text-center"
+          className="mb-4 rounded-2xl border border-success/25 bg-success/[0.08] px-5 py-4 text-center"
         >
-          <p className="text-3xl">🎉</p>
-          <p className="mt-1 text-lg font-extrabold lowercase">
-            holiday today — enjoy!
+          <p className="text-lg font-extrabold lowercase">
+            holiday today, enjoy!
           </p>
-          <p className="text-sm text-success">
+          <p className="mt-0.5 text-sm text-success">
             {holiday.event?.replace(/ - Holiday$/i, "")}
           </p>
         </motion.div>
@@ -116,7 +123,7 @@ export default function DashboardPage() {
             <span className="text-xs font-medium uppercase tracking-[0.2em] text-text-muted">
               {focus?.label === "TODAY" ? "up next" : `${focus?.weekday}'s first`}
             </span>
-            <span className="h-px flex-1 bg-white/10" />
+            <span className="h-px flex-1 bg-line-strong" />
             <span className="text-xs font-semibold tracking-widest text-text-muted">
               {upNext.room ?? ""}
             </span>
@@ -135,7 +142,7 @@ export default function DashboardPage() {
               </span>
             </span>
             <span className="text-sm text-text-muted">
-              {upNext.start} – {upNext.end}
+              {upNext.start} to {upNext.end}
             </span>
           </div>
         </motion.section>
@@ -156,7 +163,7 @@ export default function DashboardPage() {
                 transition={{ delay: Math.min(i * 0.05, 0.3) }}
                 className={`flex items-center gap-3 rounded-2xl border px-4 py-3 ${toneCls(a.tone)}`}
               >
-                <span className="text-lg">{a.icon}</span>
+                <AlertIcon kind={a.kind} />
                 <span className="text-sm font-medium">{a.title}</span>
               </motion.div>
             ))}
@@ -186,6 +193,23 @@ export default function DashboardPage() {
   );
 }
 
+const ALERT_ICON: Record<AlertKind, React.ComponentType<{ size?: number }>> = {
+  risk: IconAlert,
+  edge: IconBolt,
+  class: IconClock,
+  holiday: IconCalendar,
+  safe: IconCheckCircle,
+};
+
+function AlertIcon({ kind }: { kind: AlertKind }) {
+  const Icon = ALERT_ICON[kind];
+  return (
+    <span className="shrink-0">
+      <Icon size={18} />
+    </span>
+  );
+}
+
 function toneCls(tone: "danger" | "warning" | "success" | "muted"): string {
   switch (tone) {
     case "danger":
@@ -195,7 +219,7 @@ function toneCls(tone: "danger" | "warning" | "success" | "muted"): string {
     case "success":
       return "border-success/25 bg-success/[0.06]";
     default:
-      return "border-white/[0.06] bg-surface";
+      return "border-line bg-surface";
   }
 }
 
@@ -213,19 +237,21 @@ function ClassChip({ c, highlight }: { c: ScheduleItem; highlight: boolean }) {
       className={`flex min-w-[104px] flex-col rounded-2xl border p-3 ${
         highlight
           ? "border-accent/60 bg-accent/10"
-          : "border-white/[0.06] bg-surface"
+          : "border-line bg-surface"
       }`}
     >
       <span className="text-[10px] tracking-wider text-text-muted">
-        {c.room ?? "—"}
+        {c.room ?? "tba"}
       </span>
       <span className="mt-1 text-2xl font-extrabold tracking-tight">
         {c.abbrev}
       </span>
       <span
-        className={`mt-1 text-[11px] ${highlight ? "text-accent" : "text-text-muted"}`}
+        className={`mt-1 whitespace-nowrap text-[11px] ${
+          highlight ? "text-accent" : "text-text-muted"
+        }`}
       >
-        {c.start} – {c.end}
+        {c.start} to {c.end}
       </span>
     </motion.div>
   );
@@ -238,12 +264,11 @@ function RestCard({
 }) {
   return (
     <div className="mb-6 rounded-2xl bg-surface p-6 text-center">
-      <p className="text-3xl">🌤️</p>
-      <p className="mt-2 font-semibold">
+      <p className="font-semibold">
         {focus?.isHoliday ? focus.event?.replace(/ - Holiday$/i, "") : "No classes"}
       </p>
       <p className="mt-1 text-sm text-text-muted">
-        {focus?.isHoliday ? "Enjoy the holiday." : "Nothing scheduled — go bunk-free."}
+        {focus?.isHoliday ? "Enjoy the holiday." : "Nothing scheduled, go bunk free."}
       </p>
     </div>
   );
@@ -266,14 +291,16 @@ function QuickCard({
       className={`flex items-center justify-between rounded-2xl border px-4 py-4 transition-colors ${
         tone === "accent"
           ? "border-accent/30 bg-accent/[0.07] hover:bg-accent/10"
-          : "border-white/[0.06] bg-surface hover:bg-white/[0.03]"
+          : "border-line bg-surface hover:bg-surface-2"
       }`}
     >
       <div>
         <p className="font-semibold lowercase">{title}</p>
         <p className="text-sm text-text-muted">{value}</p>
       </div>
-      <span className={tone === "accent" ? "text-accent" : "text-text-muted"}>›</span>
+      <span className={tone === "accent" ? "text-accent" : "text-text-muted"}>
+        <IconChevronRight size={18} />
+      </span>
     </Link>
   );
 }

@@ -8,7 +8,7 @@ import type {
   Timetable,
 } from "@/types";
 
-/** A unified schedule row — an official class or a user-added custom one. */
+/** A unified schedule row: an official class or a user-added custom one. */
 export type ScheduleItem = {
   id: string;
   code: string;
@@ -88,7 +88,7 @@ export function daySchedule(
   return [...off, ...cust].sort((a, b) => a.startMin - b.startMin);
 }
 
-/** Local date as YYYY-MM-DD (not UTC — matches the portal's local calendar). */
+/** Local date as YYYY-MM-DD (not UTC, to match the portal's local calendar). */
 export function todayISO(d = new Date()): string {
   const y = d.getFullYear();
   const m = String(d.getMonth() + 1).padStart(2, "0");
@@ -177,7 +177,7 @@ export function focusDay(tt: Timetable, now = new Date()): FocusDay | null {
   if (upcoming) return { ...pick(upcoming), label: "UPCOMING" };
   // Today is a working day whose classes are done and it's the last of the term.
   if (today?.dayOrder != null) return { ...pick(today), label: "TODAY" };
-  // Fallback: the real clock is outside this term's window — feature the first
+  // Fallback: the real clock is outside this term's window, so feature the first
   // working day so the app still shows a real schedule.
   const firstWorking = cal.find((d) => d.dayOrder != null);
   if (firstWorking) return { ...pick(firstWorking), label: "UPCOMING" };

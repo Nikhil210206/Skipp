@@ -2,7 +2,7 @@
 
 Source page: `My_Time_Table_2023_24` (the "My Time Table & Attendance" menu).
 Its HTML is embedded in a pageSanitizer.sanitize('…') block (see creator.py),
-and the course table's data cells are NOT wrapped in <tr> elements — so we map
+and the course table's data cells are NOT wrapped in <tr> elements, so we map
 cells by header position instead of trusting row boundaries.
 """
 from __future__ import annotations

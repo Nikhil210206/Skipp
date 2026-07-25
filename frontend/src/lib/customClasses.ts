@@ -1,6 +1,6 @@
 // Persistence for user-added custom classes. On-device only (localStorage),
 // scoped per student so different logins on one device don't mix. Not sensitive,
-// so no encryption — but it lives only on the device, like everything else.
+// so no encryption, but it lives only on the device, like everything else.
 
 import type { CustomClass } from "@/types";
 
@@ -21,7 +21,7 @@ export function saveCustomClasses(reg: string, list: CustomClass[]): void {
   try {
     localStorage.setItem(key(reg), JSON.stringify(list));
   } catch {
-    /* storage full / unavailable — non-fatal */
+    /* storage full or unavailable, non-fatal */
   }
 }
 

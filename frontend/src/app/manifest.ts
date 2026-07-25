@@ -1,12 +1,12 @@
 import type { MetadataRoute } from "next";
 
-// Web app manifest — makes Skipp installable to the home screen (Phase 5).
+// Web app manifest, which makes Skipp installable to the home screen.
 export default function manifest(): MetadataRoute.Manifest {
   return {
-    name: "Skipp — know before you bunk",
+    name: "Skipp, know before you bunk",
     short_name: "Skipp",
     description:
-      "Your SRM attendance, marks & timetable — minus the portal.",
+      "Your SRM attendance, marks and timetable, minus the portal.",
     start_url: "/",
     display: "standalone",
     orientation: "portrait",

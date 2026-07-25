@@ -4,6 +4,7 @@ import { motion } from "framer-motion";
 import AppShell from "@/components/AppShell";
 import StatePanel, { Spinner } from "@/components/StatePanel";
 import { useSession } from "@/context/SessionContext";
+import { IconAlert, IconHourglass, IconMarks } from "@/components/Icons";
 
 function pct(scored: number, max: number): number {
   return max > 0 ? (scored / max) * 100 : 0;
@@ -22,7 +23,7 @@ export default function MarksPage() {
 
       {marksState === "gated" && (
         <StatePanel
-          icon="⏳"
+          icon={<IconHourglass size={30} />}
           tone="warning"
           title="No marks yet"
           message={marksMessage ?? undefined}
@@ -31,7 +32,7 @@ export default function MarksPage() {
 
       {marksState === "error" && (
         <StatePanel
-          icon="⚠️"
+          icon={<IconAlert size={30} />}
           tone="danger"
           title="Couldn't load marks"
           message={marksMessage ?? undefined}
@@ -40,7 +41,7 @@ export default function MarksPage() {
 
       {marksState === "ready" && marks && marks.subjects.length === 0 && (
         <StatePanel
-          icon="◆"
+          icon={<IconMarks size={30} />}
           title="Nothing graded yet"
           message="Marks will show here once your internal assessments are published."
         />

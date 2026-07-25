@@ -18,7 +18,7 @@ export default function LoginPage() {
     return (
       <main className="flex min-h-full flex-1 items-center justify-center">
         <div
-          className="size-8 animate-spin rounded-full border-2 border-white/15 border-t-accent"
+          className="size-8 animate-spin rounded-full border-2 border-line-strong border-t-accent"
           aria-label="Loading"
         />
       </main>

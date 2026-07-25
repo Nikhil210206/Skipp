@@ -34,7 +34,7 @@ import {
   saveSnapshot,
 } from "@/lib/crypto";
 
-// Background-refresh the cached snapshot only when it's older than this — fresh
+// Background-refresh the cached snapshot only when it's older than this. Fresh
 // enough that a class update shows soon after you open the app, but capped so
 // rapid reloads/focus events don't burn Zoho sign-ins (which are daily-limited).
 const STALE_MS = 15 * 60 * 1000; // 15 minutes
@@ -108,7 +108,7 @@ export function SessionProvider({ children }: { children: React.ReactNode }) {
 
   // Rehydrate from a prior visit. If we have an encrypted cached snapshot, show
   // it INSTANTLY (no login, no spinner) and only re-fetch in the background when
-  // it's stale — so reloads within a session cost zero Zoho sign-ins.
+  // it's stale, so reloads within a session cost zero Zoho sign-ins.
   useEffect(() => {
     let cancelled = false;
     (async () => {
@@ -129,7 +129,7 @@ export function SessionProvider({ children }: { children: React.ReactNode }) {
         return;
       }
 
-      // No cache — must fetch (shows the restoring spinner).
+      // No cache, so we must fetch (this shows the restoring spinner).
       try {
         const snap = await fetchSnapshot(saved);
         if (!cancelled) {
@@ -182,7 +182,7 @@ export function SessionProvider({ children }: { children: React.ReactNode }) {
   }, [creds, snapshot]);
 
   // Refresh when the app is reopened / brought back to the foreground, if the
-  // cached data has gone stale — so a class update shows up without any manual
+  // cached data has gone stale, so a class update shows up without any manual
   // action, while the 15-min guard keeps sign-ins rare.
   useEffect(() => {
     const onFocus = () => {
@@ -253,7 +253,7 @@ export function SessionProvider({ children }: { children: React.ReactNode }) {
           setSnapshot(fresh);
           void saveSnapshot(fresh);
         } catch {
-          // Rate-limited or offline — keep showing the cached snapshot rather
+          // Rate-limited or offline: keep showing the cached snapshot rather
           // than erroring. (A daily-cap hit just means "no update right now".)
         } finally {
           setRefreshing(false);

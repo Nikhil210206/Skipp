@@ -1,4 +1,4 @@
-// Shared types — mirror the FastAPI backend JSON shapes (camelCase).
+// Shared types that mirror the FastAPI backend JSON shapes (camelCase).
 // Keep in sync with backend/models/*.py.
 
 export type Credentials = { username: string; password: string };
@@ -114,7 +114,7 @@ export type CustomClass = {
   faculty: string | null;
 };
 
-// ---- Combined snapshot (backend/models/snapshot.py) — one login ----
+// Combined snapshot (backend/models/snapshot.py), fetched in one login.
 export type SectionStatus = "ready" | "gated" | "error";
 
 export type Snapshot = {

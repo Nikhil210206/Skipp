@@ -10,6 +10,7 @@ import NumBadge from "@/components/NumBadge";
 import { useSession } from "@/context/SessionContext";
 import { predict } from "@/lib/predictor";
 import type { Subject } from "@/types";
+import { IconAlert, IconHourglass, IconWand } from "@/components/Icons";
 
 const THRESHOLD = 75;
 
@@ -32,7 +33,7 @@ export default function AttendancePage() {
 
       {attendanceState === "gated" && (
         <StatePanel
-          icon="⏳"
+          icon={<IconHourglass size={30} />}
           tone="warning"
           title="Not live yet"
           message={attendanceMessage ?? undefined}
@@ -41,7 +42,7 @@ export default function AttendancePage() {
 
       {attendanceState === "error" && (
         <StatePanel
-          icon="⚠️"
+          icon={<IconAlert size={30} />}
           tone="danger"
           title="Couldn't load attendance"
           message={attendanceMessage ?? undefined}
@@ -91,10 +92,12 @@ export default function AttendancePage() {
                 predict
               </span>
               <span className="block text-xs text-background/70">
-                plan your leaves & see the impact
+                plan your leaves and see the impact
               </span>
             </span>
-            <span className="text-2xl text-background">🔮</span>
+            <span className="text-background">
+              <IconWand size={24} />
+            </span>
           </button>
 
           <ul className="flex flex-col gap-3 pb-6">

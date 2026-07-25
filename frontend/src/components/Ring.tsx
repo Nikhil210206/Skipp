@@ -3,7 +3,7 @@
 import { motion } from "framer-motion";
 
 // A circular progress ring colored by attendance safety.
-// green >= threshold, amber within 5% below, red otherwise.
+// Green at or above the threshold, amber within 5% below, red otherwise.
 
 function colorFor(pct: number, threshold: number): string {
   if (pct >= threshold) return "var(--color-success)";
@@ -43,7 +43,7 @@ export default function Ring({
           cy={size / 2}
           r={r}
           fill="none"
-          stroke="rgba(255,255,255,0.08)"
+          stroke="var(--color-ring-track)"
           strokeWidth={stroke}
         />
         <motion.circle

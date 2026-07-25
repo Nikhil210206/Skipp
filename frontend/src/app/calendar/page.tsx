@@ -6,6 +6,11 @@ import AppShell from "@/components/AppShell";
 import StatePanel from "@/components/StatePanel";
 import { useSession } from "@/context/SessionContext";
 import { todayISO } from "@/lib/schedule";
+import {
+  IconCalendar,
+  IconChevronLeft,
+  IconChevronRight,
+} from "@/components/Icons";
 import type { CalendarDay } from "@/types";
 
 const MONTH_NAMES = [
@@ -43,7 +48,7 @@ export default function CalendarPage() {
     return (
       <AppShell title="calendar">
         <StatePanel
-          icon="▤"
+          icon={<IconCalendar size={30} />}
           title="Calendar unavailable"
           message="Couldn't load the academic planner. Try again in a bit."
         />
@@ -76,11 +81,13 @@ export default function CalendarPage() {
         className="mb-5 rounded-2xl bg-surface p-5"
       >
         <p className="text-xs uppercase tracking-[0.2em] text-text-muted">
-          {sel ? fullWeekday(sel.weekday) : "—"}
+          {sel ? fullWeekday(sel.weekday) : "no day selected"}
         </p>
         <div className="mt-2 flex items-end gap-4">
           <span className="text-6xl font-extrabold leading-none tracking-tight">
-            {sel?.dayOrder != null ? String(sel.dayOrder).padStart(2, "0") : "—"}
+            {sel?.dayOrder != null
+              ? String(sel.dayOrder).padStart(2, "0")
+              : "off"}
           </span>
           <div className="pb-1">
             <p className="text-lg font-bold uppercase">
@@ -110,7 +117,7 @@ export default function CalendarPage() {
             disabled={monthIdx <= 0}
             onClick={() => monthIdx > 0 && setYm(months[monthIdx - 1])}
           >
-            ‹
+            <IconChevronLeft size={18} />
           </NavBtn>
           <NavBtn
             disabled={monthIdx >= months.length - 1}
@@ -118,7 +125,7 @@ export default function CalendarPage() {
               monthIdx < months.length - 1 && setYm(months[monthIdx + 1])
             }
           >
-            ›
+            <IconChevronRight size={18} />
           </NavBtn>
         </div>
       </div>
@@ -192,7 +199,7 @@ function NavBtn({
     <button
       onClick={onClick}
       disabled={disabled}
-      className="flex size-9 items-center justify-center rounded-full bg-surface text-lg text-text-primary transition-colors hover:bg-white/5 disabled:opacity-30"
+      className="flex size-9 items-center justify-center rounded-full bg-surface text-text-primary transition-colors hover:bg-surface-2 disabled:opacity-30"
     >
       {children}
     </button>

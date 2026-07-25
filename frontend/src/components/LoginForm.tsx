@@ -37,7 +37,7 @@ export default function LoginForm() {
       initial={{ opacity: 0, y: 12 }}
       animate={{ opacity: 1, y: 0 }}
       transition={{ duration: 0.4, ease: "easeOut" }}
-      className="w-full max-w-sm rounded-2xl bg-surface p-6 shadow-lg shadow-black/40"
+      className="w-full max-w-sm rounded-2xl bg-surface p-6 shadow-lg shadow-black/20"
     >
       <label className="mb-2 block text-sm text-text-muted" htmlFor="username">
         SRM Net ID
@@ -49,7 +49,7 @@ export default function LoginForm() {
         value={username}
         onChange={(e) => setUsername(e.target.value)}
         placeholder="ab1234"
-        className="mb-4 w-full rounded-xl border border-white/10 bg-background px-4 py-3 text-text-primary outline-none transition-colors focus:border-accent"
+        className="mb-4 w-full rounded-xl border border-line-strong bg-background px-4 py-3 text-text-primary outline-none transition-colors focus:border-accent"
       />
 
       <label className="mb-2 block text-sm text-text-muted" htmlFor="password">
@@ -62,7 +62,7 @@ export default function LoginForm() {
         value={password}
         onChange={(e) => setPassword(e.target.value)}
         placeholder="••••••••"
-        className="mb-4 w-full rounded-xl border border-white/10 bg-background px-4 py-3 text-text-primary outline-none transition-colors focus:border-accent"
+        className="mb-4 w-full rounded-xl border border-line-strong bg-background px-4 py-3 text-text-primary outline-none transition-colors focus:border-accent"
       />
 
       {error && (
@@ -79,7 +79,7 @@ export default function LoginForm() {
         type="submit"
         disabled={busy || !username || !password}
         whileTap={{ scale: 0.98 }}
-        className="w-full rounded-xl bg-accent py-3 font-semibold text-white transition-opacity hover:opacity-90 disabled:opacity-50"
+        className="w-full rounded-xl bg-accent py-3 font-semibold text-background transition-opacity hover:opacity-90 disabled:opacity-50"
       >
         {busy ? "Logging in…" : "See my attendance"}
       </motion.button>

@@ -1,12 +1,12 @@
 """Parse the academia internal-marks table into JSON.
 
-⚠️ Like attendance, this is written against the documented SRM academia marks
-layout and is admin-gated at semester start — it needs a one-line sanity check
+NOTE: like attendance, this is written against the documented SRM academia marks
+layout and is admin-gated at semester start, it needs a one-line sanity check
 against a real capture once marks are published. Written defensively.
 
 Expected layout: a "Mark Details / Test Performance" table where each course row
 carries a nested table of components. The nested table's common form is two
-aligned rows — component name + max on top, score below — e.g.
+aligned rows (component name + max on top, score below), e.g.
 
     | FT-I / 25.00 | FT-II / 25.00 |     (header cells: "<strong>FT-I</strong>25.00")
     |    20.50     |    18.00      |     (score cells)
@@ -43,7 +43,7 @@ def parse_marks(raw: str) -> Marks:
     table = _find_marks_table(soup)
     if table is None:
         raise MarksUnavailable(
-            "No marks table found — page structure differs from expected "
+            "No marks table found, page structure differs from expected "
             "(capture a live page to finalize the parser)."
         )
 
@@ -53,7 +53,7 @@ def parse_marks(raw: str) -> Marks:
         subjects.append(
             SubjectMarks(
                 code=code,
-                title="",  # marks table has no title column — enriched from timetable
+                title="",  # marks table has no title column, enriched from timetable
                 components=components,
                 scored_total=round(sum(c.scored for c in components), 2),
                 max_total=round(sum(c.max for c in components), 2),
@@ -78,7 +78,7 @@ def _course_rows(table: Tag):
     """Yield (code, marks_cell_or_None) per course row.
 
     A course row is one whose first cell looks like a course code. The marks
-    cell (nested component table) may be absent before any tests are graded — we
+    cell (nested component table) may be absent before any tests are graded, we
     still yield the course so it shows with "no components yet".
     """
     for tr in table.find_all("tr"):

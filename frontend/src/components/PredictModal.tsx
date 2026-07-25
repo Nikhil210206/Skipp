@@ -7,6 +7,14 @@ import { todayISO } from "@/lib/schedule";
 import { projectAttendance, type DayKind } from "@/lib/leavePredictor";
 import { predict } from "@/lib/predictor";
 import NumBadge from "@/components/NumBadge";
+import {
+  IconCheck,
+  IconChevronLeft,
+  IconChevronRight,
+  IconClose,
+  IconTrendDown,
+  IconTrendUp,
+} from "@/components/Icons";
 
 const RECOVER_TARGET = 75;
 
@@ -143,9 +151,10 @@ export default function PredictModal({
                   onClose();
                   reset();
                 }}
-                className="flex size-11 items-center justify-center rounded-full bg-surface text-xl text-text-muted"
+                className="flex size-11 items-center justify-center rounded-full bg-surface text-text-muted"
+                aria-label="Close"
               >
-                ✕
+                <IconClose size={20} />
               </button>
             </div>
 
@@ -186,7 +195,7 @@ export default function PredictModal({
                     disabled={monthIdx <= 0}
                     onClick={() => monthIdx > 0 && setYm(months[monthIdx - 1])}
                   >
-                    ‹
+                    <IconChevronLeft size={18} />
                   </NavBtn>
                   <h2 className="text-lg font-extrabold uppercase tracking-wide">
                     {MONTHS[month0]} {year}
@@ -197,7 +206,7 @@ export default function PredictModal({
                       monthIdx < months.length - 1 && setYm(months[monthIdx + 1])
                     }
                   >
-                    ›
+                    <IconChevronRight size={18} />
                   </NavBtn>
                 </div>
 
@@ -236,7 +245,7 @@ export default function PredictModal({
                                   ? "text-text-primary"
                                   : "text-text-muted/40"
                             } ${isStart ? "ring-2 ring-accent" : ""} ${
-                              isToday && !sel ? "ring-1 ring-white/30" : ""
+                              isToday && !sel ? "ring-1 ring-line-strong" : ""
                             }`}
                           >
                             {d}
@@ -296,7 +305,8 @@ export default function PredictModal({
                     onClick={() => setShowResult(true)}
                     className="flex items-center gap-2 rounded-2xl bg-accent px-7 py-4 font-bold uppercase tracking-wide text-background disabled:opacity-40"
                   >
-                    predict ✓
+                    predict
+                    <IconCheck size={18} />
                   </motion.button>
                 </div>
               </>
@@ -322,7 +332,7 @@ function ResultView({
 
   return (
     <div className="flex min-h-0 flex-1 flex-col">
-      {/* Overall — the recovery count is the hero */}
+      {/* Overall: the recovery count is the hero */}
       <div className="mb-3 shrink-0 rounded-3xl bg-surface p-5 text-center">
         <p className="text-xs uppercase tracking-widest text-text-muted">
           overall after {projection.affectedDays} day
@@ -348,15 +358,20 @@ function ResultView({
           </>
         )}
         <p className="mt-2 text-xs text-text-muted">
-          {projection.overallBefore.toFixed(1)}% → {projection.overallAfter.toFixed(1)}%
-          <span className={drop < 0 ? "text-danger" : "text-success"}>
-            {" "}
-            ({drop < 0 ? "▼" : "▲"} {Math.abs(drop).toFixed(1)}%)
+          {projection.overallBefore.toFixed(1)}% to{" "}
+          {projection.overallAfter.toFixed(1)}%
+          <span
+            className={`ml-1 inline-flex items-center gap-1 align-middle ${
+              drop < 0 ? "text-danger" : "text-success"
+            }`}
+          >
+            {drop < 0 ? <IconTrendDown size={13} /> : <IconTrendUp size={13} />}
+            {Math.abs(drop).toFixed(1)}%
           </span>
         </p>
       </div>
 
-      {/* Per subject — big required number, tiny % */}
+      {/* Per subject: big required number, tiny percentage */}
       <div className="min-h-0 flex-1 overflow-y-auto">
         <ul className="flex flex-col gap-2 pb-4">
           {projection.subjects
@@ -391,9 +406,10 @@ function ResultView({
 
       <button
         onClick={onBack}
-        className="mb-6 mt-2 w-full shrink-0 rounded-2xl bg-surface py-4 font-bold uppercase tracking-wide text-text-primary"
+        className="mb-6 mt-2 flex w-full shrink-0 items-center justify-center gap-1.5 rounded-2xl bg-surface py-4 font-bold uppercase tracking-wide text-text-primary"
       >
-        ‹ edit days
+        <IconChevronLeft size={18} />
+        edit days
       </button>
     </div>
   );

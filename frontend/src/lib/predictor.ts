@@ -1,4 +1,4 @@
-// Client-side attendance predictor — mirrors backend/services/predictor.py so
+// Client-side attendance predictor that mirrors backend/services/predictor.py so
 // the target threshold and "what-if skip" projections recompute instantly from
 // the raw attended/conducted counts, no refetch needed.
 

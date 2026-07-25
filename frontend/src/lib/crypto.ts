@@ -2,7 +2,7 @@
 //
 // A NON-EXPORTABLE AES-GCM key lives in IndexedDB; the encrypted credential
 // blob lives in localStorage. The key can never leave the device (extractable
-// = false), and clearing browser data wipes both — a hard kill switch. We store
+// = false), and clearing browser data wipes both, a hard kill switch. We store
 // credentials only so the session survives a reload; they are re-sent to the
 // backend per request and never persisted server-side.
 
@@ -53,7 +53,7 @@ async function getOrCreateKey(): Promise<CryptoKey> {
   if (existing) return existing;
   const key = await crypto.subtle.generateKey(
     { name: "AES-GCM", length: 256 },
-    false, // non-extractable — cannot be read back out
+    false, // non-extractable, cannot be read back out
     ["encrypt", "decrypt"],
   );
   await idbPut(KEY_ID, key);
@@ -102,7 +102,7 @@ export async function saveCredentials(creds: Credentials): Promise<void> {
       `${b64(iv.buffer)}.${b64(ct)}`,
     );
   } catch {
-    // Crypto/IDB unavailable — degrade to in-memory-only (re-login on reload).
+    // Crypto/IDB unavailable, so degrade to in-memory only (re-login on reload).
   }
 }
 
@@ -139,7 +139,7 @@ export async function saveSnapshot(snap: Snapshot): Promise<void> {
   try {
     localStorage.setItem(SNAP_KEY, await encryptJSON(snap));
   } catch {
-    /* storage full / crypto unavailable — non-fatal */
+    /* storage full or crypto unavailable, non-fatal */
   }
 }
 
