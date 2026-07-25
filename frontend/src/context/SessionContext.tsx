@@ -19,9 +19,21 @@ import type {
 import { AuthError, fetchSnapshot } from "@/lib/api";
 import {
   clearCredentials,
+  clearSnapshot,
   loadCredentials,
+  loadSnapshot,
   saveCredentials,
+  saveSnapshot,
 } from "@/lib/crypto";
+
+// Re-fetch a cached snapshot in the background only when it's older than this,
+// so reloads within a session cost no Zoho sign-ins (which are daily-capped).
+const STALE_MS = 3 * 60 * 60 * 1000; // 3 hours
+
+function isStale(fetchedAt: string): boolean {
+  const t = Date.parse(fetchedAt);
+  return Number.isNaN(t) || Date.now() - t > STALE_MS;
+}
 import {
   loadCustomClasses,
   loadDisplayName,
@@ -85,31 +97,59 @@ export function SessionProvider({ children }: { children: React.ReactNode }) {
     setCustomName(reg ? loadDisplayName(reg) : null);
   }
 
-  // Rehydrate an encrypted session from a prior visit (one login).
+  // Rehydrate from a prior visit. If we have an encrypted cached snapshot, show
+  // it INSTANTLY (no login, no spinner) and only re-fetch in the background when
+  // it's stale — so reloads within a session cost zero Zoho sign-ins.
   useEffect(() => {
     let cancelled = false;
     (async () => {
       const saved = await loadCredentials();
-      if (!saved || cancelled) {
+      if (!saved) {
         if (!cancelled) setRestoring(false);
         return;
       }
+      const cached = await loadSnapshot();
+      if (cancelled) return;
+
+      if (cached) {
+        // Instant: show cached data, then quietly refresh if it's gone stale.
+        setCreds(saved);
+        setSnapshot(cached);
+        setRestoring(false);
+        if (isStale(cached.fetchedAt)) void backgroundRefresh(saved);
+        return;
+      }
+
+      // No cache — must fetch (shows the restoring spinner).
       try {
         const snap = await fetchSnapshot(saved);
         if (!cancelled) {
           setCreds(saved);
           setSnapshot(snap);
+          void saveSnapshot(snap);
         }
       } catch (e) {
-        // Only forget the saved session on a real auth failure (wrong/expired
-        // credentials). A transient error (backend down, network blip, rate
-        // limit) keeps the encrypted creds so a reload retries without the user
-        // re-typing their password.
+        // Only forget the saved session on a real auth failure. A transient
+        // error (backend down, network blip, rate limit) keeps the creds so a
+        // reload retries without the user re-typing their password.
         if (e instanceof AuthError) clearCredentials();
       } finally {
         if (!cancelled) setRestoring(false);
       }
     })();
+
+    async function backgroundRefresh(withCreds: Credentials) {
+      try {
+        const fresh = await fetchSnapshot(withCreds);
+        if (!cancelled) {
+          setSnapshot(fresh);
+          void saveSnapshot(fresh);
+        }
+      } catch {
+        // Keep showing the cached snapshot; a rate-limit/blip is non-fatal.
+      }
+    }
+
     return () => {
       cancelled = true;
     };
@@ -162,12 +202,15 @@ export function SessionProvider({ children }: { children: React.ReactNode }) {
         setCreds(next);
         setSnapshot(snap);
         void saveCredentials(next);
+        void saveSnapshot(snap);
       },
       async refresh() {
         if (!creds) return;
         setRefreshing(true);
         try {
-          setSnapshot(await fetchSnapshot(creds));
+          const fresh = await fetchSnapshot(creds);
+          setSnapshot(fresh);
+          void saveSnapshot(fresh);
         } finally {
           setRefreshing(false);
         }
@@ -176,6 +219,7 @@ export function SessionProvider({ children }: { children: React.ReactNode }) {
         setCreds(null);
         setSnapshot(null);
         clearCredentials();
+        clearSnapshot();
       },
     };
   }, [

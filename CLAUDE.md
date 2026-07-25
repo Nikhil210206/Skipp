@@ -307,6 +307,16 @@ Built + validated against a real capture AND a friend's app (exact match on DO2/
 - ⚠️ "today's day order" needs the real clock to fall inside the term; `focusDay()` falls back
   to the first working day when it doesn't (the AY2026-27 data is "future" vs a real clock).
 
+### ✅ Encrypted snapshot cache — instant, login-free reloads (2026-07-25)
+The big fix for the daily sign-in cap (`SI503`/429). The last `/refresh` snapshot is now cached
+**encrypted** on-device (same non-exportable AES-GCM key, `skipp.snap` in localStorage;
+`crypto.ts` `saveSnapshot`/`loadSnapshot`/`clearSnapshot`). On rehydrate, `SessionContext` shows
+the cached snapshot **instantly — no login, no spinner** — and only background-refreshes when it's
+older than `STALE_MS` (3h). So reloads/HMR within a session cost **zero Zoho sign-ins**; a failed
+background refresh silently keeps the cache. Cache is written on login/refresh/background-refresh,
+cleared on logout. Profile page gained a "data · updated Xh ago · refresh" control (manual
+`refresh()`). ⏳ Built + tsc/lint clean; needs ONE fresh login to populate the cache (was 429-capped).
+
 ### ✅ Profile page (2026-07-24)
 Orange avatar button (first initial) in every page header (top-right, hidden on `/profile`) → the
 `/profile` page. Contains: editable **display name** (custom, on-device `skipp.name.<reg>`, overrides

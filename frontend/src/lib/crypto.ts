@@ -6,12 +6,13 @@
 // credentials only so the session survives a reload; they are re-sent to the
 // backend per request and never persisted server-side.
 
-import type { Credentials } from "@/types";
+import type { Credentials, Snapshot } from "@/types";
 
 const DB_NAME = "skipp";
 const STORE = "keys";
 const KEY_ID = "cred-key";
 const BLOB_KEY = "skipp.cred";
+const SNAP_KEY = "skipp.snap";
 
 function openDB(): Promise<IDBDatabase> {
   return new Promise((resolve, reject) => {
@@ -64,6 +65,31 @@ const b64 = (buf: ArrayBuffer) =>
 const unb64 = (s: string) =>
   Uint8Array.from(atob(s), (c) => c.charCodeAt(0));
 
+/** Encrypt any JSON-serializable value to an "iv.ciphertext" base64 string. */
+async function encryptJSON(value: unknown): Promise<string> {
+  const key = await getOrCreateKey();
+  const iv = crypto.getRandomValues(new Uint8Array(12));
+  const data = new TextEncoder().encode(JSON.stringify(value));
+  const ct = await crypto.subtle.encrypt({ name: "AES-GCM", iv }, key, data);
+  return `${b64(iv.buffer)}.${b64(ct)}`;
+}
+
+/** Decrypt an "iv.ciphertext" blob back to a value, or null if invalid. */
+async function decryptJSON<T>(blob: string): Promise<T | null> {
+  try {
+    const [ivB64, ctB64] = blob.split(".");
+    const key = await getOrCreateKey();
+    const pt = await crypto.subtle.decrypt(
+      { name: "AES-GCM", iv: unb64(ivB64) },
+      key,
+      unb64(ctB64),
+    );
+    return JSON.parse(new TextDecoder().decode(pt)) as T;
+  } catch {
+    return null;
+  }
+}
+
 /** Encrypt + persist credentials for reload-survival. Best-effort. */
 export async function saveCredentials(creds: Credentials): Promise<void> {
   try {
@@ -101,6 +127,32 @@ export async function loadCredentials(): Promise<Credentials | null> {
 export function clearCredentials(): void {
   try {
     localStorage.removeItem(BLOB_KEY);
+  } catch {
+    /* ignore */
+  }
+}
+
+// ---- Cached snapshot (encrypted, for instant reloads without a login) ----
+
+/** Persist the last snapshot, encrypted. Best-effort. */
+export async function saveSnapshot(snap: Snapshot): Promise<void> {
+  try {
+    localStorage.setItem(SNAP_KEY, await encryptJSON(snap));
+  } catch {
+    /* storage full / crypto unavailable — non-fatal */
+  }
+}
+
+/** Load the cached snapshot, or null if none / tampered. */
+export async function loadSnapshot(): Promise<Snapshot | null> {
+  const blob = localStorage.getItem(SNAP_KEY);
+  if (!blob) return null;
+  return decryptJSON<Snapshot>(blob);
+}
+
+export function clearSnapshot(): void {
+  try {
+    localStorage.removeItem(SNAP_KEY);
   } catch {
     /* ignore */
   }

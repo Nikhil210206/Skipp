@@ -17,6 +17,9 @@ export default function ProfilePage() {
     setDisplayName,
     customClasses,
     optionalCourses,
+    fetchedAt,
+    refresh,
+    refreshing,
     logout,
   } = useSession();
 
@@ -138,6 +141,25 @@ export default function ProfilePage() {
         </Card>
       )}
 
+      {/* Data freshness */}
+      <Card>
+        <div className="flex items-center justify-between">
+          <div>
+            <Label>data</Label>
+            <p className="-mt-1 text-sm text-text-muted">
+              updated {timeAgo(fetchedAt)}
+            </p>
+          </div>
+          <button
+            onClick={() => void refresh()}
+            disabled={refreshing}
+            className="rounded-xl bg-surface-2 px-4 py-2.5 text-sm font-semibold transition-opacity disabled:opacity-50"
+          >
+            {refreshing ? "refreshing…" : "refresh"}
+          </button>
+        </div>
+      </Card>
+
       {/* Your additions */}
       <Card>
         <Label>your customizations</Label>
@@ -168,6 +190,17 @@ export default function ProfilePage() {
       </p>
     </AppShell>
   );
+}
+
+function timeAgo(iso: string | null): string {
+  if (!iso) return "just now";
+  const secs = Math.max(0, (Date.now() - Date.parse(iso)) / 1000);
+  if (secs < 60) return "just now";
+  const mins = Math.floor(secs / 60);
+  if (mins < 60) return `${mins} min ago`;
+  const hrs = Math.floor(mins / 60);
+  if (hrs < 24) return `${hrs}h ago`;
+  return `${Math.floor(hrs / 24)}d ago`;
 }
 
 function Card({ children }: { children: React.ReactNode }) {
