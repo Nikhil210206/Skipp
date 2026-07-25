@@ -9,6 +9,8 @@ import { useSession } from "@/context/SessionContext";
 import {
   calendarDay,
   daySchedule,
+  holidayToday,
+  nextWorkingDay,
   scheduleFor,
   timeline,
   todayISO,
@@ -26,16 +28,20 @@ export default function TimetablePage() {
     toggleOptional,
   } = useSession();
   const dayOrders = timetable?.dayOrders ?? [];
-  const todayDO = timetable
-    ? (calendarDay(timetable.calendar, todayISO())?.dayOrder ?? null)
-    : null;
+  const cal = timetable?.calendar ?? [];
+  const todayDO = calendarDay(cal, todayISO())?.dayOrder ?? null;
+  const holiday = holidayToday(cal);
+  // When today isn't a working day (holiday/weekend), default to the next
+  // working day's order.
+  const upcomingDO = todayDO == null ? (nextWorkingDay(cal)?.dayOrder ?? null) : null;
 
   // `selected` is null until the user picks a day order — so the view always
-  // defaults to today's day order (resolved once the snapshot loads), and a
-  // reload/relaunch lands on today again rather than sticking on a stale DO.
+  // defaults to today's (or the upcoming) day order, and a reload/relaunch lands
+  // there again rather than sticking on a stale DO.
   const [selected, setSelected] = useState<number | null>(null);
   const [sheetOpen, setSheetOpen] = useState(false);
-  const activeDO = selected ?? todayDO ?? dayOrders[0]?.dayOrder ?? 1;
+  const activeDO =
+    selected ?? todayDO ?? upcomingDO ?? dayOrders[0]?.dayOrder ?? 1;
 
   if (dayOrders.length === 0) {
     return (
@@ -64,12 +70,28 @@ export default function TimetablePage() {
 
   return (
     <AppShell title="timetable">
+      {/* Holiday today */}
+      {holiday && (
+        <div className="mb-4 rounded-2xl border border-success/25 bg-success/[0.08] p-4 text-center">
+          <p className="text-sm font-bold lowercase text-success">
+            🎉 holiday today — enjoy!{" "}
+            <span className="text-text-muted">
+              {holiday.event?.replace(/ - Holiday$/i, "")}
+            </span>
+          </p>
+        </div>
+      )}
+
       {/* Big day-order number */}
       <div className="mb-4 text-center">
         <p className="text-xs uppercase tracking-[0.25em] text-text-muted">
           {activeDO === todayDO ? (
             <>
               <span className="text-accent">today</span> · day order
+            </>
+          ) : activeDO === upcomingDO ? (
+            <>
+              <span className="text-accent">upcoming</span> · day order
             </>
           ) : (
             "day order"

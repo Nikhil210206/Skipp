@@ -108,6 +108,25 @@ export function calendarDay(
   return cal.find((d) => d.date === iso);
 }
 
+/** Today's calendar entry if it's a holiday, else null. */
+export function holidayToday(
+  cal: CalendarDay[],
+  iso = todayISO(),
+): CalendarDay | null {
+  const d = calendarDay(cal, iso);
+  return d?.isHoliday ? d : null;
+}
+
+/** The next working day on/after `iso` (today itself if it's a working day). */
+export function nextWorkingDay(
+  cal: CalendarDay[],
+  iso = todayISO(),
+): CalendarDay | undefined {
+  const today = calendarDay(cal, iso);
+  if (today?.dayOrder != null) return today;
+  return cal.find((d) => d.date > iso && d.dayOrder != null);
+}
+
 export function scheduleFor(
   dayOrders: DayOrderSchedule[],
   n: number | null,

@@ -7,6 +7,7 @@ import { useSession } from "@/context/SessionContext";
 import {
   daySchedule,
   focusDay,
+  holidayToday,
   nextClass,
   nowMinutes,
   scheduleFor,
@@ -25,6 +26,7 @@ export default function DashboardPage() {
     optionalCourses,
   } = useSession();
 
+  const holiday = timetable ? holidayToday(timetable.calendar) : null;
   const focus = timetable ? focusDay(timetable) : null;
   const schedule = timetable
     ? scheduleFor(timetable.dayOrders, focus?.dayOrder ?? null)
@@ -59,6 +61,23 @@ export default function DashboardPage() {
 
   return (
     <AppShell title="skipp" greeting>
+      {/* Holiday today */}
+      {holiday && (
+        <motion.div
+          initial={{ opacity: 0, y: 10 }}
+          animate={{ opacity: 1, y: 0 }}
+          className="mb-4 rounded-2xl border border-success/25 bg-success/[0.08] p-5 text-center"
+        >
+          <p className="text-3xl">🎉</p>
+          <p className="mt-1 text-lg font-extrabold lowercase">
+            holiday today — enjoy!
+          </p>
+          <p className="text-sm text-success">
+            {holiday.event?.replace(/ - Holiday$/i, "")}
+          </p>
+        </motion.div>
+      )}
+
       {/* Focus day header */}
       <div className="mb-3 flex items-baseline justify-between px-1">
         <p className="text-xs font-semibold uppercase tracking-[0.2em] text-text-muted">
