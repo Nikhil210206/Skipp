@@ -28,7 +28,12 @@
   --color-watch: #cf9b34;
   --color-risk: #e2584f;
 
-  /* --- Type scale. Editorial: huge numbers, quiet labels. --- */
+  /* --- Type scale. Editorial: one enormous figure, quiet everything else. --- */
+  --text-mega: 6.5rem;
+  --text-mega--line-height: 0.78;
+  --text-mega--letter-spacing: -0.055em;
+  --text-mega--font-weight: 700;
+
   --text-display: 4.25rem;
   --text-display--line-height: 0.86;
   --text-display--letter-spacing: -0.045em;
@@ -77,8 +82,8 @@
 /* Spacing rhythm and layout constants live outside @theme so they can be
    consumed by both utilities and raw CSS. */
 :root {
-  --gutter: 20px;
-  --nav-h: 60px;
+  --gutter: 22px;
+  --nav-h: 58px;
   --dur-1: 0.14s;
   --dur-2: 0.24s;
   --dur-3: 0.42s;
@@ -135,6 +140,16 @@ body {
 .rule {
   background: var(--color-line);
   height: 1px;
+}
+
+/* Break out of the page gutter to full bleed. */
+.bleed {
+  margin-left: calc(var(--gutter) * -1);
+  margin-right: calc(var(--gutter) * -1);
+}
+.bleed-pad {
+  padding-left: var(--gutter);
+  padding-right: var(--gutter);
 }
 
 .no-scrollbar::-webkit-scrollbar {

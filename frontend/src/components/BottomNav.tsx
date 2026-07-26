@@ -13,6 +13,9 @@ import {
   IconTimetable,
 } from "./Icons";
 
+// Icons only. The labels were repeating what the screen already says in its
+// masthead, and five words along the bottom edge added noise to every screen.
+
 const TABS = [
   { href: "/marks", label: "Marks", Icon: IconMarks },
   { href: "/attendance", label: "Attendance", Icon: IconAttendance },
@@ -23,23 +26,21 @@ const TABS = [
 
 export default function BottomNav() {
   const pathname = usePathname();
-  const indicator = useRef<HTMLSpanElement>(null);
+  const dot = useRef<HTMLSpanElement>(null);
   const bar = useRef<HTMLUListElement>(null);
 
-  // A single indicator slides between tabs rather than each tab animating
-  // itself: one moving element reads as one object.
   useEffect(() => {
     const list = bar.current;
-    const dot = indicator.current;
-    if (!list || !dot) return;
+    const marker = dot.current;
+    if (!list || !marker) return;
     const active = list.querySelector<HTMLElement>('[aria-current="page"]');
     if (!active) {
-      gsap.set(dot, { opacity: 0 });
+      gsap.set(marker, { opacity: 0 });
       return;
     }
     const x = active.offsetLeft + active.offsetWidth / 2;
-    const first = gsap.getProperty(dot, "opacity") === 0;
-    gsap.to(dot, {
+    const first = gsap.getProperty(marker, "opacity") === 0;
+    gsap.to(marker, {
       x,
       opacity: 1,
       duration: first || prefersReducedMotion() ? 0 : DUR.base,
@@ -50,16 +51,17 @@ export default function BottomNav() {
   return (
     <nav
       aria-label="Primary"
-      className="sticky bottom-0 z-30 border-t border-line bg-ink-0/92 backdrop-blur-2xl"
+      className="sticky bottom-0 z-30 bg-ink-0/90 backdrop-blur-2xl"
     >
+      <div className="rule" />
       <ul
         ref={bar}
-        className="relative mx-auto flex max-w-md pb-[max(6px,env(safe-area-inset-bottom))]"
+        className="relative mx-auto flex max-w-md pb-[max(8px,env(safe-area-inset-bottom))] pt-1"
       >
         <span
-          ref={indicator}
+          ref={dot}
           aria-hidden
-          className="pointer-events-none absolute left-0 top-0 -ml-[9px] h-[2px] w-[18px] rounded-full bg-accent opacity-0"
+          className="pointer-events-none absolute left-0 top-2 -ml-[3px] size-1.5 rounded-full bg-accent opacity-0"
         />
         {TABS.map(({ href, label, Icon }) => {
           const active = pathname === href;
@@ -69,12 +71,12 @@ export default function BottomNav() {
                 href={href}
                 aria-current={active ? "page" : undefined}
                 aria-label={label}
-                className={`flex min-h-[56px] flex-col items-center justify-center gap-1.5 transition-colors ${
+                title={label}
+                className={`flex min-h-[52px] items-center justify-center transition-colors ${
                   active ? "text-text-1" : "text-text-3 hover:text-text-2"
                 }`}
               >
-                <Icon size={21} />
-                <span className="text-[10px] font-medium tracking-wide">{label}</span>
+                <Icon size={22} />
               </Link>
             </li>
           );

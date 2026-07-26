@@ -15,9 +15,15 @@ import {
   todayISO,
   type ScheduleItem,
 } from "@/lib/schedule";
-import { revealIn, useGsap } from "@/lib/motion";
-import { Button, Card, Chip, Label, Segmented, StateView } from "@/components/ui";
+import { revealIn, revealRows, useGsap } from "@/lib/motion";
+import { Button, Chip, StateView } from "@/components/ui";
+import { Marginalia, Rule, SectionHead } from "@/components/ui/editorial";
 
+/**
+ * The schedule is drawn as a time axis: hours in a fixed left column, classes
+ * hung off it, gaps left genuinely empty. The day-order picker is a row of
+ * numerals rather than a control, because the numeral is the content.
+ */
 export default function TimetablePage() {
   const {
     timetable,
@@ -50,20 +56,16 @@ export default function TimetablePage() {
   const attending = classes.filter((c) => !c.isOptional);
 
   const scope = useGsap(
-    ({ self, reduced }) => revealIn(self, reduced, { stagger: 0.04 }),
+    ({ self, reduced }) => {
+      revealIn(self, reduced, { y: 14, stagger: 0.05 });
+      revealRows(self, reduced);
+    },
     [activeDO, classes.length],
   );
 
-  const context =
-    activeDO === todayDO
-      ? "Today"
-      : activeDO === upcomingDO
-        ? `Next, ${prettyDate(upcoming?.date ?? "")}`
-        : "Day order";
-
   if (dayOrders.length === 0) {
     return (
-      <AppShell eyebrow="Schedule" title="Timetable">
+      <AppShell section="Schedule">
         <StateView
           title="Timetable unavailable"
           message="We could not load your day-order grid. Pull down to try again."
@@ -72,77 +74,89 @@ export default function TimetablePage() {
     );
   }
 
+  const context =
+    activeDO === todayDO
+      ? "Today"
+      : activeDO === upcomingDO
+        ? `Next working day · ${prettyDate(upcoming?.date ?? "")}`
+        : "Day order";
+
   return (
-    <AppShell
-      eyebrow={context}
-      title={`Day order ${activeDO}`}
-      action={
-        <Button variant="secondary" onClick={() => setSheetOpen(true)}>
-          Add
-        </Button>
-      }
-    >
+    <AppShell section="Schedule">
       <div ref={scope} className="flex flex-1 flex-col">
-        <div data-reveal className="mb-6">
-          <Segmented
-            label="Day order"
-            value={activeDO}
-            onChange={setSelected}
-            options={dayOrders.map((d) => ({
-              value: d.dayOrder,
-              label: (
-                <span className="tnum">
-                  {d.dayOrder}
+        {/* Day-order picker: numerals, not chrome */}
+        <div data-reveal className="pt-2">
+          <div className="no-scrollbar bleed bleed-pad flex items-end gap-6 overflow-x-auto pb-1">
+            {dayOrders.map((d) => {
+              const active = d.dayOrder === activeDO;
+              return (
+                <button
+                  key={d.dayOrder}
+                  onClick={() => setSelected(d.dayOrder)}
+                  aria-pressed={active}
+                  aria-label={`Day order ${d.dayOrder}`}
+                  className="group relative shrink-0 pb-2"
+                >
+                  <span
+                    className={`tnum block text-hero transition-colors ${
+                      active ? "text-text-1" : "text-text-3/40 hover:text-text-3"
+                    }`}
+                  >
+                    {d.dayOrder}
+                  </span>
                   {d.dayOrder === todayDO && (
-                    <span className="ml-1 inline-block size-1 rounded-full bg-accent align-middle" />
+                    <span className="absolute -right-2 top-1 size-1.5 rounded-full bg-accent" />
                   )}
-                </span>
-              ),
-            }))}
-          />
+                </button>
+              );
+            })}
+          </div>
+          <div className="mt-1 flex items-baseline justify-between gap-4">
+            <p
+              className={`text-label uppercase ${
+                activeDO === todayDO ? "text-accent" : "text-text-3"
+              }`}
+            >
+              {context}
+            </p>
+            <p className="tnum text-label uppercase text-text-3">
+              {attending.length} {attending.length === 1 ? "class" : "classes"}
+              {attending.length > 0 &&
+                ` · ${attending[0].start} to ${attending.at(-1)?.end}`}
+            </p>
+          </div>
         </div>
 
         {holiday && activeDO === upcomingDO && (
-          <div data-reveal className="mb-6">
-            <Label tone="accent">Holiday today</Label>
-            <p className="mt-2 text-body text-text-2">
-              {holiday.event?.replace(/ - Holiday$/i, "") ?? "No classes today."} Showing
-              the next working day.
-            </p>
+          <div data-reveal className="pt-7">
+            <Marginalia>
+              {holiday.event?.replace(/ - Holiday$/i, "") ?? "Holiday today."} Showing the
+              next working day.
+            </Marginalia>
           </div>
         )}
 
-        {classes.length === 0 ? (
-          <StateView
-            title="No classes"
-            message={`Day order ${activeDO} is clear. Nothing to attend.`}
-          />
-        ) : (
-          <>
-            <div data-reveal className="mb-5 flex items-baseline justify-between">
-              <Label>
-                {attending[0]?.start} to {attending.at(-1)?.end}
-              </Label>
-              <span className="tnum text-callout text-text-3">
-                {attending.length} {attending.length === 1 ? "class" : "classes"}
-              </span>
-            </div>
-
-            <ul className="flex flex-col">
+        {/* The axis */}
+        <section className="pt-8">
+          {classes.length === 0 ? (
+            <StateView
+              title="No classes"
+              message={`Day order ${activeDO} is clear.`}
+            />
+          ) : (
+            <ul>
               {items.map((item, i) =>
                 item.kind === "break" ? (
-                  <li
-                    key={`b${i}`}
-                    data-reveal
-                    className="flex items-center gap-3 py-2 pl-[62px]"
-                  >
+                  <li key={`b${i}`} data-row className="flex gap-5 py-3">
+                    <span className="tnum w-[46px] shrink-0" />
                     <span className="text-callout text-text-3">
-                      {item.minutes} min break
+                      {item.minutes} minute break
                     </span>
                   </li>
                 ) : (
-                  <li key={item.item.id} data-reveal className="py-1.5">
-                    <ClassCard
+                  <li key={item.item.id} data-row>
+                    <Rule soft={i > 0} />
+                    <ClassEntry
                       item={item.item}
                       onRemove={removeCustomClass}
                       onToggleOptional={toggleOptional}
@@ -151,8 +165,17 @@ export default function TimetablePage() {
                 ),
               )}
             </ul>
-          </>
-        )}
+          )}
+        </section>
+
+        <div data-reveal className="pt-10">
+          <SectionHead>Your additions</SectionHead>
+          <div className="pt-4">
+            <Button variant="secondary" full onClick={() => setSheetOpen(true)}>
+              Add a class to day order {activeDO}
+            </Button>
+          </div>
+        </div>
       </div>
 
       <CustomClassSheet
@@ -166,7 +189,7 @@ export default function TimetablePage() {
   );
 }
 
-function ClassCard({
+function ClassEntry({
   item,
   onRemove,
   onToggleOptional,
@@ -178,52 +201,42 @@ function ClassCard({
   const muted = item.isOptional;
   // The portal appends a staff id to every name. Nobody needs to read it.
   const faculty = item.faculty?.replace(/\s*\(\d+\)\s*$/, "") ?? null;
-  const meta = [item.room, faculty].filter(Boolean).join(" · ");
 
   return (
-    <Card flush className={`flex gap-4 px-4 py-3.5 ${muted ? "opacity-45" : ""}`}>
-      <div className="w-[42px] shrink-0 pt-0.5">
+    <div className={`flex gap-5 py-5 ${muted ? "opacity-40" : ""}`}>
+      <div className="w-[46px] shrink-0">
         <p className="tnum text-callout text-text-1">{item.start}</p>
-        <p className="tnum text-callout text-text-3">{item.end}</p>
+        <p className="tnum mt-0.5 text-callout text-text-3">{item.end}</p>
       </div>
 
       <div className="min-w-0 flex-1">
         <div className="flex items-baseline justify-between gap-3">
-          <p
+          <h3
             className={`truncate text-headline ${
-              muted ? "line-through decoration-text-3" : ""
+              muted ? "line-through decoration-line" : ""
             }`}
           >
-            {item.abbrev}
-          </p>
+            {item.title}
+          </h3>
           <div className="flex shrink-0 items-center gap-1.5">
             {item.isLab && <Chip>Lab</Chip>}
             {item.isCustom && <Chip tone="accent">Added</Chip>}
-            {muted && <Chip>Optional</Chip>}
           </div>
         </div>
 
-        <p className="mt-0.5 truncate text-callout text-text-3">{item.title}</p>
+        <p className="mt-1.5 truncate text-callout text-text-3">
+          {[item.abbrev, item.room, faculty].filter(Boolean).join(" · ")}
+        </p>
 
-        <div className="mt-1.5 flex items-baseline justify-between gap-3">
-          <p className="min-w-0 truncate text-callout text-text-3">{meta}</p>
-          {item.isCustom ? (
-            <button
-              onClick={() => onRemove(item.id)}
-              className="shrink-0 text-callout text-text-3 transition-colors hover:text-risk"
-            >
-              Remove
-            </button>
-          ) : (
-            <button
-              onClick={() => onToggleOptional(item.code)}
-              className="shrink-0 text-callout text-text-3 transition-colors hover:text-text-1"
-            >
-              {muted ? "Make required" : "Make optional"}
-            </button>
-          )}
-        </div>
+        <button
+          onClick={() =>
+            item.isCustom ? onRemove(item.id) : onToggleOptional(item.code)
+          }
+          className="mt-2 text-callout text-text-3/70 transition-colors hover:text-text-1"
+        >
+          {item.isCustom ? "Remove" : muted ? "Mark as required" : "Mark as optional"}
+        </button>
       </div>
-    </Card>
+    </div>
   );
 }

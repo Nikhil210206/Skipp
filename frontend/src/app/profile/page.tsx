@@ -5,9 +5,14 @@ import { useState } from "react";
 import AppShell from "@/components/AppShell";
 import { useSession } from "@/context/SessionContext";
 import { setTheme, useTheme, type Theme } from "@/lib/theme";
-import { revealIn, useGsap } from "@/lib/motion";
-import { Button, Card, Divider, Label, Segmented } from "@/components/ui";
+import { revealIn, revealRows, useGsap } from "@/lib/motion";
+import { Button, Segmented } from "@/components/ui";
+import { Marginalia, Rule, SectionHead } from "@/components/ui/editorial";
 
+/**
+ * Settings as a plain document: the name is the masthead, everything else is
+ * label-and-value lines under small caps headings. No cards at all.
+ */
 export default function ProfilePage() {
   const router = useRouter();
   const {
@@ -31,10 +36,13 @@ export default function ProfilePage() {
     setSeededFrom(displayName);
     setName(displayName);
   }
+
   const courses = timetable?.courses ?? [];
   const credits = courses.reduce((sum, c) => sum + (c.credit ?? 0), 0);
-
-  const scope = useGsap(({ self, reduced }) => revealIn(self, reduced));
+  const scope = useGsap(({ self, reduced }) => {
+    revealIn(self, reduced, { y: 14, stagger: 0.06 });
+    revealRows(self, reduced);
+  });
 
   function saveName() {
     setDisplayName(name);
@@ -43,36 +51,52 @@ export default function ProfilePage() {
   }
 
   return (
-    <AppShell eyebrow={student?.registrationNumber ?? "Account"} title={displayName}>
-      <div ref={scope} className="flex flex-1 flex-col gap-3">
-        {/* Identity */}
-        <Card data-reveal>
-          <Label>Display name</Label>
-          <div className="mt-3 flex gap-2">
-            <input
-              value={name}
-              onChange={(e) => setName(e.target.value)}
-              aria-label="Display name"
-              placeholder="What should we call you?"
-              className="min-w-0 flex-1 rounded-control border border-line bg-ink-0 px-4 text-headline outline-none transition-colors focus:border-text-3"
-            />
-            <Button
-              onClick={saveName}
-              variant={saved ? "secondary" : "primary"}
-              disabled={name.trim() === displayName || name.trim() === ""}
-            >
-              {saved ? "Saved" : "Save"}
-            </Button>
-          </div>
-          <p className="mt-3 text-callout text-text-3">
-            Shown in your greeting. Stored on this device only.
+    <AppShell section="Profile">
+      <div ref={scope} className="flex flex-1 flex-col">
+        {/* Masthead */}
+        <div data-reveal className="pb-9 pt-3">
+          <h1 className="text-hero">{tidy(student?.name) ?? displayName}</h1>
+          <p className="tnum mt-3 text-callout text-text-3">
+            {[student?.registrationNumber, tidy(student?.program), student?.section]
+              .filter(Boolean)
+              .join(" · ")}
           </p>
-        </Card>
+        </div>
 
-        {/* Appearance */}
-        <Card data-reveal>
-          <Label>Appearance</Label>
-          <div className="mt-3">
+        {/* Figures */}
+        <div data-reveal className="flex items-baseline gap-9 pb-9">
+          <Stat value={String(courses.length)} label="Courses" />
+          <Stat value={String(credits)} label="Credits" />
+          <Stat value={student?.semester ?? "—"} label="Semester" />
+        </div>
+
+        {/* Preferences */}
+        <section className="pb-9">
+          <SectionHead>Preferences</SectionHead>
+          <div className="pt-5">
+            <label htmlFor="name" className="text-callout text-text-3">
+              What we call you
+            </label>
+            <div className="mt-2 flex gap-2">
+              <input
+                id="name"
+                value={name}
+                onChange={(e) => setName(e.target.value)}
+                placeholder="Your name"
+                className="min-w-0 flex-1 border-b border-line bg-transparent pb-2 text-title outline-none transition-colors focus:border-accent"
+              />
+              <Button
+                onClick={saveName}
+                variant={saved ? "quiet" : "secondary"}
+                disabled={name.trim() === displayName || name.trim() === ""}
+              >
+                {saved ? "Saved" : "Save"}
+              </Button>
+            </div>
+          </div>
+
+          <div className="pt-7">
+            <p className="pb-3 text-callout text-text-3">Appearance</p>
             <Segmented<Theme>
               label="Theme"
               value={theme}
@@ -83,54 +107,36 @@ export default function ProfilePage() {
               ]}
             />
           </div>
-        </Card>
+        </section>
 
-        {/* Term at a glance */}
-        <Card data-reveal flush className="overflow-hidden">
-          <div className="grid grid-cols-3">
-            <Stat label="Courses" value={String(courses.length)} />
-            <Stat label="Credits" value={String(credits)} bordered />
-            <Stat label="Semester" value={student?.semester ?? "—"} bordered />
-          </div>
-        </Card>
-
-        {/* Details */}
-        <Card data-reveal flush className="overflow-hidden">
-          <div className="px-5 pb-1 pt-4">
-            <Label>Student</Label>
-          </div>
-          <dl>
-            <Detail k="Name" v={tidy(student?.name)} />
-            <Detail k="Programme" v={tidy(student?.program)} />
-            <Detail k="Department" v={tidy(student?.department)} />
-            <Detail k="Section" v={student?.section} />
-            <Detail k="Batch" v={student?.batch} />
-            <Detail k="Mobile" v={student?.mobile} />
-            <Detail k="Academic year" v={timetable?.academicYear} />
+        {/* Record */}
+        <section className="pb-9">
+          <SectionHead>Record</SectionHead>
+          <dl className="pt-1">
+            <Line k="Department" v={tidy(student?.department)} />
+            <Line k="Batch" v={student?.batch} />
+            <Line k="Mobile" v={student?.mobile} />
+            <Line k="Academic year" v={timetable?.academicYear} />
           </dl>
-        </Card>
+        </section>
 
         {/* Courses */}
         {courses.length > 0 && (
-          <Card data-reveal flush className="overflow-hidden">
-            <div className="px-5 pb-1 pt-4">
-              <Label>Registered courses</Label>
-            </div>
-            <ul>
+          <section className="pb-9">
+            <SectionHead aside={`${credits} credits`}>Registered</SectionHead>
+            <ul className="pt-1">
               {courses.map((c, i) => (
-                <li key={`${c.code}-${c.slot ?? i}`}>
-                  {i > 0 && <Divider inset={20} />}
-                  <div className="px-5 py-3.5">
+                <li key={`${c.code}-${c.slot ?? i}`} data-row>
+                  <Rule soft={i > 0} />
+                  <div className="py-3.5">
                     <div className="flex items-baseline justify-between gap-3">
-                      <p className="truncate text-body">{c.title}</p>
-                      {c.slot && (
-                        <span className="tnum shrink-0 text-callout text-text-3">
-                          {c.slot.replace(/-$/, "")}
-                        </span>
-                      )}
+                      <span className="min-w-0 truncate text-body">{c.title}</span>
+                      <span className="tnum shrink-0 text-callout text-text-3">
+                        {c.credit != null ? `${c.credit} cr` : ""}
+                      </span>
                     </div>
-                    <p className="mt-0.5 tnum text-callout text-text-3">
-                      {[c.code, c.credit != null ? `${c.credit} cr` : null, c.faculty]
+                    <p className="tnum mt-1 truncate text-callout text-text-3">
+                      {[c.code, c.faculty?.replace(/\s*\(\d+\)\s*$/, "")]
                         .filter(Boolean)
                         .join(" · ")}
                     </p>
@@ -138,19 +144,18 @@ export default function ProfilePage() {
                 </li>
               ))}
             </ul>
-          </Card>
+          </section>
         )}
 
         {/* Data */}
-        <Card data-reveal>
-          <div className="flex items-center justify-between gap-4">
-            <div className="min-w-0">
-              <Label>Data</Label>
-              <p className="mt-2 text-callout text-text-3">
-                Updated {timeAgo(fetchedAt)} · {customClasses.length} added,{" "}
-                {optionalCourses.length} optional
-              </p>
-            </div>
+        <section className="pb-10">
+          <SectionHead>Data</SectionHead>
+          <div className="flex items-end justify-between gap-4 pt-5">
+            <Marginalia>
+              Updated {timeAgo(fetchedAt)}
+              <br />
+              {customClasses.length} added, {optionalCourses.length} marked optional
+            </Marginalia>
             <Button
               variant="secondary"
               onClick={() => void refresh()}
@@ -159,9 +164,9 @@ export default function ProfilePage() {
               {refreshing ? "Refreshing" : "Refresh"}
             </Button>
           </div>
-        </Card>
+        </section>
 
-        <div data-reveal className="mt-2">
+        <div data-reveal>
           <Button
             variant="danger"
             size="lg"
@@ -173,9 +178,9 @@ export default function ProfilePage() {
           >
             Sign out
           </Button>
-          <p className="mt-5 text-callout leading-relaxed text-text-3">
+          <p className="mt-6 text-callout leading-relaxed text-text-3">
             Not affiliated with SRM. Your data is never stored on our servers. It lives
-            on this device and is cleared when you sign out or clear browsing data.
+            on this device and is cleared when you sign out.
           </p>
         </div>
       </div>
@@ -183,29 +188,21 @@ export default function ProfilePage() {
   );
 }
 
-function Stat({
-  label,
-  value,
-  bordered,
-}: {
-  label: string;
-  value: string;
-  bordered?: boolean;
-}) {
+function Stat({ value, label }: { value: string; label: string }) {
   return (
-    <div className={`px-4 py-5 text-center ${bordered ? "border-l border-line-soft" : ""}`}>
+    <div>
       <p className="tnum text-title">{value}</p>
       <p className="mt-1 text-label uppercase text-text-3">{label}</p>
     </div>
   );
 }
 
-function Detail({ k, v }: { k: string; v?: string | null }) {
+function Line({ k, v }: { k: string; v?: string | null }) {
   if (!v) return null;
   return (
-    <div className="flex items-baseline justify-between gap-4 px-5 py-2.5">
+    <div className="flex items-baseline justify-between gap-4 py-2.5">
       <dt className="shrink-0 text-callout text-text-3">{k}</dt>
-      <dd className="truncate text-callout text-text-1">{v}</dd>
+      <dd className="truncate text-callout">{v}</dd>
     </div>
   );
 }

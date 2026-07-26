@@ -274,7 +274,18 @@ clarity on attendance/marks numbers. **No emoji and no dashes in UI copy** (see 
 - Backend: pydantic models for every response. Handle "session expired" and "wrong
   password" as clean typed errors, not 500s.
 - Never commit `.env`. Secrets via environment variables only.
-- **Build screens from `components/ui/`, never from raw Tailwind.** The primitives
+- **Two layers of primitives.** `components/ui/editorial.tsx` is for content:
+  `Rule` (full-bleed hairline), `SectionHead`, `IndexRow`, `Feature` (the single
+  solid block on a screen), `Amount`, `Marginalia`, `StickyAction`. Content is set
+  as a page, not stacked in boxes. `components/ui/index.tsx` is for controls.
+- **One focal point per screen, one accent per screen.** `Feature` appears at most
+  once and defaults to paper (white on black) because **the accent is reserved for
+  actions**. If a screen has a primary button, nothing else may be orange.
+- **Every screen must have its own rhythm.** Home is a front page, Attendance is a
+  figure plus a table, Marks is a contents page with dot leaders, Schedule is a
+  time axis with numeral day-order tabs, Calendar is a full-bleed grid, Profile is
+  a plain document. If two screens start to look alike, that is the bug.
+- **Build screens from `components/ui/`, never from raw Tailwind.** The control primitives
   (`Card`, `Divider`, `Button`, `IconButton`, `Segmented`, `Chip`, `Meter`, `Label`,
   `Skeleton`, `StateView`, and `Sheet`/`Panel` in `ui/Overlay.tsx`) are the design
   system. If a screen needs a new look, change the primitive, not the screen.
@@ -333,6 +344,27 @@ is deployment and true push notifications.
 
 Entries below are newest first. **When something breaks, read the relevant entry first**: most
 oddities here (login shell, empty calendar, 429s, duplicated course codes) are already diagnosed.
+
+### DONE: Editorial pass, one rhythm per screen (2026-07-26, later)
+The first redesign was systematic but monotonous: six screens, one composition
+(eyebrow, title, hero figure, rounded card list). Rebuilt again so each screen has
+its own structure. Logic still untouched.
+- **`components/ui/editorial.tsx`** added: the content layer (see §8). `.bleed` /
+  `.bleed-pad` in `globals.css` let a block break the page gutter to full width.
+  Careful: `bleed` + `w-full` fight each other, since `w-full` resolves against the
+  padded content box and leaves a gap on the right. Use `block` without `w-full`.
+- **`text-mega`** (6.5rem) added for the one focal figure per screen.
+- **ScrollTrigger** is now registered in `lib/motion.ts`: `recedeOnScroll` (the
+  masthead figure recedes as the page scrolls under it, once per screen) and
+  `revealRows` (rows arrive once, on enter, never re-animating on scroll back).
+- **Nav is icon-only.** The five words along the bottom edge repeated what each
+  screen's masthead already said.
+- **The shell is now a thin masthead** (section name + avatar, 56px). Screens
+  compose their own opening below it, which is what makes the rhythms differ.
+- Fixed while doing it: home showed the next class as the hero **and** as row 01 of
+  the list below (the list now starts after the hero); `1 classes in a row`
+  pluralisation; the sticky CTA sat behind the tab bar.
+- Re-measured: LCP 369ms, **CLS 0.00**.
 
 ### DONE: Full redesign, design system + GSAP motion (2026-07-26)
 The prototype UI was replaced wholesale. Logic (session, predictor, schedule, crypto,

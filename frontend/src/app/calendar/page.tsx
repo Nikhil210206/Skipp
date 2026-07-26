@@ -5,16 +5,21 @@ import AppShell from "@/components/AppShell";
 import { useSession } from "@/context/SessionContext";
 import { todayISO } from "@/lib/schedule";
 import { revealIn, useGsap } from "@/lib/motion";
-import { Card, Chip, Divider, IconButton, Label, StateView } from "@/components/ui";
+import { IconButton, StateView } from "@/components/ui";
+import { Marginalia, Rule, SectionHead } from "@/components/ui/editorial";
 import { IconChevronLeft, IconChevronRight } from "@/components/Icons";
 import type { CalendarDay } from "@/types";
 
-const MONTH_NAMES = [
+const MONTHS = [
   "January", "February", "March", "April", "May", "June",
   "July", "August", "September", "October", "November", "December",
 ];
 const WEEKDAYS = ["M", "T", "W", "T", "F", "S", "S"];
 
+/**
+ * The term as one full-bleed grid. The selected day is written out above it in
+ * words rather than boxed in a card, so the grid itself is the whole screen.
+ */
 export default function CalendarPage() {
   const { timetable } = useSession();
   const cal = useMemo(() => timetable?.calendar ?? [], [timetable]);
@@ -36,14 +41,14 @@ export default function CalendarPage() {
     () => months.find((m) => m === today.slice(0, 7)) ?? months[0] ?? today.slice(0, 7),
   );
   const [selected, setSelected] = useState(
-    () => (byDate.has(today) ? today : (months[0] ? `${months[0]}-01` : today)),
+    () => (byDate.has(today) ? today : months[0] ? `${months[0]}-01` : today),
   );
 
-  const scope = useGsap(({ self, reduced }) => revealIn(self, reduced), [ym]);
+  const scope = useGsap(({ self, reduced }) => revealIn(self, reduced, { y: 12 }), [ym]);
 
   if (cal.length === 0) {
     return (
-      <AppShell eyebrow="Term" title="Calendar">
+      <AppShell section="Calendar">
         <StateView
           title="Calendar unavailable"
           message="We could not load the academic planner. Pull down to try again."
@@ -64,43 +69,43 @@ export default function CalendarPage() {
   const iso = (d: number) =>
     `${year}-${String(month0 + 1).padStart(2, "0")}-${String(d).padStart(2, "0")}`;
 
-  const workingDays = cells.filter(
+  const working = cells.filter(
     (d) => d !== null && byDate.get(iso(d))?.dayOrder != null,
   ).length;
-
-  // What is actually worth knowing about the rest of the term.
   const upcoming = cal
     .filter((d) => d.isHoliday && d.event && d.date >= today)
-    .slice(0, 4);
+    .slice(0, 3);
 
   return (
-    <AppShell
-      eyebrow={sel ? fullWeekday(sel.weekday) : "Term"}
-      title={
-        sel?.dayOrder != null
-          ? `Day order ${sel.dayOrder}`
-          : sel?.isHoliday
-            ? "Holiday"
-            : "No classes"
-      }
-    >
+    <AppShell section="Calendar">
       <div ref={scope} className="flex flex-1 flex-col">
-        <div data-reveal className="mb-8 flex items-center gap-3">
-          <span className="tnum text-callout text-text-3">
-            {MONTH_NAMES[month0].slice(0, 3)} {Number(selected.slice(8))}
-          </span>
+        {/* The selected day, written out */}
+        <div data-reveal className="pb-8 pt-3">
+          <p className="text-label uppercase text-text-3">
+            {sel ? fullWeekday(sel.weekday) : "Term"} · {shortDate(selected)}
+          </p>
+          <h1 className="mt-3 text-hero">
+            {sel?.dayOrder != null
+              ? `Day order ${sel.dayOrder}`
+              : sel?.isHoliday
+                ? "Holiday"
+                : "No classes"}
+          </h1>
           {sel?.event && (
-            <Chip tone={sel.isHoliday ? "accent" : "neutral"}>
-              {sel.event.replace(/ - Holiday$/i, "")}
-            </Chip>
+            <Marginalia>
+              <span className="mt-3 block">
+                {sel.event.replace(/ - Holiday$/i, "")}
+              </span>
+            </Marginalia>
           )}
         </div>
 
-        <div data-reveal className="mb-4 flex items-center justify-between">
+        {/* Month rail */}
+        <div data-reveal className="flex items-baseline justify-between gap-4 pb-5">
           <h2 className="text-title">
-            {MONTH_NAMES[month0]} <span className="tnum text-text-3">{year}</span>
+            {MONTHS[month0]} <span className="tnum text-text-3">{year}</span>
           </h2>
-          <div className="flex gap-1">
+          <div className="-mr-2 flex">
             <IconButton
               label="Previous month"
               variant="quiet"
@@ -120,68 +125,75 @@ export default function CalendarPage() {
           </div>
         </div>
 
-        <div data-reveal className="grid grid-cols-7 gap-y-1">
-          {WEEKDAYS.map((w, i) => (
-            <div key={i} className="pb-3 text-center text-label uppercase text-text-3">
-              {w}
-            </div>
-          ))}
-          {cells.map((d, i) => {
-            if (d === null) return <div key={i} />;
-            const date = iso(d);
-            const day = byDate.get(date);
-            const isSel = date === selected;
-            const isToday = date === today;
-            const working = day?.dayOrder != null;
-            return (
-              <button
+        {/* Full-bleed grid */}
+        <div data-reveal className="bleed bleed-pad">
+          <div className="grid grid-cols-7">
+            {WEEKDAYS.map((w, i) => (
+              <div
                 key={i}
-                onClick={() => setSelected(date)}
-                aria-label={`${d} ${MONTH_NAMES[month0]}${working ? `, day order ${day!.dayOrder}` : ""}`}
-                aria-pressed={isSel}
-                className="flex min-h-[46px] flex-col items-center justify-center gap-1 rounded-control"
+                className="pb-4 text-center text-label uppercase text-text-3/70"
               >
-                <span
-                  className={`tnum flex size-8 items-center justify-center rounded-full text-body transition-colors ${
-                    isSel
-                      ? "bg-text-1 font-semibold text-ink-0"
-                      : working
-                        ? "text-text-1"
-                        : "text-text-3"
-                  } ${isToday && !isSel ? "border border-accent" : ""}`}
+                {w}
+              </div>
+            ))}
+            {cells.map((d, i) => {
+              if (d === null) return <div key={i} />;
+              const date = iso(d);
+              const day = byDate.get(date);
+              const isSel = date === selected;
+              const isToday = date === today;
+              const works = day?.dayOrder != null;
+              return (
+                <button
+                  key={i}
+                  onClick={() => setSelected(date)}
+                  aria-pressed={isSel}
+                  aria-label={`${d} ${MONTHS[month0]}${works ? `, day order ${day!.dayOrder}` : ""}`}
+                  className="relative flex h-[52px] flex-col items-center justify-center"
                 >
-                  {d}
-                </span>
-                <span className="tnum h-2 text-[9px] font-semibold leading-none text-text-3">
-                  {working && !isSel ? day!.dayOrder : ""}
-                </span>
-              </button>
-            );
-          })}
+                  <span
+                    className={`tnum text-body transition-colors ${
+                      isSel
+                        ? "font-semibold text-accent"
+                        : works
+                          ? "text-text-1"
+                          : "text-text-3/45"
+                    }`}
+                  >
+                    {d}
+                  </span>
+                  <span className="tnum mt-1 h-2 text-[9px] font-semibold leading-none text-text-3/70">
+                    {works ? day!.dayOrder : ""}
+                  </span>
+                  {isToday && (
+                    <span className="absolute bottom-1.5 h-px w-5 bg-accent" />
+                  )}
+                </button>
+              );
+            })}
+          </div>
         </div>
 
-        <div data-reveal className="mt-7 flex items-center gap-4">
-          <Label>{workingDays} working days</Label>
-          <span className="text-callout text-text-3">
-            Small figures are day orders
-          </span>
+        <div data-reveal className="pt-6">
+          <Marginalia>
+            <span className="tnum">{working} working days</span> · small figures are day
+            orders
+          </Marginalia>
         </div>
 
         {upcoming.length > 0 && (
-          <Card data-reveal flush className="mt-6 overflow-hidden" as="section">
-            <div className="px-5 pb-1 pt-4">
-              <Label>Coming up</Label>
-            </div>
-            <ul>
+          <section data-reveal className="pt-10">
+            <SectionHead>Coming up</SectionHead>
+            <ul className="mt-1">
               {upcoming.map((d, i) => (
                 <li key={d.date}>
-                  {i > 0 && <Divider inset={20} />}
+                  <Rule soft={i > 0} />
                   <button
                     onClick={() => {
                       setYm(d.date.slice(0, 7));
                       setSelected(d.date);
                     }}
-                    className="flex w-full items-baseline justify-between gap-4 px-5 py-3.5 text-left"
+                    className="flex w-full items-baseline justify-between gap-4 py-3.5 text-left"
                   >
                     <span className="min-w-0 flex-1 truncate text-body">
                       {d.event?.replace(/ - Holiday$/i, "")}
@@ -193,7 +205,7 @@ export default function CalendarPage() {
                 </li>
               ))}
             </ul>
-          </Card>
+          </section>
         )}
       </div>
     </AppShell>
@@ -210,7 +222,7 @@ function fullWeekday(abbr: string): string {
 
 function shortDate(iso: string): string {
   const [, m, d] = iso.split("-").map(Number);
-  return `${MONTH_NAMES[m - 1].slice(0, 3)} ${d}`;
+  return `${MONTHS[m - 1].slice(0, 3)} ${d}`;
 }
 
 function daysAway(from: string, to: string): string {

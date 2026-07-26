@@ -2,38 +2,41 @@
 
 import AppShell from "@/components/AppShell";
 import { useSession } from "@/context/SessionContext";
-import { revealIn, useGsap } from "@/lib/motion";
-import {
-  Card,
-  Divider,
-  Label,
-  Meter,
-  Skeleton,
-  StateView,
-} from "@/components/ui";
+import { revealIn, revealRows, useGsap } from "@/lib/motion";
+import { Skeleton, StateView } from "@/components/ui";
+import { Amount, Marginalia, Rule, SectionHead } from "@/components/ui/editorial";
 
+const pct = (a: number, b: number) => (b > 0 ? (a / b) * 100 : 0);
+const round = (n: number) => Math.round(n * 100) / 100;
+
+/**
+ * Marks is set like a contents page: titles on the left, figures hung on the
+ * right, components indented beneath. No cards, no bars, just alignment.
+ */
 export default function MarksPage() {
   const { marks, marksState, marksMessage } = useSession();
   const subjects = marks?.subjects ?? [];
   const scored = subjects.reduce((x, s) => x + s.scoredTotal, 0);
   const max = subjects.reduce((x, s) => x + s.maxTotal, 0);
-  const graded = subjects.filter((s) => s.components.length > 0).length;
+  const graded = subjects.filter((s) => s.components.length > 0);
 
   const scope = useGsap(
-    ({ self, reduced }) => revealIn(self, reduced),
-    [marksState],
+    ({ self, reduced }) => {
+      revealIn(self, reduced, { y: 16, stagger: 0.07 });
+      revealRows(self, reduced);
+    },
+    [marksState, graded.length],
   );
 
   return (
-    <AppShell
-      eyebrow="Internals"
-      title={max > 0 ? `${round(scored)} / ${round(max)}` : "Marks"}
-    >
+    <AppShell section="Marks">
       <div ref={scope} className="flex flex-1 flex-col">
         {marksState === "loading" && (
-          <div className="flex flex-col gap-3">
-            <Skeleton className="h-20 w-full" />
-            <Skeleton className="h-48 w-full" />
+          <div className="flex flex-col gap-4 pt-6">
+            <Skeleton className="h-20 w-2/3" />
+            <Skeleton className="h-px w-full" />
+            <Skeleton className="h-12 w-full" />
+            <Skeleton className="h-12 w-full" />
           </div>
         )}
 
@@ -43,7 +46,7 @@ export default function MarksPage() {
             title="No marks yet"
             message={
               marksMessage ??
-              "Nothing has been published for this term. Marks appear here as soon as they are."
+              "Nothing has been published for this term. Marks appear here the moment they are."
             }
           />
         )}
@@ -56,93 +59,90 @@ export default function MarksPage() {
           />
         )}
 
-        {/* Subjects exist but nothing is graded: a list of zeroes helps nobody. */}
         {marksState === "ready" && (subjects.length === 0 || max === 0) && (
           <StateView
             title="Nothing graded yet"
             message={
               subjects.length > 0
-                ? `We are tracking ${subjects.length} subjects. Marks appear the moment your first assessment is published.`
+                ? `We are tracking ${subjects.length} subjects. The first published assessment will show up here.`
                 : "Your internal assessments will show here once results are out."
             }
           />
         )}
 
-        {marksState === "ready" && subjects.length > 0 && max > 0 && (
+        {marksState === "ready" && max > 0 && (
           <>
-            <section data-reveal className="pb-8">
-              <div className="flex items-baseline gap-2">
-                <span className="tnum text-display">{round(scored)}</span>
-                <span className="text-title text-text-3">/ {round(max)}</span>
-              </div>
-              <p className="mt-5 tnum text-callout text-text-3">
-                {pct(scored, max).toFixed(0)}% across {graded} graded{" "}
-                {graded === 1 ? "subject" : "subjects"}
-              </p>
-              <Meter value={pct(scored, max)} className="mt-5" />
-            </section>
+            <div data-reveal className="pb-9 pt-4">
+              <p className="text-label uppercase text-text-3">Internals so far</p>
+              <Amount
+                size="mega"
+                className="mt-4"
+                value={round(scored)}
+                unit={`/ ${round(max)}`}
+              />
+              <Marginalia>
+                <span className="mt-5 block tnum">
+                  {pct(scored, max).toFixed(0)}% across {graded.length} graded{" "}
+                  {graded.length === 1 ? "subject" : "subjects"}
+                </span>
+              </Marginalia>
+            </div>
 
-            <Card flush className="overflow-hidden" as="section">
-              <div className="px-5 pb-1 pt-4">
-                <Label>By subject</Label>
-              </div>
-              <ul>
+            <section>
+              <SectionHead aside={`${subjects.length} subjects`}>Breakdown</SectionHead>
+              <ul className="mt-1">
                 {subjects.map((s, i) => (
-                  <li key={`${s.code}-${i}`} data-reveal>
-                    {i > 0 && <Divider inset={20} />}
-                    <div className="px-5 py-4">
-                      <div className="flex items-baseline gap-4">
-                        <div className="min-w-0 flex-1">
-                          <p className="truncate text-headline">
-                            {s.title || s.code}
-                          </p>
-                          <p className="mt-0.5 text-callout text-text-3">
-                            {s.code}
-                          </p>
-                        </div>
-                        <p className="shrink-0 tnum text-headline">
-                          {round(s.scoredTotal)}
-                          <span className="text-text-3">
-                            /{round(s.maxTotal)}
-                          </span>
-                        </p>
+                  <li key={`${s.code}-${i}`} data-row>
+                    <Rule soft={i > 0} />
+                    <div className="py-4">
+                      <div className="flex items-baseline gap-3">
+                        <span className="min-w-0 shrink truncate text-headline">
+                          {s.title || s.code}
+                        </span>
+                        {/* Dot leader, the way a contents page joins a title to its page number. */}
+                        <span
+                          aria-hidden
+                          className="min-w-6 flex-1 self-center border-b border-dotted border-line"
+                        />
+                        <span className="tnum shrink-0 text-headline">
+                          {s.components.length > 0 ? (
+                            <>
+                              {round(s.scoredTotal)}
+                              <span className="text-text-3">/{round(s.maxTotal)}</span>
+                            </>
+                          ) : (
+                            <span className="text-callout text-text-3">Not graded</span>
+                          )}
+                        </span>
                       </div>
 
-                      {s.components.length > 0 ? (
-                        <ul className="mt-3.5 flex flex-col gap-2.5">
+                      {s.components.length > 0 && (
+                        <ul className="mt-3 flex flex-col gap-1.5 pl-0">
                           {s.components.map((c) => (
-                            <li key={c.name}>
-                              <div className="flex items-baseline justify-between gap-3">
-                                <span className="truncate text-callout text-text-2">
-                                  {c.name}
-                                </span>
-                                <span className="tnum shrink-0 text-callout text-text-3">
-                                  {round(c.scored)}/{round(c.max)}
-                                </span>
-                              </div>
-                              <Meter
-                                value={pct(c.scored, c.max)}
-                                className="mt-1.5"
+                            <li
+                              key={c.name}
+                              className="flex items-baseline gap-3 text-callout text-text-3"
+                            >
+                              <span className="min-w-0 shrink truncate">{c.name}</span>
+                              <span
+                                aria-hidden
+                                className="min-w-4 flex-1 self-center border-b border-dotted border-line-soft"
                               />
+                              <span className="tnum shrink-0">
+                                {round(c.scored)}/{round(c.max)}
+                              </span>
                             </li>
                           ))}
                         </ul>
-                      ) : (
-                        <p className="mt-2.5 text-callout text-text-3">
-                          No components published
-                        </p>
                       )}
                     </div>
                   </li>
                 ))}
               </ul>
-            </Card>
+            </section>
           </>
         )}
       </div>
     </AppShell>
   );
 }
-
-const pct = (a: number, b: number) => (b > 0 ? (a / b) * 100 : 0);
-const round = (n: number) => Math.round(n * 100) / 100;

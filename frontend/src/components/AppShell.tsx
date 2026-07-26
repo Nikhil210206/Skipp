@@ -8,20 +8,20 @@ import BottomNav from "./BottomNav";
 import PullToRefresh from "./PullToRefresh";
 import { Skeleton } from "./ui";
 
-// The frame every authenticated screen sits in: auth guard, a header that
-// scrolls away with the content, pull to refresh, and the tab bar.
-
+/**
+ * The frame: auth guard, a thin masthead, pull to refresh, tab bar.
+ *
+ * The masthead is deliberately minimal and identical everywhere, so the chrome
+ * stays constant while each screen composes its own opening below it. That is
+ * what lets Home, Attendance and Timetable feel like different pages of one
+ * publication rather than one template repainted.
+ */
 export default function AppShell({
-  eyebrow,
-  title,
-  action,
+  section,
   children,
 }: {
-  /** Small line above the title. Use for context, not decoration. */
-  eyebrow?: string;
-  title: string;
-  /** Optional trailing control in the header. */
-  action?: React.ReactNode;
+  /** Small caps section name in the masthead. */
+  section: string;
   children: React.ReactNode;
 }) {
   const router = useRouter();
@@ -32,47 +32,43 @@ export default function AppShell({
     if (!restoring && !isAuthed) router.replace("/");
   }, [isAuthed, restoring, router]);
 
-  // Restore renders the real layout in outline rather than a centred spinner,
-  // so the page does not jump when content arrives.
-  if (restoring) {
-    return (
-      <div
-        className="mx-auto flex min-h-full w-full max-w-md flex-1 flex-col md:border-x md:border-line-soft"
-        aria-busy="true"
-        aria-label="Loading your data"
-      >
-        <div className="px-[var(--gutter)] pb-6 pt-[max(28px,calc(env(safe-area-inset-top)+12px))]">
-          <Skeleton className="h-3 w-24" />
-          <Skeleton className="mt-3 h-7 w-44" />
-        </div>
-        <div className="flex flex-1 flex-col gap-3 px-[var(--gutter)]">
-          <Skeleton className="h-24 w-full" />
-          <Skeleton className="h-20 w-full" />
-          <Skeleton className="h-56 w-full" />
-        </div>
-        <BottomNav />
-      </div>
-    );
-  }
+  if (restoring) return <RestoringFrame />;
   if (!isAuthed) return null;
 
   return (
     <div className="mx-auto flex min-h-full w-full max-w-md flex-1 flex-col md:border-x md:border-line-soft">
       <PullToRefresh onRefresh={refresh}>
-        <header className="flex items-end justify-between px-[var(--gutter)] pb-6 pt-[max(28px,calc(env(safe-area-inset-top)+12px))]">
-          <div className="min-w-0">
-            {eyebrow && (
-              <p className="text-label uppercase text-text-3">{eyebrow}</p>
-            )}
-            <h1 className="mt-1.5 truncate text-title">{title}</h1>
-          </div>
-          <div className="flex shrink-0 items-center gap-2 pb-0.5">
-            {action}
-            {pathname !== "/profile" && <ProfileButton name={displayName} />}
-          </div>
+        <header className="flex h-14 shrink-0 items-center justify-between px-[var(--gutter)] pt-[env(safe-area-inset-top)]">
+          <span className="text-label uppercase text-text-3">{section}</span>
+          {pathname !== "/profile" && <ProfileButton name={displayName} />}
         </header>
-        <main className="flex flex-1 flex-col px-[var(--gutter)] pb-8">{children}</main>
+        <main className="flex flex-1 flex-col px-[var(--gutter)] pb-10">
+          {children}
+        </main>
       </PullToRefresh>
+      <BottomNav />
+    </div>
+  );
+}
+
+function RestoringFrame() {
+  return (
+    <div
+      className="mx-auto flex min-h-full w-full max-w-md flex-1 flex-col md:border-x md:border-line-soft"
+      aria-busy="true"
+      aria-label="Loading your data"
+    >
+      <div className="flex h-14 items-center px-[var(--gutter)] pt-[env(safe-area-inset-top)]">
+        <Skeleton className="h-3 w-16" />
+      </div>
+      <div className="flex flex-1 flex-col gap-4 px-[var(--gutter)] pt-6">
+        <Skeleton className="h-4 w-28" />
+        <Skeleton className="h-20 w-3/4" />
+        <Skeleton className="mt-6 h-px w-full" />
+        <Skeleton className="h-12 w-full" />
+        <Skeleton className="h-12 w-full" />
+        <Skeleton className="h-12 w-full" />
+      </div>
       <BottomNav />
     </div>
   );
@@ -84,9 +80,11 @@ function ProfileButton({ name }: { name: string }) {
     <Link
       href="/profile"
       aria-label="Your profile"
-      className="flex size-11 items-center justify-center rounded-full border border-line bg-ink-1 text-callout font-semibold text-text-2 transition-colors hover:text-text-1"
+      className="-mr-2 flex size-11 items-center justify-center text-callout font-semibold text-text-3 transition-colors hover:text-text-1"
     >
-      {initial}
+      <span className="flex size-7 items-center justify-center rounded-full border border-line">
+        {initial}
+      </span>
     </Link>
   );
 }
