@@ -45,7 +45,7 @@ Success metric: a friend can install it, log in, and see their real attendance i
 | ---------- | ---------------------------------------------------------- | --- |
 | Frontend   | **Next.js 16 (App Router) + React 19 + TypeScript**        | shipped newer than the 14 planned here |
 | Styling    | **Tailwind CSS v4** (`@theme` in `globals.css`, no config file) | quick, consistent UI |
-| Animation  | **Framer Motion**                                          | the smooth transitions we want |
+| Animation  | **GSAP** (`lib/motion.ts` only)                             | one motion layer, reduced-motion handled in one place |
 | PWA        | **hand-written `public/sw.js`** (network-first)             | next-pwa was dropped, this avoids a Next 16 compat gamble |
 | Backend    | **Python + FastAPI**                                       | the scraper, CANNOT run in the browser |
 | Scraping   | **httpx + BeautifulSoup4**                                 | log in, fetch HTML, parse |
@@ -234,25 +234,25 @@ code, so projections are keyed by **code + lab-ness** (`::th` / `::lab`).
 **Name:** Skipp · **Tagline:** "know before you bunk."
 **Domain/handles to grab:** `getskipp.com` / `skipp.app`, Instagram `@getskipp`.
 
-**Colors (SHIPPED palette, black + orange).** The violet originally sketched here was
-dropped early. These are the live values in `frontend/src/app/globals.css` (`@theme`):
+**Colors (SHIPPED, after the 2026-07-26 redesign).** Tokens live in
+`frontend/src/app/globals.css` under `@theme`. Surfaces are an ink ramp, text has
+exactly three levels, and the accent is used for **one action per screen**.
 
-| Token          | Dark (default) | Light | Use |
-| -------------- | -------------- | ----- | --- |
-| Background     | `#08080a` | `#ffffff` | app background |
-| Surface        | `#141417` | `#f4f4f6` | cards |
-| Surface 2      | `#1d1d21` | `#e8e8ee` | raised chips, inputs |
-| Accent         | `#ff6a1a` | `#e2560a` | primary: buttons, active nav, brand |
-| Success        | `#3dd68c` | `#12996b` | attendance safe |
-| Warning        | `#ffb020` | `#a86a00` | attendance tight |
-| Danger         | `#ff5555` | `#d92c2c` | below threshold, holidays |
-| Text primary   | `#f6f6f8` | `#0e0e12` | headings |
-| Text muted     | `#86868f` | `#6a6a75` | labels |
-| line / line-strong / ring-track | white alphas | black alphas | hairlines, tracks, dividers |
+| Token | Dark | Light | Use |
+| ----- | ---- | ----- | --- |
+| `ink-0` | `#08080a` | `#ffffff` | page |
+| `ink-1` | `#0e0e11` | `#f6f6f7` | cards |
+| `ink-2` | `#16161a` | `#efeff1` | inputs, secondary buttons |
+| `ink-3` | `#1f1f25` | `#e5e5e9` | pressed / selected fills |
+| `line` / `line-soft` | `#24242b` / `#17171c` | `#e3e3e7` / `#eeeef0` | hairlines |
+| `text-1/2/3` | `#f4f4f6` / `#9d9da7` / `#6b6b75` | `#0c0c0f` / `#5d5d67` / `#8b8b95` | heading / body / meta |
+| `accent` | `#f2661c` | `#d2530b` | the one action |
+| `safe` `watch` `risk` | `#4fa97b` `#cf9b34` `#e2584f` | `#1f7d55` `#8a6410` `#c23b32` | states only |
 
-**Never hard-code `white/10`-style alphas.** Use the `line`, `line-strong` and `ring-track`
-tokens, otherwise borders vanish in light mode. Themes swap via `data-theme` on `<html>`
-(see §11, theme entry).
+**The colour rule: colour marks trouble, not health.** A safe subject gets a
+neutral grey meter and the word "Safe"; only borderline and at-risk subjects get
+colour. A screen full of healthy subjects is quiet, so the one problem is
+impossible to miss. Never colour something just because you can.
 
 Orange accent is warm and student-y, and stands apart from SRM's official blue. Use one bold
 accent, lots of near-black space, generous rounding (`rounded-2xl`), soft shadows.
@@ -274,6 +274,17 @@ clarity on attendance/marks numbers. **No emoji and no dashes in UI copy** (see 
 - Backend: pydantic models for every response. Handle "session expired" and "wrong
   password" as clean typed errors, not 500s.
 - Never commit `.env`. Secrets via environment variables only.
+- **Build screens from `components/ui/`, never from raw Tailwind.** The primitives
+  (`Card`, `Divider`, `Button`, `IconButton`, `Segmented`, `Chip`, `Meter`, `Label`,
+  `Skeleton`, `StateView`, and `Sheet`/`Panel` in `ui/Overlay.tsx`) are the design
+  system. If a screen needs a new look, change the primitive, not the screen.
+- **Type comes from the scale**: `text-display` (the one figure per screen),
+  `text-hero`, `text-title`, `text-headline`, `text-body`, `text-callout`,
+  `text-label` (the only uppercase). Never set an arbitrary `text-[13px]`.
+- **Every number carries `.tnum`** (tabular figures), so counters and percentages
+  do not jitter as they animate.
+- Touch targets are 44px minimum. Respect safe areas with
+  `pb-[max(20px,env(safe-area-inset-bottom))]` and the matching top inset.
 - **No emoji anywhere** (UI, comments, console output). Icons are inline SVG from
   `frontend/src/components/Icons.tsx`; add a new one there rather than reaching for a glyph.
 - **No em or en dashes** in UI text, comments, docstrings or docs. Use a comma, colon,
@@ -322,6 +333,34 @@ is deployment and true push notifications.
 
 Entries below are newest first. **When something breaks, read the relevant entry first**: most
 oddities here (login shell, empty calendar, 429s, duplicated course codes) are already diagnosed.
+
+### DONE: Full redesign, design system + GSAP motion (2026-07-26)
+The prototype UI was replaced wholesale. Logic (session, predictor, schedule, crypto,
+alerts, parsers) was NOT touched; only presentation.
+- **Design system** in `globals.css` (`@theme`): ink ramp, 3 text levels, one accent,
+  semantic states, a 7-step type scale, `radius-control/card/sheet`, two shadows, and
+  motion tokens. Screens compose `components/ui/` primitives; nothing is styled ad hoc.
+- **GSAP replaces Framer Motion entirely** (framer-motion uninstalled). All motion goes
+  through `lib/motion.ts`: `DUR`/`EASE` tokens, `useGsap` (scoped `gsap.context`, cleans
+  up on unmount), `revealIn` (the standard staggered entrance, opt in with `data-reveal`),
+  `countTo` (one counting figure per screen), `pressable`. **`prefersReducedMotion()` is
+  checked in exactly one layer**: every helper settles to the final state instead of
+  animating, and pull-to-refresh keeps working without the rubber-band.
+- **`html.js` is set by `THEME_INIT_SCRIPT` before paint** so `[data-reveal]` can start
+  hidden without ever hiding content from a no-JS reader. Do not remove it.
+- **IA changes:** home is now hero (next class) + attendance status + agenda + only
+  actionable alerts; the duplicate chip strip and quick-cards are gone. Attendance leads
+  with the figure and a worded verdict. Marks shows a real empty state instead of a wall
+  of `0/0`. Calendar gained a "Coming up" holiday list.
+- **Deleted:** `Ring.tsx` (the green ring the brief banned), `NumBadge.tsx`,
+  `StatePanel.tsx`. Replaced by `Meter`, plain type, and `StateView`.
+- **Fixed while redesigning:** the profile name field kept the "there" fallback because it
+  was seeded before the snapshot arrived (now reset during render); the portal's ALL-CAPS
+  names and `Engineering(CS)` are tidied for display; faculty staff ids are stripped from
+  the timetable.
+- **Measured after:** LCP 361ms, **CLS 0.00** (was 0.04; fixed by replacing the restore
+  spinner with a skeleton that matches the real layout). No target under 44px. No
+  horizontal overflow at 320, 390, 768 or 1280.
 
 ### DONE: Light theme, SVG icon set, copy cleanup (2026-07-25)
 - **Dark/light mode.** `data-theme` on `<html>`; `globals.css` redeclares the colour tokens under

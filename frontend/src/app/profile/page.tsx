@@ -2,19 +2,17 @@
 
 import { useRouter } from "next/navigation";
 import { useState } from "react";
-import { motion } from "framer-motion";
 import AppShell from "@/components/AppShell";
 import { useSession } from "@/context/SessionContext";
 import { setTheme, useTheme, type Theme } from "@/lib/theme";
-import { IconCheck, IconMoon, IconSun, IconUser } from "@/components/Icons";
+import { revealIn, useGsap } from "@/lib/motion";
+import { Button, Card, Divider, Label, Segmented } from "@/components/ui";
 
 export default function ProfilePage() {
   const router = useRouter();
   const {
     student,
     timetable,
-    attendance,
-    attendanceState,
     displayName,
     setDisplayName,
     customClasses,
@@ -27,204 +25,203 @@ export default function ProfilePage() {
 
   const theme = useTheme();
   const [name, setName] = useState(displayName);
+  const [seededFrom, setSeededFrom] = useState(displayName);
   const [saved, setSaved] = useState(false);
-
+  if (displayName !== seededFrom) {
+    setSeededFrom(displayName);
+    setName(displayName);
+  }
   const courses = timetable?.courses ?? [];
-  const totalCredits = courses.reduce((sum, c) => sum + (c.credit ?? 0), 0);
+  const credits = courses.reduce((sum, c) => sum + (c.credit ?? 0), 0);
+
+  const scope = useGsap(({ self, reduced }) => revealIn(self, reduced));
 
   function saveName() {
     setDisplayName(name);
     setSaved(true);
-    setTimeout(() => setSaved(false), 1500);
+    setTimeout(() => setSaved(false), 1600);
   }
 
-  const initial = (displayName.trim()[0] ?? "s").toUpperCase();
-
   return (
-    <AppShell title="profile">
-      {/* Avatar + editable name */}
-      <motion.section
-        initial={{ opacity: 0, y: 10 }}
-        animate={{ opacity: 1, y: 0 }}
-        className="mb-5 flex flex-col items-center pt-2"
-      >
-        <div className="flex size-20 items-center justify-center rounded-3xl bg-accent text-4xl font-extrabold text-background">
-          {initial}
-        </div>
-        <p className="mt-3 text-xl font-extrabold lowercase tracking-tight">
-          {displayName}
-        </p>
-        {student?.registrationNumber && (
-          <p className="text-sm text-text-muted">{student.registrationNumber}</p>
-        )}
-      </motion.section>
-
-      {/* Set display name */}
-      <Card>
-        <Label>your name</Label>
-        <div className="flex gap-2">
-          <input
-            value={name}
-            onChange={(e) => setName(e.target.value)}
-            placeholder="what should we call you?"
-            className="min-w-0 flex-1 rounded-xl border border-line-strong bg-background px-4 py-3 outline-none focus:border-accent"
-          />
-          <button
-            onClick={saveName}
-            disabled={name.trim() === displayName}
-            className="rounded-xl bg-accent px-4 py-3 font-semibold text-background transition-opacity disabled:opacity-40"
-          >
-            {saved ? (
-              <span className="flex items-center gap-1.5">
-                <IconCheck size={16} />
-                saved
-              </span>
-            ) : (
-              "save"
-            )}
-          </button>
-        </div>
-        <p className="mt-2 text-xs text-text-muted">
-          Shown in your greeting. Stored only on this device.
-        </p>
-      </Card>
-
-      {/* Appearance */}
-      <Card>
-        <Label>appearance</Label>
-        <div className="flex gap-1 rounded-full bg-background p-1">
-          <ThemeOption
-            value="dark"
-            current={theme}
-            label="dark"
-            icon={<IconMoon size={16} />}
-          />
-          <ThemeOption
-            value="light"
-            current={theme}
-            label="light"
-            icon={<IconSun size={16} />}
-          />
-        </div>
-        <p className="mt-2 text-xs text-text-muted">
-          Remembered on this device.
-        </p>
-      </Card>
-
-      {/* Academic summary */}
-      <div className="mb-3 grid grid-cols-3 gap-3">
-        <Stat
-          label="attendance"
-          value={
-            attendanceState === "ready" && attendance
-              ? `${attendance.overallPercentage.toFixed(0)}%`
-              : "n/a"
-          }
-        />
-        <Stat label="courses" value={String(courses.length)} />
-        <Stat label="credits" value={String(totalCredits)} />
-      </div>
-
-      {/* Student details */}
-      <Card>
-        <Label>student details</Label>
-        <dl className="flex flex-col divide-y divide-line">
-          <Row k="Name" v={student?.name} />
-          <Row k="Registration No" v={student?.registrationNumber} />
-          <Row k="Program" v={student?.program} />
-          <Row k="Department" v={student?.department} />
-          <Row k="Section" v={student?.section} />
-          <Row k="Semester" v={student?.semester} />
-          <Row k="Batch" v={student?.batch} />
-          <Row k="Mobile" v={student?.mobile} />
-          <Row k="Academic Year" v={timetable?.academicYear} />
-        </dl>
-      </Card>
-
-      {/* Courses */}
-      {courses.length > 0 && (
-        <Card>
-          <Label>courses ({courses.length})</Label>
-          <ul className="flex flex-col gap-3">
-            {courses.map((c, i) => (
-              <li
-                key={`${c.code}-${c.slot ?? i}`}
-                className="border-b border-line pb-3 last:border-0 last:pb-0"
-              >
-                <div className="flex items-baseline justify-between gap-2">
-                  <p className="truncate font-medium">{c.title}</p>
-                  {c.slot && (
-                    <span className="shrink-0 rounded-md bg-surface-2 px-2 py-0.5 text-xs text-text-muted">
-                      {c.slot.replace(/-$/, "")}
-                    </span>
-                  )}
-                </div>
-                <p className="mt-0.5 text-xs text-text-muted">
-                  {c.code}
-                  {c.credit != null ? ` · ${c.credit} cr` : ""}
-                  {c.category ? ` · ${c.category}` : ""}
-                </p>
-                {c.faculty && (
-                  <p className="mt-0.5 flex items-center gap-1.5 text-xs text-text-muted">
-                    <IconUser size={13} />
-                    <span className="truncate">{c.faculty}</span>
-                  </p>
-                )}
-              </li>
-            ))}
-          </ul>
-        </Card>
-      )}
-
-      {/* Data freshness */}
-      <Card>
-        <div className="flex items-center justify-between">
-          <div>
-            <Label>data</Label>
-            <p className="-mt-1 text-sm text-text-muted">
-              updated {timeAgo(fetchedAt)}
-            </p>
+    <AppShell eyebrow={student?.registrationNumber ?? "Account"} title={displayName}>
+      <div ref={scope} className="flex flex-1 flex-col gap-3">
+        {/* Identity */}
+        <Card data-reveal>
+          <Label>Display name</Label>
+          <div className="mt-3 flex gap-2">
+            <input
+              value={name}
+              onChange={(e) => setName(e.target.value)}
+              aria-label="Display name"
+              placeholder="What should we call you?"
+              className="min-w-0 flex-1 rounded-control border border-line bg-ink-0 px-4 text-headline outline-none transition-colors focus:border-text-3"
+            />
+            <Button
+              onClick={saveName}
+              variant={saved ? "secondary" : "primary"}
+              disabled={name.trim() === displayName || name.trim() === ""}
+            >
+              {saved ? "Saved" : "Save"}
+            </Button>
           </div>
-          <button
-            onClick={() => void refresh()}
-            disabled={refreshing}
-            className="rounded-xl bg-surface-2 px-4 py-2.5 text-sm font-semibold transition-opacity disabled:opacity-50"
+          <p className="mt-3 text-callout text-text-3">
+            Shown in your greeting. Stored on this device only.
+          </p>
+        </Card>
+
+        {/* Appearance */}
+        <Card data-reveal>
+          <Label>Appearance</Label>
+          <div className="mt-3">
+            <Segmented<Theme>
+              label="Theme"
+              value={theme}
+              onChange={setTheme}
+              options={[
+                { value: "dark", label: "Dark" },
+                { value: "light", label: "Light" },
+              ]}
+            />
+          </div>
+        </Card>
+
+        {/* Term at a glance */}
+        <Card data-reveal flush className="overflow-hidden">
+          <div className="grid grid-cols-3">
+            <Stat label="Courses" value={String(courses.length)} />
+            <Stat label="Credits" value={String(credits)} bordered />
+            <Stat label="Semester" value={student?.semester ?? "—"} bordered />
+          </div>
+        </Card>
+
+        {/* Details */}
+        <Card data-reveal flush className="overflow-hidden">
+          <div className="px-5 pb-1 pt-4">
+            <Label>Student</Label>
+          </div>
+          <dl>
+            <Detail k="Name" v={tidy(student?.name)} />
+            <Detail k="Programme" v={tidy(student?.program)} />
+            <Detail k="Department" v={tidy(student?.department)} />
+            <Detail k="Section" v={student?.section} />
+            <Detail k="Batch" v={student?.batch} />
+            <Detail k="Mobile" v={student?.mobile} />
+            <Detail k="Academic year" v={timetable?.academicYear} />
+          </dl>
+        </Card>
+
+        {/* Courses */}
+        {courses.length > 0 && (
+          <Card data-reveal flush className="overflow-hidden">
+            <div className="px-5 pb-1 pt-4">
+              <Label>Registered courses</Label>
+            </div>
+            <ul>
+              {courses.map((c, i) => (
+                <li key={`${c.code}-${c.slot ?? i}`}>
+                  {i > 0 && <Divider inset={20} />}
+                  <div className="px-5 py-3.5">
+                    <div className="flex items-baseline justify-between gap-3">
+                      <p className="truncate text-body">{c.title}</p>
+                      {c.slot && (
+                        <span className="tnum shrink-0 text-callout text-text-3">
+                          {c.slot.replace(/-$/, "")}
+                        </span>
+                      )}
+                    </div>
+                    <p className="mt-0.5 tnum text-callout text-text-3">
+                      {[c.code, c.credit != null ? `${c.credit} cr` : null, c.faculty]
+                        .filter(Boolean)
+                        .join(" · ")}
+                    </p>
+                  </div>
+                </li>
+              ))}
+            </ul>
+          </Card>
+        )}
+
+        {/* Data */}
+        <Card data-reveal>
+          <div className="flex items-center justify-between gap-4">
+            <div className="min-w-0">
+              <Label>Data</Label>
+              <p className="mt-2 text-callout text-text-3">
+                Updated {timeAgo(fetchedAt)} · {customClasses.length} added,{" "}
+                {optionalCourses.length} optional
+              </p>
+            </div>
+            <Button
+              variant="secondary"
+              onClick={() => void refresh()}
+              disabled={refreshing}
+            >
+              {refreshing ? "Refreshing" : "Refresh"}
+            </Button>
+          </div>
+        </Card>
+
+        <div data-reveal className="mt-2">
+          <Button
+            variant="danger"
+            size="lg"
+            full
+            onClick={() => {
+              logout();
+              router.replace("/");
+            }}
           >
-            {refreshing ? "refreshing…" : "refresh"}
-          </button>
+            Sign out
+          </Button>
+          <p className="mt-5 text-callout leading-relaxed text-text-3">
+            Not affiliated with SRM. Your data is never stored on our servers. It lives
+            on this device and is cleared when you sign out or clear browsing data.
+          </p>
         </div>
-      </Card>
-
-      {/* Your additions */}
-      <Card>
-        <Label>your customizations</Label>
-        <div className="flex justify-between text-sm">
-          <span className="text-text-muted">Custom classes</span>
-          <span className="font-semibold">{customClasses.length}</span>
-        </div>
-        <div className="mt-2 flex justify-between text-sm">
-          <span className="text-text-muted">Optional courses</span>
-          <span className="font-semibold">{optionalCourses.length}</span>
-        </div>
-      </Card>
-
-      {/* Log out */}
-      <button
-        onClick={() => {
-          logout();
-          router.replace("/");
-        }}
-        className="mb-4 w-full rounded-2xl border border-danger/30 bg-danger/[0.07] py-4 font-semibold text-danger transition-colors hover:bg-danger/10"
-      >
-        log out
-      </button>
-
-      <p className="mb-6 px-2 text-center text-xs text-text-muted">
-        Not affiliated with SRM. Your data is never stored on our servers. It
-        lives only on this device.
-      </p>
+      </div>
     </AppShell>
   );
+}
+
+function Stat({
+  label,
+  value,
+  bordered,
+}: {
+  label: string;
+  value: string;
+  bordered?: boolean;
+}) {
+  return (
+    <div className={`px-4 py-5 text-center ${bordered ? "border-l border-line-soft" : ""}`}>
+      <p className="tnum text-title">{value}</p>
+      <p className="mt-1 text-label uppercase text-text-3">{label}</p>
+    </div>
+  );
+}
+
+function Detail({ k, v }: { k: string; v?: string | null }) {
+  if (!v) return null;
+  return (
+    <div className="flex items-baseline justify-between gap-4 px-5 py-2.5">
+      <dt className="shrink-0 text-callout text-text-3">{k}</dt>
+      <dd className="truncate text-callout text-text-1">{v}</dd>
+    </div>
+  );
+}
+
+/**
+ * The portal stores everything in caps and forgets spaces before brackets.
+ * Present it the way it would be written by hand.
+ */
+function tidy(value?: string | null): string | undefined {
+  if (!value) return undefined;
+  const spaced = value.replace(/\s*\(/, " (");
+  if (spaced !== spaced.toUpperCase()) return spaced;
+  return spaced
+    .toLowerCase()
+    .replace(/\b[a-z]/g, (c) => c.toUpperCase())
+    .replace(/\(([a-z]+)\)/gi, (_, inner) => `(${inner.toUpperCase()})`);
 }
 
 function timeAgo(iso: string | null): string {
@@ -236,68 +233,4 @@ function timeAgo(iso: string | null): string {
   const hrs = Math.floor(mins / 60);
   if (hrs < 24) return `${hrs}h ago`;
   return `${Math.floor(hrs / 24)}d ago`;
-}
-
-function ThemeOption({
-  value,
-  current,
-  label,
-  icon,
-}: {
-  value: Theme;
-  current: Theme;
-  label: string;
-  icon: React.ReactNode;
-}) {
-  const active = current === value;
-  return (
-    <button
-      onClick={() => setTheme(value)}
-      aria-pressed={active}
-      className={`flex flex-1 items-center justify-center gap-2 rounded-full py-2.5 text-sm font-semibold lowercase transition-colors ${
-        active
-          ? "bg-accent text-background"
-          : "text-text-muted hover:text-text-primary"
-      }`}
-    >
-      {icon}
-      {label}
-    </button>
-  );
-}
-
-function Card({ children }: { children: React.ReactNode }) {
-  return <div className="mb-3 rounded-2xl bg-surface p-4">{children}</div>;
-}
-
-function Label({ children }: { children: React.ReactNode }) {
-  return (
-    <p className="mb-3 text-xs font-semibold uppercase tracking-wider text-text-muted">
-      {children}
-    </p>
-  );
-}
-
-function Stat({ label, value }: { label: string; value: string }) {
-  return (
-    <div className="flex flex-col items-center rounded-2xl bg-surface px-2 py-4">
-      <span className="text-2xl font-extrabold tracking-tight text-accent">
-        {value}
-      </span>
-      <span className="mt-0.5 text-[11px] uppercase tracking-wider text-text-muted">
-        {label}
-      </span>
-    </div>
-  );
-}
-
-function Row({ k, v }: { k: string; v: string | null | undefined }) {
-  return (
-    <div className="flex items-center justify-between gap-3 py-2.5">
-      <dt className="text-sm text-text-muted">{k}</dt>
-      <dd className="max-w-[60%] truncate text-right text-sm font-medium">
-        {v || "not set"}
-      </dd>
-    </div>
-  );
 }

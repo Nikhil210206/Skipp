@@ -1,131 +1,178 @@
 "use client";
 
-import { useState } from "react";
-import { motion } from "framer-motion";
+import { useRef, useState } from "react";
 import AppShell from "@/components/AppShell";
-import Ring from "@/components/Ring";
-import StatePanel, { Spinner } from "@/components/StatePanel";
 import PredictModal from "@/components/PredictModal";
-import NumBadge from "@/components/NumBadge";
 import { useSession } from "@/context/SessionContext";
 import { predict } from "@/lib/predictor";
+import { countTo, revealIn, useGsap } from "@/lib/motion";
+import { Button, Card, Chip, Divider, Label, Meter, Skeleton, StateView } from "@/components/ui";
 import type { Subject } from "@/types";
-import { IconAlert, IconHourglass, IconWand } from "@/components/Icons";
 
 const THRESHOLD = 75;
+
+/**
+ * Attendance reads in three bands. The word always states the band; colour is
+ * reserved for the two bands that need action, so a screen of healthy subjects
+ * stays quiet and problems stand out.
+ */
+function band(pct: number, conducted: number) {
+  if (conducted === 0)
+    return { tone: "neutral" as const, meter: "neutral" as const, word: "No classes" };
+  if (pct >= THRESHOLD)
+    return { tone: "safe" as const, meter: "neutral" as const, word: "Safe" };
+  if (pct >= THRESHOLD - 5)
+    return { tone: "watch" as const, meter: "watch" as const, word: "Borderline" };
+  return { tone: "risk" as const, meter: "risk" as const, word: "At risk" };
+}
 
 export default function AttendancePage() {
   const { attendance, attendanceState, attendanceMessage } = useSession();
   const [predictOpen, setPredictOpen] = useState(false);
 
   const subjects = attendance?.subjects ?? [];
-  const totalAttended = subjects.reduce((s, x) => s + x.attended, 0);
-  const totalConducted = subjects.reduce((s, x) => s + x.conducted, 0);
-  const overallPct =
-    totalConducted > 0 ? (totalAttended / totalConducted) * 100 : 0;
+  const attended = subjects.reduce((s, x) => s + x.attended, 0);
+  const conducted = subjects.reduce((s, x) => s + x.conducted, 0);
+  const overall = conducted > 0 ? (attended / conducted) * 100 : 0;
+  const status = band(overall, conducted);
+
+  const pctRef = useRef<HTMLSpanElement>(null);
+  const scope = useGsap(
+    ({ self, reduced }) => {
+      revealIn(self, reduced);
+      if (pctRef.current) countTo(pctRef.current, overall, reduced, (n) => n.toFixed(1));
+    },
+    [overall, attendanceState],
+  );
 
   return (
-    <AppShell title="attendance">
-      {attendanceState === "loading" && (
-        <div className="flex flex-1 items-center justify-center">
-          <Spinner />
-        </div>
-      )}
-
-      {attendanceState === "gated" && (
-        <StatePanel
-          icon={<IconHourglass size={30} />}
-          tone="warning"
-          title="Not live yet"
-          message={attendanceMessage ?? undefined}
-        />
-      )}
-
-      {attendanceState === "error" && (
-        <StatePanel
-          icon={<IconAlert size={30} />}
-          tone="danger"
-          title="Couldn't load attendance"
-          message={attendanceMessage ?? undefined}
-        />
-      )}
-
-      {attendanceState === "ready" && attendance && (
-        <>
-          {/* Overall */}
-          <div className="mb-3 flex flex-col items-center gap-3 rounded-2xl bg-surface px-5 py-6">
-            <p className="text-xs uppercase tracking-[0.2em] text-text-muted">
-              overall attendance
-            </p>
-            <Ring
-              percentage={overallPct}
-              threshold={THRESHOLD}
-              size={132}
-              stroke={10}
-              decimals={1}
-            />
+    <AppShell
+      eyebrow="Term to date"
+      title="Attendance"
+      action={
+        attendanceState === "ready" ? (
+          <Button size="md" onClick={() => setPredictOpen(true)}>
+            Plan leave
+          </Button>
+        ) : undefined
+      }
+    >
+      <div ref={scope} className="flex flex-1 flex-col">
+        {attendanceState === "loading" && (
+          <div className="flex flex-col gap-3">
+            <Skeleton className="h-28 w-full" />
+            <Skeleton className="h-56 w-full" />
           </div>
+        )}
 
-          {/* Predict button */}
-          <button
-            onClick={() => setPredictOpen(true)}
-            className="mb-4 flex w-full items-center justify-between rounded-2xl bg-accent px-5 py-4 text-left"
-          >
-            <span>
-              <span className="block font-extrabold uppercase tracking-wide text-background">
-                predict
-              </span>
-              <span className="block text-xs text-background/70">
-                plan your leaves and see the impact
-              </span>
-            </span>
-            <span className="text-background">
-              <IconWand size={24} />
-            </span>
-          </button>
+        {attendanceState === "gated" && (
+          <StateView
+            tone="watch"
+            title="Not published yet"
+            message={
+              attendanceMessage ??
+              "Your department has not opened attendance for this term. It will appear here automatically."
+            }
+          />
+        )}
 
-          <ul className="flex flex-col gap-3 pb-6">
-            {attendance.subjects.map((s, i) => (
-              <SubjectRow key={`${s.code}-${s.slot ?? i}`} s={s} index={i} />
-            ))}
-          </ul>
-        </>
-      )}
+        {attendanceState === "error" && (
+          <StateView
+            tone="risk"
+            title="Could not load attendance"
+            message={attendanceMessage ?? "Pull down to try again."}
+          />
+        )}
+
+        {attendanceState === "ready" && attendance && (
+          <>
+            {/* The headline figure, stated once, with the verdict in words. */}
+            <section data-reveal className="pb-8">
+              <div className="flex items-baseline gap-2">
+                <span ref={pctRef} className="tnum text-display">
+                  {overall.toFixed(1)}
+                </span>
+                <span className="text-title text-text-3">%</span>
+              </div>
+              <div className="mt-5 flex items-center gap-3">
+                <Chip tone={status.tone}>{status.word}</Chip>
+                <span className="tnum text-callout text-text-3">
+                  {attended} of {conducted} classes · target {THRESHOLD}%
+                </span>
+              </div>
+              <Meter value={overall} tone={status.meter} className="mt-5" />
+            </section>
+
+            <Card flush className="overflow-hidden" as="section">
+              <div className="px-5 pb-1 pt-4">
+                <Label>By subject</Label>
+              </div>
+              <ul>
+                {attendance.subjects.map((s, i) => (
+                  <li key={`${s.code}-${s.slot ?? i}`} data-reveal>
+                    {i > 0 && <Divider inset={20} />}
+                    <SubjectRow s={s} />
+                  </li>
+                ))}
+              </ul>
+            </Card>
+          </>
+        )}
+      </div>
 
       <PredictModal open={predictOpen} onClose={() => setPredictOpen(false)} />
     </AppShell>
   );
 }
 
-function SubjectRow({ s, index }: { s: Subject; index: number }) {
+function SubjectRow({ s }: { s: Subject }) {
   const p = predict(s.attended, s.conducted, THRESHOLD);
+  const status = band(s.percentage, s.conducted);
+  const headroom = s.conducted === 0 ? null : p.isSafe ? p.canSkip : p.mustAttend;
+
   return (
-    <motion.li
-      initial={{ opacity: 0, y: 10 }}
-      animate={{ opacity: 1, y: 0 }}
-      transition={{ delay: Math.min(index * 0.04, 0.3) }}
-      className="flex items-center gap-4 rounded-2xl bg-surface p-4"
-    >
-      <Ring percentage={s.percentage} threshold={THRESHOLD} size={52} stroke={5} />
-      <div className="min-w-0 flex-1">
-        <p className="truncate font-medium">{s.title || s.code}</p>
-        <p className="text-xs text-text-muted">
-          {s.code}
-          {s.category ? ` · ${s.category}` : ""} · {s.attended}/{s.conducted}
-        </p>
+    <div className="px-5 py-4">
+      <div className="flex items-baseline gap-4">
+        <div className="min-w-0 flex-1">
+          <p className="truncate text-headline">{s.title || s.code}</p>
+          <p className="mt-0.5 tnum text-callout text-text-3">
+            {s.code}
+            {s.category ? ` · ${s.category}` : ""} · {s.attended}/{s.conducted}
+          </p>
+        </div>
+        <div className="shrink-0 text-right">
+          {s.conducted === 0 ? (
+            <span className="text-title text-text-3">&mdash;</span>
+          ) : (
+            <>
+              <span className="tnum text-title">{s.percentage.toFixed(0)}</span>
+              <span className="text-callout text-text-3">%</span>
+            </>
+          )}
+        </div>
       </div>
-      {/* The actionable number is the hero */}
-      {s.conducted === 0 ? (
-        <span className="shrink-0 text-xs text-text-muted">no classes</span>
-      ) : !p.isSafe ? (
-        <NumBadge n={p.mustAttend} label="required" tone="text-danger" />
-      ) : (
-        <NumBadge
-          n={p.canSkip}
-          label="can skip"
-          tone={p.canSkip > 0 ? "text-success" : "text-warning"}
-        />
+      {s.conducted > 0 && (
+        <Meter value={s.percentage} tone={status.meter} className="mt-3" />
       )}
-    </motion.li>
+      {headroom !== null && (
+        <p className="mt-2.5 text-callout text-text-3">
+          {p.isSafe ? (
+            headroom > 0 ? (
+              <>
+                Can skip <span className="tnum text-text-1">{headroom}</span> more
+              </>
+            ) : (
+              // Early in the term everything is one class from the edge, so
+              // this is information, not an alarm.
+              "No room to skip yet"
+            )
+          ) : (
+            <>
+              Attend <span className="tnum text-risk">{headroom}</span> to recover
+            </>
+          )}
+        </p>
+      )}
+    </div>
   );
 }

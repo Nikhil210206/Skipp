@@ -77,6 +77,15 @@ Zoho IAM inside an iframe (`{BASE}/accounts/p/40-10002227248/signin`).
 - [ ] **True push notifications.** Today's `lib/alerts.ts` is an in-app feed only; real push
       needs a server and a push service, so it is a post-deploy job.
 
+## Phase 6, Product design pass, done (2026-07-26)
+- [x] Audit of the prototype UI: 11 type sizes on one screen, no elevation hierarchy,
+      duplicated information on home, colour used as decoration, no reduced-motion support.
+- [x] A real design system in `globals.css` + `components/ui/`. See CLAUDE.md §7.5 and §8.
+- [x] **GSAP replaces Framer Motion**, all of it behind `lib/motion.ts`.
+- [x] Every screen rebuilt on the primitives. Logic untouched.
+- [x] Verified in Chrome DevTools: CLS 0.00, LCP ~360ms, 44px targets, no overflow
+      at 320 / 390 / 768 / 1280, both themes.
+
 ---
 
 ## Sign-in budget (the constraint that shapes the architecture)

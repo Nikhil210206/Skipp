@@ -4,39 +4,45 @@ import { useRouter } from "next/navigation";
 import { useEffect } from "react";
 import LoginForm from "@/components/LoginForm";
 import { useSession } from "@/context/SessionContext";
+import { revealIn, useGsap } from "@/lib/motion";
+import { Spinner } from "@/components/ui";
 
 export default function LoginPage() {
   const router = useRouter();
   const { isAuthed, restoring } = useSession();
 
-  // If an encrypted session rehydrates, skip the login screen.
   useEffect(() => {
     if (isAuthed) router.replace("/dashboard");
   }, [isAuthed, router]);
 
+  const scope = useGsap(({ self, reduced }) =>
+    revealIn(self, reduced, { y: 18, stagger: 0.08 }),
+  );
+
   if (restoring || isAuthed) {
     return (
       <main className="flex min-h-full flex-1 items-center justify-center">
-        <div
-          className="size-8 animate-spin rounded-full border-2 border-line-strong border-t-accent"
-          aria-label="Loading"
-        />
+        <Spinner label="Opening Skipp" />
       </main>
     );
   }
 
   return (
-    <main className="flex min-h-full flex-col items-center justify-center px-6 py-12">
-      <div className="mb-8 text-center">
-        <h1 className="text-5xl font-extrabold tracking-tight lowercase">skipp</h1>
-        <p className="mt-2 text-text-muted">know before you bunk.</p>
+    <main className="mx-auto flex min-h-full w-full max-w-md flex-1 flex-col justify-between px-[var(--gutter)] md:border-x md:border-line-soft pb-[max(28px,env(safe-area-inset-bottom))] pt-[max(56px,calc(env(safe-area-inset-top)+32px))]">
+      <div ref={scope} className="flex flex-1 flex-col">
+        <header data-reveal className="pt-10">
+          <h1 className="text-display lowercase">skipp</h1>
+          <p className="mt-4 text-title text-text-2">Know before you bunk.</p>
+        </header>
+
+        <div data-reveal className="mt-auto pt-12">
+          <LoginForm />
+        </div>
       </div>
 
-      <LoginForm />
-
-      <p className="mt-8 max-w-sm text-center text-xs text-text-muted">
-        Not affiliated with SRM. Your data is never stored on our servers. Use at
-        your own risk.
+      <p className="mt-8 text-callout leading-relaxed text-text-3">
+        Not affiliated with SRM. Your credentials are sent to the portal for this
+        sign-in only, never stored on our servers.
       </p>
     </main>
   );

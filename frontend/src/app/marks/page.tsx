@@ -1,134 +1,148 @@
 "use client";
 
-import { motion } from "framer-motion";
 import AppShell from "@/components/AppShell";
-import StatePanel, { Spinner } from "@/components/StatePanel";
 import { useSession } from "@/context/SessionContext";
-import { IconAlert, IconHourglass, IconMarks } from "@/components/Icons";
-
-function pct(scored: number, max: number): number {
-  return max > 0 ? (scored / max) * 100 : 0;
-}
+import { revealIn, useGsap } from "@/lib/motion";
+import {
+  Card,
+  Divider,
+  Label,
+  Meter,
+  Skeleton,
+  StateView,
+} from "@/components/ui";
 
 export default function MarksPage() {
   const { marks, marksState, marksMessage } = useSession();
+  const subjects = marks?.subjects ?? [];
+  const scored = subjects.reduce((x, s) => x + s.scoredTotal, 0);
+  const max = subjects.reduce((x, s) => x + s.maxTotal, 0);
+  const graded = subjects.filter((s) => s.components.length > 0).length;
+
+  const scope = useGsap(
+    ({ self, reduced }) => revealIn(self, reduced),
+    [marksState],
+  );
 
   return (
-    <AppShell title="marks">
-      {marksState === "loading" && (
-        <div className="flex flex-1 items-center justify-center">
-          <Spinner />
-        </div>
-      )}
+    <AppShell
+      eyebrow="Internals"
+      title={max > 0 ? `${round(scored)} / ${round(max)}` : "Marks"}
+    >
+      <div ref={scope} className="flex flex-1 flex-col">
+        {marksState === "loading" && (
+          <div className="flex flex-col gap-3">
+            <Skeleton className="h-20 w-full" />
+            <Skeleton className="h-48 w-full" />
+          </div>
+        )}
 
-      {marksState === "gated" && (
-        <StatePanel
-          icon={<IconHourglass size={30} />}
-          tone="warning"
-          title="No marks yet"
-          message={marksMessage ?? undefined}
-        />
-      )}
+        {marksState === "gated" && (
+          <StateView
+            tone="watch"
+            title="No marks yet"
+            message={
+              marksMessage ??
+              "Nothing has been published for this term. Marks appear here as soon as they are."
+            }
+          />
+        )}
 
-      {marksState === "error" && (
-        <StatePanel
-          icon={<IconAlert size={30} />}
-          tone="danger"
-          title="Couldn't load marks"
-          message={marksMessage ?? undefined}
-        />
-      )}
+        {marksState === "error" && (
+          <StateView
+            tone="risk"
+            title="Could not load marks"
+            message={marksMessage ?? "Pull down to try again."}
+          />
+        )}
 
-      {marksState === "ready" && marks && marks.subjects.length === 0 && (
-        <StatePanel
-          icon={<IconMarks size={30} />}
-          title="Nothing graded yet"
-          message="Marks will show here once your internal assessments are published."
-        />
-      )}
+        {/* Subjects exist but nothing is graded: a list of zeroes helps nobody. */}
+        {marksState === "ready" && (subjects.length === 0 || max === 0) && (
+          <StateView
+            title="Nothing graded yet"
+            message={
+              subjects.length > 0
+                ? `We are tracking ${subjects.length} subjects. Marks appear the moment your first assessment is published.`
+                : "Your internal assessments will show here once results are out."
+            }
+          />
+        )}
 
-      {marksState === "ready" && marks && marks.subjects.length > 0 && (
-        <>
-          <MarksTotal subjects={marks.subjects} />
-          <ul className="flex flex-col gap-3 pb-6">
-          {marks.subjects.map((s, i) => (
-            <motion.li
-              key={`${s.code}-${i}`}
-              initial={{ opacity: 0, y: 10 }}
-              animate={{ opacity: 1, y: 0 }}
-              transition={{ delay: Math.min(i * 0.04, 0.3) }}
-              className="rounded-2xl bg-surface p-4"
-            >
-              <div className="mb-3 flex items-baseline justify-between gap-3">
-                <div className="min-w-0">
-                  <p className="truncate font-medium">{s.title || s.code}</p>
-                  <p className="text-xs text-text-muted">{s.code}</p>
-                </div>
-                <p className="shrink-0 text-sm font-semibold text-accent">
-                  {s.scoredTotal}
-                  <span className="text-text-muted">/{s.maxTotal}</span>
-                </p>
+        {marksState === "ready" && subjects.length > 0 && max > 0 && (
+          <>
+            <section data-reveal className="pb-8">
+              <div className="flex items-baseline gap-2">
+                <span className="tnum text-display">{round(scored)}</span>
+                <span className="text-title text-text-3">/ {round(max)}</span>
               </div>
+              <p className="mt-5 tnum text-callout text-text-3">
+                {pct(scored, max).toFixed(0)}% across {graded} graded{" "}
+                {graded === 1 ? "subject" : "subjects"}
+              </p>
+              <Meter value={pct(scored, max)} className="mt-5" />
+            </section>
 
-              <div className="flex flex-col gap-2">
-                {s.components.map((c) => (
-                  <div key={c.name}>
-                    <div className="mb-0.5 flex justify-between text-xs">
-                      <span className="text-text-muted">{c.name}</span>
-                      <span>
-                        {c.scored}/{c.max}
-                      </span>
+            <Card flush className="overflow-hidden" as="section">
+              <div className="px-5 pb-1 pt-4">
+                <Label>By subject</Label>
+              </div>
+              <ul>
+                {subjects.map((s, i) => (
+                  <li key={`${s.code}-${i}`} data-reveal>
+                    {i > 0 && <Divider inset={20} />}
+                    <div className="px-5 py-4">
+                      <div className="flex items-baseline gap-4">
+                        <div className="min-w-0 flex-1">
+                          <p className="truncate text-headline">
+                            {s.title || s.code}
+                          </p>
+                          <p className="mt-0.5 text-callout text-text-3">
+                            {s.code}
+                          </p>
+                        </div>
+                        <p className="shrink-0 tnum text-headline">
+                          {round(s.scoredTotal)}
+                          <span className="text-text-3">
+                            /{round(s.maxTotal)}
+                          </span>
+                        </p>
+                      </div>
+
+                      {s.components.length > 0 ? (
+                        <ul className="mt-3.5 flex flex-col gap-2.5">
+                          {s.components.map((c) => (
+                            <li key={c.name}>
+                              <div className="flex items-baseline justify-between gap-3">
+                                <span className="truncate text-callout text-text-2">
+                                  {c.name}
+                                </span>
+                                <span className="tnum shrink-0 text-callout text-text-3">
+                                  {round(c.scored)}/{round(c.max)}
+                                </span>
+                              </div>
+                              <Meter
+                                value={pct(c.scored, c.max)}
+                                className="mt-1.5"
+                              />
+                            </li>
+                          ))}
+                        </ul>
+                      ) : (
+                        <p className="mt-2.5 text-callout text-text-3">
+                          No components published
+                        </p>
+                      )}
                     </div>
-                    <div className="h-1.5 overflow-hidden rounded-full bg-background">
-                      <motion.div
-                        className="h-full rounded-full bg-accent"
-                        initial={{ width: 0 }}
-                        animate={{ width: `${pct(c.scored, c.max)}%` }}
-                        transition={{ duration: 0.6, ease: "easeOut" }}
-                      />
-                    </div>
-                  </div>
+                  </li>
                 ))}
-                {s.components.length === 0 && (
-                  <p className="text-xs text-text-muted">No components yet.</p>
-                )}
-              </div>
-            </motion.li>
-          ))}
-          </ul>
-        </>
-      )}
+              </ul>
+            </Card>
+          </>
+        )}
+      </div>
     </AppShell>
   );
 }
 
-function MarksTotal({
-  subjects,
-}: {
-  subjects: { scoredTotal: number; maxTotal: number }[];
-}) {
-  const scored = subjects.reduce((x, s) => x + s.scoredTotal, 0);
-  const max = subjects.reduce((x, s) => x + s.maxTotal, 0);
-  return (
-    <div className="mb-4 flex items-center justify-between rounded-2xl bg-surface p-5">
-      <div>
-        <p className="text-xs uppercase tracking-wider text-text-muted">
-          total marks
-        </p>
-        <p className="mt-1 text-4xl font-extrabold leading-none">
-          {round(scored)}
-          <span className="text-2xl text-text-muted"> / {round(max)}</span>
-        </p>
-      </div>
-      {max > 0 && (
-        <span className="text-3xl font-extrabold text-accent">
-          {pct(scored, max).toFixed(0)}%
-        </span>
-      )}
-    </div>
-  );
-}
-
-function round(n: number): number {
-  return Math.round(n * 100) / 100;
-}
+const pct = (a: number, b: number) => (b > 0 ? (a / b) * 100 : 0);
+const round = (n: number) => Math.round(n * 100) / 100;

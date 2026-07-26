@@ -1,23 +1,22 @@
 "use client";
 
 import { useState } from "react";
-import { motion } from "framer-motion";
 import AppShell from "@/components/AppShell";
-import StatePanel from "@/components/StatePanel";
 import CustomClassSheet from "@/components/CustomClassSheet";
 import { useSession } from "@/context/SessionContext";
-import { IconLocation, IconTimetable, IconUser } from "@/components/Icons";
 import {
   calendarDay,
   daySchedule,
   holidayToday,
   nextWorkingDay,
+  prettyDate,
   scheduleFor,
   timeline,
   todayISO,
   type ScheduleItem,
-  type TimelineItem,
 } from "@/lib/schedule";
+import { revealIn, useGsap } from "@/lib/motion";
+import { Button, Card, Chip, Label, Segmented, StateView } from "@/components/ui";
 
 export default function TimetablePage() {
   const {
@@ -28,33 +27,17 @@ export default function TimetablePage() {
     optionalCourses,
     toggleOptional,
   } = useSession();
+
   const dayOrders = timetable?.dayOrders ?? [];
   const cal = timetable?.calendar ?? [];
   const todayDO = calendarDay(cal, todayISO())?.dayOrder ?? null;
   const holiday = holidayToday(cal);
-  // When today isn't a working day (holiday/weekend), default to the next
-  // working day's order.
-  const upcomingDO = todayDO == null ? (nextWorkingDay(cal)?.dayOrder ?? null) : null;
+  const upcoming = todayDO == null ? nextWorkingDay(cal) : null;
+  const upcomingDO = upcoming?.dayOrder ?? null;
 
-  // `selected` is null until the user picks a day order, so the view always
-  // defaults to today's (or the upcoming) day order, and a reload/relaunch lands
-  // there again rather than sticking on a stale DO.
   const [selected, setSelected] = useState<number | null>(null);
   const [sheetOpen, setSheetOpen] = useState(false);
-  const activeDO =
-    selected ?? todayDO ?? upcomingDO ?? dayOrders[0]?.dayOrder ?? 1;
-
-  if (dayOrders.length === 0) {
-    return (
-      <AppShell title="timetable">
-        <StatePanel
-          icon={<IconTimetable size={30} />}
-          title="Timetable unavailable"
-          message="Couldn't load the day-order grid. Try again in a bit."
-        />
-      </AppShell>
-    );
-  }
+  const activeDO = selected ?? todayDO ?? upcomingDO ?? dayOrders[0]?.dayOrder ?? 1;
 
   const schedule = scheduleFor(dayOrders, activeDO);
   const classes = daySchedule(
@@ -64,132 +47,113 @@ export default function TimetablePage() {
     optionalCourses,
   );
   const items = timeline(classes);
-  // The day-overview reflects classes you actually attend (optional excluded).
   const attending = classes.filter((c) => !c.isOptional);
-  const first = attending[0];
-  const last = attending.at(-1);
+
+  const scope = useGsap(
+    ({ self, reduced }) => revealIn(self, reduced, { stagger: 0.04 }),
+    [activeDO, classes.length],
+  );
+
+  const context =
+    activeDO === todayDO
+      ? "Today"
+      : activeDO === upcomingDO
+        ? `Next, ${prettyDate(upcoming?.date ?? "")}`
+        : "Day order";
+
+  if (dayOrders.length === 0) {
+    return (
+      <AppShell eyebrow="Schedule" title="Timetable">
+        <StateView
+          title="Timetable unavailable"
+          message="We could not load your day-order grid. Pull down to try again."
+        />
+      </AppShell>
+    );
+  }
 
   return (
-    <AppShell title="timetable">
-      {/* Holiday today */}
-      {holiday && (
-        <div className="mb-4 rounded-2xl border border-success/25 bg-success/[0.08] p-4 text-center">
-          <p className="text-sm font-bold lowercase text-success">
-            holiday today, enjoy!{" "}
-            <span className="text-text-muted">
-              {holiday.event?.replace(/ - Holiday$/i, "")}
-            </span>
-          </p>
-        </div>
-      )}
-
-      {/* Big day-order number */}
-      <div className="mb-4 text-center">
-        <p className="text-xs uppercase tracking-[0.25em] text-text-muted">
-          {activeDO === todayDO ? (
-            <>
-              <span className="text-accent">today</span> · day order
-            </>
-          ) : activeDO === upcomingDO ? (
-            <>
-              <span className="text-accent">upcoming</span> · day order
-            </>
-          ) : (
-            "day order"
-          )}
-        </p>
-        <motion.p
-          key={activeDO}
-          initial={{ opacity: 0, y: 8 }}
-          animate={{ opacity: 1, y: 0 }}
-          className="text-7xl font-extrabold tracking-tight"
-        >
-          {String(activeDO).padStart(2, "0")}
-        </motion.p>
-      </div>
-
-      {/* DO selector */}
-      <div className="mb-4 flex items-center gap-1 rounded-full bg-surface p-1">
-        <span className="px-3 text-xs font-bold uppercase tracking-wider text-accent">
-          DO
-        </span>
-        {dayOrders.map((d) => {
-          const active = d.dayOrder === activeDO;
-          return (
-            <button
-              key={d.dayOrder}
-              onClick={() => setSelected(d.dayOrder)}
-              className={`relative flex-1 rounded-full py-2 text-sm font-semibold transition-colors ${
-                active ? "text-background" : "text-text-muted hover:text-text-primary"
-              }`}
-            >
-              {active && (
-                <motion.span
-                  layoutId="do-pill"
-                  className="absolute inset-0 rounded-full bg-accent"
-                  transition={{ type: "spring", stiffness: 400, damping: 32 }}
-                />
-              )}
-              <span className="relative">{d.dayOrder}</span>
-              {d.dayOrder === todayDO && !active && (
-                <span className="absolute bottom-1 left-1/2 size-1 -translate-x-1/2 rounded-full bg-accent" />
-              )}
-            </button>
-          );
-        })}
-      </div>
-
-      {/* Add custom class */}
-      <button
-        onClick={() => setSheetOpen(true)}
-        className="mb-4 flex w-full items-center gap-3 rounded-2xl border border-dashed border-line-strong px-4 py-3 text-left transition-colors hover:border-accent/50"
-      >
-        <span className="flex size-9 items-center justify-center rounded-full bg-surface-2 text-lg text-accent">
-          +
-        </span>
-        <span>
-          <span className="block font-semibold lowercase">custom class</span>
-          <span className="block text-xs text-text-muted">
-            add an extra class to day order {activeDO}
-          </span>
-        </span>
-      </button>
-
-      {/* Day overview */}
-      {classes.length > 0 ? (
-        <div className="mb-4 flex items-center justify-between rounded-2xl border border-accent/30 bg-accent/[0.07] px-4 py-3">
-          <span className="text-xs uppercase tracking-widest text-text-muted">
-            day overview
-          </span>
-          <span className="text-sm">
-            <span className="font-bold text-accent">{first?.start}</span>
-            <span className="text-text-muted"> to </span>
-            <span className="font-bold text-accent">{last?.end}</span>
-          </span>
-          <span className="text-sm">
-            <span className="font-bold">{attending.length}</span>
-            <span className="text-text-muted"> classes</span>
-          </span>
-        </div>
-      ) : (
-        <p className="mb-4 rounded-2xl bg-surface px-4 py-6 text-center text-sm text-text-muted">
-          No classes on day order {activeDO}.
-        </p>
-      )}
-
-      {/* Timeline */}
-      <ul className="relative flex flex-col gap-3 pb-6 pl-4">
-        <span className="absolute bottom-6 left-[7px] top-2 w-px bg-line-strong" />
-        {items.map((item, i) => (
-          <TimelineRow
-            key={i}
-            item={item}
-            index={i}
-            onRemove={removeCustomClass}
-            onToggleOptional={toggleOptional}
+    <AppShell
+      eyebrow={context}
+      title={`Day order ${activeDO}`}
+      action={
+        <Button variant="secondary" onClick={() => setSheetOpen(true)}>
+          Add
+        </Button>
+      }
+    >
+      <div ref={scope} className="flex flex-1 flex-col">
+        <div data-reveal className="mb-6">
+          <Segmented
+            label="Day order"
+            value={activeDO}
+            onChange={setSelected}
+            options={dayOrders.map((d) => ({
+              value: d.dayOrder,
+              label: (
+                <span className="tnum">
+                  {d.dayOrder}
+                  {d.dayOrder === todayDO && (
+                    <span className="ml-1 inline-block size-1 rounded-full bg-accent align-middle" />
+                  )}
+                </span>
+              ),
+            }))}
           />
-        ))}
-      </ul>
+        </div>
+
+        {holiday && activeDO === upcomingDO && (
+          <div data-reveal className="mb-6">
+            <Label tone="accent">Holiday today</Label>
+            <p className="mt-2 text-body text-text-2">
+              {holiday.event?.replace(/ - Holiday$/i, "") ?? "No classes today."} Showing
+              the next working day.
+            </p>
+          </div>
+        )}
+
+        {classes.length === 0 ? (
+          <StateView
+            title="No classes"
+            message={`Day order ${activeDO} is clear. Nothing to attend.`}
+          />
+        ) : (
+          <>
+            <div data-reveal className="mb-5 flex items-baseline justify-between">
+              <Label>
+                {attending[0]?.start} to {attending.at(-1)?.end}
+              </Label>
+              <span className="tnum text-callout text-text-3">
+                {attending.length} {attending.length === 1 ? "class" : "classes"}
+              </span>
+            </div>
+
+            <ul className="flex flex-col">
+              {items.map((item, i) =>
+                item.kind === "break" ? (
+                  <li
+                    key={`b${i}`}
+                    data-reveal
+                    className="flex items-center gap-3 py-2 pl-[62px]"
+                  >
+                    <span className="text-callout text-text-3">
+                      {item.minutes} min break
+                    </span>
+                  </li>
+                ) : (
+                  <li key={item.item.id} data-reveal className="py-1.5">
+                    <ClassCard
+                      item={item.item}
+                      onRemove={removeCustomClass}
+                      onToggleOptional={toggleOptional}
+                    />
+                  </li>
+                ),
+              )}
+            </ul>
+          </>
+        )}
+      </div>
 
       <CustomClassSheet
         open={sheetOpen}
@@ -202,124 +166,64 @@ export default function TimetablePage() {
   );
 }
 
-function TimelineRow({
+function ClassCard({
   item,
-  index,
   onRemove,
   onToggleOptional,
 }: {
-  item: TimelineItem;
-  index: number;
+  item: ScheduleItem;
   onRemove: (id: string) => void;
   onToggleOptional: (code: string) => void;
 }) {
-  if (item.kind === "break") {
-    return (
-      <li className="flex items-center gap-3 py-0.5 opacity-50">
-        <span className="-ml-4 size-2 rounded-full bg-line-strong" />
-        <span className="text-xs uppercase tracking-wider text-text-muted">
-          short break
-        </span>
-        <span className="ml-auto text-xs text-text-muted">
-          {item.start} to {item.end}
-        </span>
-      </li>
-    );
-  }
-  const c: ScheduleItem = item.item;
-  const dot = c.isCustom
-    ? "bg-warning"
-    : c.isOptional
-      ? "bg-text-muted"
-      : "bg-accent";
+  const muted = item.isOptional;
+  // The portal appends a staff id to every name. Nobody needs to read it.
+  const faculty = item.faculty?.replace(/\s*\(\d+\)\s*$/, "") ?? null;
+  const meta = [item.room, faculty].filter(Boolean).join(" · ");
+
   return (
-    <motion.li
-      initial={{ opacity: 0, x: 8 }}
-      animate={{ opacity: 1, x: 0 }}
-      transition={{ delay: Math.min(index * 0.03, 0.25) }}
-      className="relative"
-    >
-      <span
-        className={`absolute -left-4 top-4 size-3 rounded-full border-2 border-background ${dot}`}
-      />
-      <div
-        className={`rounded-2xl p-4 transition-opacity ${
-          c.isCustom
-            ? "border border-warning/25 bg-warning/[0.06]"
-            : "bg-surface"
-        } ${c.isOptional ? "opacity-45" : ""}`}
-      >
-        <div className="mb-1 flex items-center gap-2 text-sm text-text-muted">
-          <span className="font-medium">
-            {c.start} to {c.end}
-          </span>
-          {c.isLab && <Tag>lab</Tag>}
-          {c.isCustom && <Tag tone="warning">custom</Tag>}
-          {c.isOptional && <Tag tone="muted">optional</Tag>}
-          {c.isCustom ? (
+    <Card flush className={`flex gap-4 px-4 py-3.5 ${muted ? "opacity-45" : ""}`}>
+      <div className="w-[42px] shrink-0 pt-0.5">
+        <p className="tnum text-callout text-text-1">{item.start}</p>
+        <p className="tnum text-callout text-text-3">{item.end}</p>
+      </div>
+
+      <div className="min-w-0 flex-1">
+        <div className="flex items-baseline justify-between gap-3">
+          <p
+            className={`truncate text-headline ${
+              muted ? "line-through decoration-text-3" : ""
+            }`}
+          >
+            {item.abbrev}
+          </p>
+          <div className="flex shrink-0 items-center gap-1.5">
+            {item.isLab && <Chip>Lab</Chip>}
+            {item.isCustom && <Chip tone="accent">Added</Chip>}
+            {muted && <Chip>Optional</Chip>}
+          </div>
+        </div>
+
+        <p className="mt-0.5 truncate text-callout text-text-3">{item.title}</p>
+
+        <div className="mt-1.5 flex items-baseline justify-between gap-3">
+          <p className="min-w-0 truncate text-callout text-text-3">{meta}</p>
+          {item.isCustom ? (
             <button
-              onClick={() => onRemove(c.id)}
-              className="ml-auto text-xs text-text-muted hover:text-danger"
-              aria-label="Remove custom class"
+              onClick={() => onRemove(item.id)}
+              className="shrink-0 text-callout text-text-3 transition-colors hover:text-risk"
             >
-              remove
+              Remove
             </button>
           ) : (
             <button
-              onClick={() => onToggleOptional(c.code)}
-              className="ml-auto text-xs text-text-muted hover:text-text-primary"
+              onClick={() => onToggleOptional(item.code)}
+              className="shrink-0 text-callout text-text-3 transition-colors hover:text-text-1"
             >
-              {c.isOptional ? "make required" : "mark optional"}
+              {muted ? "Make required" : "Make optional"}
             </button>
           )}
         </div>
-        <h3
-          className={`text-2xl font-extrabold tracking-tight ${
-            c.isOptional ? "line-through decoration-text-muted" : ""
-          }`}
-        >
-          {c.abbrev}
-        </h3>
-        <p className="text-sm text-text-muted">{c.title}</p>
-        {(c.room || c.faculty) && (
-          <div className="mt-3 flex items-center gap-4 border-t border-line pt-3 text-xs text-text-muted">
-            {c.room && (
-              <span className="flex items-center gap-1.5">
-                <IconLocation size={13} />
-                {c.room}
-              </span>
-            )}
-            {c.faculty && (
-              <span className="flex min-w-0 items-center gap-1.5">
-                <IconUser size={13} />
-                <span className="truncate">{c.faculty}</span>
-              </span>
-            )}
-          </div>
-        )}
       </div>
-    </motion.li>
-  );
-}
-
-function Tag({
-  children,
-  tone = "accent",
-}: {
-  children: React.ReactNode;
-  tone?: "accent" | "warning" | "muted";
-}) {
-  const cls =
-    tone === "warning"
-      ? "bg-warning/15 text-warning"
-      : tone === "muted"
-        ? "bg-line-strong text-text-muted"
-        : "bg-accent/15 text-accent";
-  return (
-    <span
-      className={`rounded-full px-2 py-0.5 text-[10px] font-semibold uppercase ${cls}`}
-    >
-      {children}
-    </span>
+    </Card>
   );
 }

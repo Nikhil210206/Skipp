@@ -1,64 +1,160 @@
 @import "tailwindcss";
 
-/* Skipp brand tokens. Dark is the default; light is opt-in via data-theme. */
-@theme {
-  --color-background: #08080a; /* near-black app background */
-  --color-surface: #141417; /* cards */
-  --color-surface-2: #1d1d21; /* raised elements, chips */
-  --color-accent: #ff6a1a; /* electric orange, primary */
-  --color-accent-soft: #ff8a45; /* lighter orange for gradients */
-  --color-success: #3dd68c; /* attendance safe */
-  --color-warning: #ffb020; /* attendance tight */
-  --color-danger: #ff5555; /* below threshold / holidays */
-  --color-text-primary: #f6f6f8; /* headings */
-  --color-text-muted: #86868f; /* labels */
+/* ============================================================
+   SKIPP DESIGN SYSTEM
+   One scale for everything. Nothing is styled ad hoc.
+   ============================================================ */
 
-  /* Neutral hairlines and fills, so both themes stay readable. */
-  --color-line: rgba(255, 255, 255, 0.07);
-  --color-line-strong: rgba(255, 255, 255, 0.16);
-  --color-ring-track: rgba(255, 255, 255, 0.08);
+@theme {
+  /* --- Surfaces. ink-0 is the page, each step up is nearer the eye. --- */
+  --color-ink-0: #08080a;
+  --color-ink-1: #0e0e11;
+  --color-ink-2: #16161a;
+  --color-ink-3: #1f1f25;
+  --color-line: #24242b;
+  --color-line-soft: #17171c;
+
+  /* --- Text. Three levels, never more. --- */
+  --color-text-1: #f4f4f6;
+  --color-text-2: #9d9da7;
+  --color-text-3: #6b6b75;
+
+  /* --- Accent. Earns its place: one action per screen. --- */
+  --color-accent: #f2661c;
+  --color-accent-ink: #0a0a0b;
+
+  /* --- Semantic. Muted on purpose, these are states not decoration. --- */
+  --color-safe: #4fa97b;
+  --color-watch: #cf9b34;
+  --color-risk: #e2584f;
+
+  /* --- Type scale. Editorial: huge numbers, quiet labels. --- */
+  --text-display: 4.25rem;
+  --text-display--line-height: 0.86;
+  --text-display--letter-spacing: -0.045em;
+  --text-display--font-weight: 700;
+
+  --text-hero: 2.75rem;
+  --text-hero--line-height: 0.92;
+  --text-hero--letter-spacing: -0.038em;
+  --text-hero--font-weight: 700;
+
+  --text-title: 1.5rem;
+  --text-title--line-height: 1.12;
+  --text-title--letter-spacing: -0.028em;
+  --text-title--font-weight: 680;
+
+  --text-headline: 1.0625rem;
+  --text-headline--line-height: 1.3;
+  --text-headline--letter-spacing: -0.014em;
+  --text-headline--font-weight: 580;
+
+  --text-body: 0.9375rem;
+  --text-body--line-height: 1.45;
+  --text-body--letter-spacing: -0.006em;
+
+  --text-callout: 0.8125rem;
+  --text-callout--line-height: 1.4;
+
+  --text-label: 0.6875rem;
+  --text-label--line-height: 1;
+  --text-label--letter-spacing: 0.09em;
+  --text-label--font-weight: 600;
+
+  /* --- Radius --- */
+  --radius-control: 12px;
+  --radius-card: 18px;
+  --radius-sheet: 28px;
+
+  /* --- Elevation. Hairline first, shadow only when something floats. --- */
+  --shadow-lift: 0 1px 2px rgb(0 0 0 / 0.3), 0 12px 32px -18px rgb(0 0 0 / 0.8);
+  --shadow-float: 0 2px 6px rgb(0 0 0 / 0.32), 0 28px 60px -28px rgb(0 0 0 / 0.9);
 
   --font-sans: var(--font-geist-sans);
   --font-mono: var(--font-geist-mono);
 }
 
-html {
+/* Spacing rhythm and layout constants live outside @theme so they can be
+   consumed by both utilities and raw CSS. */
+:root {
+  --gutter: 20px;
+  --nav-h: 60px;
+  --dur-1: 0.14s;
+  --dur-2: 0.24s;
+  --dur-3: 0.42s;
+  --ease-out: cubic-bezier(0.22, 0.61, 0.36, 1);
+  --ease-emphasis: cubic-bezier(0.16, 1, 0.3, 1);
   color-scheme: dark;
 }
 
-/* Light theme: same orange, inverted neutrals. */
 html[data-theme="light"] {
   color-scheme: light;
-  --color-background: #ffffff;
-  --color-surface: #f4f4f6;
-  --color-surface-2: #e8e8ee;
-  --color-accent: #e2560a;
-  --color-accent-soft: #ff8a45;
-  --color-success: #12996b;
-  --color-warning: #a86a00;
-  --color-danger: #d92c2c;
-  --color-text-primary: #0e0e12;
-  --color-text-muted: #6a6a75;
+  --color-ink-0: #ffffff;
+  --color-ink-1: #f6f6f7;
+  --color-ink-2: #efeff1;
+  --color-ink-3: #e5e5e9;
+  --color-line: #e3e3e7;
+  --color-line-soft: #eeeef0;
 
-  --color-line: rgba(0, 0, 0, 0.08);
-  --color-line-strong: rgba(0, 0, 0, 0.18);
-  --color-ring-track: rgba(0, 0, 0, 0.09);
+  --color-text-1: #0c0c0f;
+  --color-text-2: #5d5d67;
+  --color-text-3: #8b8b95;
+
+  --color-accent: #d2530b;
+  --color-accent-ink: #ffffff;
+
+  --color-safe: #1f7d55;
+  --color-watch: #8a6410;
+  --color-risk: #c23b32;
+
+  --shadow-lift: 0 1px 2px rgb(0 0 0 / 0.05), 0 12px 28px -18px rgb(0 0 0 / 0.28);
+  --shadow-float: 0 2px 8px rgb(0 0 0 / 0.07), 0 28px 56px -28px rgb(0 0 0 / 0.3);
+}
+
+html {
+  -webkit-tap-highlight-color: transparent;
 }
 
 body {
-  background: var(--color-background);
-  color: var(--color-text-primary);
-  font-family: var(--font-sans), Arial, Helvetica, sans-serif;
+  background: var(--color-ink-0);
+  color: var(--color-text-1);
+  font-family: var(--font-sans), ui-sans-serif, system-ui, sans-serif;
   -webkit-font-smoothing: antialiased;
-  /* Use our own pull-to-refresh instead of the browser's. */
+  text-rendering: optimizeLegibility;
+  /* We ship our own pull-to-refresh. */
   overscroll-behavior-y: none;
 }
 
-/* Hide scrollbars on horizontal scroll strips while keeping scroll. */
+/* Every figure in this app is data: lock the widths so numbers never jitter. */
+.tnum {
+  font-variant-numeric: tabular-nums;
+  font-feature-settings: "tnum" 1, "cv01" 1;
+}
+
+/* Hairline that survives both themes and hi-dpi. */
+.rule {
+  background: var(--color-line);
+  height: 1px;
+}
+
 .no-scrollbar::-webkit-scrollbar {
   display: none;
 }
 .no-scrollbar {
   -ms-overflow-style: none;
   scrollbar-width: none;
+}
+
+/* Elements the motion layer will reveal start hidden, but only when JS and
+   motion are actually available, so no-JS and reduced-motion users see content. */
+@media (prefers-reduced-motion: no-preference) {
+  html.js [data-reveal] {
+    opacity: 0;
+  }
+}
+
+:focus-visible {
+  outline: 2px solid var(--color-accent);
+  outline-offset: 2px;
+  border-radius: 4px;
 }

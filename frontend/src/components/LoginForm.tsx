@@ -1,13 +1,13 @@
 "use client";
 
-import { motion } from "framer-motion";
 import { useRouter } from "next/navigation";
 import { useState } from "react";
 import { useSession } from "@/context/SessionContext";
+import { Button } from "@/components/ui";
 
 /**
- * Login screen. Verifies credentials via the backend (the timetable endpoint),
- * stores the session in memory, and routes to the dashboard.
+ * Login. Verifies credentials through the backend, keeps the session in
+ * memory, and routes on.
  */
 export default function LoginForm() {
   const router = useRouter();
@@ -26,63 +26,81 @@ export default function LoginForm() {
       await login({ username: username.trim(), password });
       router.push("/dashboard");
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Login failed.");
+      setError(err instanceof Error ? err.message : "Sign-in failed.");
       setBusy(false);
     }
   }
 
   return (
-    <motion.form
-      onSubmit={handleSubmit}
-      initial={{ opacity: 0, y: 12 }}
-      animate={{ opacity: 1, y: 0 }}
-      transition={{ duration: 0.4, ease: "easeOut" }}
-      className="w-full max-w-sm rounded-2xl bg-surface p-6 shadow-lg shadow-black/20"
-    >
-      <label className="mb-2 block text-sm text-text-muted" htmlFor="username">
-        SRM Net ID
-      </label>
-      <input
+    <form onSubmit={handleSubmit} className="flex flex-col gap-3">
+      <Field
         id="username"
-        type="text"
-        autoComplete="username"
+        label="SRM Net ID"
         value={username}
-        onChange={(e) => setUsername(e.target.value)}
+        onChange={setUsername}
         placeholder="ab1234"
-        className="mb-4 w-full rounded-xl border border-line-strong bg-background px-4 py-3 text-text-primary outline-none transition-colors focus:border-accent"
+        autoComplete="username"
       />
-
-      <label className="mb-2 block text-sm text-text-muted" htmlFor="password">
-        Password
-      </label>
-      <input
+      <Field
         id="password"
+        label="Password"
+        value={password}
+        onChange={setPassword}
+        placeholder="••••••••"
         type="password"
         autoComplete="current-password"
-        value={password}
-        onChange={(e) => setPassword(e.target.value)}
-        placeholder="••••••••"
-        className="mb-4 w-full rounded-xl border border-line-strong bg-background px-4 py-3 text-text-primary outline-none transition-colors focus:border-accent"
       />
 
       {error && (
-        <motion.p
-          initial={{ opacity: 0 }}
-          animate={{ opacity: 1 }}
-          className="mb-4 rounded-lg bg-danger/10 px-3 py-2 text-sm text-danger"
-        >
+        <p role="alert" className="text-callout text-risk">
           {error}
-        </motion.p>
+        </p>
       )}
 
-      <motion.button
+      <Button
         type="submit"
+        size="lg"
+        full
         disabled={busy || !username || !password}
-        whileTap={{ scale: 0.98 }}
-        className="w-full rounded-xl bg-accent py-3 font-semibold text-background transition-opacity hover:opacity-90 disabled:opacity-50"
+        className="mt-2"
       >
-        {busy ? "Logging in…" : "See my attendance"}
-      </motion.button>
-    </motion.form>
+        {busy ? "Signing in" : "Continue"}
+      </Button>
+    </form>
+  );
+}
+
+function Field({
+  id,
+  label,
+  value,
+  onChange,
+  placeholder,
+  type = "text",
+  autoComplete,
+}: {
+  id: string;
+  label: string;
+  value: string;
+  onChange: (v: string) => void;
+  placeholder?: string;
+  type?: string;
+  autoComplete?: string;
+}) {
+  return (
+    <div className="rounded-control border border-line bg-ink-1 px-4 py-3 transition-colors focus-within:border-text-3">
+      <label htmlFor={id} className="text-label uppercase text-text-3">
+        {label}
+      </label>
+      <input
+        id={id}
+        type={type}
+        value={value}
+        autoComplete={autoComplete}
+        onChange={(e) => onChange(e.target.value)}
+        placeholder={placeholder}
+        className="mt-1.5 w-full bg-transparent text-headline text-text-1 outline-none placeholder:text-text-3"
+      />
+    </div>
   );
 }

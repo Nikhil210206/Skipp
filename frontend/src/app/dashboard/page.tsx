@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { motion } from "framer-motion";
+import { useRef } from "react";
 import AppShell from "@/components/AppShell";
 import { useSession } from "@/context/SessionContext";
 import {
@@ -10,20 +10,17 @@ import {
   holidayToday,
   nextClass,
   nowMinutes,
+  prettyDate,
   scheduleFor,
   todayISO,
-  upcomingHoliday,
   type ScheduleItem,
 } from "@/lib/schedule";
-import { buildAlerts, type AlertKind } from "@/lib/alerts";
-import {
-  IconAlert,
-  IconBolt,
-  IconCalendar,
-  IconCheckCircle,
-  IconChevronRight,
-  IconClock,
-} from "@/components/Icons";
+import { buildAlerts } from "@/lib/alerts";
+import { countTo, revealIn, useGsap } from "@/lib/motion";
+import { Card, Chip, Divider, Label } from "@/components/ui";
+import { IconChevronRight } from "@/components/Icons";
+
+const THRESHOLD = 75;
 
 export default function DashboardPage() {
   const {
@@ -32,6 +29,7 @@ export default function DashboardPage() {
     attendanceState,
     customClasses,
     optionalCourses,
+    displayName,
   } = useSession();
 
   const holiday = timetable ? holidayToday(timetable.calendar) : null;
@@ -39,268 +37,183 @@ export default function DashboardPage() {
   const schedule = timetable
     ? scheduleFor(timetable.dayOrders, focus?.dayOrder ?? null)
     : undefined;
-  // Home features the classes you actually attend; optional ones are excluded.
   const classes = daySchedule(
     schedule?.classes ?? [],
     customClasses,
     focus?.dayOrder ?? null,
     optionalCourses,
   ).filter((c) => !c.isOptional);
-  const upNext =
-    focus?.label === "TODAY"
-      ? nextClass(classes, nowMinutes())
-      : (classes[0] ?? null);
 
-  const nextHoliday =
-    timetable && focus
-      ? upcomingHoliday(timetable.calendar, focus.date)
-      : undefined;
-  const daysToHoliday = nextHoliday ? daysBetween(todayISO(), nextHoliday.date) : null;
+  const isToday = focus?.label === "TODAY";
+  const upNext = isToday ? nextClass(classes, nowMinutes()) : (classes[0] ?? null);
+  const remaining = upNext ? classes.slice(classes.indexOf(upNext)) : classes;
 
+  const overallPct = attendance?.overallPercentage ?? 0;
+  const atRisk =
+    attendance?.subjects.filter((s) => s.conducted > 0 && !s.isSafe).length ?? 0;
+
+  // Only surface alerts that ask something of the student.
   const alerts = buildAlerts({
     attendance,
     attendanceReady: attendanceState === "ready",
     threshold: attendance?.threshold,
-    nextClass: upNext,
-    nextClassLabel: focus?.label === "TODAY" ? "today" : (focus?.weekday ?? "next"),
-    holiday: nextHoliday ?? null,
-    daysToHoliday,
-  }).slice(0, 4);
+    nextClass: null,
+    nextClassLabel: "today",
+    holiday: null,
+    daysToHoliday: null,
+  })
+    .filter((a) => a.tone === "danger" || a.tone === "warning")
+    .slice(0, 3);
+
+  const pctRef = useRef<HTMLSpanElement>(null);
+  const scope = useGsap(
+    ({ self, reduced }) => {
+      revealIn(self, reduced);
+      if (pctRef.current && attendanceState === "ready") {
+        countTo(pctRef.current, overallPct, reduced, (n) => n.toFixed(1));
+      }
+    },
+    [overallPct, attendanceState, upNext?.id],
+  );
 
   return (
-    <AppShell title="skipp" greeting>
-      {/* Holiday today */}
-      {holiday && (
-        <motion.div
-          initial={{ opacity: 0, y: 10 }}
-          animate={{ opacity: 1, y: 0 }}
-          className="mb-4 rounded-2xl border border-success/25 bg-success/[0.08] px-5 py-4 text-center"
-        >
-          <p className="text-lg font-extrabold lowercase">
-            holiday today, enjoy!
-          </p>
-          <p className="mt-0.5 text-sm text-success">
-            {holiday.event?.replace(/ - Holiday$/i, "")}
-          </p>
-        </motion.div>
-      )}
-
-      {/* Focus day header */}
-      <div className="mb-3 flex items-baseline justify-between px-1">
-        <p className="text-xs font-semibold uppercase tracking-[0.2em] text-text-muted">
-          {focus?.dayOrder != null ? (
-            <>
-              day order{" "}
-              <span className="text-accent">{focus.dayOrder}</span>
-              <span className="mx-1.5 text-accent">•</span>
-              {focus.label.toLowerCase()}
-            </>
-          ) : (
-            "no classes"
-          )}
-        </p>
-      </div>
-
-      {/* Class strip */}
-      {classes.length > 0 ? (
-        <div className="no-scrollbar -mx-4 mb-6 flex gap-3 overflow-x-auto px-4 pb-1">
-          {classes.map((c, i) => (
-            <ClassChip key={`${c.slot}-${i}`} c={c} highlight={c === upNext} />
-          ))}
-        </div>
-      ) : (
-        <RestCard focus={focus} />
-      )}
-
-      {/* Up-next hero */}
-      {upNext && (
-        <motion.section
-          initial={{ opacity: 0, y: 14 }}
-          animate={{ opacity: 1, y: 0 }}
-          className="mb-6"
-        >
-          <div className="mb-2 flex items-center gap-3 px-1">
-            <span className="text-xs font-medium uppercase tracking-[0.2em] text-text-muted">
-              {focus?.label === "TODAY" ? "up next" : `${focus?.weekday}'s first`}
-            </span>
-            <span className="h-px flex-1 bg-line-strong" />
-            <span className="text-xs font-semibold tracking-widest text-text-muted">
-              {upNext.room ?? ""}
-            </span>
-          </div>
-          <h2 className="px-1 text-5xl font-extrabold leading-[0.95] tracking-tight">
-            {upNext.title.length > 22
-              ? upNext.title.slice(0, 20).trimEnd() + "…"
-              : upNext.title.toLowerCase()}
-          </h2>
-          <div className="mt-3 flex items-center justify-between rounded-2xl bg-surface px-4 py-3">
-            <span className="flex items-center gap-2 text-sm">
-              <span className="size-2 rounded-full bg-accent" />
-              <span className="font-semibold">{upNext.abbrev}</span>
-              <span className="text-text-muted">
-                · {upNext.isCustom ? "custom" : upNext.slot}
+    <AppShell eyebrow={prettyDate(todayISO())} title={`Hi, ${displayName}`}>
+      <div ref={scope} className="flex flex-1 flex-col">
+        {holiday ? (
+          <section data-reveal className="pb-9">
+            <Label tone="accent">Holiday</Label>
+            <h2 className="mt-3 text-hero">No classes today.</h2>
+            <p className="mt-3 text-body text-text-2">
+              {holiday.event?.replace(/ - Holiday$/i, "") ?? "Enjoy it."}
+              {focus?.dayOrder != null && (
+                <>
+                  {" "}
+                  Back on day order {focus.dayOrder}, {prettyDate(focus.date)}.
+                </>
+              )}
+            </p>
+          </section>
+        ) : upNext ? (
+          <section data-reveal className="pb-9">
+            <div className="flex items-baseline justify-between gap-3">
+              <Label tone="accent">
+                {isToday ? "Up next" : `Next class, ${focus?.weekday ?? ""}`}
+              </Label>
+              <span className="tnum text-callout text-text-3">
+                {focus?.dayOrder != null && `Day order ${focus.dayOrder}`}
               </span>
-            </span>
-            <span className="text-sm text-text-muted">
+            </div>
+            <h2 className="mt-3 text-balance text-hero">{upNext.title}</h2>
+            <p className="mt-3 tnum text-body text-text-2">
               {upNext.start} to {upNext.end}
-            </span>
-          </div>
-        </motion.section>
-      )}
+              {upNext.room ? ` · ${upNext.room}` : ""}
+            </p>
+          </section>
+        ) : (
+          <section data-reveal className="pb-9">
+            <Label>Nothing scheduled</Label>
+            <h2 className="mt-3 text-hero">You are free.</h2>
+          </section>
+        )}
 
-      {/* Alerts */}
-      {alerts.length > 0 && (
-        <section className="mb-4">
-          <p className="mb-2 px-1 text-xs font-semibold uppercase tracking-[0.2em] text-text-muted">
-            alerts
-          </p>
-          <div className="flex flex-col gap-2">
-            {alerts.map((a, i) => (
-              <motion.div
-                key={a.id}
-                initial={{ opacity: 0, x: -8 }}
-                animate={{ opacity: 1, x: 0 }}
-                transition={{ delay: Math.min(i * 0.05, 0.3) }}
-                className={`flex items-center gap-3 rounded-2xl border px-4 py-3 ${toneCls(a.tone)}`}
-              >
-                <AlertIcon kind={a.kind} />
-                <span className="text-sm font-medium">{a.title}</span>
-              </motion.div>
-            ))}
-          </div>
-        </section>
-      )}
-
-      {/* Quick cards */}
-      <div className="flex flex-col gap-3 pb-4">
-        <QuickCard
+        {/* Attendance status: one number, one verdict, one tap through. */}
+        <Link
           href="/attendance"
-          tone="accent"
-          title="attendance"
-          value={
-            attendanceState === "ready" && attendance
-              ? `${attendance.overallPercentage.toFixed(1)}% overall`
-              : attendanceState === "gated"
-                ? "not on the portal yet"
-                : attendanceState === "loading"
-                  ? "loading…"
-                  : "unavailable"
-          }
-        />
-        <QuickCard href="/marks" tone="plain" title="marks" value="view internals" />
+          data-reveal
+          className="mb-3 flex items-end justify-between rounded-card border border-line-soft bg-ink-1 px-5 py-4 transition-colors hover:bg-ink-2"
+        >
+          <div>
+            <Label>Attendance</Label>
+            <p className="mt-2 flex items-baseline gap-1.5">
+              {attendanceState === "ready" ? (
+                <>
+                  <span ref={pctRef} className="tnum text-title">
+                    {overallPct.toFixed(1)}
+                  </span>
+                  <span className="text-headline text-text-3">%</span>
+                </>
+              ) : (
+                <span className="text-headline text-text-3">
+                  {attendanceState === "gated" ? "Not published yet" : "Unavailable"}
+                </span>
+              )}
+            </p>
+          </div>
+          <div className="flex items-center gap-3">
+            {attendanceState === "ready" &&
+              (atRisk > 0 ? (
+                <Chip tone="risk">
+                  {atRisk} below {THRESHOLD}%
+                </Chip>
+              ) : (
+                <Chip tone="safe">All safe</Chip>
+              ))}
+            <IconChevronRight size={18} className="text-text-3" />
+          </div>
+        </Link>
+
+        {/* The day, as an agenda rather than a strip of chips. */}
+        {remaining.length > 0 && (
+          <Card data-reveal flush className="mb-3 overflow-hidden" as="section">
+            <div className="flex items-center justify-between px-5 pb-1 pt-4">
+              <Label>{isToday ? "Rest of today" : prettyDate(focus?.date ?? "")}</Label>
+              <span className="tnum text-callout text-text-3">
+                {remaining.length} {remaining.length === 1 ? "class" : "classes"}
+              </span>
+            </div>
+            <ul>
+              {remaining.map((c, i) => (
+                <li key={c.id}>
+                  {i > 0 && <Divider inset={20} />}
+                  <ClassLine item={c} first={i === 0 && isToday} />
+                </li>
+              ))}
+            </ul>
+          </Card>
+        )}
+
+        {alerts.length > 0 && (
+          <Card data-reveal flush className="overflow-hidden" as="section">
+            <div className="px-5 pb-1 pt-4">
+              <Label>Needs attention</Label>
+            </div>
+            <ul>
+              {alerts.map((a, i) => (
+                <li key={a.id}>
+                  {i > 0 && <Divider inset={20} />}
+                  <div className="flex items-start gap-3 px-5 py-3.5">
+                    <span
+                      aria-hidden
+                      className={`mt-2 size-1.5 shrink-0 rounded-full ${
+                        a.tone === "danger" ? "bg-risk" : "bg-watch"
+                      }`}
+                    />
+                    <p className="text-body text-text-2">{a.title}</p>
+                  </div>
+                </li>
+              ))}
+            </ul>
+          </Card>
+        )}
       </div>
     </AppShell>
   );
 }
 
-const ALERT_ICON: Record<AlertKind, React.ComponentType<{ size?: number }>> = {
-  risk: IconAlert,
-  edge: IconBolt,
-  class: IconClock,
-  holiday: IconCalendar,
-  safe: IconCheckCircle,
-};
-
-function AlertIcon({ kind }: { kind: AlertKind }) {
-  const Icon = ALERT_ICON[kind];
+function ClassLine({ item, first }: { item: ScheduleItem; first: boolean }) {
   return (
-    <span className="shrink-0">
-      <Icon size={18} />
-    </span>
-  );
-}
-
-function toneCls(tone: "danger" | "warning" | "success" | "muted"): string {
-  switch (tone) {
-    case "danger":
-      return "border-danger/30 bg-danger/[0.08]";
-    case "warning":
-      return "border-warning/30 bg-warning/[0.07]";
-    case "success":
-      return "border-success/25 bg-success/[0.06]";
-    default:
-      return "border-line bg-surface";
-  }
-}
-
-function daysBetween(fromISO: string, toISO: string): number {
-  const a = new Date(fromISO + "T00:00:00");
-  const b = new Date(toISO + "T00:00:00");
-  return Math.round((b.getTime() - a.getTime()) / 86400000);
-}
-
-function ClassChip({ c, highlight }: { c: ScheduleItem; highlight: boolean }) {
-  return (
-    <motion.div
-      initial={{ opacity: 0, scale: 0.94 }}
-      animate={{ opacity: 1, scale: 1 }}
-      className={`flex min-w-[104px] flex-col rounded-2xl border p-3 ${
-        highlight
-          ? "border-accent/60 bg-accent/10"
-          : "border-line bg-surface"
-      }`}
-    >
-      <span className="text-[10px] tracking-wider text-text-muted">
-        {c.room ?? "tba"}
-      </span>
-      <span className="mt-1 text-2xl font-extrabold tracking-tight">
-        {c.abbrev}
-      </span>
+    <div className="flex items-center gap-4 px-5 py-3.5">
       <span
-        className={`mt-1 whitespace-nowrap text-[11px] ${
-          highlight ? "text-accent" : "text-text-muted"
+        className={`tnum w-[46px] shrink-0 text-callout ${
+          first ? "text-accent" : "text-text-3"
         }`}
       >
-        {c.start} to {c.end}
+        {item.start}
       </span>
-    </motion.div>
-  );
-}
-
-function RestCard({
-  focus,
-}: {
-  focus: ReturnType<typeof focusDay>;
-}) {
-  return (
-    <div className="mb-6 rounded-2xl bg-surface p-6 text-center">
-      <p className="font-semibold">
-        {focus?.isHoliday ? focus.event?.replace(/ - Holiday$/i, "") : "No classes"}
-      </p>
-      <p className="mt-1 text-sm text-text-muted">
-        {focus?.isHoliday ? "Enjoy the holiday." : "Nothing scheduled, go bunk free."}
-      </p>
+      <span className="min-w-0 flex-1 truncate text-headline">{item.abbrev}</span>
+      <span className="shrink-0 text-callout text-text-3">
+        {item.isCustom ? "Added" : (item.room ?? "")}
+      </span>
     </div>
-  );
-}
-
-function QuickCard({
-  href,
-  title,
-  value,
-  tone,
-}: {
-  href: string;
-  title: string;
-  value: string;
-  tone: "accent" | "plain";
-}) {
-  return (
-    <Link
-      href={href}
-      className={`flex items-center justify-between rounded-2xl border px-4 py-4 transition-colors ${
-        tone === "accent"
-          ? "border-accent/30 bg-accent/[0.07] hover:bg-accent/10"
-          : "border-line bg-surface hover:bg-surface-2"
-      }`}
-    >
-      <div>
-        <p className="font-semibold lowercase">{title}</p>
-        <p className="text-sm text-text-muted">{value}</p>
-      </div>
-      <span className={tone === "accent" ? "text-accent" : "text-text-muted"}>
-        <IconChevronRight size={18} />
-      </span>
-    </Link>
   );
 }

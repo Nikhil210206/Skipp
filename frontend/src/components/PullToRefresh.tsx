@@ -1,16 +1,16 @@
 "use client";
 
-import { animate, motion, useMotionValue, useTransform } from "framer-motion";
 import { useEffect, useRef, useState } from "react";
-import { IconArrowDown } from "./Icons";
+import gsap from "gsap";
+import { DUR, EASE, prefersReducedMotion } from "@/lib/motion";
 
-// Pull-down-from-the-top to refresh. Engages only when the page is scrolled to
-// the very top; drag past the threshold and release to trigger onRefresh. The
-// content rubber-bands down and a spinner reveals, all spring-animated.
+// Pull down from the top to refresh. Engages only at scroll position zero.
+// The content follows the finger with resistance; past the threshold the
+// indicator locks in and releasing triggers the refresh.
 
-const THRESHOLD = 70; // px of pull needed to trigger
-const MAX = 120; // max rubber-band travel
-const REST = 54; // where the content parks while refreshing
+const THRESHOLD = 68;
+const MAX = 116;
+const REST = 52;
 
 export default function PullToRefresh({
   onRefresh,
@@ -19,56 +19,104 @@ export default function PullToRefresh({
   onRefresh: () => Promise<void>;
   children: React.ReactNode;
 }) {
-  const y = useMotionValue(0);
+  const wrap = useRef<HTMLDivElement>(null);
+  const content = useRef<HTMLDivElement>(null);
+  const badge = useRef<HTMLDivElement>(null);
   const [refreshing, setRefreshing] = useState(false);
-  const ref = useRef<HTMLDivElement>(null);
-  const startY = useRef<number | null>(null);
-  const engaged = useRef(false);
+  const busy = useRef(false);
 
   useEffect(() => {
-    const el = ref.current;
-    if (!el) return;
+    const el = wrap.current;
+    const inner = content.current;
+    const dot = badge.current;
+    if (!el || !inner || !dot) return;
+
+    // Reduced motion removes the rubber-band, not the gesture: the pull still
+    // refreshes, it just does not move the page.
+    const reduced = prefersReducedMotion();
+    const setY = gsap.quickSetter(inner, "y", "px");
+    const setBadge = gsap.quickSetter(dot, "y", "px");
+    const setScale = gsap.quickSetter(dot, "scale");
+    const setOpacity = gsap.quickSetter(dot, "opacity");
+
+    let startY: number | null = null;
+    let engaged = false;
     const scrollTop = () =>
       (document.scrollingElement ?? document.documentElement).scrollTop;
-    const spring = { type: "spring" as const, stiffness: 260, damping: 26 };
 
-    function onStart(e: TouchEvent) {
-      if (refreshing || scrollTop() > 0) {
-        startY.current = null;
+    // How far the finger has travelled, tracked even when we do not animate.
+    let pull = 0;
+    const paint = (y: number) => {
+      pull = y;
+      if (reduced) {
+        setOpacity(y > 0 ? 1 : 0);
         return;
       }
-      startY.current = e.touches[0].clientY;
-      engaged.current = false;
-    }
-    function onMove(e: TouchEvent) {
-      if (startY.current === null || refreshing) return;
-      const dy = e.touches[0].clientY - startY.current;
+      setY(y);
+      setBadge(Math.min(y, MAX) - 40);
+      setScale(0.6 + Math.min(y / THRESHOLD, 1) * 0.4);
+      setOpacity(Math.min(y / (THRESHOLD * 0.6), 1));
+    };
+    const settle = (to: number, done?: () => void) => {
+      if (reduced) {
+        paint(to);
+        done?.();
+        return;
+      }
+      return gsap.to(
+        { v: pull },
+        {
+          v: to,
+          duration: DUR.base,
+          ease: EASE.emphasis,
+          onUpdate() {
+            paint(this.targets()[0].v as number);
+          },
+          onComplete: done,
+        },
+      );
+    };
+
+    const onStart = (e: TouchEvent) => {
+      if (busy.current || scrollTop() > 0) {
+        startY = null;
+        return;
+      }
+      startY = e.touches[0].clientY;
+      engaged = false;
+    };
+    const onMove = (e: TouchEvent) => {
+      if (startY === null || busy.current) return;
+      const dy = e.touches[0].clientY - startY;
       if (dy <= 0 || scrollTop() > 0) {
-        if (engaged.current) y.set(0);
+        if (engaged) paint(0);
         return;
       }
-      engaged.current = true;
-      e.preventDefault(); // suppress native scroll/overscroll while pulling
-      y.set(Math.min(MAX, dy * 0.5));
-    }
-    async function onEnd() {
-      if (startY.current === null) return;
-      const pulled = y.get();
-      startY.current = null;
-      if (engaged.current && pulled >= THRESHOLD && !refreshing) {
+      engaged = true;
+      e.preventDefault();
+      // Resistance: the further you pull, the less it gives.
+      paint(Math.min(MAX, dy * 0.52));
+    };
+    const onEnd = async () => {
+      if (startY === null) return;
+      const pulled = pull;
+      startY = null;
+      if (engaged && pulled >= THRESHOLD && !busy.current) {
+        busy.current = true;
         setRefreshing(true);
-        animate(y, REST, spring);
+        settle(REST);
         try {
           await onRefresh();
         } finally {
+          busy.current = false;
           setRefreshing(false);
-          animate(y, 0, spring);
+          settle(0);
         }
       } else {
-        animate(y, 0, spring);
+        settle(0);
       }
-      engaged.current = false;
-    }
+      engaged = false;
+    };
 
     el.addEventListener("touchstart", onStart, { passive: true });
     el.addEventListener("touchmove", onMove, { passive: false });
@@ -80,35 +128,26 @@ export default function PullToRefresh({
       el.removeEventListener("touchend", onEnd);
       el.removeEventListener("touchcancel", onEnd);
     };
-  }, [onRefresh, refreshing, y]);
-
-  const opacity = useTransform(y, [0, THRESHOLD * 0.4, THRESHOLD], [0, 0.5, 1]);
-  const rotate = useTransform(y, [0, THRESHOLD], [0, 180]);
-  const scale = useTransform(y, [0, THRESHOLD], [0.7, 1]);
-  const badgeY = useTransform(y, (v) => Math.min(v, MAX) - 42);
+  }, [onRefresh]);
 
   return (
-    <div ref={ref} className="relative flex flex-1 flex-col">
-      <motion.div
-        style={{ y: badgeY, opacity }}
-        className="pointer-events-none absolute inset-x-0 top-0 z-20 flex justify-center"
+    <div ref={wrap} className="relative flex flex-1 flex-col">
+      <div
+        ref={badge}
+        aria-hidden
+        className="pointer-events-none absolute inset-x-0 top-0 z-20 flex justify-center opacity-0"
       >
-        <motion.div
-          style={{ scale }}
-          className="flex size-10 items-center justify-center rounded-full border border-line-strong bg-surface shadow-lg shadow-black/30"
-        >
-          {refreshing ? (
-            <span className="size-4 animate-spin rounded-full border-2 border-line-strong border-t-accent" />
-          ) : (
-            <motion.span style={{ rotate }} className="text-accent">
-              <IconArrowDown size={18} />
-            </motion.span>
-          )}
-        </motion.div>
-      </motion.div>
-      <motion.div style={{ y }} className="flex flex-1 flex-col">
+        <div className="flex size-9 items-center justify-center rounded-full border border-line bg-ink-1 shadow-lift">
+          <span
+            className={`size-3.5 rounded-full border-2 border-line border-t-accent ${
+              refreshing ? "animate-spin" : ""
+            }`}
+          />
+        </div>
+      </div>
+      <div ref={content} className="flex flex-1 flex-col">
         {children}
-      </motion.div>
+      </div>
     </div>
   );
 }

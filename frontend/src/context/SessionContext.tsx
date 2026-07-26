@@ -94,7 +94,10 @@ export function SessionProvider({ children }: { children: React.ReactNode }) {
   const [loadedReg, setLoadedReg] = useState<string | null>(null);
 
   const reg = snapshot?.timetable.student.registrationNumber ?? null;
-  const officialFirst = snapshot?.timetable.student.name?.split(" ")[0] ?? "";
+  // The portal shouts names in caps. Present it the way a person writes it.
+  const officialFirst = titleCase(
+    snapshot?.timetable.student.name?.split(" ")[0] ?? "",
+  );
 
   // Load this student's on-device prefs when the logged-in student changes.
   // Done during render (React's recommended reset-on-change pattern) rather than
@@ -287,4 +290,10 @@ export function useSession(): SessionValue {
   const ctx = useContext(SessionContext);
   if (!ctx) throw new Error("useSession must be used within <SessionProvider>");
   return ctx;
+}
+
+/** "NIKHIL" becomes "Nikhil"; anything already mixed-case is left alone. */
+function titleCase(name: string): string {
+  if (!name || name !== name.toUpperCase()) return name;
+  return name[0] + name.slice(1).toLowerCase();
 }

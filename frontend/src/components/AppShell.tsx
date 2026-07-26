@@ -6,73 +6,72 @@ import { useEffect } from "react";
 import { useSession } from "@/context/SessionContext";
 import BottomNav from "./BottomNav";
 import PullToRefresh from "./PullToRefresh";
+import { Skeleton } from "./ui";
 
-// Wraps the authenticated pages: redirects to login if there's no session,
-// renders a header (with a profile button) and the bottom navigation.
+// The frame every authenticated screen sits in: auth guard, a header that
+// scrolls away with the content, pull to refresh, and the tab bar.
 
 export default function AppShell({
+  eyebrow,
   title,
-  greeting = false,
+  action,
   children,
 }: {
+  /** Small line above the title. Use for context, not decoration. */
+  eyebrow?: string;
   title: string;
-  greeting?: boolean; // Home uses the friendly "sup! <name>" header
+  /** Optional trailing control in the header. */
+  action?: React.ReactNode;
   children: React.ReactNode;
 }) {
   const router = useRouter();
   const pathname = usePathname();
-  const { isAuthed, restoring, student, displayName, refresh } = useSession();
+  const { isAuthed, restoring, displayName, refresh } = useSession();
 
   useEffect(() => {
     if (!restoring && !isAuthed) router.replace("/");
   }, [isAuthed, restoring, router]);
 
+  // Restore renders the real layout in outline rather than a centred spinner,
+  // so the page does not jump when content arrives.
   if (restoring) {
     return (
-      <div className="flex min-h-full flex-1 items-center justify-center">
-        <div
-          className="size-8 animate-spin rounded-full border-2 border-line-strong border-t-accent"
-          aria-label="Restoring session"
-        />
+      <div
+        className="mx-auto flex min-h-full w-full max-w-md flex-1 flex-col md:border-x md:border-line-soft"
+        aria-busy="true"
+        aria-label="Loading your data"
+      >
+        <div className="px-[var(--gutter)] pb-6 pt-[max(28px,calc(env(safe-area-inset-top)+12px))]">
+          <Skeleton className="h-3 w-24" />
+          <Skeleton className="mt-3 h-7 w-44" />
+        </div>
+        <div className="flex flex-1 flex-col gap-3 px-[var(--gutter)]">
+          <Skeleton className="h-24 w-full" />
+          <Skeleton className="h-20 w-full" />
+          <Skeleton className="h-56 w-full" />
+        </div>
+        <BottomNav />
       </div>
     );
   }
   if (!isAuthed) return null;
 
-  const showProfileBtn = pathname !== "/profile";
-
   return (
-    <div className="mx-auto flex min-h-full w-full max-w-md flex-1 flex-col">
+    <div className="mx-auto flex min-h-full w-full max-w-md flex-1 flex-col md:border-x md:border-line-soft">
       <PullToRefresh onRefresh={refresh}>
-        {greeting ? (
-          <header className="flex items-center justify-between px-5 pb-4 pt-7">
-            <div className="text-left">
-              <p className="text-xs uppercase tracking-[0.2em] text-text-muted">
-                sup!
-              </p>
-              <p className="-mt-0.5 text-2xl font-extrabold lowercase tracking-tight">
-                {displayName}
-              </p>
-            </div>
-            {showProfileBtn && <ProfileButton name={displayName} />}
-          </header>
-        ) : (
-          <header className="flex items-center justify-between px-5 pb-3 pt-7">
-            <div>
-              <h1 className="text-xl font-extrabold lowercase tracking-tight">
-                {title}
-              </h1>
-              {student?.name && (
-                <p className="text-xs text-text-muted">
-                  {displayName} ·{" "}
-                  {student.section ?? student.program ?? ""}
-                </p>
-              )}
-            </div>
-            {showProfileBtn && <ProfileButton name={displayName} />}
-          </header>
-        )}
-        <main className="flex flex-1 flex-col px-4">{children}</main>
+        <header className="flex items-end justify-between px-[var(--gutter)] pb-6 pt-[max(28px,calc(env(safe-area-inset-top)+12px))]">
+          <div className="min-w-0">
+            {eyebrow && (
+              <p className="text-label uppercase text-text-3">{eyebrow}</p>
+            )}
+            <h1 className="mt-1.5 truncate text-title">{title}</h1>
+          </div>
+          <div className="flex shrink-0 items-center gap-2 pb-0.5">
+            {action}
+            {pathname !== "/profile" && <ProfileButton name={displayName} />}
+          </div>
+        </header>
+        <main className="flex flex-1 flex-col px-[var(--gutter)] pb-8">{children}</main>
       </PullToRefresh>
       <BottomNav />
     </div>
@@ -84,8 +83,8 @@ function ProfileButton({ name }: { name: string }) {
   return (
     <Link
       href="/profile"
-      aria-label="Profile"
-      className="flex size-11 items-center justify-center rounded-2xl bg-accent text-lg font-extrabold text-background transition-opacity hover:opacity-90"
+      aria-label="Your profile"
+      className="flex size-11 items-center justify-center rounded-full border border-line bg-ink-1 text-callout font-semibold text-text-2 transition-colors hover:text-text-1"
     >
       {initial}
     </Link>

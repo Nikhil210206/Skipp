@@ -2,5 +2,9 @@
 
 export const THEME_STORAGE_KEY = "skipp.theme";
 
-/** Runs before paint: applies the saved theme, defaulting to dark. */
-export const THEME_INIT_SCRIPT = `(function(){try{var t=localStorage.getItem("${THEME_STORAGE_KEY}");document.documentElement.dataset.theme=t==="light"?"light":"dark"}catch(e){document.documentElement.dataset.theme="dark"}})();`;
+/**
+ * Runs before paint. Marks the document as JS-capable (so animated elements can
+ * start hidden without ever hiding content from a no-JS reader) and applies the
+ * saved theme, defaulting to dark.
+ */
+export const THEME_INIT_SCRIPT = `(function(){var d=document.documentElement;d.classList.add("js");try{var t=localStorage.getItem("${THEME_STORAGE_KEY}");d.dataset.theme=t==="light"?"light":"dark"}catch(e){d.dataset.theme="dark"}})();`;

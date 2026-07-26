@@ -1,10 +1,12 @@
 "use client";
 
 import { useState } from "react";
-import { motion, AnimatePresence } from "framer-motion";
 import type { CustomClass } from "@/types";
+import { Sheet } from "@/components/ui/Overlay";
+import { Button, Label, Segmented } from "@/components/ui";
 
-// Bottom-sheet form to add a custom class to a given day order.
+// Adds a class the portal does not know about, to one day order. Stored on
+// this device only.
 
 function toMin(hhmm: string): number | null {
   const m = /^(\d{1,2}):(\d{2})$/.exec(hhmm);
@@ -54,7 +56,7 @@ export default function CustomClassSheet({
     const e = toMin(end);
     if (!title.trim()) return setError("Give the class a name.");
     if (s == null || e == null) return setError("Enter valid times.");
-    if (e <= s) return setError("End time must be after start.");
+    if (e <= s) return setError("The end time must be after the start.");
     onAdd({
       dayOrder: order,
       startMin: s,
@@ -69,125 +71,93 @@ export default function CustomClassSheet({
   }
 
   return (
-    <AnimatePresence>
-      {open && (
-        <motion.div
-          className="fixed inset-0 z-50 flex items-end justify-center"
-          initial={{ opacity: 0 }}
-          animate={{ opacity: 1 }}
-          exit={{ opacity: 0 }}
-        >
-          <div
-            className="absolute inset-0 bg-black/50"
-            onClick={onClose}
-            aria-hidden
-          />
-          <motion.div
-            initial={{ y: "100%" }}
-            animate={{ y: 0 }}
-            exit={{ y: "100%" }}
-            transition={{ type: "spring", stiffness: 380, damping: 36 }}
-            className="relative w-full max-w-md rounded-t-3xl border-t border-line-strong bg-surface p-5 pb-8"
-          >
-            <div className="mx-auto mb-4 h-1 w-10 rounded-full bg-line-strong" />
-            <h2 className="mb-4 text-xl font-extrabold lowercase tracking-tight">
-              add a custom class
-            </h2>
+    <Sheet
+      open={open}
+      onClose={onClose}
+      title="Add a class"
+      footer={
+        <Button size="lg" full onClick={submit}>
+          Add to day order {order}
+        </Button>
+      }
+    >
+      <div className="flex flex-col gap-5 pb-2 pt-1">
+        <div>
+          <Label>Day order</Label>
+          <div className="mt-3">
+            <Segmented
+              label="Day order"
+              value={order}
+              onChange={setOrder}
+              options={dayOrders.map((d) => ({
+                value: d,
+                label: <span className="tnum">{d}</span>,
+              }))}
+            />
+          </div>
+        </div>
 
-            {/* Day order */}
-            <p className="mb-1.5 text-xs uppercase tracking-wider text-text-muted">
-              day order
-            </p>
-            <div className="mb-4 flex gap-2">
-              {dayOrders.map((d) => (
-                <button
-                  key={d}
-                  onClick={() => setOrder(d)}
-                  className={`size-10 rounded-xl text-sm font-semibold transition-colors ${
-                    order === d
-                      ? "bg-accent text-background"
-                      : "bg-surface-2 text-text-muted"
-                  }`}
-                >
-                  {d}
-                </button>
-              ))}
-            </div>
+        <TextField
+          id="cc-title"
+          label="Class name"
+          value={title}
+          onChange={setTitle}
+          placeholder="Makeup lab"
+        />
 
-            <Field label="class name">
-              <input
-                value={title}
-                onChange={(e) => setTitle(e.target.value)}
-                placeholder="e.g. Extra ML Lab"
-                className="w-full rounded-xl border border-line-strong bg-background px-4 py-3 outline-none focus:border-accent"
-              />
-            </Field>
+        <div className="grid grid-cols-2 gap-3">
+          <TextField id="cc-start" label="Starts" value={start} onChange={setStart} />
+          <TextField id="cc-end" label="Ends" value={end} onChange={setEnd} />
+        </div>
 
-            <div className="flex gap-3">
-              <Field label="start">
-                <input
-                  type="time"
-                  value={start}
-                  onChange={(e) => setStart(e.target.value)}
-                  className="w-full rounded-xl border border-line-strong bg-background px-3 py-3 outline-none focus:border-accent [color-scheme:dark]"
-                />
-              </Field>
-              <Field label="end">
-                <input
-                  type="time"
-                  value={end}
-                  onChange={(e) => setEnd(e.target.value)}
-                  className="w-full rounded-xl border border-line-strong bg-background px-3 py-3 outline-none focus:border-accent [color-scheme:dark]"
-                />
-              </Field>
-            </div>
+        <TextField
+          id="cc-room"
+          label="Room"
+          value={room}
+          onChange={setRoom}
+          placeholder="Optional"
+        />
 
-            <Field label="room (optional)">
-              <input
-                value={room}
-                onChange={(e) => setRoom(e.target.value)}
-                placeholder="e.g. TP101"
-                className="w-full rounded-xl border border-line-strong bg-background px-4 py-3 outline-none focus:border-accent"
-              />
-            </Field>
+        {error && (
+          <p role="alert" className="text-callout text-risk">
+            {error}
+          </p>
+        )}
 
-            {error && <p className="mb-3 text-sm text-danger">{error}</p>}
-
-            <div className="mt-2 flex gap-3">
-              <button
-                onClick={onClose}
-                className="flex-1 rounded-xl bg-surface-2 py-3 font-semibold text-text-muted"
-              >
-                cancel
-              </button>
-              <motion.button
-                whileTap={{ scale: 0.98 }}
-                onClick={submit}
-                className="flex-[2] rounded-xl bg-accent py-3 font-semibold text-background"
-              >
-                add class
-              </motion.button>
-            </div>
-          </motion.div>
-        </motion.div>
-      )}
-    </AnimatePresence>
+        <p className="text-callout text-text-3">
+          Custom classes are yours alone. They stay on this device and never reach the
+          portal.
+        </p>
+      </div>
+    </Sheet>
   );
 }
 
-function Field({
+function TextField({
+  id,
   label,
-  children,
+  value,
+  onChange,
+  placeholder,
 }: {
+  id: string;
   label: string;
-  children: React.ReactNode;
+  value: string;
+  onChange: (v: string) => void;
+  placeholder?: string;
 }) {
   return (
-    <label className="mb-4 block">
-      <span className="mb-1.5 block text-xs uppercase tracking-wider text-text-muted">
+    <div className="rounded-control border border-line bg-ink-0 px-4 py-3 transition-colors focus-within:border-text-3">
+      <label htmlFor={id} className="text-label uppercase text-text-3">
         {label}
-      </span>
-      {children}
-    </label>
+      </label>
+      <input
+        id={id}
+        value={value}
+        onChange={(e) => onChange(e.target.value)}
+        placeholder={placeholder}
+        className="tnum mt-1.5 w-full bg-transparent text-headline text-text-1 outline-none placeholder:font-sans placeholder:text-text-3"
+      />
+    </div>
   );
 }
