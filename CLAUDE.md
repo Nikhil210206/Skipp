@@ -345,6 +345,32 @@ is deployment and true push notifications.
 Entries below are newest first. **When something breaks, read the relevant entry first**: most
 oddities here (login shell, empty calendar, 429s, duplicated course codes) are already diagnosed.
 
+### DONE: Home rebuilt as a countdown cover (2026-07-26, latest)
+Home is no longer a summary of the app; it is a cover for one moment. Three beats:
+1. **The cover.** A live countdown is the hero, set against the day-order numeral
+   blown up to 13rem and bled off the right edge (labelled "Day order", so it is
+   information rather than ornament). `components/Countdown.tsx` writes both units
+   straight to the DOM through refs, so a screen that ticks every second **never
+   re-renders React**. It is always two stacked units (`16h` solid over `31m`
+   ghosted) so the composition keeps its shape whether the wait is four days or
+   four minutes. Only the leading unit animates; the trailing one just ticks.
+2. **A full-bleed accent band** carrying attendance. This is the only orange on
+   the screen.
+3. **The rest of the day**, led by large tabular times with the course name as
+   support, which gives the section a rhythm unlike any other screen's list.
+- `buildCover()` picks the moment: the end of the class you are in
+  ("In class, ends in"), the start of the next one, or the return after a
+  holiday/weekend ("Classes resume in", with the holiday named underneath).
+- `mergeRuns()` collapses consecutive periods of the same course, because a
+  two-period lab is one class to a student and rendered as two rows it looked
+  like a duplicate-key bug.
+- **Do not compute the countdown during render.** `Date.now()` in a render body
+  is rejected by the React compiler lint (`react-hooks/purity`). The first value
+  is written in `useLayoutEffect`, before paint, so the hero is never blank.
+- Verified in all four states (next class, in class, holiday, nothing scheduled)
+  by mocking the clock. **CLS 0.00, LCP 297ms** despite the per-second updates:
+  tabular figures plus the fixed two-line block mean nothing reflows.
+
 ### DONE: Editorial pass, one rhythm per screen (2026-07-26, later)
 The first redesign was systematic but monotonous: six screens, one composition
 (eyebrow, title, hero figure, rounded card list). Rebuilt again so each screen has

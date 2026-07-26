@@ -6,7 +6,7 @@ import { useSession } from "@/context/SessionContext";
 import { todayISO } from "@/lib/schedule";
 import { revealIn, useGsap } from "@/lib/motion";
 import { IconButton, StateView } from "@/components/ui";
-import { Marginalia, Rule, SectionHead } from "@/components/ui/editorial";
+import { Marginalia, Rule, SectionHead, TrackRule } from "@/components/ui/editorial";
 import { IconChevronLeft, IconChevronRight } from "@/components/Icons";
 import type { CalendarDay } from "@/types";
 
@@ -76,15 +76,41 @@ export default function CalendarPage() {
     .filter((d) => d.isHoliday && d.event && d.date >= today)
     .slice(0, 3);
 
+  // How far through the term we are, counted in working days rather than dates,
+  // because only working days cost attendance.
+  const workingAll = cal.filter((d) => d.dayOrder != null);
+  const workingDone = workingAll.filter((d) => d.date < today).length;
+  const termPct = workingAll.length > 0 ? (workingDone / workingAll.length) * 100 : 0;
+
   return (
     <AppShell section="Calendar">
       <div ref={scope} className="flex flex-1 flex-col">
+        {/* The term as one measurement */}
+        <div data-reveal className="pb-9 pt-3">
+          <div className="flex items-baseline justify-between gap-4">
+            <p className="text-label uppercase text-text-3">Term progress</p>
+            <p className="tnum text-label uppercase text-text-3">
+              {workingAll.length - workingDone} working days left
+            </p>
+          </div>
+          <div className="mt-4 flex items-baseline gap-2">
+            <span className="tnum text-display">{termPct.toFixed(0)}</span>
+            <span className="text-title text-text-3">%</span>
+          </div>
+          <TrackRule value={termPct} className="bleed mt-6" />
+          <Marginalia>
+            <span className="mt-4 block tnum">
+              {workingDone} of {workingAll.length} working days behind you
+            </span>
+          </Marginalia>
+        </div>
+
         {/* The selected day, written out */}
-        <div data-reveal className="pb-8 pt-3">
+        <div data-reveal className="pb-8">
           <p className="text-label uppercase text-text-3">
             {sel ? fullWeekday(sel.weekday) : "Term"} · {shortDate(selected)}
           </p>
-          <h1 className="mt-3 text-hero">
+          <h1 className="mt-3 text-title">
             {sel?.dayOrder != null
               ? `Day order ${sel.dayOrder}`
               : sel?.isHoliday

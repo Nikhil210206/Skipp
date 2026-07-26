@@ -4,7 +4,13 @@ import AppShell from "@/components/AppShell";
 import { useSession } from "@/context/SessionContext";
 import { revealIn, revealRows, useGsap } from "@/lib/motion";
 import { Skeleton, StateView } from "@/components/ui";
-import { Amount, Marginalia, Rule, SectionHead } from "@/components/ui/editorial";
+import {
+  Amount,
+  Marginalia,
+  Rule,
+  SectionHead,
+  TrackRule,
+} from "@/components/ui/editorial";
 
 const pct = (a: number, b: number) => (b > 0 ? (a / b) * 100 : 0);
 const round = (n: number) => Math.round(n * 100) / 100;
@@ -80,8 +86,9 @@ export default function MarksPage() {
                 value={round(scored)}
                 unit={`/ ${round(max)}`}
               />
+              <TrackRule value={pct(scored, max)} className="bleed mt-7" />
               <Marginalia>
-                <span className="mt-5 block tnum">
+                <span className="mt-4 block tnum">
                   {pct(scored, max).toFixed(0)}% across {graded.length} graded{" "}
                   {graded.length === 1 ? "subject" : "subjects"}
                 </span>
@@ -111,10 +118,17 @@ export default function MarksPage() {
                               <span className="text-text-3">/{round(s.maxTotal)}</span>
                             </>
                           ) : (
-                            <span className="text-callout text-text-3">Not graded</span>
+                            <span className="text-callout text-text-3">Awaiting</span>
                           )}
                         </span>
                       </div>
+
+                      {s.components.length > 0 && (
+                        <TrackRule
+                          value={pct(s.scoredTotal, s.maxTotal)}
+                          className="bleed mt-3.5"
+                        />
+                      )}
 
                       {s.components.length > 0 && (
                         <ul className="mt-3 flex flex-col gap-1.5 pl-0">

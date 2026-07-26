@@ -71,7 +71,7 @@ type ButtonProps = {
   children: React.ReactNode;
   onClick?: () => void;
   type?: "button" | "submit";
-  variant?: "primary" | "secondary" | "quiet" | "danger";
+  variant?: "primary" | "outline" | "secondary" | "quiet" | "danger";
   size?: "md" | "lg";
   disabled?: boolean;
   full?: boolean;
@@ -97,6 +97,9 @@ export function Button({
   const sizes = size === "lg" ? "min-h-[54px] px-6 text-headline" : "min-h-[44px] px-4 text-body";
   const variants = {
     primary: "bg-accent text-accent-ink hover:brightness-105",
+    // The accent as ink rather than fill, for actions that sit over content.
+    outline:
+      "border border-accent/50 bg-ink-0/80 text-accent backdrop-blur-md hover:border-accent hover:bg-accent/10",
     secondary: "bg-ink-2 text-text-1 hover:bg-ink-3",
     quiet: "text-text-2 hover:text-text-1",
     danger: "border border-risk/30 text-risk hover:bg-risk/10",

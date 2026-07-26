@@ -7,9 +7,6 @@
 // Cards are for grouped controls only; content uses these.
 // ============================================================
 
-import { useEffect, useRef } from "react";
-import { pressable } from "@/lib/motion";
-
 /** Full-bleed hairline. Breaks the gutter so lists read as a page. */
 export function Rule({ soft = false }: { soft?: boolean }) {
   return (
@@ -101,46 +98,6 @@ export function IndexRow({
   );
 }
 
-/**
- * The single focal block on a screen: solid, inverted, unmissable. Use once,
- * never twice, or it stops meaning anything.
- */
-export function Feature({
-  eyebrow,
-  figure,
-  caption,
-  aside,
-  onClick,
-  tone = "paper",
-}: {
-  eyebrow: string;
-  figure: React.ReactNode;
-  caption: React.ReactNode;
-  aside?: React.ReactNode;
-  onClick?: () => void;
-  tone?: "accent" | "paper";
-}) {
-  const ref = useRef<HTMLElement>(null);
-  useEffect(() => pressable(ref.current), []);
-  const skin =
-    tone === "accent" ? "bg-accent text-accent-ink" : "bg-text-1 text-ink-0";
-  const As = (onClick ? "button" : "div") as "button";
-  return (
-    <As
-      ref={ref as React.RefObject<HTMLButtonElement>}
-      onClick={onClick}
-      className={`bleed bleed-pad block py-7 text-left ${skin}`}
-    >
-      <div className="flex items-baseline justify-between gap-4">
-        <span className="text-label uppercase opacity-70">{eyebrow}</span>
-        {aside && <span className="tnum text-callout opacity-70">{aside}</span>}
-      </div>
-      <div className="mt-5 flex items-end gap-3">{figure}</div>
-      <p className="mt-4 max-w-[30ch] text-body opacity-80">{caption}</p>
-    </As>
-  );
-}
-
 /** A figure hung against a baseline: the number dominates, the unit whispers. */
 export function Amount({
   value,
@@ -160,6 +117,43 @@ export function Amount({
       <span className={`tnum ${s}`}>{value}</span>
       {unit && <span className="text-title opacity-45">{unit}</span>}
     </span>
+  );
+}
+
+/**
+ * A measurement drawn as a rule rather than a bar in a box: a hairline track,
+ * a solid fill to the value, and a tick marking the threshold. Every row that
+ * uses one shares the same tick position, so the thresholds line up down the
+ * page and a subject that falls short is visible without reading a number.
+ */
+export function TrackRule({
+  value,
+  threshold,
+  tone = "neutral",
+  className = "",
+}: {
+  value: number;
+  threshold?: number;
+  tone?: "neutral" | "accent";
+  className?: string;
+}) {
+  const pct = Math.max(0, Math.min(100, value));
+  return (
+    <div className={`relative h-[2px] w-full bg-line ${className}`}>
+      <div
+        className={`absolute inset-y-0 left-0 ${
+          tone === "accent" ? "bg-accent" : "bg-text-1"
+        }`}
+        style={{ width: `${pct}%` }}
+      />
+      {threshold !== undefined && (
+        <span
+          aria-hidden
+          className="absolute -top-[3px] h-2 w-px bg-text-3"
+          style={{ left: `${threshold}%` }}
+        />
+      )}
+    </div>
   );
 }
 

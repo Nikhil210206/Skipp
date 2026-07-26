@@ -235,3 +235,27 @@ export function prettyDate(iso: string): string {
     day: "numeric",
   });
 }
+
+/**
+ * Labs run as two or three consecutive periods of the same course. The portal
+ * lists each period separately; a student thinks of it as one class, so runs of
+ * the same course are collapsed into a single entry spanning the whole block.
+ */
+export function mergeRuns(items: ScheduleItem[]): ScheduleItem[] {
+  const out: ScheduleItem[] = [];
+  for (const item of items) {
+    const prev = out[out.length - 1];
+    const continues =
+      prev &&
+      prev.code !== "" &&
+      prev.code === item.code &&
+      prev.isLab === item.isLab &&
+      item.startMin - prev.endMin <= 10;
+    if (continues) {
+      out[out.length - 1] = { ...prev, end: item.end, endMin: item.endMin };
+    } else {
+      out.push(item);
+    }
+  }
+  return out;
+}
