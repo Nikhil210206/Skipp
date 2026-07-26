@@ -345,7 +345,38 @@ is deployment and true push notifications.
 Entries below are newest first. **When something breaks, read the relevant entry first**: most
 oddities here (login shell, empty calendar, 429s, duplicated course codes) are already diagnosed.
 
-### DONE: Home rebuilt as a countdown cover (2026-07-26, latest)
+### DONE: Art direction pass, one poster object per screen (2026-07-26, latest)
+Direction from the user: stop optimising layout, start making moments. Magazine
+cover, not dashboard. Every screen now carries **one colossal object, and they are
+deliberately of different kinds** so no two screens read alike:
+
+| Screen | The object |
+| ------ | ---------- |
+| Home | the live countdown |
+| Attendance | the percentage |
+| Schedule | the day-order numeral |
+| Calendar | the month |
+| Marks | the score, set as a stacked fraction (or the count awaiting) |
+| Profile | the student's name |
+
+- **`--text-poster`** in `globals.css` is `clamp(5rem, 30vw, 13rem)`. Sized in vw so
+  the object always reaches for the page edges. **One per screen, never two.**
+- **`.optical`** pulls display type left by 0.055em so its glyph edge, not its side
+  bearing, aligns with the gutter. Without it a poster numeral looks indented
+  against everything beneath it.
+- **Filled blocks are banned.** An earlier pass used a solid orange band on Home and
+  a solid paper block on Attendance; the user found both ugly. The accent is now
+  **ink, never fill**: rules, text and outlines only. `Feature` was deleted, and the
+  primary button uses `variant="outline"`.
+- **`TrackRule`** replaced every bar-in-a-box. A hairline track, a fill to the value,
+  and a tick at the threshold. On Attendance every row shares the tick position, so
+  the ticks **align into a column down the page** and a subject that falls short is
+  visible as a rule that stops before it. That device is the screen's identity.
+- **Type is sized to content where content varies.** `fitName()` on Profile picks the
+  largest size at which the longest word still fits (~0.55em per glyph). A numeral
+  can be cropped for effect; a surname cut mid-word just reads as breakage.
+
+### DONE: Home rebuilt as a countdown cover (2026-07-26)
 Home is no longer a summary of the app; it is a cover for one moment. Three beats:
 1. **The cover.** A live countdown is the hero, set against the day-order numeral
    blown up to 13rem and bled off the right edge (labelled "Day order", so it is

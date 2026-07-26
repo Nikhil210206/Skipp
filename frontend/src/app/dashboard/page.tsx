@@ -90,14 +90,14 @@ export default function DashboardPage() {
     <AppShell section={prettyDate(todayISO())}>
       <div ref={scope} className="flex flex-1 flex-col">
         {/* ---------- 1. THE COVER ---------- */}
-        <section className="bleed bleed-pad relative flex min-h-[66vh] flex-col justify-end overflow-hidden pb-9 pt-2">
+        <section className="bleed bleed-pad relative flex min-h-[74vh] flex-col justify-end overflow-hidden pb-10 pt-2">
           {focus?.dayOrder != null && (
             <div
               ref={ghost}
               aria-hidden
-              className="pointer-events-none absolute -right-10 -top-6 select-none text-right"
+              className="pointer-events-none absolute -right-12 -top-8 select-none text-right"
             >
-              <span className="block text-[13rem] font-bold leading-[0.78] tracking-[-0.07em] text-ink-2">
+              <span className="block text-[15rem] font-bold leading-[0.76] tracking-[-0.07em] text-ink-2">
                 {String(focus.dayOrder).padStart(2, "0")}
               </span>
               {/* The numeral is the day order, so it says so. Unlabelled it would
@@ -117,7 +117,7 @@ export default function DashboardPage() {
               {cover.targetMs !== null ? (
                 <Countdown key={cover.targetMs} target={cover.targetMs} />
               ) : (
-                <p className="text-mega">&mdash;</p>
+                <p className="text-poster">&mdash;</p>
               )}
             </div>
 

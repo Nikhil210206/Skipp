@@ -47,11 +47,11 @@ export default function Countdown({ target }: { target: number }) {
   // The units are written by the layout effect above, before the browser
   // paints, so the hero is never blank and render stays free of clock reads.
   return (
-    <div className="-ml-1 flex flex-col">
-      <span ref={lead} className="tnum text-mega" suppressHydrationWarning />
+    <div className="optical flex flex-col">
+      <span ref={lead} className="tnum text-poster" suppressHydrationWarning />
       <span
         ref={trail}
-        className="tnum text-mega text-text-1/35"
+        className="tnum text-poster text-text-1/30"
         suppressHydrationWarning
       />
     </div>

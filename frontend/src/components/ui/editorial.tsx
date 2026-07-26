@@ -107,15 +107,21 @@ export function Amount({
 }: {
   value: React.ReactNode;
   unit?: React.ReactNode;
-  size?: "mega" | "display" | "hero";
+  size?: "poster" | "mega" | "display" | "hero";
   className?: string;
 }) {
   const s =
-    size === "mega" ? "text-mega" : size === "hero" ? "text-hero" : "text-display";
+    size === "poster"
+      ? "text-poster optical"
+      : size === "mega"
+        ? "text-mega"
+        : size === "hero"
+          ? "text-hero"
+          : "text-display";
   return (
     <span className={`flex items-baseline gap-1.5 ${className}`}>
       <span className={`tnum ${s}`}>{value}</span>
-      {unit && <span className="text-title opacity-45">{unit}</span>}
+      {unit && <span className="text-title opacity-40">{unit}</span>}
     </span>
   );
 }

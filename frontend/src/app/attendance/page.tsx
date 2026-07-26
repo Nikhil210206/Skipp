@@ -86,11 +86,11 @@ export default function AttendancePage() {
         {attendanceState === "ready" && attendance && (
           <>
             {/* The whole term as one measurement */}
-            <div ref={masthead} data-reveal className="pb-10 pt-4">
+            <div ref={masthead} data-reveal className="pb-11 pt-6">
               <p className="text-label uppercase text-text-3">Term to date</p>
               <Amount
-                size="mega"
-                className="mt-4"
+                size="poster"
+                className="mt-5"
                 value={<span ref={figure}>{overall.toFixed(1)}</span>}
                 unit="%"
               />

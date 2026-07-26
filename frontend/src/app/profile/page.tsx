@@ -37,6 +37,7 @@ export default function ProfilePage() {
     setName(displayName);
   }
 
+  const fullName = tidy(student?.name) ?? displayName;
   const courses = timetable?.courses ?? [];
   const credits = courses.reduce((sum, c) => sum + (c.credit ?? 0), 0);
   const scope = useGsap(({ self, reduced }) => {
@@ -54,8 +55,15 @@ export default function ProfilePage() {
     <AppShell section="Profile">
       <div ref={scope} className="flex flex-1 flex-col">
         {/* Masthead */}
-        <div data-reveal className="pb-9 pt-3">
-          <h1 className="text-hero">{tidy(student?.name) ?? displayName}</h1>
+        <div data-reveal className="pb-10 pt-5">
+          {/* Set as large as the longest word allows. A name is not a numeral:
+              cropping it mid-word would read as breakage, not as a crop. */}
+          <h1
+            className="optical font-bold leading-[0.84] tracking-[-0.05em]"
+            style={{ fontSize: fitName(fullName) }}
+          >
+            {fullName}
+          </h1>
           <p className="tnum mt-3 text-callout text-text-3">
             {[student?.registrationNumber, tidy(student?.program), student?.section]
               .filter(Boolean)
@@ -186,6 +194,16 @@ export default function ProfilePage() {
       </div>
     </AppShell>
   );
+}
+
+/**
+ * Picks the largest poster size at which the longest word still fits the
+ * column. Roughly 0.55em per glyph in this weight, across the gutter width.
+ */
+function fitName(name: string): string {
+  const longest = Math.max(...name.split(/\s+/).map((w) => w.length), 1);
+  const vw = Math.min(165 / longest, 26);
+  return `clamp(2.25rem, ${vw.toFixed(1)}vw, 7rem)`;
 }
 
 function Stat({ value, label }: { value: string; label: string }) {

@@ -5,7 +5,6 @@ import { useSession } from "@/context/SessionContext";
 import { revealIn, revealRows, useGsap } from "@/lib/motion";
 import { Skeleton, StateView } from "@/components/ui";
 import {
-  Amount,
   Marginalia,
   Rule,
   SectionHead,
@@ -65,28 +64,30 @@ export default function MarksPage() {
           />
         )}
 
+        {/* Nothing published yet is still a moment: the count of subjects
+            waiting, set at poster scale, instead of an apologetic empty box. */}
         {marksState === "ready" && (subjects.length === 0 || max === 0) && (
-          <StateView
-            title="Nothing graded yet"
-            message={
-              subjects.length > 0
-                ? `We are tracking ${subjects.length} subjects. The first published assessment will show up here.`
-                : "Your internal assessments will show here once results are out."
-            }
-          />
+          <div data-reveal className="flex flex-1 flex-col justify-center pb-16">
+            <p className="text-label uppercase text-text-3">Awaiting results</p>
+            <p className="tnum optical mt-5 text-poster">{subjects.length}</p>
+            <div className="bleed mt-7 h-px bg-line" />
+            <p className="mt-5 max-w-[26ch] text-body text-text-2">
+              {subjects.length > 0
+                ? "subjects are being tracked. The first published assessment appears here on its own."
+                : "Your internal assessments will show here once results are out."}
+            </p>
+          </div>
         )}
 
         {marksState === "ready" && max > 0 && (
           <>
-            <div data-reveal className="pb-9 pt-4">
+            {/* Set as a fraction: numerator over a full-bleed rule over the
+                denominator, the way a score is written by hand. */}
+            <div data-reveal className="pb-10 pt-6">
               <p className="text-label uppercase text-text-3">Internals so far</p>
-              <Amount
-                size="mega"
-                className="mt-4"
-                value={round(scored)}
-                unit={`/ ${round(max)}`}
-              />
-              <TrackRule value={pct(scored, max)} className="bleed mt-7" />
+              <p className="tnum optical mt-5 text-poster">{round(scored)}</p>
+              <div className="bleed h-px bg-text-1/70" />
+              <p className="tnum optical text-poster text-text-1/30">{round(max)}</p>
               <Marginalia>
                 <span className="mt-4 block tnum">
                   {pct(scored, max).toFixed(0)}% across {graded.length} graded{" "}

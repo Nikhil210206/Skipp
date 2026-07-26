@@ -93,11 +93,11 @@ export default function CalendarPage() {
               {workingAll.length - workingDone} working days left
             </p>
           </div>
-          <div className="mt-4 flex items-baseline gap-2">
-            <span className="tnum text-display">{termPct.toFixed(0)}</span>
-            <span className="text-title text-text-3">%</span>
+          <div className="mt-3 flex items-baseline gap-2">
+            <span className="tnum text-title">{termPct.toFixed(0)}</span>
+            <span className="text-callout text-text-3">%</span>
           </div>
-          <TrackRule value={termPct} className="bleed mt-6" />
+          <TrackRule value={termPct} className="bleed mt-4" />
           <Marginalia>
             <span className="mt-4 block tnum">
               {workingDone} of {workingAll.length} working days behind you
@@ -127,9 +127,10 @@ export default function CalendarPage() {
         </div>
 
         {/* Month rail */}
-        <div data-reveal className="flex items-baseline justify-between gap-4 pb-5">
-          <h2 className="text-title">
-            {MONTHS[month0]} <span className="tnum text-text-3">{year}</span>
+        <div data-reveal className="flex items-end justify-between gap-4 pb-6">
+          <h2 className="optical text-poster leading-[0.78]">
+            {MONTHS[month0].slice(0, 3)}
+            <span className="tnum block text-title text-text-3">{year}</span>
           </h2>
           <div className="-mr-2 flex">
             <IconButton

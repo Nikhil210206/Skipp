@@ -86,9 +86,15 @@ export default function TimetablePage() {
   return (
     <AppShell section="Schedule">
       <div ref={scope} className="flex flex-1 flex-col">
-        {/* Day order as numerals, not as a control */}
-        <div data-reveal className="pt-2">
-          <div className="no-scrollbar bleed bleed-pad flex items-end gap-6 overflow-x-auto pb-1">
+        {/* The day order, set as the poster. The picker beneath it is small on
+            purpose: the numeral is the subject of the page, not the control. */}
+        <div data-reveal className="pt-4">
+          <p className="text-label uppercase text-text-3">Day order</p>
+          <p className="tnum optical mt-3 text-poster leading-[0.76]">
+            {String(activeDO).padStart(2, "0")}
+          </p>
+
+          <div className="mt-7 flex items-center gap-5">
             {dayOrders.map((d) => {
               const active = d.dayOrder === activeDO;
               return (
@@ -97,23 +103,24 @@ export default function TimetablePage() {
                   onClick={() => setSelected(d.dayOrder)}
                   aria-pressed={active}
                   aria-label={`Day order ${d.dayOrder}`}
-                  className="relative shrink-0 pb-2"
+                  className="relative flex min-h-[44px] items-center"
                 >
                   <span
-                    className={`tnum block text-hero transition-colors ${
-                      active ? "text-text-1" : "text-text-3/35 hover:text-text-3"
+                    className={`tnum text-title transition-colors ${
+                      active ? "text-text-1" : "text-text-3/40 hover:text-text-3"
                     }`}
                   >
                     {d.dayOrder}
                   </span>
                   {d.dayOrder === todayDO && (
-                    <span className="absolute -right-2 top-1 size-1.5 rounded-full bg-accent" />
+                    <span className="absolute -right-2 top-2 size-1.5 rounded-full bg-accent" />
                   )}
                 </button>
               );
             })}
           </div>
-          <div className="mt-1 flex items-baseline justify-between gap-4">
+
+          <div className="mt-6 flex items-baseline justify-between gap-4">
             <p
               className={`text-label uppercase ${isToday ? "text-accent" : "text-text-3"}`}
             >

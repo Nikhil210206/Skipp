@@ -29,6 +29,14 @@
   --color-risk: #e2584f;
 
   /* --- Type scale. Editorial: one enormous figure, quiet everything else. --- */
+
+  /* Poster scale. Sized in vw so the object always reaches for the page edges,
+     whatever the device. One per screen, never two. */
+  --text-poster: clamp(5rem, 30vw, 13rem);
+  --text-poster--line-height: 0.76;
+  --text-poster--letter-spacing: -0.06em;
+  --text-poster--font-weight: 700;
+
   --text-mega: 6.5rem;
   --text-mega--line-height: 0.78;
   --text-mega--letter-spacing: -0.055em;
@@ -140,6 +148,12 @@ body {
 .rule {
   background: var(--color-line);
   height: 1px;
+}
+
+/* Pull display type back so its glyph edge, not its side bearing, aligns to
+   the gutter. Without this a poster numeral reads as accidentally indented. */
+.optical {
+  margin-left: -0.055em;
 }
 
 /* Break out of the page gutter to full bleed. */
