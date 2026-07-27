@@ -18,7 +18,9 @@ import {
   type ScheduleItem,
 } from "@/lib/schedule";
 import { revealIn, revealRows, useGsap } from "@/lib/motion";
-import { Button, StateView } from "@/components/ui";
+import { Button, IconButton, StateView } from "@/components/ui";
+import { IconDownload } from "@/components/Icons";
+import { downloadTimetableGrid } from "@/lib/timetableImage";
 import { Marginalia, SectionHead } from "@/components/ui/editorial";
 
 /**
@@ -35,6 +37,8 @@ const MIN_BLOCK = 62;
 export default function TimetablePage() {
   const {
     timetable,
+    student,
+    attendingDayOrders,
     customClasses,
     addCustomClass,
     removeCustomClass,
@@ -61,6 +65,24 @@ export default function TimetablePage() {
   const isToday = activeDO === todayDO;
   const now = nowMinutes();
 
+  // The whole grid, every day order, not just the day being viewed. Built from
+  // the attending schedule so optional courses stay out, with the student's own
+  // added classes placed into it.
+  const [saving, setSaving] = useState(false);
+  async function saveImage() {
+    if (saving) return;
+    setSaving(true);
+    try {
+      await downloadTimetableGrid(attendingDayOrders, customClasses, {
+        studentName: student?.name ?? "",
+        section: student?.section ?? null,
+        academicYear: timetable?.academicYear ?? null,
+      });
+    } finally {
+      setSaving(false);
+    }
+  }
+
   const scope = useGsap(
     ({ self, reduced }) => {
       revealIn(self, reduced, { y: 14, stagger: 0.05 });
@@ -84,7 +106,19 @@ export default function TimetablePage() {
   const dayEnd = classes.at(-1)?.endMin ?? 0;
 
   return (
-    <AppShell section="Schedule">
+    <AppShell
+      section="Schedule"
+      action={
+        <IconButton
+          label="Download the full timetable"
+          variant="quiet"
+          disabled={saving}
+          onClick={() => void saveImage()}
+        >
+          <IconDownload size={19} />
+        </IconButton>
+      }
+    >
       <div ref={scope} className="flex flex-1 flex-col">
         {/* The day order, set as the poster. The picker beneath it is small on
             purpose: the numeral is the subject of the page, not the control. */}

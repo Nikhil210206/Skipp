@@ -18,10 +18,13 @@ import { Skeleton } from "./ui";
  */
 export default function AppShell({
   section,
+  action,
   children,
 }: {
   /** Small caps section name in the masthead. */
   section: string;
+  /** Optional screen-level control, shown beside the profile mark. */
+  action?: React.ReactNode;
   children: React.ReactNode;
 }) {
   const router = useRouter();
@@ -40,7 +43,10 @@ export default function AppShell({
       <PullToRefresh onRefresh={refresh}>
         <header className="flex h-14 shrink-0 items-center justify-between px-[var(--gutter)] pt-[env(safe-area-inset-top)]">
           <span className="text-label uppercase text-text-3">{section}</span>
-          {pathname !== "/profile" && <ProfileMark name={displayName} />}
+          <div className="flex items-center gap-1">
+            {action}
+            {pathname !== "/profile" && <ProfileMark name={displayName} />}
+          </div>
         </header>
         <main className="flex flex-1 flex-col px-[var(--gutter)] pb-10">
           {children}

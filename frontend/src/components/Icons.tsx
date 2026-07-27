@@ -229,3 +229,13 @@ export function IconUser(p: IconProps) {
     </Svg>
   );
 }
+
+export function IconDownload(p: IconProps) {
+  return (
+    <Svg {...p}>
+      <path d="M12 4v11" />
+      <path d="M7.5 10.5 12 15l4.5-4.5" />
+      <path d="M5 19.5h14" />
+    </Svg>
+  );
+}

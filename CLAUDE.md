@@ -345,7 +345,49 @@ is deployment and true push notifications.
 Entries below are newest first. **When something breaks, read the relevant entry first**: most
 oddities here (login shell, empty calendar, 429s, duplicated course codes) are already diagnosed.
 
-### DONE: Grade prediction, corrected to SRM's real model (2026-07-27, latest)
+### DONE: Timetable download as a full grid PNG (2026-07-27, latest)
+`lib/timetableImage.ts` draws the **whole timetable** to a canvas by hand and
+saves it: day orders down the side, periods across the top, the way a timetable is
+pinned to a wall. (A first pass exported only the day being viewed, which is not
+what a timetable is.) Chosen over screenshotting the DOM (html2canvas) because it
+needs no dependency, is independent of scroll position and viewport, and can be
+laid out landscape instead of following the app's phone column.
+
+- Columns come from every `hour` used by any day order, so a day with an extra
+  late period still gets a column. Size is computed from the period count, so
+  nothing ever clips.
+- Labs are drawn in the accent; a footer note says so.
+- Colours are read from the live theme tokens with `getComputedStyle`, so a light
+  mode user gets a light picture.
+- `await document.fonts.ready` before drawing, or the first export lands in a
+  fallback face.
+- Built from `attendingDayOrders`, so optional courses stay out of it.
+- **Custom classes are included, drawn as a dotted blue box.** They carry a real
+  time but no period number, so `placeCustom()` spans each one across every
+  column its time actually overlaps (a 09:00 to 10:00 class covers P2 and P3),
+  falling back to the nearest column if it sits outside the official day. Inside
+  the box: the name the student typed (not the auto-abbreviation, which collapses
+  "Samsung" to "S"), then the exact time and the room.
+  - The blue is deliberately **not** a theme token. It exists only in the export,
+    to mean "yours", because the accent already means "lab" there.
+  - Boxes are drawn after the official cells so the outline sits above the grid.
+  - **Column-snapped, not pixel-proportional.** Proportional edges were tried in
+    principle and rejected: periods are unequal in length and a short class would
+    produce a box too narrow to hold its own label. The exact time is printed
+    inside instead, which is the honest answer.
+- Staff ids stripped, and the student's name is title-cased, since the portal
+  shouts it and a shared image should not.
+- **Do not revoke the object URL straight after `a.click()`** (the first version
+  did). Chrome can cancel the download before it has read the blob; it is revoked
+  after 10s instead.
+- The masthead gained an optional `action` slot for screen-level controls, which
+  is where the download button lives.
+- `target="_blank"` on the anchor as well as `download`: a browser that ignores
+  `download` would otherwise navigate the app away to the image.
+- Verified by intercepting `URL.createObjectURL`, rendering the blob back into the
+  page and screenshotting it: 4828x2464 across 12 periods and 5 day orders.
+
+### DONE: Grade prediction, corrected to SRM's real model (2026-07-27)
 The first version of this shipped with a wrong model. Corrected after studying
 the approach ratio'd takes (reading its AGPL source for the domain rules only,
 per §9; no code or design was copied).
