@@ -6,14 +6,16 @@ Security (non-negotiable): credentials are never written to disk, a database,
 or logs. They live in memory for the duration of one request only, on the
 `LoginRequest` model, and the authenticated session is closed before we return.
 """
-from fastapi import FastAPI, HTTPException
+from fastapi import FastAPI, HTTPException, Request
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.responses import JSONResponse
 from pydantic import BaseModel, Field
 
 import logging
 import os
 
 from core.client import (
+    TimeBudgetExceeded,
     PAGE_ACADEMIC_PLANNER,
     PAGE_ATTENDANCE,
     PAGE_TIMETABLE,
@@ -93,6 +95,24 @@ def health() -> dict[str, str]:
     return {"status": "ok", "service": "skipp-api"}
 
 
+@app.exception_handler(TimeBudgetExceeded)
+def _slow_portal(_: Request, exc: TimeBudgetExceeded) -> JSONResponse:
+    """The portal outran our wall-clock budget, so we stopped on our own terms.
+
+    504 rather than 500: nothing is broken and nothing the student typed is
+    wrong. The session was logged out on the way down, so retrying is safe.
+    """
+    return JSONResponse(
+        status_code=504,
+        content={
+            "detail": {
+                "code": "slow_portal",
+                "message": str(exc) or "The portal took too long to answer.",
+            }
+        },
+    )
+
+
 def _fail(status: int, code: str, message: str) -> HTTPException:
     """
     Errors carry a machine-readable code beside the prose.
@@ -118,6 +138,8 @@ def _login_or_4xx(req: LoginRequest):
         raise _fail(429, "signin_limit", str(e)) from e
     except PortalError as e:
         raise _fail(502, "portal", str(e)) from e
+    # TimeBudgetExceeded is deliberately NOT caught here: the app-level handler
+    # turns it into a 504 wherever it is raised, login or page fetch alike.
 
 
 @app.post("/timetable", response_model=Timetable)
@@ -196,6 +218,10 @@ def _try_section(fetch, gated_msg: str) -> tuple:
     """
     try:
         return fetch(), "ready", None
+    except TimeBudgetExceeded:
+        # Not a section failure. Carrying on would spend the little time left
+        # on calls that must also fail, and return a hollow 200 while doing it.
+        raise
     except (PageInaccessible, AttendanceUnavailable, MarksUnavailable):
         return None, "gated", gated_msg
     except (PageNotFound, AppSessionError, PageEmptyError, PageError) as e:
@@ -210,12 +236,16 @@ def _enrich_with_day_orders(session, tt: Timetable) -> None:
     try:
         grid = parse_unified_timetable(session.fetch_page(PAGE_UNIFIED_TIMETABLE))
         tt.day_orders = build_day_orders(tt.courses, grid)
+    except TimeBudgetExceeded:
+        raise
     except Exception as e:  # noqa: BLE001  (enrichment must never fail the call)
         log.warning("day-order enrichment failed: %s", e)
     try:
         year, month = semester_anchor(PAGE_ACADEMIC_PLANNER)
         raw = session.fetch_page(PAGE_ACADEMIC_PLANNER)
         tt.calendar = [CalendarDay(**d) for d in parse_planner(raw, year, month)]
+    except TimeBudgetExceeded:
+        raise
     except Exception as e:  # noqa: BLE001
         log.warning("calendar enrichment failed: %s", e)
 

@@ -52,6 +52,9 @@ from .client import (
     APP_PAGE_HEADERS,
     APP_SESSION_COOKIE,
     BASE_URL,
+    TIME_BUDGET,
+    Budget,
+    TimeBudgetExceeded,
     CSRF_COOKIE,
     CSRF_PARAM,
     IAM_PREFIX,
@@ -137,6 +140,31 @@ class AppSessionError(PageError):
 # Signature of the portal's login shell, its <title> when unauthenticated.
 _LOGIN_SHELL_MARKER = "Academic Web Services Login"
 
+# Seconds granted back to a spent budget so the server-side logout can complete.
+_LOGOUT_GRACE = 6.0
+
+
+def _abandon(client: httpx.Client, budget: "Budget | None") -> None:
+    """Give up on a half-built login without leaving a session behind.
+
+    A failure can land after the password step, so we may already hold a live
+    IAM session even though no Session object exists yet. Releasing it is the
+    difference between a retryable error and an account that trips the portal's
+    concurrent-session block.
+    """
+    if budget is not None:
+        budget.reopen(_LOGOUT_GRACE)
+    _logout(client)
+    client.close()
+
+
+def _logout(client: httpx.Client) -> None:
+    """Release the IAM session server-side. Best effort, never raises."""
+    try:
+        client.get(f"{IAM_PREFIX}/logout", params={"serviceurl": BASE_URL})
+    except Exception:  # noqa: BLE001 (a failed logout must never mask the real error)
+        pass
+
 
 @dataclass
 class Session:
@@ -152,20 +180,21 @@ class Session:
     zuid: str
     # Raw IAM responses, kept only for the Phase 1 spike/diagnostics.
     password_response: dict | None = None
+    budget: Budget | None = None
 
     def close(self) -> None:
         """Log out server-side (best-effort) then drop the local cookie jar.
 
         Releasing the IAM session keeps us well under Zoho's 2-session concurrent
         limit, so scrapes don't pile up sessions and trip the block page.
+
+        Runs even when the time budget is spent: that is the whole point of
+        giving up early, so the budget is reopened for this one last request.
         """
+        if self.budget is not None:
+            self.budget.reopen(_LOGOUT_GRACE)
         try:
-            self.client.get(
-                f"{IAM_PREFIX}/logout",
-                params={"serviceurl": BASE_URL},
-            )
-        except httpx.HTTPError:
-            pass
+            _logout(self.client)
         finally:
             self.client.close()
 
@@ -242,7 +271,8 @@ def login(netid: str, password: str) -> Session:
     Raises UserNotFound / InvalidCredentials / PortalError on failure.
     """
     identifier = normalize_netid(netid)
-    client = new_client()
+    budget = Budget(TIME_BUDGET)
+    client = new_client(budget)
     try:
         # 1. Prime the session: fetch signin page -> iamcsr + session cookies.
         client.get(SIGNIN_PAGE, headers={"Referer": f"{client.base_url}/"})
@@ -314,9 +344,23 @@ def login(netid: str, password: str) -> Session:
                 sorted(client.cookies.keys()),
             )
 
-        return Session(client=client, zuid=zuid, password_response=pw)
+        return Session(
+            client=client, zuid=zuid, password_response=pw, budget=budget
+        )
+    except TimeBudgetExceeded:
+        _abandon(client, budget)
+        raise
     except httpx.HTTPError as e:  # network-level failure
-        client.close()
+        # Read the clock BEFORE abandoning, which reopens the budget.
+        left = budget.remaining()
+        _abandon(client, budget)
+        # A request the budget cut short is the same situation as one it refused
+        # outright, and deserves the same answer. A timeout with budget still on
+        # the clock is a genuinely unreachable portal.
+        if isinstance(e, httpx.TimeoutException) and left is not None and left <= 0.25:
+            raise TimeBudgetExceeded(
+                "The portal took too long to answer."
+            ) from e
         raise PortalError(f"Portal unreachable: {e}") from e
     except LoginError:
         client.close()

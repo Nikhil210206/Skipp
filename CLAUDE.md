@@ -345,7 +345,51 @@ is deployment and true push notifications.
 Entries below are newest first. **When something breaks, read the relevant entry first**: most
 oddities here (login shell, empty calendar, 429s, duplicated course codes) are already diagnosed.
 
-### DONE: Onboarding is the product, played (2026-07-28, latest)
+### DONE: Deployable on Vercel, both halves (2026-07-28, latest)
+Frontend and backend both deploy to Vercel, as **two projects** off one repo
+(root directories `frontend/` and `backend/`).
+
+**The time budget is what makes serverless safe here** (`core/client.py`).
+A serverless platform kills a function at a hard limit with no chance to clean
+up, and a scrape killed mid-flight never reaches `Session.close()`. The Zoho
+session stays open, two of those trip the portal's 2-session concurrent block,
+and the student has no way to clear it or understand it. So the backend stops
+itself first: `Budget` tracks a wall clock, an httpx **request event hook**
+refuses a call it cannot pay for and clamps the ones it can (via
+`request.extensions["timeout"]`), and `Budget.reopen()` grants a slice back so
+the logout still runs on the way down. Surfaces as **504 `slow_portal`**.
+
+- **`TIME_BUDGET + _LOGOUT_GRACE + headroom <= maxDuration`.** Defaults are 45 +
+  6 against `maxDuration: 60`. Raise them together, never one alone, or the
+  function dies during the very cleanup the budget exists to protect.
+- **Two doors, not one.** A request the clamp cuts short raises
+  `httpx.TimeoutException`, not `TimeBudgetExceeded`. `login()` converts it when
+  the clock is spent, otherwise a slow first request returned 502 and skipped
+  the logout entirely. Both paths go through `_abandon()`.
+- **`TimeBudgetExceeded` must escape the catch-alls.** `_try_section` and
+  `_enrich_with_day_orders` swallow everything by design; without an explicit
+  re-raise a spent budget returned a hollow 200 with empty sections.
+- Verified against a local stand-in portal that hangs: 504, gave up at the
+  budget rather than the 25s ceiling, logout fired. No SRM traffic.
+
+**Two things that would have broken any deployment:**
+- **CORS rejected our own site.** The regex only matched `http://` localhost and
+  LAN. Production origins are now named in `SKIPP_ALLOWED_ORIGINS` (comma
+  separated), and naming them drops the LAN regex.
+- **The API base guessed port 8000.** Without `NEXT_PUBLIC_API_URL` a deployed
+  build called `https://<site>:8000` and every sign-in failed vaguely. It now
+  throws a named error. **The build still passes without it**, so it is a
+  runtime net, not a build check.
+
+**Env:** frontend `NEXT_PUBLIC_API_URL`; backend `SKIPP_ALLOWED_ORIGINS`,
+optionally `SKIPP_TIME_BUDGET`. Never set `SKIPP_DEBUG_LOGIN` in production, it
+dumps portal HTML to disk.
+
+**Unverified:** no Vercel deploy has been run. Whether `includeFiles` picks up
+`core/`, `services/` and `models/`, and which Python version the runtime
+selects, are both first-deploy findings.
+
+### DONE: Onboarding is the product, played (2026-07-28)
 **The whole slide-deck onboarding is deleted** (`Intro.tsx`, `IntroPreviews.tsx`,
 `IntroGraphics.tsx`, `playGraphic()`). Panels of copy with a Next button were
 forgettable however well they were drawn, and two rounds of better artwork did

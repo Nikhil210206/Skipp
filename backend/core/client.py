@@ -5,6 +5,8 @@ not copied from any third-party project. See PLAN.md for the flow write-up.
 """
 from __future__ import annotations
 
+import os
+import time
 from urllib.parse import quote
 
 import httpx
@@ -81,15 +83,95 @@ USER_AGENT = (
 )
 
 
-def new_client() -> httpx.Client:
+# Per-request ceiling. A single portal call that hangs longer than this is not
+# coming back in time to be useful.
+REQUEST_TIMEOUT = 25.0
+
+# Wall-clock allowance for one whole portal round trip (login plus pages). On a
+# serverless host this MUST leave room for the platform's function limit AND for
+# the logout that follows it, or we get killed during the very cleanup the
+# budget exists to protect:
+#
+#     TIME_BUDGET + _LOGOUT_GRACE (6s) + headroom  <=  maxDuration
+#
+# The default suits Vercel's maxDuration of 60 in vercel.json. Raise both
+# together, never one alone. See Budget for why this matters at all.
+TIME_BUDGET = float(os.environ.get("SKIPP_TIME_BUDGET", "45"))
+
+
+class TimeBudgetExceeded(Exception):
+    """The wall-clock allowance for one portal round trip ran out."""
+
+
+class Budget:
+    """A wall-clock allowance for one portal round trip.
+
+    A serverless platform kills a function at a hard limit, with no chance to
+    clean up. A scrape killed mid-flight never reaches `Session.close()`, so the
+    Zoho session stays open; two of those trip the portal's 2-session concurrent
+    block, which the student has no way to clear and no way to understand.
+
+    So we stop ourselves first, while there is still time to log out properly.
+    A budget that has run out is a clean 504, not a locked account.
+    """
+
+    def __init__(self, seconds: float | None = None) -> None:
+        self._deadline: float | None = (
+            None if not seconds or seconds <= 0 else time.monotonic() + seconds
+        )
+
+    def remaining(self) -> float | None:
+        """Seconds left, or None when this budget is unlimited."""
+        if self._deadline is None:
+            return None
+        return self._deadline - time.monotonic()
+
+    def reopen(self, seconds: float) -> None:
+        """Grant a fresh slice so the logout can still run after we give up.
+
+        Without this the guard would block `close()`, the one request that most
+        needs to happen when we are out of time.
+        """
+        if self._deadline is not None:
+            self._deadline = time.monotonic() + seconds
+
+
+def _guard(budget: Budget):
+    """Refuse to start a request the budget cannot pay for, and cap the ones it can."""
+
+    def hook(request: httpx.Request) -> None:
+        left = budget.remaining()
+        if left is None:
+            return
+        if left <= 0:
+            raise TimeBudgetExceeded(
+                "The portal took too long to answer."
+            )
+        # Clamp this request so it cannot outlive the budget on its own.
+        t = min(REQUEST_TIMEOUT, left)
+        request.extensions["timeout"] = {
+            "connect": t,
+            "read": t,
+            "write": t,
+            "pool": t,
+        }
+
+    return hook
+
+
+def new_client(budget: Budget | None = None) -> httpx.Client:
     """A fresh httpx client with a cookie jar, redirects on, sane timeout.
 
     One client == one login session. Never share across users; the cookie jar
     holds the authenticated session and must die with the request.
+
+    With a budget, every request (including redirect hops) is checked against
+    the remaining wall clock before it is sent.
     """
     return httpx.Client(
         base_url=BASE_URL,
         follow_redirects=True,
-        timeout=25.0,
+        timeout=REQUEST_TIMEOUT,
         headers={"User-Agent": USER_AGENT},
+        event_hooks={"request": [_guard(budget)]} if budget else {},
     )

@@ -38,6 +38,12 @@ function explain(code: FailureCode, message: string): Failure {
         advice:
           "The portal caps sign-ins per account each day. It clears in a few hours; nothing is wrong with your account.",
       };
+    case "slow_portal":
+      return {
+        title: "The portal is being slow",
+        advice:
+          "SRM did not answer in time, so we stopped rather than leave your session hanging. Try again in a moment.",
+      };
     case "unreachable":
       return {
         title: "Cannot reach Skipp",

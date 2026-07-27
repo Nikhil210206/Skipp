@@ -40,6 +40,7 @@ export type FailureCode =
   | "wrong_password"
   | "captcha"
   | "signin_limit"
+  | "slow_portal"
   | "portal"
   | "unreachable";
 
