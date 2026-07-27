@@ -345,7 +345,66 @@ is deployment and true push notifications.
 Entries below are newest first. **When something breaks, read the relevant entry first**: most
 oddities here (login shell, empty calendar, 429s, duplicated course codes) are already diagnosed.
 
-### DONE: Optional courses made structural, dimmed not struck (2026-07-27, latest)
+### DONE: Grade prediction, corrected to SRM's real model (2026-07-27, latest)
+The first version of this shipped with a wrong model. Corrected after studying
+the approach ratio'd takes (reading its AGPL source for the domain rules only,
+per §9; no code or design was copied).
+
+**The model, in `lib/grades.ts`:**
+| Course | Internal | Exam |
+| ------ | -------- | ---- |
+| Theory | 60 | conducted out of **75**, scaled to 40 |
+| Practical | 60 | conducted out of **40**, scaled to 40 |
+| Internal-only | 100 | none, grade settles on publication |
+
+**Two mistakes the first version made:**
+1. It read `maxTotal` as the eventual internal total. It is the maximum
+   **published so far**. Mid-term a subject shows 23/25, which is 23 of an
+   eventual 60, not a 25 mark course. `remainingInternal = 60 - publishedMax`
+   now carries that, so best-possible stays honest early in the term.
+2. It quoted requirements out of the 40 mark weighting. A student sits a **75
+   mark paper**; "you need 38 out of 75" is the sentence that helps, so
+   requirements are scaled back up to the paper they actually write.
+
+Also: internal-only courses are detected by `publishedMax > 60` and reported as
+settled; `predictGpa` gives a credit-weighted GPA (O=10 down to C=5) over the
+grades each subject is on track for, deduped by course code so a theory plus
+practical pair is not counted twice.
+
+**Honesty note in the UI:** when internals are outstanding, requirements assume
+the student takes every remaining internal mark, and the caption says so.
+
+Verified with a node script: mid-term 23/25 gives best possible 98 and needs 62
+of 75 for an O; 41/60 theory needs 38 of 75 for a B+ with O out of reach; the
+same marks as a practical need 20 of 40; an internal-only 88/100 settles at A+.
+UI checked against a temporary fixture, which was then removed.
+
+
+Requested feature. Note this supersedes the marks target calculator that was
+built and then removed on 2026-07-25: it answers the same question, but from the
+portal's own numbers rather than from user input.
+
+- **`lib/grades.ts`** is pure and testable. `forecastGrade(scored, internalMax)`
+  returns the projected grade, the best grade still reachable, and the marks
+  needed in the final for each grade.
+- **The final's weight is derived, not asked for**: SRM courses total 100, so
+  `finalMax = 100 - internalMax`. A subject marked out of 60 internally leaves a
+  40 mark final; one already out of 100 is fully internal, so its grade is
+  settled and the UI says so instead of showing requirements.
+- **Scale (confirmed with the user, do not change without asking):**
+  O 91 / A+ 81 / A 71 / B+ 61 / B 56 / C 50, F below 50.
+- Projection assumes the final goes as well as the internals have
+  (`scored + finalMax * scored/internalMax`).
+- EPS guards on the ceil, same reason as `predictor.ts`: floating point turns a
+  clean 20 into 20.000000000000004.
+- Verified with a node script over strong/mid/weak/zero internals, a fully
+  internal lab, and a 50/50 split. 41/60 projects B+, needs 20 for B+, and O is
+  correctly out of reach at 50 marks of a 40 mark final.
+- UI verified against a temporary fixture (marks are unpublished this term), then
+  the fixture was removed. **If marks look wrong when they land, check the
+  `finalMax = 100 - internalMax` assumption first.**
+
+### DONE: Optional courses made structural, dimmed not struck (2026-07-27)
 Closing the category of bug rather than the instance.
 
 - **`SessionContext` now exposes `attendingDayOrders`**: the day-order grid with

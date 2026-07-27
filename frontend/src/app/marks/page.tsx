@@ -3,6 +3,11 @@
 import AppShell from "@/components/AppShell";
 import { useSession } from "@/context/SessionContext";
 import { revealIn, revealRows, useGsap } from "@/lib/motion";
+import {
+  forecastSubject,
+  predictGpa,
+  type SubjectForecast,
+} from "@/lib/grades";
 import { Skeleton, StateView } from "@/components/ui";
 import {
   Marginalia,
@@ -19,8 +24,34 @@ const round = (n: number) => Math.round(n * 100) / 100;
  * right, components indented beneath. No cards, no bars, just alignment.
  */
 export default function MarksPage() {
-  const { marks, marksState, marksMessage } = useSession();
+  const { marks, marksState, marksMessage, timetable } = useSession();
   const subjects = marks?.subjects ?? [];
+
+  // Credit and category come from the registration list, keyed by course code.
+  const courseInfo = new Map(
+    (timetable?.courses ?? []).map((c) => [
+      c.code,
+      { credit: c.credit ?? 0, practical: /practical|lab/i.test(c.category ?? "") },
+    ]),
+  );
+  const isPractical = (code: string) => courseInfo.get(code)?.practical ?? false;
+
+  // GPA over the grades each subject is on track for. Deduped by code, since a
+  // course with separate theory and practical rows is still one credit block.
+  const seen = new Set<string>();
+  const gpa = predictGpa(
+    subjects.flatMap((s) => {
+      if (seen.has(s.code)) return [];
+      const f = forecastSubject({
+        scored: s.scoredTotal,
+        publishedMax: s.maxTotal,
+        isPractical: isPractical(s.code),
+      });
+      if (!f) return [];
+      seen.add(s.code);
+      return [{ grade: f.onTrackGrade, credit: courseInfo.get(s.code)?.credit ?? 0 }];
+    }),
+  );
   const scored = subjects.reduce((x, s) => x + s.scoredTotal, 0);
   const max = subjects.reduce((x, s) => x + s.maxTotal, 0);
   const graded = subjects.filter((s) => s.components.length > 0);
@@ -88,12 +119,24 @@ export default function MarksPage() {
               <p className="tnum optical mt-5 text-poster">{round(scored)}</p>
               <div className="bleed h-px bg-text-1/70" />
               <p className="tnum optical text-poster text-text-1/30">{round(max)}</p>
-              <Marginalia>
-                <span className="mt-4 block tnum">
-                  {pct(scored, max).toFixed(0)}% across {graded.length} graded{" "}
-                  {graded.length === 1 ? "subject" : "subjects"}
-                </span>
-              </Marginalia>
+              <div className="mt-5 flex items-start justify-between gap-4">
+                <Marginalia>
+                  <span className="tnum block">
+                    {pct(scored, max).toFixed(0)}% across {graded.length} graded{" "}
+                    {graded.length === 1 ? "subject" : "subjects"}
+                  </span>
+                </Marginalia>
+                {gpa !== null && (
+                  <div className="shrink-0 text-right">
+                    <span className="tnum block text-title leading-none">
+                      {gpa.toFixed(2)}
+                    </span>
+                    <span className="mt-1.5 block text-label uppercase text-text-3">
+                      GPA on track
+                    </span>
+                  </div>
+                )}
+              </div>
             </div>
 
             <section>
@@ -150,6 +193,14 @@ export default function MarksPage() {
                           ))}
                         </ul>
                       )}
+
+                      <Forecast
+                        forecast={forecastSubject({
+                          scored: s.scoredTotal,
+                          publishedMax: s.maxTotal,
+                          isPractical: isPractical(s.code),
+                        })}
+                      />
                     </div>
                   </li>
                 ))}
@@ -159,5 +210,79 @@ export default function MarksPage() {
         )}
       </div>
     </AppShell>
+  );
+}
+
+/**
+ * The grade block: where this subject is heading, the ceiling it can still
+ * reach, and what the exam paper has to deliver for each grade.
+ *
+ * Requirements are quoted on the paper the student actually sits (75 marks for
+ * theory, 40 for a practical), not on the 40 mark weighting it scales down to,
+ * because "you need 38 out of 75" is the sentence that helps.
+ */
+function Forecast({ forecast }: { forecast: SubjectForecast | null }) {
+  if (!forecast) return null;
+  const {
+    internalOnly,
+    onTrackGrade,
+    bestGrade,
+    remainingInternal,
+    semPaper,
+    targets,
+  } = forecast;
+
+  if (internalOnly) {
+    return (
+      <div className="mt-5 flex items-baseline justify-between gap-4">
+        <p className="text-callout text-text-3">No exam · grade settled</p>
+        <p className="text-title leading-none">{bestGrade}</p>
+      </div>
+    );
+  }
+
+  return (
+    <div className="mt-6">
+      <div className="flex items-start justify-between gap-4">
+        <p className="tnum pt-1.5 text-callout text-text-3">
+          {remainingInternal > 0
+            ? `${remainingInternal} internal marks still to come`
+            : "Internals complete"}
+          {bestGrade !== onTrackGrade ? ` · ${bestGrade} still possible` : ""}
+        </p>
+        <div className="shrink-0 text-right">
+          <span className="block text-title leading-none">{onTrackGrade}</span>
+          <span className="mt-1.5 block text-label uppercase text-text-3">
+            On track
+          </span>
+        </div>
+      </div>
+
+      <dl className="mt-5 flex justify-between gap-1">
+        {targets.map((t) => (
+          <div key={t.grade} className="min-w-0 flex-1 text-center">
+            <dt className="text-label uppercase text-text-3">{t.grade}</dt>
+            <dd
+              className={`tnum mt-2 text-callout ${
+                t.outOfReach
+                  ? "text-text-3/40"
+                  : t.secured
+                    ? "text-text-3"
+                    : "text-text-1"
+              }`}
+            >
+              {t.outOfReach ? "\u2014" : t.secured ? "0" : t.semNeeded}
+            </dd>
+          </div>
+        ))}
+      </dl>
+      {/* The requirement leans on the internals still to come, so say so
+          rather than quietly assuming the student takes all of them. */}
+      <p className="mt-3.5 text-callout text-text-3/80">
+        Marks needed in the {semPaper} mark exam
+        {remainingInternal > 0 ? ", if you take every remaining internal mark" : ""}.
+        A dash is out of reach.
+      </p>
+    </div>
   );
 }
