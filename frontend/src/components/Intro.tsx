@@ -3,7 +3,12 @@
 import { useCallback, useEffect, useRef, useState, useSyncExternalStore } from "react";
 import gsap from "gsap";
 import { EASE, playEntrance, prefersReducedMotion } from "@/lib/motion";
-import { TrackRule, WordMask } from "@/components/ui/editorial";
+import {
+  AttendancePreview,
+  PrivacyPreview,
+  TodayPreview,
+} from "./IntroPreviews";
+import { WordMask } from "@/components/ui/editorial";
 import { Button } from "@/components/ui";
 
 /**
@@ -73,6 +78,7 @@ export default function Intro({ onDone }: { onDone: () => void }) {
   const track = useRef<HTMLDivElement>(null);
   const rails = useRef<(HTMLSpanElement | null)[]>([]);
   const panels = useRef<(HTMLDivElement | null)[]>([]);
+  const art = useRef<(HTMLDivElement | null)[]>([]);
 
   const drag = useRef({ startX: 0, base: 0, active: false, width: 0 });
   const last = index === PANELS.length - 1;
@@ -86,6 +92,19 @@ export default function Intro({ onDone }: { onDone: () => void }) {
     });
   }, []);
 
+  /**
+   * The artwork trails its panel by 35%, so the graphic sits behind the words
+   * rather than moving locked to them. This is what gives the drag depth
+   * instead of the feel of a slideshow.
+   */
+  const paintParallax = useCallback((trackX: number, width: number) => {
+    if (width === 0) return;
+    art.current.forEach((layer, i) => {
+      if (!layer) return;
+      gsap.set(layer, { x: -0.35 * (trackX + i * width) });
+    });
+  }, []);
+
   const settleTo = useCallback(
     (next: number, animate = true) => {
       const el = track.current;
@@ -95,6 +114,7 @@ export default function Intro({ onDone }: { onDone: () => void }) {
       if (!animate || prefersReducedMotion()) {
         gsap.set(el, { x: target });
         paintRails(next);
+        paintParallax(target, width);
         return;
       }
       gsap.to(el, {
@@ -105,10 +125,11 @@ export default function Intro({ onDone }: { onDone: () => void }) {
         onUpdate: () => {
           const x = gsap.getProperty(el, "x") as number;
           paintRails(-x / width);
+          paintParallax(x, width);
         },
       });
     },
-    [paintRails],
+    [paintRails, paintParallax],
   );
 
   // Keep the track aligned when the viewport changes size.
@@ -124,9 +145,9 @@ export default function Intro({ onDone }: { onDone: () => void }) {
   useEffect(() => {
     const el = panels.current[index];
     if (!el) return;
-    const tl = playEntrance(el, prefersReducedMotion());
+    const text = playEntrance(el, prefersReducedMotion());
     return () => {
-      tl?.kill();
+      text?.kill();
     };
   }, [index]);
 
@@ -163,6 +184,7 @@ export default function Intro({ onDone }: { onDone: () => void }) {
     if (x < min) x = min + (x - min) * 0.35;
     gsap.set(track.current, { x });
     paintRails(-x / d.width);
+    paintParallax(x, d.width);
   }
 
   function onPointerUp(e: React.PointerEvent) {
@@ -215,7 +237,7 @@ export default function Intro({ onDone }: { onDone: () => void }) {
               ref={(el) => {
                 panels.current[i] = el;
               }}
-              className="flex w-full shrink-0 flex-col justify-center px-[var(--gutter)]"
+              className="flex w-full shrink-0 flex-col justify-center overflow-hidden px-[var(--gutter)]"
             >
               <p data-mark className="text-label uppercase text-accent">
                 {p.eyebrow}
@@ -226,10 +248,16 @@ export default function Intro({ onDone }: { onDone: () => void }) {
               <p data-enter className="mt-4 max-w-[34ch] text-body text-text-2">
                 {p.body}
               </p>
-              <div className="mt-9">
-                {i === 0 && <MarginProof />}
-                {i === 1 && <OneScreenProof />}
-                {i === 2 && <PrivacyProof />}
+              <div
+                ref={(el) => {
+                  art.current[i] = el;
+                }}
+                data-enter
+                className="mt-8 will-change-transform"
+              >
+                {i === 0 && <AttendancePreview />}
+                {i === 1 && <TodayPreview />}
+                {i === 2 && <PrivacyPreview />}
               </div>
             </div>
           ))}
@@ -264,112 +292,5 @@ export default function Intro({ onDone }: { onDone: () => void }) {
         </p>
       </div>
     </main>
-  );
-}
-
-/** Sample figures, labelled as such: the app has no data before you sign in. */
-function Sample() {
-  return (
-    <span className="rounded-full border border-line px-2 py-0.5 text-label uppercase text-text-3">
-      Example
-    </span>
-  );
-}
-
-function MarginProof() {
-  const figure = useRef<HTMLSpanElement>(null);
-
-  useEffect(() => {
-    const el = figure.current;
-    if (!el || prefersReducedMotion()) return;
-    const obj = { n: 0 };
-    const tw = gsap.to(obj, {
-      n: 5,
-      duration: 0.9,
-      ease: EASE.emphasis,
-      delay: 0.5,
-      onUpdate: () => {
-        el.textContent = String(Math.round(obj.n));
-      },
-    });
-    return () => {
-      tw.kill();
-    };
-  }, []);
-
-  return (
-    <div data-enter>
-      <div className="flex items-center justify-between gap-4">
-        <p className="text-label uppercase text-text-3">Classes you can miss</p>
-        <Sample />
-      </div>
-      <div className="mt-3 flex items-baseline gap-3">
-        <span ref={figure} className="tnum text-display">
-          5
-        </span>
-        <span className="text-headline text-text-3">and still clear 75%</span>
-      </div>
-      <TrackRule value={95} threshold={75} className="mt-6" />
-      <p className="tnum mt-3 text-callout text-text-3">
-        95.2% attended · the tick is your target
-      </p>
-    </div>
-  );
-}
-
-function OneScreenProof() {
-  const rows = [
-    { label: "Next class in", value: "16h 07m" },
-    { label: "Attendance", value: "95.2%" },
-    { label: "Day order", value: "05" },
-  ];
-  return (
-    <div data-enter>
-      <div className="flex items-center justify-between gap-4">
-        <p className="text-label uppercase text-text-3">All of it, at a glance</p>
-        <Sample />
-      </div>
-      <dl className="mt-4">
-        {rows.map((r, i) => (
-          <div key={r.label}>
-            {i > 0 && <div className="h-px bg-line-soft" />}
-            <div className="flex items-baseline justify-between gap-4 py-3.5">
-              <dt className="text-callout text-text-3">{r.label}</dt>
-              <dd className="tnum text-title">{r.value}</dd>
-            </div>
-          </div>
-        ))}
-      </dl>
-    </div>
-  );
-}
-
-function PrivacyProof() {
-  const rows = [
-    { label: "Sent to", value: "SRM only" },
-    { label: "Held for", value: "One request" },
-    { label: "Stored by Skipp", value: "Nothing" },
-  ];
-  return (
-    <div data-enter>
-      <p className="text-label uppercase text-text-3">Where your password goes</p>
-      <dl className="mt-4">
-        {rows.map((r, i) => (
-          <div key={r.label}>
-            {i > 0 && <div className="h-px bg-line-soft" />}
-            <div className="flex items-baseline justify-between gap-4 py-3.5">
-              <dt className="text-callout text-text-3">{r.label}</dt>
-              <dd
-                className={`text-headline ${
-                  r.value === "Nothing" ? "text-accent" : "text-text-1"
-                }`}
-              >
-                {r.value}
-              </dd>
-            </div>
-          </div>
-        ))}
-      </dl>
-    </div>
   );
 }

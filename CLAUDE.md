@@ -345,7 +345,54 @@ is deployment and true push notifications.
 Entries below are newest first. **When something breaks, read the relevant entry first**: most
 oddities here (login shell, empty calendar, 429s, duplicated course codes) are already diagnosed.
 
-### DONE: Onboarding rebuilt as a draggable flow (2026-07-27, latest)
+### DONE: Onboarding previews (2026-07-27, latest)
+The panels show **fragments of the real interface**, in
+`components/IntroPreviews.tsx`, built from the same primitives as the screens
+they represent.
+
+An earlier pass used abstract geometry (tick fields, converging rules, a drawn
+boundary) and it was rejected as irrelevant, correctly: it was a metaphor for the
+product rather than the product. **If the onboarding needs a visual, show the app.**
+
+| Panel | Fragment |
+| ----- | -------- |
+| 1 | the attendance card: 95.2% counting up, the 75% tick, `5 MARGIN` |
+| 2 | the home card: `16h 07m` and the next two classes |
+| 3 | where the password goes, ending in "Nothing" |
+
+- Figures count up on arrival, the way the real screens do.
+- Every fragment carries an **EXAMPLE** chip. There is no data before sign-in and
+  implying otherwise on the screen that asks for a password would be a lie.
+- The fragment is also the parallax layer, so it still trails its panel by 35%.
+
+### DONE: Onboarding rebuilt as a draggable flow (2026-07-27)
+Each panel gained an abstract graphic in `components/IntroGraphics.tsx`, drawn
+from the app's own vocabulary rather than generic onboarding shapes:
+
+### DONE: Onboarding rebuilt as a draggable flow (2026-07-27)
+Each panel gained an abstract graphic in `components/IntroGraphics.tsx`, drawn
+from the app's own vocabulary rather than generic onboarding shapes:
+
+| Panel | Graphic | What it means |
+| ----- | ------- | ------------- |
+| 1 | a field of 30 ticks, five in accent | the classes you can spend |
+| 2 | scattered rules sliding into alignment | readings becoming one view |
+| 3 | a boundary drawing itself closed round a dot | your data staying on the device |
+
+- `playGraphic()` in `lib/motion.ts` draws them: ticks grow from their baseline
+  staggered, rules slide in from their own offsets, the boundary animates
+  `strokeDashoffset` (a `<rect>` has no `getTotalLength`, so its perimeter is
+  computed), and the dot lands last.
+- **Parallax**: each graphic trails its panel by 35% during the drag, which is
+  what gives the gesture depth. `paintParallax()` sets `x = -0.35 * (trackX + i *
+  width)`, so at rest the active panel's art is exactly centred.
+- **Panels must be `overflow-hidden`.** The parallax offset pushes a neighbour's
+  artwork sideways, and without clipping panel 2's graphic leaked into panel 1.
+- Each panel hangs its art differently (`ART_ALIGN`) so the three do not read as
+  one template.
+- The tick count matches the copy. Five ticks, because the panel promises five.
+
+### DONE: Onboarding rebuilt as a draggable flow (2026-07-27)
 Three panels on a track that follows the finger, each carrying a piece of proof
 rather than only a sentence.
 
