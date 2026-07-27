@@ -90,9 +90,20 @@ class LoginRequest(BaseModel):
 
 
 @app.get("/health")
-def health() -> dict[str, str]:
-    """Liveness probe. Returns OK if the service is up."""
-    return {"status": "ok", "service": "skipp-api"}
+def health() -> dict:
+    """Liveness probe, plus the CORS config the process actually loaded.
+
+    Origins are not secret (they are echoed in Access-Control-Allow-Origin on
+    every successful preflight), and having the deployment state visible turns
+    "why is CORS failing" from guesswork into one request. Nothing else about
+    the environment is exposed.
+    """
+    return {
+        "status": "ok",
+        "service": "skipp-api",
+        "allowedOrigins": _allowed,
+        "devOriginRegexActive": not _allowed,
+    }
 
 
 @app.exception_handler(TimeBudgetExceeded)
