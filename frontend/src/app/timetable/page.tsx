@@ -90,11 +90,13 @@ export default function TimetablePage() {
             purpose: the numeral is the subject of the page, not the control. */}
         <div data-reveal className="pt-4">
           <p className="text-label uppercase text-text-3">Day order</p>
-          <p className="tnum optical mt-3 text-poster leading-[0.76]">
+          <p className="tnum optical mt-3 text-poster">
             {String(activeDO).padStart(2, "0")}
           </p>
 
-          <div className="mt-7 flex items-center gap-5">
+          {/* Evenly distributed across the column, each a full-height target,
+              with the selection marked by a rule rather than by colour alone. */}
+          <div className="mt-8 flex items-stretch justify-between">
             {dayOrders.map((d) => {
               const active = d.dayOrder === activeDO;
               return (
@@ -103,24 +105,33 @@ export default function TimetablePage() {
                   onClick={() => setSelected(d.dayOrder)}
                   aria-pressed={active}
                   aria-label={`Day order ${d.dayOrder}`}
-                  className="relative flex min-h-[44px] items-center"
+                  className="group relative flex flex-1 flex-col items-center gap-3 pt-1"
                 >
                   <span
-                    className={`tnum text-title transition-colors ${
-                      active ? "text-text-1" : "text-text-3/40 hover:text-text-3"
+                    className={`tnum text-headline transition-colors duration-150 ${
+                      active
+                        ? "text-text-1"
+                        : "text-text-3/50 group-hover:text-text-3"
                     }`}
                   >
                     {d.dayOrder}
                   </span>
-                  {d.dayOrder === todayDO && (
-                    <span className="absolute -right-2 top-2 size-1.5 rounded-full bg-accent" />
-                  )}
+                  <span
+                    className={`h-[2px] w-full transition-colors duration-150 ${
+                      active ? "bg-text-1" : "bg-line"
+                    }`}
+                  />
+                  <span className="h-1.5">
+                    {d.dayOrder === todayDO && (
+                      <span className="block size-1.5 rounded-full bg-accent" />
+                    )}
+                  </span>
                 </button>
               );
             })}
           </div>
 
-          <div className="mt-6 flex items-baseline justify-between gap-4">
+          <div className="mt-7 flex items-baseline justify-between gap-4">
             <p
               className={`text-label uppercase ${isToday ? "text-accent" : "text-text-3"}`}
             >
@@ -158,7 +169,7 @@ export default function TimetablePage() {
                 const prev = classes[i - 1];
                 const gap = prev ? c.startMin - prev.endMin : 0;
                 return (
-                  <li key={c.id}>
+                  <li key={c.id} data-row>
                     {gap > 0 && <Gap minutes={gap} />}
                     <Block
                       item={c}
@@ -199,7 +210,6 @@ export default function TimetablePage() {
 function Gap({ minutes }: { minutes: number }) {
   return (
     <div
-      data-row
       className="relative flex items-center"
       style={{ height: Math.max(34, minutes * PX_PER_MIN) }}
     >
@@ -230,14 +240,15 @@ function Block({
 
   return (
     <div
-      data-row
-      className={`relative flex gap-5 ${muted ? "opacity-40" : past ? "opacity-55" : ""}`}
+      className={`relative flex gap-5 transition-opacity duration-200 ${
+        muted ? "opacity-30" : past ? "opacity-60" : ""
+      }`}
       style={{ minHeight: Math.max(MIN_BLOCK, minutes * PX_PER_MIN) }}
     >
       {/* The spine: solid for the length of the class */}
       <span
         className={`absolute left-[52px] top-0 h-full w-px ${
-          live ? "bg-accent" : "bg-text-1/35"
+          live ? "bg-accent" : muted ? "bg-text-1/20" : "bg-text-1/35"
         }`}
       />
       <div className="w-[46px] shrink-0 pt-0.5 text-right">
@@ -247,20 +258,20 @@ function Block({
 
       <div className="min-w-0 flex-1 pb-6 pl-4">
         <div className="flex items-baseline justify-between gap-3">
-          <h3
-            className={`truncate text-headline ${
-              muted ? "line-through decoration-line" : ""
-            }`}
-          >
-            {item.title}
-          </h3>
+          <h3 className="truncate text-headline">{item.title}</h3>
           <span className="tnum shrink-0 text-callout text-text-3">
             {live ? <span className="text-accent">Now</span> : `${minutes}m`}
           </span>
         </div>
 
         <p className="mt-1.5 truncate text-callout text-text-3">
-          {[item.abbrev, item.isLab && "Lab", item.room, faculty]
+          {[
+            item.abbrev,
+            muted ? "Optional" : null,
+            item.isLab && "Lab",
+            item.room,
+            faculty,
+          ]
             .filter(Boolean)
             .join(" · ")}
         </p>

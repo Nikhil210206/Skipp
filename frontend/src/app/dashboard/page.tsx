@@ -40,20 +40,18 @@ export default function DashboardPage() {
     attendance,
     attendanceState,
     customClasses,
-    optionalCourses,
+    attendingDayOrders,
   } = useSession();
 
   const holiday = timetable ? holidayToday(timetable.calendar) : null;
   const focus = timetable ? focusDay(timetable) : null;
-  const schedule = timetable
-    ? scheduleFor(timetable.dayOrders, focus?.dayOrder ?? null)
-    : undefined;
+  // The filtered grid, so optional courses never reach the day's class list.
+  const schedule = scheduleFor(attendingDayOrders, focus?.dayOrder ?? null);
   const classes = daySchedule(
     schedule?.classes ?? [],
     customClasses,
     focus?.dayOrder ?? null,
-    optionalCourses,
-  ).filter((c) => !c.isOptional);
+  );
 
   const cover = buildCover(classes, focus, holiday);
   const later = mergeRuns(
@@ -90,14 +88,14 @@ export default function DashboardPage() {
     <AppShell section={prettyDate(todayISO())}>
       <div ref={scope} className="flex flex-1 flex-col">
         {/* ---------- 1. THE COVER ---------- */}
-        <section className="bleed bleed-pad relative flex min-h-[74vh] flex-col justify-end overflow-hidden pb-10 pt-2">
+        <section className="bleed bleed-pad relative flex min-h-[62vh] flex-col justify-end overflow-hidden pb-9 pt-2">
           {focus?.dayOrder != null && (
             <div
               ref={ghost}
               aria-hidden
-              className="pointer-events-none absolute -right-12 -top-8 select-none text-right"
+              className="pointer-events-none absolute -right-9 -top-4 select-none text-right"
             >
-              <span className="block text-[15rem] font-bold leading-[0.76] tracking-[-0.07em] text-ink-2">
+              <span className="block text-[11rem] font-bold leading-[0.78] tracking-[-0.06em] text-ink-2">
                 {String(focus.dayOrder).padStart(2, "0")}
               </span>
               {/* The numeral is the day order, so it says so. Unlabelled it would
@@ -113,7 +111,7 @@ export default function DashboardPage() {
               {cover.label}
             </p>
 
-            <div className="mt-4">
+            <div className="mt-3.5">
               {cover.targetMs !== null ? (
                 <Countdown key={cover.targetMs} target={cover.targetMs} />
               ) : (
@@ -121,12 +119,12 @@ export default function DashboardPage() {
               )}
             </div>
 
-            <div data-reveal className="mt-9 h-px w-full bg-line" />
+            <div data-reveal className="mt-8 h-px w-full bg-line" />
 
-            <h1 data-reveal className="mt-6 text-balance text-title">
+            <h1 data-reveal className="mt-7 text-balance text-title">
               {cover.title}
             </h1>
-            <p data-reveal className="mt-2.5 tnum text-callout text-text-3">
+            <p data-reveal className="mt-2 tnum text-callout text-text-3">
               {cover.meta}
             </p>
             {cover.note && (

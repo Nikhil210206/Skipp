@@ -109,10 +109,16 @@ export function countTo(
   });
 }
 
-/** Press feedback for anything tappable. Attach to a ref'd element. */
+/**
+ * Press feedback for anything tappable. Attach to a ref'd element.
+ *
+ * Uses gsap.to rather than quickTo: quickTo does not reliably apply the `scale`
+ * transform shorthand, so the press was silently doing nothing.
+ */
 export function pressable(el: HTMLElement | null): () => void {
   if (!el || prefersReducedMotion()) return () => {};
-  const to = gsap.quickTo(el, "scale", { duration: DUR.micro, ease: EASE.out });
+  const to = (scale: number) =>
+    gsap.to(el, { scale, duration: DUR.micro, ease: EASE.out, overwrite: "auto" });
   const down = () => to(0.972);
   const up = () => to(1);
   el.addEventListener("pointerdown", down);
@@ -124,28 +130,42 @@ export function pressable(el: HTMLElement | null): () => void {
     el.removeEventListener("pointerup", up);
     el.removeEventListener("pointerleave", up);
     el.removeEventListener("pointercancel", up);
+    gsap.killTweensOf(el);
   };
 }
 
 /**
  * A masthead figure that recedes as the page scrolls under it. Used once per
- * screen, on the screen's single focal element, so scrolling feels like moving
- * a sheet of paper rather than sliding a list.
+ * screen, on the screen's single focal element.
+ *
+ * Opacity only, and the element must NOT also be a `data-reveal` target: two
+ * systems writing the same property is what made this fade stick.
  */
 export function recedeOnScroll(el: HTMLElement, reduced: boolean): void {
   if (reduced) return;
-  gsap.to(el, {
-    opacity: 0.12,
-    y: -18,
-    scale: 0.97,
-    ease: "none",
-    scrollTrigger: {
-      trigger: el,
-      start: "top top+=90",
-      end: "+=180",
-      scrub: 0.4,
+  gsap.fromTo(
+    el,
+    { opacity: 1 },
+    {
+      opacity: 0.12,
+      ease: "none",
+      // Without this the tween captures whatever opacity happens to be set when
+      // it is built, so a re-run starts from the faded value and compounds.
+      immediateRender: false,
+      overwrite: "auto",
+      scrollTrigger: {
+        trigger: el,
+        // Begins only once the block has actually reached the top of the
+        // viewport, so it is fully opaque at rest.
+        start: "top top",
+        end: "+=200",
+        scrub: 0.4,
+        // Positions are measured while the page is still settling, so let them
+        // be recomputed rather than trusting the first measurement.
+        invalidateOnRefresh: true,
+      },
     },
-  });
+  );
 }
 
 /**

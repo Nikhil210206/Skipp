@@ -86,7 +86,8 @@ export default function AttendancePage() {
         {attendanceState === "ready" && attendance && (
           <>
             {/* The whole term as one measurement */}
-            <div ref={masthead} data-reveal className="pb-11 pt-6">
+            {/* No data-reveal here: recedeOnScroll owns this block's opacity. */}
+            <div ref={masthead} className="pb-11 pt-6">
               <p className="text-label uppercase text-text-3">Term to date</p>
               <Amount
                 size="poster"
@@ -100,17 +101,24 @@ export default function AttendancePage() {
                 tone={overall < THRESHOLD ? "accent" : "neutral"}
                 className="bleed mt-7"
               />
-              <div className="mt-4 flex items-baseline justify-between gap-4">
+              <div className="mt-5 flex items-end justify-between gap-5">
                 <Marginalia>
                   <span className="tnum">
-                    {attended} of {conducted} attended
+                    {attended} of {conducted} attended · {THRESHOLD}% required
                   </span>
                 </Marginalia>
-                <p className="tnum text-callout text-text-2">
-                  {inHand.isSafe
-                    ? `${inHand.canSkip} in hand`
-                    : `${inHand.mustAttend} to recover`}
-                </p>
+                <div className="shrink-0 text-right">
+                  <span
+                    className={`tnum block text-title leading-none ${
+                      inHand.isSafe ? "text-text-1" : "text-accent"
+                    }`}
+                  >
+                    {inHand.isSafe ? inHand.canSkip : inHand.mustAttend}
+                  </span>
+                  <span className="mt-1.5 block text-label uppercase text-text-3">
+                    {inHand.isSafe ? "Margin" : "Required"}
+                  </span>
+                </div>
               </div>
             </div>
 
@@ -160,56 +168,57 @@ export default function AttendancePage() {
   );
 }
 
+/**
+ * A subject row answers "what do I do about this one?" first. The actionable
+ * figure is the largest thing in the row; the percentage drops to the meta line
+ * beside the code, because it is evidence rather than instruction.
+ */
 function Ledger({ s, tone = "neutral" }: { s: Subject; tone?: "neutral" | "accent" }) {
   const p = predict(s.attended, s.conducted, THRESHOLD);
   const none = s.conducted === 0;
-  const note = none
-    ? "No classes held yet"
-    : p.isSafe
-      ? p.canSkip > 0
-        ? `${p.canSkip} in hand`
-        : "Nothing in hand"
-      : `Attend ${p.mustAttend} to clear ${THRESHOLD}%`;
+  const value = none ? null : p.isSafe ? p.canSkip : p.mustAttend;
+  const label = none ? "No classes" : p.isSafe ? "Margin" : "Required";
 
   return (
     <div className="pt-6">
-      <div className="flex items-baseline justify-between gap-4">
-        <span className="min-w-0 flex-1 truncate text-headline">
-          {s.title || s.code}
-        </span>
-        <span className="tnum shrink-0 text-title">
-          {none ? (
-            <span className="text-text-3">&mdash;</span>
-          ) : (
-            <>
-              {s.percentage.toFixed(0)}
-              <span className="text-callout text-text-3">%</span>
-            </>
-          )}
-        </span>
+      <div className="flex items-start justify-between gap-5">
+        <div className="min-w-0 flex-1 pt-1">
+          <p className="truncate text-headline">{s.title || s.code}</p>
+          <p className="tnum mt-1.5 truncate text-callout text-text-3">
+            {[
+              s.code,
+              s.category,
+              none ? null : `${s.attended}/${s.conducted}`,
+              none ? null : `${s.percentage.toFixed(0)}%`,
+            ]
+              .filter(Boolean)
+              .join(" · ")}
+          </p>
+        </div>
+
+        {/* The decision, hung on the right and aligned across every row. */}
+        <div className="shrink-0 text-right">
+          <span
+            className={`tnum block text-hero leading-none ${
+              value === null
+                ? "text-text-3"
+                : tone === "accent"
+                  ? "text-accent"
+                  : "text-text-1"
+            }`}
+          >
+            {value === null ? "\u2014" : value}
+          </span>
+          <span className="mt-2 block text-label uppercase text-text-3">{label}</span>
+        </div>
       </div>
 
       <TrackRule
         value={none ? 0 : s.percentage}
         threshold={THRESHOLD}
         tone={tone}
-        className="bleed mt-3.5"
+        className="bleed mt-5"
       />
-
-      <div className="mt-2.5 flex items-baseline justify-between gap-4">
-        <span className="tnum truncate text-callout text-text-3">
-          {s.code}
-          {s.category ? ` · ${s.category}` : ""}
-          {none ? "" : ` · ${s.attended}/${s.conducted}`}
-        </span>
-        <span
-          className={`shrink-0 text-callout ${
-            tone === "accent" ? "text-accent" : "text-text-3"
-          }`}
-        >
-          {note}
-        </span>
-      </div>
     </div>
   );
 }

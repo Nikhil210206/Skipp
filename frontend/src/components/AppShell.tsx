@@ -1,11 +1,11 @@
 "use client";
 
-import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import { useEffect } from "react";
 import { useSession } from "@/context/SessionContext";
 import BottomNav from "./BottomNav";
 import PullToRefresh from "./PullToRefresh";
+import ProfileMark from "./ProfileMark";
 import { Skeleton } from "./ui";
 
 /**
@@ -40,7 +40,7 @@ export default function AppShell({
       <PullToRefresh onRefresh={refresh}>
         <header className="flex h-14 shrink-0 items-center justify-between px-[var(--gutter)] pt-[env(safe-area-inset-top)]">
           <span className="text-label uppercase text-text-3">{section}</span>
-          {pathname !== "/profile" && <ProfileButton name={displayName} />}
+          {pathname !== "/profile" && <ProfileMark name={displayName} />}
         </header>
         <main className="flex flex-1 flex-col px-[var(--gutter)] pb-10">
           {children}
@@ -71,20 +71,5 @@ function RestoringFrame() {
       </div>
       <BottomNav />
     </div>
-  );
-}
-
-function ProfileButton({ name }: { name: string }) {
-  const initial = (name.trim()[0] ?? "s").toUpperCase();
-  return (
-    <Link
-      href="/profile"
-      aria-label="Your profile"
-      className="-mr-2 flex size-11 items-center justify-center text-callout font-semibold text-text-3 transition-colors hover:text-text-1"
-    >
-      <span className="flex size-7 items-center justify-center rounded-full border border-line">
-        {initial}
-      </span>
-    </Link>
   );
 }

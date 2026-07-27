@@ -7,8 +7,9 @@ import { projectAttendance } from "@/lib/leavePredictor";
 import { predict } from "@/lib/predictor";
 import { countTo, revealIn, useGsap } from "@/lib/motion";
 import { Panel } from "@/components/ui/Overlay";
-import { Button, Card, Chip, Divider, IconButton, Label, Meter, Segmented } from "@/components/ui";
+import { Button, Chip, IconButton, Label, Segmented } from "@/components/ui";
 import { IconChevronLeft, IconChevronRight } from "@/components/Icons";
+import { SectionHead, TrackRule } from "@/components/ui/editorial";
 
 const TARGET = 75;
 const MONTHS = [
@@ -24,7 +25,7 @@ export default function PredictModal({
   open: boolean;
   onClose: () => void;
 }) {
-  const { timetable, attendance } = useSession();
+  const { timetable, attendance, attendingDayOrders } = useSession();
   const cal = useMemo(() => timetable?.calendar ?? [], [timetable]);
   const byDate = useMemo(() => new Map(cal.map((d) => [d.date, d])), [cal]);
   const today = todayISO();
@@ -91,7 +92,7 @@ export default function PredictModal({
       ? projectAttendance({
           attendance,
           calendar: cal,
-          dayOrders: timetable?.dayOrders ?? [],
+          dayOrders: attendingDayOrders,
           leaveDates: dates,
         })
       : null;
@@ -238,6 +239,11 @@ export default function PredictModal({
   );
 }
 
+/**
+ * The forecast answers "what will this cost me?" in the same language as the
+ * attendance page: the margin or recovery figure is the hero, and the resulting
+ * percentage is the evidence beneath it.
+ */
 function Forecast({
   projection,
 }: {
@@ -248,88 +254,103 @@ function Forecast({
   const totalA = projection.subjects.reduce((x, s) => x + s.attendedAfter, 0);
   const totalC = projection.subjects.reduce((x, s) => x + s.conductedAfter, 0);
   const rec = predict(totalA, totalC, TARGET);
-  const pctRef = useRef<HTMLSpanElement>(null);
+  const figure = useRef<HTMLSpanElement>(null);
 
-  useGsap(({ reduced }) => {
-    if (pctRef.current) countTo(pctRef.current, after, reduced, (n) => n.toFixed(1));
-  }, [after]);
+  useGsap(
+    ({ reduced }) => {
+      if (figure.current) {
+        countTo(
+          figure.current,
+          rec.isSafe ? rec.canSkip : rec.mustAttend,
+          reduced,
+          (n) => String(Math.round(n)),
+        );
+      }
+    },
+    [rec.isSafe, rec.canSkip, rec.mustAttend],
+  );
 
   return (
     <>
-      <section data-reveal className="pb-8">
-        <Label>Attendance after</Label>
-        <div className="mt-3 flex items-baseline gap-2">
-          <span ref={pctRef} className="tnum text-display">
-            {after.toFixed(1)}
+      <section data-reveal className="pb-9">
+        <Label>{rec.isSafe ? "Margin after this" : "Required after this"}</Label>
+        <div className="mt-4 flex items-baseline gap-3">
+          <span
+            className={`tnum optical text-poster ${
+              rec.isSafe ? "text-text-1" : "text-accent"
+            }`}
+          >
+            <span ref={figure}>{rec.isSafe ? rec.canSkip : rec.mustAttend}</span>
           </span>
-          <span className="text-title text-text-3">%</span>
+          <span className="pb-2 text-headline text-text-3">
+            {rec.isSafe
+              ? `class${rec.canSkip === 1 ? "" : "es"} still in hand`
+              : `class${rec.mustAttend === 1 ? "" : "es"} in a row to recover`}
+          </span>
         </div>
-        <div className="mt-5 flex items-center gap-3">
+
+        <TrackRule
+          value={after}
+          threshold={TARGET}
+          tone={after >= TARGET ? "neutral" : "accent"}
+          className="bleed mt-7"
+        />
+
+        <div className="mt-4 flex items-baseline justify-between gap-4">
+          <span className="tnum text-callout text-text-3">
+            {projection.overallBefore.toFixed(1)}% to {after.toFixed(1)}% · down{" "}
+            {drop.toFixed(1)}
+          </span>
           <Chip tone={after >= TARGET ? "safe" : "risk"}>
             {after >= TARGET ? "Still safe" : "Below target"}
           </Chip>
-          <span className="tnum text-callout text-text-3">
-            down {drop.toFixed(1)} points from {projection.overallBefore.toFixed(1)}%
-          </span>
         </div>
-        <Meter
-          value={after}
-          tone={after >= TARGET ? "neutral" : "risk"}
-          className="mt-5"
-        />
-        <p className="mt-5 text-body text-text-2">
-          {!rec.isSafe
-            ? `You would need to attend ${rec.mustAttend} classes in a row to get back to ${TARGET}%.`
-            : rec.canSkip === 0
-              ? "That uses up all your headroom. One more miss puts you below target."
-              : `You would still have ${rec.canSkip} class${rec.canSkip === 1 ? "" : "es"} in hand.`}
-        </p>
       </section>
 
-      <Card flush className="overflow-hidden" as="section">
-        <div className="px-5 pb-1 pt-4">
-          <Label>By subject</Label>
-        </div>
-        <ul>
+      <section>
+        <SectionHead aside={`${projection.affectedDays} day${projection.affectedDays === 1 ? "" : "s"}`}>
+          By subject
+        </SectionHead>
+        <ul className="mt-2">
           {projection.subjects
             .filter((s) => s.conductedAfter > 0)
             .map((s, i) => {
               const safe = s.pctAfter >= TARGET;
               const r = predict(s.attendedAfter, s.conductedAfter, TARGET);
+              const value = safe ? r.canSkip : r.mustAttend;
               return (
-                <li key={`${s.code}-${i}`} data-reveal>
-                  {i > 0 && <Divider inset={20} />}
-                  <div className="px-5 py-4">
-                    <div className="flex items-baseline gap-4">
-                      <p className="min-w-0 flex-1 truncate text-headline">{s.title}</p>
-                      <p className="shrink-0 tnum text-headline">
-                        {s.pctAfter.toFixed(0)}
-                        <span className="text-text-3">%</span>
+                <li key={`${s.code}-${i}`} data-reveal className="pt-6">
+                  <div className="flex items-start justify-between gap-5">
+                    <div className="min-w-0 flex-1 pt-1">
+                      <p className="truncate text-headline">{s.title}</p>
+                      <p className="tnum mt-1.5 truncate text-callout text-text-3">
+                        {s.attendedAfter}/{s.conductedAfter} · {s.pctAfter.toFixed(0)}%
                       </p>
                     </div>
-                    <p className="mt-1 tnum text-callout text-text-3">
-                      {s.attendedAfter}/{s.conductedAfter} ·{" "}
-                      {safe ? (
-                        r.canSkip > 0 ? (
-                          `${r.canSkip} to spare`
-                        ) : (
-                          "no room left"
-                        )
-                      ) : (
-                        <span className="text-risk">attend {r.mustAttend} to recover</span>
-                      )}
-                    </p>
-                    <Meter
-                      value={s.pctAfter}
-                      tone={safe ? "neutral" : "risk"}
-                      className="mt-3"
-                    />
+                    <div className="shrink-0 text-right">
+                      <span
+                        className={`tnum block text-hero leading-none ${
+                          safe ? "text-text-1" : "text-accent"
+                        }`}
+                      >
+                        {value}
+                      </span>
+                      <span className="mt-2 block text-label uppercase text-text-3">
+                        {safe ? "Margin" : "Required"}
+                      </span>
+                    </div>
                   </div>
+                  <TrackRule
+                    value={s.pctAfter}
+                    threshold={TARGET}
+                    tone={safe ? "neutral" : "accent"}
+                    className="bleed mt-5"
+                  />
                 </li>
               );
             })}
         </ul>
-      </Card>
+      </section>
     </>
   );
 }

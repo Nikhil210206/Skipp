@@ -47,6 +47,7 @@ function classesByKey(
 export function projectAttendance(opts: {
   attendance: Attendance;
   calendar: CalendarDay[];
+  /** Must already exclude optional courses: pass `attendingDayOrders`. */
   dayOrders: DayOrderSchedule[];
   /** Dates the student plans to take off, as YYYY-MM-DD. */
   leaveDates: string[];

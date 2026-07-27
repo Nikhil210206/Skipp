@@ -93,16 +93,23 @@ export function Button({
   const ref = useRef<HTMLButtonElement>(null);
   useEffect(() => pressable(ref.current), []);
   const base =
-    "inline-flex items-center justify-center gap-2 rounded-control font-semibold transition-colors disabled:opacity-40 disabled:pointer-events-none";
-  const sizes = size === "lg" ? "min-h-[54px] px-6 text-headline" : "min-h-[44px] px-4 text-body";
+    "inline-flex select-none items-center justify-center gap-2 rounded-control font-semibold tracking-[-0.01em] transition-[background-color,border-color,color,opacity] duration-150 ease-out disabled:opacity-35 disabled:pointer-events-none";
+  // Roomier horizontally than tall: a button should read as a word with air
+  // around it, not as a slab of colour.
+  const sizes =
+    size === "lg"
+      ? "min-h-[52px] px-7 text-headline"
+      : "min-h-[44px] px-5 text-body";
   const variants = {
-    primary: "bg-accent text-accent-ink hover:brightness-105",
+    primary: "bg-accent text-accent-ink hover:bg-accent/90 active:bg-accent/80",
     // The accent as ink rather than fill, for actions that sit over content.
     outline:
-      "border border-accent/50 bg-ink-0/80 text-accent backdrop-blur-md hover:border-accent hover:bg-accent/10",
-    secondary: "bg-ink-2 text-text-1 hover:bg-ink-3",
-    quiet: "text-text-2 hover:text-text-1",
-    danger: "border border-risk/30 text-risk hover:bg-risk/10",
+      "border border-accent/45 bg-ink-0/70 text-accent backdrop-blur-md hover:border-accent/80 hover:bg-accent/[0.07] active:bg-accent/[0.12]",
+    secondary:
+      "border border-line bg-ink-1 text-text-1 hover:border-line-strong hover:bg-ink-2 active:bg-ink-3",
+    quiet: "text-text-3 hover:text-text-1 active:text-text-2",
+    danger:
+      "border border-risk/25 text-risk hover:border-risk/50 hover:bg-risk/[0.07] active:bg-risk/[0.12]",
   }[variant];
   return (
     <button
@@ -140,10 +147,10 @@ export function IconButton({
       onClick={onClick}
       disabled={disabled}
       aria-label={label}
-      className={`flex size-11 shrink-0 items-center justify-center rounded-full transition-colors disabled:opacity-30 ${
+      className={`flex size-11 shrink-0 items-center justify-center rounded-full transition-colors duration-150 ease-out disabled:opacity-25 ${
         variant === "secondary"
-          ? "bg-ink-2 text-text-1 hover:bg-ink-3"
-          : "text-text-2 hover:text-text-1"
+          ? "border border-line bg-ink-1 text-text-1 hover:border-line-strong hover:bg-ink-2"
+          : "text-text-3 hover:text-text-1"
       }`}
     >
       {children}
@@ -167,7 +174,7 @@ export function Segmented<T extends string | number>({
     <div
       role="tablist"
       aria-label={label}
-      className="flex gap-1 rounded-full border border-line-soft bg-ink-1 p-1"
+      className="flex gap-1 rounded-full border border-line-soft bg-ink-1 p-1.5"
     >
       {options.map((o) => {
         const active = o.value === value;
@@ -177,8 +184,10 @@ export function Segmented<T extends string | number>({
             role="tab"
             aria-selected={active}
             onClick={() => onChange(o.value)}
-            className={`relative min-h-[38px] flex-1 rounded-full text-callout font-semibold transition-colors ${
-              active ? "bg-ink-3 text-text-1" : "text-text-3 hover:text-text-2"
+            className={`relative min-h-[38px] flex-1 rounded-full text-callout font-semibold tracking-[-0.01em] transition-colors duration-150 ease-out ${
+              active
+                ? "border border-line bg-ink-3 text-text-1"
+                : "border border-transparent text-text-3 hover:text-text-2"
             }`}
           >
             {o.label}
@@ -206,7 +215,7 @@ export function Chip({
   }[tone];
   return (
     <span
-      className={`inline-flex items-center rounded-full border px-2 py-0.5 text-label uppercase ${tones}`}
+      className={`inline-flex items-center rounded-full border px-2.5 py-1 text-label uppercase ${tones}`}
     >
       {children}
     </span>

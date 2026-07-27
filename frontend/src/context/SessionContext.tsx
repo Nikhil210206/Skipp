@@ -18,6 +18,7 @@ import type {
   Attendance,
   Credentials,
   CustomClass,
+  DayOrderSchedule,
   Marks,
   SectionStatus,
   Snapshot,
@@ -25,6 +26,7 @@ import type {
   Timetable,
 } from "@/types";
 import { AuthError, fetchSnapshot } from "@/lib/api";
+import { attendingOnly } from "@/lib/schedule";
 import {
   clearCredentials,
   clearSnapshot,
@@ -59,6 +61,12 @@ type SessionValue = {
   creds: Credentials | null;
   student: StudentInfo | null;
   timetable: Timetable | null;
+  /**
+   * The day-order grid with optional courses removed. Use this for anything
+   * that computes attendance; `timetable.dayOrders` is the raw grid and exists
+   * for the schedule screen, which must still show optional classes.
+   */
+  attendingDayOrders: DayOrderSchedule[];
   attendance: Attendance | null;
   attendanceState: SectionState;
   attendanceMessage: string | null;
@@ -206,6 +214,10 @@ export function SessionProvider({ children }: { children: React.ReactNode }) {
       creds,
       student: snapshot?.timetable.student ?? null,
       timetable: snapshot?.timetable ?? null,
+      attendingDayOrders: attendingOnly(
+        snapshot?.timetable.dayOrders ?? [],
+        optionalCourses,
+      ),
       attendance: snapshot?.attendance ?? null,
       attendanceState: sectionState(snapshot?.attendanceStatus),
       attendanceMessage: snapshot?.attendanceMessage ?? null,

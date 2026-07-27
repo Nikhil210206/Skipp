@@ -259,3 +259,22 @@ export function mergeRuns(items: ScheduleItem[]): ScheduleItem[] {
   }
   return out;
 }
+
+/**
+ * The day-order grid with courses the student marked optional removed.
+ *
+ * Anything that computes attendance must run on this, never on the raw grid:
+ * a class you do not attend cannot change your attendance. The timetable screen
+ * is the one exception, since it has to show optional classes in order to let
+ * you unmark them.
+ */
+export function attendingOnly(
+  dayOrders: DayOrderSchedule[],
+  optionalCodes: string[],
+): DayOrderSchedule[] {
+  if (optionalCodes.length === 0) return dayOrders;
+  return dayOrders.map((d) => ({
+    ...d,
+    classes: d.classes.filter((c) => !optionalCodes.includes(c.code)),
+  }));
+}

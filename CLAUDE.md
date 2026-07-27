@@ -345,7 +345,103 @@ is deployment and true push notifications.
 Entries below are newest first. **When something breaks, read the relevant entry first**: most
 oddities here (login shell, empty calendar, 429s, duplicated course codes) are already diagnosed.
 
-### DONE: Art direction pass, one poster object per screen (2026-07-26, latest)
+### DONE: Optional courses made structural, dimmed not struck (2026-07-27, latest)
+Closing the category of bug rather than the instance.
+
+- **`SessionContext` now exposes `attendingDayOrders`**: the day-order grid with
+  optional courses already removed. **Anything that computes attendance takes
+  this**; `timetable.dayOrders` is the raw grid and exists only for the schedule
+  screen, which has to show optional classes so they can be unmarked.
+  `attendingOnly()` lives in `lib/schedule.ts`.
+- `projectAttendance` no longer accepts `optionalCodes` at all. It is handed the
+  filtered grid, so there is no longer a way to call it wrongly. Home switched to
+  `attendingDayOrders` too, which removed its manual `.filter(!isOptional)`.
+  Two consumers previously had to remember the rule independently; now neither can
+  forget it.
+- **Optional classes are dimmed (30%), not struck through.** A strike reads as
+  "cancelled"; these classes still happen, the student just does not attend them.
+  The meta line names it ("DM · Optional · CLS824") and the spine fades with the
+  block.
+
+**The same trap caught us twice in one day:** `revealRows` writes an inline
+`opacity: 1` on every `[data-row]`, which beat the `opacity-30` class when both
+sat on the same element. The reveal now targets the `<li>` and the muted class
+sits on the block inside it, so the two opacities multiply instead of fighting.
+Rule: **never put a GSAP-animated property and a CSS class for that same property
+on one element.** (The attendance masthead fade was the same mistake.)
+
+### DONE: Leave planner, decision-led + optional courses excluded (2026-07-27)
+- **Bug: optional courses were counted in the leave projection.** `classesByKey`
+  walked every class on the day order and `projectAttendance` never received
+  `optionalCourses`, so marking a class optional changed the timetable and the
+  home strip but **not** the forecast. It now takes `optionalCodes` and skips
+  those courses, since a class the student does not attend cannot be affected by
+  taking the day off. `PredictModal` passes `optionalCourses` from the session.
+  Verified live: with `21MAB302T` marked optional, a day-order-5 leave left it at
+  3/3 while every other class on that day order moved.
+- The forecast now leads with the **decision** in the same language as the
+  attendance page: "Margin after this / 1 class still in hand" at poster scale,
+  with the before/after percentages demoted to the supporting line, and each
+  subject row hanging its margin/required figure on the right.
+
+### DONE: Fixed the attendance masthead fade (2026-07-27)
+Reported: scrolling down on Attendance faded the percentage and it never came
+back. Measured: it returned to opacity **0.012**, darker than the 0.12 it fades
+to, and compounded on each pass.
+
+Cause: **two systems owned the same property.** The masthead was a `data-reveal`
+target (so `revealIn` animated its opacity) *and* the `recedeOnScroll` scrub
+target. The scrub captured whatever opacity the reveal had left behind as its
+start value, so each re-run started from the faded value.
+
+Fixes, all in `lib/motion.ts` and the attendance masthead:
+- The masthead is **no longer a `data-reveal` target**. `recedeOnScroll` owns its
+  opacity outright. **Never let two tweens write one property.**
+- `recedeOnScroll` is now an explicit `fromTo` with `immediateRender: false` and
+  `overwrite: "auto"`, so the start value is declared rather than captured.
+- `invalidateOnRefresh: true`, because positions are first measured while the page
+  is still settling.
+- `start` moved from `"top top+=90"` to `"top top"`. The old start was already
+  partly past at rest, so the figure sat at 83% opacity before any scrolling.
+- Verified over repeated cycles: 1 at rest, 0.12 scrolled away, back to 1.
+
+### DONE: Polish pass (2026-07-27)
+Layout frozen, hierarchy kept. Refinement only. Two real bugs surfaced, both of
+which had been invisible in every screenshot:
+
+- **`gsap.quickTo(el, "scale", ...)` does not apply.** quickTo handles plain
+  properties (opacity worked) but not the `scale` transform shorthand, so
+  `pressable()` had been a no-op on **every button in the app** since it was
+  written. Fixed in `lib/motion.ts` with `gsap.to(..., { overwrite: "auto" })`.
+  **Do not reach for quickTo on transforms.**
+- **A Tailwind `scale-*` class fights GSAP.** Tailwind v4 compiles it to the
+  standalone `scale` property, which composes on top of GSAP's `transform` and
+  cancels the animation. Rest states for animated transforms are set with
+  `gsap.set()`, never in the markup.
+- **`border-line-strong` did not exist**, so a batch of hover states silently did
+  nothing. Added `--color-line-strong` to both themes.
+- **Verification note:** the headless Chrome behind the DevTools MCP reports
+  `prefers-reduced-motion: reduce`. Every screenshot in this project is therefore
+  the reduced-motion path, which is good proof that the fallback works, but the
+  animated path must be checked by navigating with an initScript that patches
+  `window.matchMedia`, and by using the MCP's real `hover`/`click` (synthetic
+  `dispatchEvent` does not trigger React handlers here).
+
+Typography and rhythm:
+- Poster scale cut roughly a quarter (`clamp(3.5rem, 22vw, 9rem)`), mega/display/
+  hero all reduced, leading loosened. The big type was overpowering the
+  information it introduces.
+- `ProfileMark` replaces the circular avatar: a squircle with a ring held off it
+  that collapses onto the tile on press.
+- **Attendance rows now lead with the decision**: the actionable figure is the
+  hero (`5 MARGIN`, `1 REQUIRED`) and the subject percentage drops to the meta
+  line. The term-to-date percentage keeps its masthead, per the user's note that
+  the total was already right.
+- Day-order picker distributed across the column with a selection rule.
+- Buttons: roomier horizontally, real hover/active states, `outline` variant for
+  actions floating over content.
+
+### DONE: Art direction pass, one poster object per screen (2026-07-26)
 Direction from the user: stop optimising layout, start making moments. Magazine
 cover, not dashboard. Every screen now carries **one colossal object, and they are
 deliberately of different kinds** so no two screens read alike:
