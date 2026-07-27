@@ -345,7 +345,40 @@ is deployment and true push notifications.
 Entries below are newest first. **When something breaks, read the relevant entry first**: most
 oddities here (login shell, empty calendar, 429s, duplicated course codes) are already diagnosed.
 
-### DONE: Timetable download as a full grid PNG (2026-07-27, latest)
+### DONE: Creator credit (2026-07-27, latest)
+The signature is set in **Space Grotesk** (`--font-signature`, loaded in
+`layout.tsx`). It is deliberately the only place that face is used: a maker's
+mark should not look like part of the interface. The rest of the app stays Geist.
+
+"Crafted by Nikhil Balamurugan", in four places, all reading from one config in
+`lib/creator.ts`. Fill or blank a URL there and the matching social icon appears
+or disappears on its own; with no links at all the name renders as plain text
+rather than a button, so the credit never offers a dead control.
+
+- **Profile**: a sticky footer holding Sign out with the credit beneath it, so
+  signing out is reachable without scrolling a long page to its end.
+- **Sign-in screen**, under the disclaimer.
+- **Hidden signature**: five deliberate taps on the masthead label swap it for
+  the credit for four seconds. A slow series resets, so it is not hit by accident.
+- Tapping the name reveals LinkedIn and Instagram marks (simplified, drawn to
+  match `Icons.tsx`), staggered in with GSAP.
+- **`rel` is `noopener`, never `noopener noreferrer`.** With the referrer
+  stripped, LinkedIn answers with a sign-up authwall instead of the profile.
+  `noopener` alone still closes the `window.opener` hole.
+- The icon tray is **always mounted** and widens from `max-w-0`. Mounting it on
+  open changed the line's width in a single frame, which a centred line reads as
+  a jump; it now expands over 300ms.
+
+Two fixes found while building it:
+- **`StickyAction` stopped short of the tab bar**, leaving a strip for content to
+  scroll through. It now anchors to `bottom: 0` with the bar's height as padding,
+  so its backing runs behind the bar. This also fixed the attendance CTA.
+- **`fitName` sized the profile name by viewport**, but the text is bound by the
+  448px column, so it overshot past that width. It now takes the smaller of a vw
+  term and a pixel cap derived from the column. The per-glyph constant is 0.6em,
+  measured from this face at this weight rather than guessed.
+
+### DONE: Timetable download as a full grid PNG (2026-07-27)
 `lib/timetableImage.ts` draws the **whole timetable** to a canvas by hand and
 saves it: day orders down the side, periods across the top, the way a timetable is
 pinned to a wall. (A first pass exported only the day being viewed, which is not

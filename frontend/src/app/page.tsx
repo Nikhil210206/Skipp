@@ -6,6 +6,7 @@ import LoginForm from "@/components/LoginForm";
 import { useSession } from "@/context/SessionContext";
 import { revealIn, useGsap } from "@/lib/motion";
 import { Spinner } from "@/components/ui";
+import CreatorCredit from "@/components/CreatorCredit";
 
 export default function LoginPage() {
   const router = useRouter();
@@ -40,10 +41,13 @@ export default function LoginPage() {
         </div>
       </div>
 
-      <p className="mt-8 text-callout leading-relaxed text-text-3">
-        Not affiliated with SRM. Your credentials are sent to the portal for this
-        sign-in only, never stored on our servers.
-      </p>
+      <div className="mt-8">
+        <p className="text-callout leading-relaxed text-text-3">
+          Not affiliated with SRM. Your credentials are sent to the portal for this
+          sign-in only, never stored on our servers.
+        </p>
+        <CreatorCredit className="mt-6" />
+      </div>
     </main>
   );
 }

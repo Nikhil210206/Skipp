@@ -239,3 +239,26 @@ export function IconDownload(p: IconProps) {
     </Svg>
   );
 }
+
+/** Simplified brand marks, drawn to match the rest of the set. */
+export function IconLinkedIn(p: IconProps) {
+  return (
+    <Svg {...p}>
+      <rect x="3.5" y="3.5" width="17" height="17" rx="3.5" />
+      <path d="M8 10.5v6" />
+      <path d="M8 7.4v.1" />
+      <path d="M12 16.5v-3.4a2.1 2.1 0 0 1 4.2 0v3.4" />
+      <path d="M12 10.5v6" />
+    </Svg>
+  );
+}
+
+export function IconInstagram(p: IconProps) {
+  return (
+    <Svg {...p}>
+      <rect x="3.5" y="3.5" width="17" height="17" rx="5" />
+      <circle cx="12" cy="12" r="3.8" />
+      <path d="M16.9 7.1v.1" />
+    </Svg>
+  );
+}

@@ -7,7 +7,8 @@ import { useSession } from "@/context/SessionContext";
 import { setTheme, useTheme, type Theme } from "@/lib/theme";
 import { revealIn, revealRows, useGsap } from "@/lib/motion";
 import { Button, Segmented } from "@/components/ui";
-import { Marginalia, Rule, SectionHead } from "@/components/ui/editorial";
+import { Marginalia, Rule, SectionHead, StickyAction } from "@/components/ui/editorial";
+import CreatorCredit from "@/components/CreatorCredit";
 
 /**
  * Settings as a plain document: the name is the masthead, everything else is
@@ -59,7 +60,7 @@ export default function ProfilePage() {
           {/* Set as large as the longest word allows. A name is not a numeral:
               cropping it mid-word would read as breakage, not as a crop. */}
           <h1
-            className="optical font-bold leading-[0.84] tracking-[-0.05em]"
+            className="optical font-bold leading-[0.95] tracking-[-0.035em]"
             style={{ fontSize: fitName(fullName) }}
           >
             {fullName}
@@ -174,36 +175,49 @@ export default function ProfilePage() {
           </div>
         </section>
 
-        <div data-reveal>
-          <Button
-            variant="danger"
-            size="lg"
-            full
-            onClick={() => {
-              logout();
-              router.replace("/");
-            }}
-          >
-            Sign out
-          </Button>
-          <p className="mt-6 text-callout leading-relaxed text-text-3">
-            Not affiliated with SRM. Your data is never stored on our servers. It lives
-            on this device and is cleared when you sign out.
-          </p>
-        </div>
+        <p data-reveal className="pt-2 text-callout leading-relaxed text-text-3">
+          Not affiliated with SRM. Your data is never stored on our servers. It lives
+          on this device and is cleared when you sign out.
+        </p>
+
+        {/* Sign out stays reachable without scrolling to the end of a long page,
+            and the credit sits under it as the last word on the screen. */}
+        <StickyAction>
+          <div className="flex flex-col items-center gap-3.5">
+            <Button
+              variant="danger"
+              onClick={() => {
+                logout();
+                router.replace("/");
+              }}
+            >
+              Sign out
+            </Button>
+            <CreatorCredit align="center" />
+          </div>
+        </StickyAction>
       </div>
     </AppShell>
   );
 }
 
 /**
- * Picks the largest poster size at which the longest word still fits the
- * column. Roughly 0.55em per glyph in this weight, across the gutter width.
+ * Sizes the name to its longest word so it never breaks mid-word, and stops
+ * short of the column edge: a masthead that touches both gutters reads as
+ * cramped rather than confident.
+ *
+ * Two limits, because the text is bound by the narrower of the two. On a phone
+ * the viewport decides, so the vw term rules; past 448px the column stops
+ * growing while the viewport does not, so the pixel cap takes over. The 0.6em
+ * per glyph is measured from this face at this weight, not guessed.
  */
 function fitName(name: string): string {
   const longest = Math.max(...name.split(/\s+/).map((w) => w.length), 1);
-  const vw = Math.min(165 / longest, 26);
-  return `clamp(2.25rem, ${vw.toFixed(1)}vw, 7rem)`;
+  const perGlyph = 0.6;
+  const columnPx = 404; // max-w-md minus both gutters
+  const vw = Math.min(88 / (perGlyph * longest) * 1.1, 19);
+  const capPx = Math.min(72, (columnPx * 0.9) / (perGlyph * longest));
+  return `clamp(1.9rem, ${vw.toFixed(1)}vw, ${capPx.toFixed(0)}px)`;
 }
 
 function Stat({ value, label }: { value: string; label: string }) {

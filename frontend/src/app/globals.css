@@ -87,6 +87,8 @@
 
   --font-sans: var(--font-geist-sans);
   --font-mono: var(--font-geist-mono);
+  /* The signature face. Deliberately not used anywhere else. */
+  --font-signature: var(--font-signature-src), var(--font-geist-sans), sans-serif;
 }
 
 /* Spacing rhythm and layout constants live outside @theme so they can be

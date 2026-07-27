@@ -171,16 +171,21 @@ export function Marginalia({ children }: { children: React.ReactNode }) {
 /** Sticky bottom action that sits above the tab bar without covering content. */
 export function StickyAction({ children }: { children: React.ReactNode }) {
   return (
-    <div
-      className="sticky z-20 mt-10"
-      style={{ bottom: "calc(var(--nav-h) + 12px)" }}
-    >
-      {/* A short fade so list rows do not collide with the button edge. */}
+    // Anchored to the very bottom, with the tab bar's height as padding, so the
+    // backing runs behind the bar rather than stopping short of it and leaving
+    // a strip for content to scroll through.
+    <div className="sticky bottom-0 z-20 mt-8">
+      {/* A short fade so rows do not collide with the action's edge. */}
       <div
         aria-hidden
-        className="bleed pointer-events-none h-10 bg-gradient-to-b from-transparent to-ink-0"
+        className="bleed pointer-events-none h-8 bg-gradient-to-b from-transparent to-ink-0"
       />
-      <div className="bleed bleed-pad bg-ink-0 pb-1">{children}</div>
+      <div
+        className="bleed bleed-pad bg-ink-0"
+        style={{ paddingBottom: "calc(var(--nav-h) + 10px)" }}
+      >
+        {children}
+      </div>
     </div>
   );
 }
