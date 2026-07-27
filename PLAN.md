@@ -4,9 +4,10 @@
 > Guiding principle: the project's viability was "can we reliably log into the Zoho portal and
 > fetch HTML?" That is de-risked (Phase 1 done); everything since is product work.
 
-**Status (2026-07-25): Phases 0 to 5 built and verified live against the real portal.**
-The app is feature complete for v1 and running locally. What is left is deployment and
-true push notifications. See CLAUDE.md §11 for the detailed reverse-engineering notes.
+**Status (2026-07-28): Phases 0 to 5 built, verified live, and deployed.**
+Frontend and backend both run on Vercel as separate projects. What is left is true push
+notifications and reading the portal's page names/batch/year from its menu instead of
+hard-coded constants. See CLAUDE.md §11 for the detailed reverse-engineering notes.
 
 ---
 
@@ -73,7 +74,9 @@ Zoho IAM inside an iframe (`{BASE}/accounts/p/40-10002227248/signin`).
       registered in production only.
 - [x] Offline caching of the last fetch, via the encrypted on-device snapshot.
 - [x] Installable on localhost/HTTPS. A phone needs HTTPS (tunnel or deploy).
-- [ ] **Deploy backend (Render) + frontend (Vercel), then test on real phones.**
+- [x] **Deployed: both halves on Vercel** (separate projects, roots `frontend/` and
+      `backend/`). The backend needed a wall-clock time budget to be safe on a serverless
+      host, see CLAUDE.md §11. Still to do: test the install on real phones.
 - [ ] **True push notifications.** Today's `lib/alerts.ts` is an in-app feed only; real push
       needs a server and a push service, so it is a post-deploy job.
 

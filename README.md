@@ -4,8 +4,8 @@
 
 Skipp is a fast, installable **PWA** that logs into the SRM academia portal on your behalf,
 scrapes your **attendance, marks, and timetable**, and shows it in a clean, mobile-first UI:
-plus a "how many classes can I bunk?" predictor and a "what do I need in the final?" marks
-calculator.
+plus a "how many classes can I bunk?" predictor, a leave planner that forecasts a whole
+run of days off, and grade forecasts worked out from your own published internals.
 
 Think: a nicer, faster replacement for the official portal that installs to your home screen
 like a native app.
@@ -101,9 +101,14 @@ npm run dev                                 # http://localhost:3000
 
 ## Status
 
-Early development. The scraper spike is done: login, app-session handoff, and Creator-page
-parsing are proven end-to-end against the live portal. Timetable/course data parses cleanly;
-attendance is wired up and comes online once the semester's attendance is recorded.
+Deployed and running. Login, the app-session handoff, attendance, marks, timetable, day
+orders and the semester calendar all parse against the live portal. The frontend and the
+scraper both run on Vercel as separate projects.
+
+Still open: true push notifications (the alerts feed is in-app only), and discovering the
+portal's page names, batch and academic year from its own menu rather than the constants
+hard-coded in `backend/core/client.py`, which is what currently ties the app to one batch
+and term.
 
 Roadmap and detailed reverse-engineering notes live in [`PLAN.md`](PLAN.md).
 

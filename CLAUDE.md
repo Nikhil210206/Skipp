@@ -1110,14 +1110,14 @@ browsing session could fire 4-5 sign-ins toward the daily `SI503` cap. **Fixed 2
 - `SKIPP_DEBUG_LOGIN=1` also dumps each fetched Creator page to `captures/page_<name>.html`.
 
 ### NEXT STEP
-Everything in §7's roadmap is built. What remains:
-1. **Deploy.** Backend to Render/Railway/Fly, frontend to Vercel. A phone needs HTTPS for the
-   PWA install and for Web Crypto (on plain-http LAN, credential persistence is disabled).
-2. **True push notifications.** `lib/alerts.ts` is an in-app feed only; real push needs a server
+Everything in §7's roadmap is built, and both halves are deployed on Vercel. What remains:
+1. **True push notifications.** `lib/alerts.ts` is an in-app feed only; real push needs a server
    and a push service. Post-deploy work.
-3. **Discover page names, batch and academic year from the portal menu** instead of the constants
+2. **Discover page names, batch and academic year from the portal menu** instead of the constants
    hard-coded in `core/client.py`, so the app works for students in other batches and terms.
-4. Optional: interactive CAPTCHA solving (show the HIP image, submit `hipcode` + `cdigest`).
+3. **Interactive CAPTCHA solving** (show the HIP image, submit `hipcode` + `cdigest`). This moved
+   up the list after deploying, see the note on datacenter egress in the Vercel entry.
+4. Test the PWA install on real phones.
 
 **Local dev:** backend `cd backend && ./.venv/bin/uvicorn main:app --host 0.0.0.0 --reload`
 (port 8000); frontend `cd frontend && npm run dev` (port 3000). Do **not** run `npm run build`
