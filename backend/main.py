@@ -103,6 +103,17 @@ def health() -> dict:
         "service": "skipp-api",
         "allowedOrigins": _allowed,
         "devOriginRegexActive": not _allowed,
+        # TEMPORARY deploy diagnostic. Distinguishes "variable set on the wrong
+        # project", "set for the wrong environment" and "name typo", which are
+        # otherwise indistinguishable from the outside. Variable NAMES only,
+        # never values: a value could one day be a secret, a name cannot.
+        "env": {
+            "vercelEnv": os.environ.get("VERCEL_ENV"),
+            "deployment": os.environ.get("VERCEL_URL"),
+            "skippVarNames": sorted(
+                k for k in os.environ if k.upper().startswith("SKIPP")
+            ),
+        },
     }
 
 
