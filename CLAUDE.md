@@ -345,75 +345,55 @@ is deployment and true push notifications.
 Entries below are newest first. **When something breaks, read the relevant entry first**: most
 oddities here (login shell, empty calendar, 429s, duplicated course codes) are already diagnosed.
 
-### DONE: Onboarding previews (2026-07-27, latest)
-The panels show **fragments of the real interface**, in
-`components/IntroPreviews.tsx`, built from the same primitives as the screens
-they represent.
+### DONE: Onboarding is the product, played (2026-07-28, latest)
+**The whole slide-deck onboarding is deleted** (`Intro.tsx`, `IntroPreviews.tsx`,
+`IntroGraphics.tsx`, `playGraphic()`). Panels of copy with a Next button were
+forgettable however well they were drawn, and two rounds of better artwork did
+not fix that, because the problem was the format.
 
-An earlier pass used abstract geometry (tick fields, converging rules, a drawn
-boundary) and it was rejected as irrelevant, correctly: it was a metaphor for the
-product rather than the product. **If the onboarding needs a visual, show the app.**
+What replaced it: **the first thing a student does in Skipp is the thing Skipp
+is for.** `components/onboarding/Onboarding.tsx` is a working bunk calculator on
+a sample day. Tap a class and it comes out of your attendance: the figure rolls
+down, the bar loses ground, the count in hand drops by one.
 
-| Panel | Fragment |
-| ----- | -------- |
-| 1 | the attendance card: 95.2% counting up, the 75% tick, `5 MARGIN` |
-| 2 | the home card: `16h 07m` and the next two classes |
-| 3 | where the password goes, ending in "Nothing" |
+- **The numbers are rigged to teach.** 17 attended of 18 held, five classes
+  listed, four to spare. So the fifth tap is the one that crosses 75%, the figure
+  turns `risk`, the bar falls short of the tick, and the line reads *"Below the
+  line. Attend 1 to come back."* Attendance %, margin, threshold and recovery are
+  all taught without a sentence explaining any of them.
+- **It uses `lib/predictor`'s `predict()`**, not its own arithmetic, so the
+  opening can never quote a margin the attendance page would disagree with. If
+  you change the sample constants, check the fifth tap still breaks the line.
+- **`RollingNumber`** (`components/onboarding/RollingNumber.tsx`) is the signature
+  detail: each digit is a column of 0-9 in a 1em clip, so only the digits that
+  actually changed move. Non-digits (`.`, `%`) sit in the same 1em cells at 40%
+  opacity, which is what keeps the decimal point and the unit on the digits'
+  baseline. An overflow-hidden inline-block takes its **bottom margin edge** as
+  its baseline, so a normally-set `%` beside it will not align.
+- The action is `inert` until the first tap, so it is not a focus stop nobody can
+  see, and "Sign in" is in the header throughout for anyone who does not want to
+  play.
+- **Fit is deliberate**: the whole decision has to be on one screen with no
+  scrolling, verified at a 693px viewport. Adding a sixth class overflows it.
 
-- Figures count up on arrival, the way the real screens do.
-- Every fragment carries an **EXAMPLE** chip. There is no data before sign-in and
-  implying otherwise on the screen that asks for a password would be a lie.
-- The fragment is also the parallax layer, so it still trails its panel by 35%.
+### DONE: The sign-in wait is staged (2026-07-28)
+`components/onboarding/SyncSequence.tsx`. The portal round trip genuinely takes
+several seconds (Zoho login, handoff, three Creator pages) and that was a
+spinner. It is now the last movement of the opening, and `app/page.tsx` holds the
+screen until it finishes rather than redirecting the moment `isAuthed` flips
+(`phase !== "idle"` stands the redirect down; `LoginForm` reports the phase).
 
-### DONE: Onboarding rebuilt as a draggable flow (2026-07-27)
-Each panel gained an abstract graphic in `components/IntroGraphics.tsx`, drawn
-from the app's own vocabulary rather than generic onboarding shapes:
+- **While waiting it ticks nothing off**, because nothing has arrived. It shows
+  what is being attempted and a sweep on a hairline. No fake percentage, and a
+  slow portal cannot make it lie.
+- **The landing is the real snapshot**: the student's name, then courses, day
+  orders, attendance and term days rolling into place. A gated section is left
+  out rather than shown as a zero.
 
-### DONE: Onboarding rebuilt as a draggable flow (2026-07-27)
-Each panel gained an abstract graphic in `components/IntroGraphics.tsx`, drawn
-from the app's own vocabulary rather than generic onboarding shapes:
-
-| Panel | Graphic | What it means |
-| ----- | ------- | ------------- |
-| 1 | a field of 30 ticks, five in accent | the classes you can spend |
-| 2 | scattered rules sliding into alignment | readings becoming one view |
-| 3 | a boundary drawing itself closed round a dot | your data staying on the device |
-
-- `playGraphic()` in `lib/motion.ts` draws them: ticks grow from their baseline
-  staggered, rules slide in from their own offsets, the boundary animates
-  `strokeDashoffset` (a `<rect>` has no `getTotalLength`, so its perimeter is
-  computed), and the dot lands last.
-- **Parallax**: each graphic trails its panel by 35% during the drag, which is
-  what gives the gesture depth. `paintParallax()` sets `x = -0.35 * (trackX + i *
-  width)`, so at rest the active panel's art is exactly centred.
-- **Panels must be `overflow-hidden`.** The parallax offset pushes a neighbour's
-  artwork sideways, and without clipping panel 2's graphic leaked into panel 1.
-- Each panel hangs its art differently (`ART_ALIGN`) so the three do not read as
-  one template.
-- The tick count matches the copy. Five ticks, because the panel promises five.
-
-### DONE: Onboarding rebuilt as a draggable flow (2026-07-27)
-Three panels on a track that follows the finger, each carrying a piece of proof
-rather than only a sentence.
-
-- **Drag, not paging.** Pointer handlers move the track live; the progress rails
-  fill **fractionally** with the drag (measured: 100px of drag gives 0.22 fill,
-  180px gives 0.40), and release settles to the nearest panel on `expo.out`. A
-  flick past 64px counts as much as a long drag, and past either end the track
-  takes 35% of the movement so it never feels broken.
-- `touch-pan-y` on the viewport keeps vertical scrolling alive.
-- **Panels carry evidence**: a margin figure counting to 5 over a `TrackRule`
-  with the 75% tick, a three-row glance at the app's own numbers, and a table of
-  where the password goes ending in "Nothing" in accent. Sample figures are
-  labelled **EXAMPLE**, because the app has no data before sign-in and implying
-  otherwise would be a lie.
-
-**Layout trap:** the track used `h-full` inside a `flex-1` viewport. A percentage
-height against a flex item with an indefinite basis does not resolve, so the
-track measured 382px inside a 509px viewport and `justify-center` had nothing to
-centre against. The viewport is now itself a flex container and its children
-stretch. **If a `h-full` child looks top-aligned, check the parent is a flex
-container, not just a flex item.**
+**Layout trap worth keeping from the deleted flow:** a `h-full` child of a
+`flex-1` viewport does not resolve (percentage height against an indefinite
+basis). If a `h-full` child looks top-aligned, check its parent is a flex
+**container**, not just a flex item.
 
 ### DONE: Entry choreography (2026-07-27)
 The entry screens perform with type, not decoration. `playEntrance()` in

@@ -1,29 +1,40 @@
 "use client";
 
 import { useRouter } from "next/navigation";
-import { useEffect, useState } from "react";
-import LoginForm from "@/components/LoginForm";
-import Intro, { useSeenIntro } from "@/components/Intro";
+import { useCallback, useEffect, useState } from "react";
+import LoginForm, { type SignInPhase } from "@/components/LoginForm";
+import Onboarding from "@/components/onboarding/Onboarding";
+import SyncSequence, { type Fact } from "@/components/onboarding/SyncSequence";
+import { markIntroSeen, useSeenIntro } from "@/lib/firstRun";
 import CreatorCredit from "@/components/CreatorCredit";
 import { useSession } from "@/context/SessionContext";
 import { playEntrance, useGsap } from "@/lib/motion";
 import { WordMask } from "@/components/ui/editorial";
 import { Spinner } from "@/components/ui";
 
+/**
+ * The way in, in three movements: the opening (play the decision), the ask
+ * (credentials), and the landing (your own numbers arriving). It is one
+ * continuous black screen from first paint to the dashboard, with no route
+ * change until the very end.
+ */
 export default function LoginPage() {
   const router = useRouter();
-  const { isAuthed, restoring } = useSession();
+  const { isAuthed, restoring, timetable, attendance, displayName } =
+    useSession();
 
   const seenIntro = useSeenIntro();
   const [dismissed, setDismissed] = useState(false);
   const showIntro = !seenIntro && !dismissed;
 
-  useEffect(() => {
-    if (isAuthed) router.replace("/dashboard");
-  }, [isAuthed, router]);
+  // While the sign-in sequence is playing we are authenticated but deliberately
+  // still here, so the redirect below has to stand down until it finishes.
+  const [phase, setPhase] = useState<SignInPhase>("idle");
 
-  // The signature moment: the promise slides up out of its own edge, a rule is
-  // drawn under it, and the form arrives after. Once, then still.
+  useEffect(() => {
+    if (isAuthed && phase === "idle") router.replace("/dashboard");
+  }, [isAuthed, phase, router]);
+
   const scope = useGsap(
     ({ self, reduced }) => {
       if (restoring || isAuthed || showIntro) return;
@@ -32,7 +43,28 @@ export default function LoginPage() {
     [restoring, isAuthed, showIntro],
   );
 
-  if (restoring || isAuthed) {
+  const finish = useCallback(() => router.replace("/dashboard"), [router]);
+
+  // What the sequence lands on: the student's own numbers, read straight from
+  // the snapshot that just arrived. Anything the portal gated is left out
+  // rather than shown as a zero.
+  const facts: Fact[] = [];
+  if (timetable) {
+    facts.push({ label: "Courses", value: String(timetable.courses.length) });
+    facts.push({
+      label: "Day orders",
+      value: String(timetable.dayOrders.length),
+    });
+    if (attendance) {
+      facts.push({
+        label: "Attendance",
+        value: `${attendance.overallPercentage.toFixed(1)}%`,
+      });
+    }
+    facts.push({ label: "Term days", value: String(timetable.calendar.length) });
+  }
+
+  if (restoring || (isAuthed && phase === "idle")) {
     return (
       <main className="flex min-h-full flex-1 items-center justify-center">
         <Spinner label="Opening Skipp" />
@@ -40,38 +72,61 @@ export default function LoginPage() {
     );
   }
 
-  if (showIntro) return <Intro onDone={() => setDismissed(true)} />;
+  if (showIntro) {
+    return (
+      <Onboarding
+        onDone={() => {
+          markIntroSeen();
+          setDismissed(true);
+        }}
+      />
+    );
+  }
 
   return (
-    <main className="mx-auto flex min-h-full w-full max-w-md flex-1 flex-col justify-between px-[var(--gutter)] pb-[max(28px,env(safe-area-inset-bottom))] pt-[max(48px,calc(env(safe-area-inset-top)+28px))] md:border-x md:border-line-soft">
-      <div ref={scope} className="flex flex-1 flex-col">
-        <header className="pt-6">
-          <p data-mark className="text-label uppercase text-text-3">
-            Skipp
-          </p>
-          <h1 className="mt-4 text-hero">
-            <WordMask text="Know before" className="block" />
-            <WordMask text="you bunk." className="block" />
-          </h1>
-          <div data-draw className="bleed mt-7 h-px bg-line" />
-        </header>
+    <>
+      <main className="mx-auto flex min-h-full w-full max-w-md flex-1 flex-col justify-between px-[var(--gutter)] pb-[max(28px,env(safe-area-inset-bottom))] pt-[max(48px,calc(env(safe-area-inset-top)+28px))] md:border-x md:border-line-soft">
+        <div ref={scope} className="flex flex-1 flex-col">
+          <header className="pt-6">
+            <p data-mark className="text-label uppercase text-text-3">
+              Skipp
+            </p>
+            <h1 className="mt-4 text-hero">
+              <WordMask text="Know before" className="block" />
+              <WordMask text="you bunk." className="block" />
+            </h1>
+            <div data-draw className="bleed mt-7 h-px bg-line" />
+          </header>
 
-        <div className="mt-auto pt-12">
-          <LoginForm />
-          <p data-enter className="mt-5 text-callout leading-relaxed text-text-3">
-            Your Net ID and password go to the SRM portal to sign in. They are
-            never stored on our servers.
-          </p>
-        </div>
+          <div className="mt-auto pt-12">
+            <LoginForm onPhase={setPhase} />
+            <p
+              data-enter
+              className="mt-5 text-callout leading-relaxed text-text-3"
+            >
+              Your Net ID and password go to the SRM portal to sign in. They are
+              never stored on our servers.
+            </p>
+          </div>
 
-        <div
-          data-enter
-          className="mt-10 flex items-baseline justify-between gap-4"
-        >
-          <p className="text-callout text-text-3">Not affiliated with SRM.</p>
-          <CreatorCredit />
+          <div
+            data-enter
+            className="mt-10 flex items-baseline justify-between gap-4"
+          >
+            <p className="text-callout text-text-3">Not affiliated with SRM.</p>
+            <CreatorCredit />
+          </div>
         </div>
-      </div>
-    </main>
+      </main>
+
+      {phase !== "idle" && (
+        <SyncSequence
+          done={phase === "done"}
+          name={displayName}
+          facts={facts}
+          onFinish={finish}
+        />
+      )}
+    </>
   );
 }

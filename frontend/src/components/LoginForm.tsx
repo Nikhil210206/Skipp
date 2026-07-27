@@ -1,6 +1,5 @@
 "use client";
 
-import { useRouter } from "next/navigation";
 import { useState } from "react";
 import { useSession } from "@/context/SessionContext";
 import { AuthError, PortalError, type FailureCode } from "@/lib/api";
@@ -49,9 +48,19 @@ function explain(code: FailureCode, message: string): Failure {
   }
 }
 
-/** Verifies against the portal, keeps the session in memory, and routes on. */
-export default function LoginForm() {
-  const router = useRouter();
+/**
+ * Where the sign-in has got to. The page uses this to stage the wait: the
+ * portal round trip is slow enough to be worth showing, and the moment it lands
+ * is worth showing too.
+ */
+export type SignInPhase = "idle" | "working" | "done";
+
+/** Verifies against the portal and hands the session to the page. */
+export default function LoginForm({
+  onPhase,
+}: {
+  onPhase: (p: SignInPhase) => void;
+}) {
   const { login } = useSession();
   const [username, setUsername] = useState("");
   const [password, setPassword] = useState("");
@@ -63,10 +72,14 @@ export default function LoginForm() {
     if (busy) return;
     setFailure(null);
     setBusy(true);
+    onPhase("working");
     try {
       await login({ username: username.trim(), password });
-      router.push("/dashboard");
+      // The page takes it from here: it holds the screen for the landing and
+      // routes when that is finished.
+      onPhase("done");
     } catch (err) {
+      onPhase("idle");
       const code =
         err instanceof AuthError || err instanceof PortalError
           ? err.code
