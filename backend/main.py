@@ -11,6 +11,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel, Field
 
 import logging
+import os
 
 from core.client import (
     PAGE_ACADEMIC_PLANNER,
@@ -53,14 +54,26 @@ PAGE_MARKS = PAGE_ATTENDANCE
 
 app = FastAPI(title="Skipp API", version="0.0.1")
 
-# Dev CORS: the Next.js frontend runs on :3000, on localhost or a LAN IP (so a
-# phone on the same Wi-Fi can reach it). Tighten to the real origin in production.
+# CORS. In dev the frontend runs on :3000, on localhost or a LAN IP (so a phone
+# on the same Wi-Fi can reach it). In production the deployed origin is named
+# explicitly in SKIPP_ALLOWED_ORIGINS (comma separated), because the dev regex
+# only matches http:// and would reject the real https:// site.
+DEV_ORIGIN_RE = (
+    r"http://(localhost|127\.0\.0\.1|"
+    r"(?:192\.168|10|172\.(?:1[6-9]|2\d|3[01]))\.\d+\.\d+):3000"
+)
+_allowed = [
+    o.strip().rstrip("/")
+    for o in os.environ.get("SKIPP_ALLOWED_ORIGINS", "").split(",")
+    if o.strip()
+]
+
 app.add_middleware(
     CORSMiddleware,
-    allow_origin_regex=(
-        r"http://(localhost|127\.0\.0\.1|"
-        r"(?:192\.168|10|172\.(?:1[6-9]|2\d|3[01]))\.\d+\.\d+):3000"
-    ),
+    allow_origins=_allowed,
+    # Dropped in production: a deployment that names its origins should not also
+    # accept every LAN address.
+    allow_origin_regex=None if _allowed else DEV_ORIGIN_RE,
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],

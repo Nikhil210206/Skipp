@@ -16,6 +16,14 @@ import type {
 function apiBase(): string {
   const env = process.env.NEXT_PUBLIC_API_URL;
   if (env) return env.replace(/\/$/, "");
+  // A deployed build has no backend on :8000 of its own hostname, so guessing
+  // one would turn a missing environment variable into a mystery network error
+  // on every sign-in. Say what is actually wrong instead.
+  if (process.env.NODE_ENV === "production") {
+    throw new Error(
+      "NEXT_PUBLIC_API_URL is not set. Point it at the deployed Skipp backend.",
+    );
+  }
   if (typeof window !== "undefined") {
     return `${window.location.protocol}//${window.location.hostname}:8000`;
   }
