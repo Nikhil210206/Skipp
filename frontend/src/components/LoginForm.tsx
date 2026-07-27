@@ -3,36 +3,83 @@
 import { useRouter } from "next/navigation";
 import { useState } from "react";
 import { useSession } from "@/context/SessionContext";
+import { AuthError, PortalError, type FailureCode } from "@/lib/api";
 import { Button } from "@/components/ui";
 
+type Failure = { title: string; advice: string };
+
 /**
- * Login. Verifies credentials through the backend, keeps the session in
- * memory, and routes on.
+ * Each way a sign-in can fail needs different advice. A wrong password is the
+ * user's to fix; the daily cap and the CAPTCHA are the portal's doing and there
+ * is nothing to retype, so saying "check your details" would send someone in
+ * circles.
  */
+function explain(code: FailureCode, message: string): Failure {
+  switch (code) {
+    case "user_not_found":
+      return {
+        title: "No account with that Net ID",
+        advice:
+          "Use the Net ID you sign in to the SRM portal with, without the @srmist.edu.in.",
+      };
+    case "wrong_password":
+      return {
+        title: "That password did not work",
+        advice: "Check it and try again. It is the same one the portal uses.",
+      };
+    case "captcha":
+      return {
+        title: "The portal wants a CAPTCHA",
+        advice:
+          "Too many sign-ins in a row. Open the SRM portal, sign in there once, then come back.",
+      };
+    case "signin_limit":
+      return {
+        title: "SRM's daily sign-in limit is reached",
+        advice:
+          "The portal caps sign-ins per account each day. It clears in a few hours; nothing is wrong with your account.",
+      };
+    case "unreachable":
+      return {
+        title: "Cannot reach Skipp",
+        advice: "The app cannot talk to its server. Check your connection.",
+      };
+    default:
+      return { title: "The portal did not respond properly", advice: message };
+  }
+}
+
+/** Verifies against the portal, keeps the session in memory, and routes on. */
 export default function LoginForm() {
   const router = useRouter();
   const { login } = useSession();
   const [username, setUsername] = useState("");
   const [password, setPassword] = useState("");
-  const [error, setError] = useState<string | null>(null);
+  const [failure, setFailure] = useState<Failure | null>(null);
   const [busy, setBusy] = useState(false);
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
     if (busy) return;
-    setError(null);
+    setFailure(null);
     setBusy(true);
     try {
       await login({ username: username.trim(), password });
       router.push("/dashboard");
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Sign-in failed.");
+      const code =
+        err instanceof AuthError || err instanceof PortalError
+          ? err.code
+          : "portal";
+      setFailure(
+        explain(code, err instanceof Error ? err.message : "Sign-in failed."),
+      );
       setBusy(false);
     }
   }
 
   return (
-    <form onSubmit={handleSubmit} className="flex flex-col gap-3">
+    <form onSubmit={handleSubmit} className="flex flex-col gap-2.5">
       <Field
         id="username"
         label="SRM Net ID"
@@ -51,21 +98,29 @@ export default function LoginForm() {
         autoComplete="current-password"
       />
 
-      {error && (
-        <p role="alert" className="text-callout text-risk">
-          {error}
-        </p>
+      {failure && (
+        <div role="alert" className="pt-1">
+          <p className="text-callout font-semibold text-risk">{failure.title}</p>
+          <p className="mt-1 text-callout leading-relaxed text-text-3">
+            {failure.advice}
+          </p>
+        </div>
       )}
 
-      <Button
-        type="submit"
-        size="lg"
-        full
-        disabled={busy || !username || !password}
-        className="mt-2"
-      >
-        {busy ? "Signing in" : "Continue"}
-      </Button>
+      {/* The entrance animates this wrapper, never the Button itself: the
+          Button already owns its own transform through `pressable`, and two
+          tweens on one element leave it stuck at whichever ran first. */}
+      <div data-enter className="mt-3">
+        <Button
+          type="submit"
+          variant="outline"
+          size="lg"
+          full
+          disabled={busy || !username || !password}
+        >
+          {busy ? "Signing in" : "Continue"}
+        </Button>
+      </div>
     </form>
   );
 }
@@ -88,7 +143,10 @@ function Field({
   autoComplete?: string;
 }) {
   return (
-    <div className="rounded-control border border-line bg-ink-1 px-4 py-3 transition-colors focus-within:border-text-3">
+    <div
+      data-enter
+      className="rounded-control border border-line bg-ink-1 px-4 py-3 transition-colors focus-within:border-text-3"
+    >
       <label htmlFor={id} className="text-label uppercase text-text-3">
         {label}
       </label>

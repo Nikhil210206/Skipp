@@ -197,3 +197,53 @@ export function revealRows(
     );
   });
 }
+
+/**
+ * The entrance choreography shared by the intro and the sign-in screen.
+ *
+ * One timeline so the beats stay in proportion to each other: the mark, then the
+ * headline sliding up out of its own clipping boxes, then a rule drawn left to
+ * right, then everything else. It runs once and stops; nothing here loops.
+ */
+export function playEntrance(
+  scope: HTMLElement,
+  reduced: boolean,
+  opts: { delay?: number } = {},
+): gsap.core.Timeline | null {
+  const mark = scope.querySelectorAll("[data-mark]");
+  const words = scope.querySelectorAll("[data-word]");
+  const rules = scope.querySelectorAll("[data-draw]");
+  const rest = scope.querySelectorAll("[data-enter]");
+
+  if (reduced) {
+    gsap.set([...mark, ...words, ...rest], { opacity: 1, y: 0, yPercent: 0 });
+    gsap.set(rules, { scaleX: 1, opacity: 1 });
+    return null;
+  }
+
+  const tl = gsap.timeline({ delay: opts.delay ?? 0 });
+  tl.fromTo(
+    mark,
+    { opacity: 0, y: 8 },
+    { opacity: 1, y: 0, duration: DUR.base, ease: EASE.out },
+  )
+    .fromTo(
+      words,
+      { yPercent: 110 },
+      { yPercent: 0, duration: 0.72, ease: EASE.emphasis, stagger: 0.045 },
+      0.08,
+    )
+    .fromTo(
+      rules,
+      { scaleX: 0, opacity: 1 },
+      { scaleX: 1, duration: 0.7, ease: EASE.emphasis, transformOrigin: "left center" },
+      0.34,
+    )
+    .fromTo(
+      rest,
+      { opacity: 0, y: 14 },
+      { opacity: 1, y: 0, duration: DUR.base, ease: EASE.out, stagger: 0.07 },
+      0.44,
+    );
+  return tl;
+}

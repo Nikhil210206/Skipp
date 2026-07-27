@@ -7,6 +7,39 @@
 // Cards are for grouped controls only; content uses these.
 // ============================================================
 
+/**
+ * Splits a line into words, each in its own clipping box, so a timeline can
+ * slide them up from behind the text's own edge.
+ *
+ * Word level rather than character level on purpose: characters are showy and
+ * hurt screen readers, while words keep the line readable the whole way through
+ * and need no measurement, so nothing reflows.
+ */
+export function WordMask({
+  text,
+  className = "",
+}: {
+  text: string;
+  className?: string;
+}) {
+  return (
+    <span className={className}>
+      {text.split(" ").map((word, i) => (
+        <span
+          key={`${word}-${i}`}
+          className="inline-flex overflow-hidden pb-[0.06em] align-bottom"
+        >
+          <span data-word className="inline-block will-change-transform">
+            {word}
+          </span>
+          {/* Space outside the clip so lines still wrap naturally. */}
+          <span className="w-[0.26em]" aria-hidden />
+        </span>
+      ))}
+    </span>
+  );
+}
+
 /** Full-bleed hairline. Breaks the gutter so lists read as a page. */
 export function Rule({ soft = false }: { soft?: boolean }) {
   return (

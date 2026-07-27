@@ -345,7 +345,84 @@ is deployment and true push notifications.
 Entries below are newest first. **When something breaks, read the relevant entry first**: most
 oddities here (login shell, empty calendar, 429s, duplicated course codes) are already diagnosed.
 
-### DONE: Creator credit (2026-07-27, latest)
+### DONE: Onboarding rebuilt as a draggable flow (2026-07-27, latest)
+Three panels on a track that follows the finger, each carrying a piece of proof
+rather than only a sentence.
+
+- **Drag, not paging.** Pointer handlers move the track live; the progress rails
+  fill **fractionally** with the drag (measured: 100px of drag gives 0.22 fill,
+  180px gives 0.40), and release settles to the nearest panel on `expo.out`. A
+  flick past 64px counts as much as a long drag, and past either end the track
+  takes 35% of the movement so it never feels broken.
+- `touch-pan-y` on the viewport keeps vertical scrolling alive.
+- **Panels carry evidence**: a margin figure counting to 5 over a `TrackRule`
+  with the 75% tick, a three-row glance at the app's own numbers, and a table of
+  where the password goes ending in "Nothing" in accent. Sample figures are
+  labelled **EXAMPLE**, because the app has no data before sign-in and implying
+  otherwise would be a lie.
+
+**Layout trap:** the track used `h-full` inside a `flex-1` viewport. A percentage
+height against a flex item with an indefinite basis does not resolve, so the
+track measured 382px inside a 509px viewport and `justify-center` had nothing to
+centre against. The viewport is now itself a flex container and its children
+stretch. **If a `h-full` child looks top-aligned, check the parent is a flex
+container, not just a flex item.**
+
+### DONE: Entry choreography (2026-07-27)
+The entry screens perform with type, not decoration. `playEntrance()` in
+`lib/motion.ts` is one timeline shared by the intro and the sign-in, so moving
+through the intro and landing on the form reads as one sequence:
+
+    [data-mark]  the small caps mark fades up
+    [data-word]  headline words slide up out of their own clipping boxes
+    [data-draw]  a rule is drawn left to right
+    [data-enter] everything else arrives, staggered
+
+- **`WordMask`** (`ui/editorial.tsx`) splits a line into words, each in its own
+  clipping box. Word level, not character level: characters are showy, hurt
+  screen readers, and need measurement. The trailing space sits *outside* the
+  clip so lines still wrap.
+- Start states are in `globals.css` under `html.js` and
+  `prefers-reduced-motion: no-preference`, so nothing is hidden from a reader
+  without JS or with motion turned off.
+- **It runs once and stops.** No looping animation on a screen people visit to
+  type a password.
+- Measured live: words ease 41.8px to 0 over ~840ms, the rule draws from 420ms,
+  and all values are constant after ~900ms.
+
+**The trap, for the third time:** `data-enter` was first put on the `Button`
+itself, which already owns its transform through `pressable()`. The entrance
+tween and the press tween fought and the button stayed frozen at the entrance's
+start state, invisible, while every sibling animated fine. The entrance now
+animates a *wrapper*. **Never animate an element that another system already
+animates.**
+
+### DONE: Entry experience, first-run intro + typed sign-in errors (2026-07-27)
+**There is no sign-up and there must not be one.** The app authenticates against
+SRM with the student's own Net ID; it creates no account and stores nothing
+server-side (§1 non-goals). A sign-up screen would either be a lie or would
+reverse the project's strongest safety property. If asked again, say so.
+
+- **`components/Intro.tsx`**: three panels on first launch only (promise, what it
+  does, where the password goes), then the sign-in form. Swipeable, skippable,
+  remembered in `skipp.seen-intro`.
+  - The seen flag is read through **`useSyncExternalStore`**, not an effect: the
+    React compiler lint rejects `setState` in an effect, and the server snapshot
+    returns "seen" so a returning user never sees the intro flash.
+- **Sign-in leads with the promise**, with the credential handling stated beside
+  the form rather than as an opening disclaimer.
+- **Typed failures.** The backend now sends `{code, message}` (`_fail()` in
+  `main.py`); `lib/api.ts` carries a `FailureCode` on `AuthError`/`PortalError`,
+  and `LoginForm.explain()` gives each case its own wording. **CAPTCHA and the
+  daily sign-in cap are both HTTP 429 but need opposite advice** ("sign in on the
+  portal once" vs "wait, your cached data still works"), which is why the code
+  exists rather than matching on prose.
+- Entry CTAs use the `outline` variant: the app treats the accent as ink, never
+  as a filled slab.
+- Verified live: a bogus Net ID returns `user_not_found` and renders
+  "No account with that Net ID" with its own advice.
+
+### DONE: Creator credit (2026-07-27)
 The signature is set in **Space Grotesk** (`--font-signature`, loaded in
 `layout.tsx`). It is deliberately the only place that face is used: a maker's
 mark should not look like part of the interface. The rest of the app stays Geist.

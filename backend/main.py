@@ -80,18 +80,31 @@ def health() -> dict[str, str]:
     return {"status": "ok", "service": "skipp-api"}
 
 
+def _fail(status: int, code: str, message: str) -> HTTPException:
+    """
+    Errors carry a machine-readable code beside the prose.
+
+    CAPTCHA and the daily sign-in cap are both 429 but need completely different
+    advice, and matching on the message text would break the moment the wording
+    changes.
+    """
+    return HTTPException(status_code=status, detail={"code": code, "message": message})
+
+
 def _login_or_4xx(req: LoginRequest):
     """Authenticate, mapping login failures to clean HTTP errors."""
     try:
         return login(req.username, req.password)
     except UserNotFound as e:
-        raise HTTPException(status_code=404, detail=str(e)) from e
+        raise _fail(404, "user_not_found", str(e)) from e
     except InvalidCredentials as e:
-        raise HTTPException(status_code=401, detail=str(e)) from e
-    except (CaptchaRequired, SignInLimitReached) as e:
-        raise HTTPException(status_code=429, detail=str(e)) from e
+        raise _fail(401, "wrong_password", str(e)) from e
+    except CaptchaRequired as e:
+        raise _fail(429, "captcha", str(e)) from e
+    except SignInLimitReached as e:
+        raise _fail(429, "signin_limit", str(e)) from e
     except PortalError as e:
-        raise HTTPException(status_code=502, detail=str(e)) from e
+        raise _fail(502, "portal", str(e)) from e
 
 
 @app.post("/timetable", response_model=Timetable)

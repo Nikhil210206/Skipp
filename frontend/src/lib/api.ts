@@ -22,6 +22,19 @@ function apiBase(): string {
   return "http://127.0.0.1:8000";
 }
 
+/**
+ * Why a sign-in failed, as a value rather than as prose. CAPTCHA and the daily
+ * cap are both HTTP 429 but need entirely different advice, so the UI switches
+ * on this instead of reading the message.
+ */
+export type FailureCode =
+  | "user_not_found"
+  | "wrong_password"
+  | "captcha"
+  | "signin_limit"
+  | "portal"
+  | "unreachable";
+
 /** A section (attendance/marks) that the portal hasn't enabled yet (HTTP 503). */
 export class NotAvailableError extends Error {
   readonly kind = "not-available";
@@ -30,11 +43,23 @@ export class NotAvailableError extends Error {
 /** Wrong password / user not found (HTTP 401 / 404). */
 export class AuthError extends Error {
   readonly kind = "auth";
+  constructor(
+    message: string,
+    readonly code: FailureCode = "wrong_password",
+  ) {
+    super(message);
+  }
 }
 
 /** Portal/backend problem (HTTP 5xx other than 503). */
 export class PortalError extends Error {
   readonly kind = "portal";
+  constructor(
+    message: string,
+    readonly code: FailureCode = "portal",
+  ) {
+    super(message);
+  }
 }
 
 async function post<T>(path: string, creds: Credentials): Promise<T> {
@@ -46,28 +71,35 @@ async function post<T>(path: string, creds: Credentials): Promise<T> {
       body: JSON.stringify(creds),
     });
   } catch {
-    throw new PortalError("Can't reach Skipp. Is the backend running?");
+    throw new PortalError("Can't reach Skipp. Is the backend running?", "unreachable");
   }
 
   if (res.ok) return res.json() as Promise<T>;
 
-  const detail = await res
-    .json()
-    .then((b) => b?.detail as string | undefined)
-    .catch(() => undefined);
+  // The backend sends {code, message}; older responses sent a bare string.
+  const body = await res.json().catch(() => undefined);
+  const raw = body?.detail;
+  const detail: string | undefined =
+    typeof raw === "string" ? raw : (raw?.message as string | undefined);
+  const code: FailureCode | undefined =
+    typeof raw === "object" && raw ? (raw.code as FailureCode) : undefined;
 
   if (res.status === 401 || res.status === 404) {
-    throw new AuthError(detail ?? "Wrong SRM net id or password.");
+    throw new AuthError(
+      detail ?? "Wrong SRM net id or password.",
+      code ?? (res.status === 404 ? "user_not_found" : "wrong_password"),
+    );
   }
   if (res.status === 429) {
     throw new AuthError(
-      detail ?? "Too many attempts. The portal wants a CAPTCHA, try later.",
+      detail ?? "The portal is rate limiting sign-ins right now.",
+      code ?? "captcha",
     );
   }
   if (res.status === 503) {
     throw new NotAvailableError(detail ?? "Not available on the portal yet.");
   }
-  throw new PortalError(detail ?? `Something went wrong (${res.status}).`);
+  throw new PortalError(detail ?? `Something went wrong (${res.status}).`, code ?? "portal");
 }
 
 /** One login gives timetable, attendance and marks. Prefer this over the singles. */

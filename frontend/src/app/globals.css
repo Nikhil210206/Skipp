@@ -182,8 +182,18 @@ body {
 /* Elements the motion layer will reveal start hidden, but only when JS and
    motion are actually available, so no-JS and reduced-motion users see content. */
 @media (prefers-reduced-motion: no-preference) {
-  html.js [data-reveal] {
+  html.js [data-reveal],
+  html.js [data-mark],
+  html.js [data-enter] {
     opacity: 0;
+  }
+  /* Masked words start below their clipping box; rules start undrawn. */
+  html.js [data-word] {
+    transform: translateY(110%);
+  }
+  html.js [data-draw] {
+    transform: scaleX(0);
+    transform-origin: left center;
   }
 }
 
