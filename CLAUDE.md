@@ -385,9 +385,39 @@ the logout still runs on the way down. Surfaces as **504 `slow_portal`**.
 optionally `SKIPP_TIME_BUDGET`. Never set `SKIPP_DEBUG_LOGIN` in production, it
 dumps portal HTML to disk.
 
-**Unverified:** no Vercel deploy has been run. Whether `includeFiles` picks up
-`core/`, `services/` and `models/`, and which Python version the runtime
-selects, are both first-deploy findings.
+**LIVE (2026-07-27).** Two projects under `nikhil-bs-projects-949cf06e`:
+backend **`skipp`** (root `backend/`) at `https://skipp-rose.vercel.app`,
+frontend **`skipp-q1sf`** (root `frontend/`) at `https://skipp-q1sf.vercel.app`.
+`includeFiles` does pick up `core/`, `services/` and `models/`: `/health` and a
+live portal round trip both work, so the two open questions above are answered.
+
+**The one thing that actually broke the first deploy, and the lesson.**
+`SKIPP_ALLOWED_ORIGINS` had been set, but only on **Development and Preview**,
+never **Production**. So the backend booted with an empty allowlist, fell back to
+the LAN regex, and answered every call from the deployed site with **HTTP 400
+"Disallowed CORS origin"**. The frontend loaded perfectly and every sign-in died,
+which reads as a broken app rather than a missing variable.
+- **A Vercel env var is set per environment. Setting it is not the same as
+  setting it for Production.** This is the failure `/health`'s `skippVarNames`
+  was added to catch, and it caught it: the name was absent in production while
+  the dashboard showed the variable as present.
+- **Env vars apply at deploy time, so adding one changes nothing until you
+  redeploy** (`vercel redeploy <url>`).
+- Diagnosed from outside in one request each: `/health` showed
+  `allowedOrigins: []`, and an `OPTIONS` preflight carrying the real
+  `Origin` header returned 400. Neither needs a browser or credentials.
+
+**Verified live after the fix:** preflight from `https://skipp-q1sf.vercel.app`
+returns 200 with a matching `Access-Control-Allow-Origin`, an unknown origin
+still gets 400, and `POST /refresh` with a bogus Net ID reaches the portal and
+returns the typed `404 user_not_found`. All seven routes plus
+`manifest.webmanifest` and `sw.js` serve 200.
+
+**Preview deployments are still CORS-blocked by design.** Every preview gets a
+fresh `skipp-q1sf-<hash>-…vercel.app` hostname that a fixed allowlist cannot
+contain. Production is what the allowlist names. If preview testing is ever
+needed, add a narrow regex for that project's hostname shape rather than
+loosening the production list.
 
 ### DONE: Onboarding is the product, played (2026-07-28)
 **The whole slide-deck onboarding is deleted** (`Intro.tsx`, `IntroPreviews.tsx`,

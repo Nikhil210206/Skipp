@@ -8,3 +8,5 @@ __pycache__/
 # Never commit scraped HTML dumps or captured portal responses
 *.html
 captures/
+.vercel
+.env*
