@@ -3,8 +3,18 @@
 // Sheets and full-screen panels. Both own their enter/exit timelines so a
 // screen never has to think about animation, and both trap focus, close on
 // Escape, and lock background scroll.
+//
+// Both render through a portal into <body>, and that is not optional.
+// PullToRefresh writes a transform on its content wrapper as soon as a finger
+// touches the screen, and a transformed ancestor becomes the containing block
+// for position:fixed descendants. Rendered in place, "fixed inset-0" silently
+// stops meaning "the viewport" and starts meaning "that wrapper", which is as
+// tall as the whole scrolling page: the overlay grows to the page height and
+// its footer lands hundreds of pixels below the fold. It only happens once a
+// touch has occurred, so it is invisible on a desktop.
 
 import { useCallback, useEffect, useRef, useState } from "react";
+import { createPortal } from "react-dom";
 import gsap from "gsap";
 import { DUR, EASE, prefersReducedMotion } from "@/lib/motion";
 import { IconClose } from "@/components/Icons";
@@ -190,8 +200,8 @@ export function Sheet({
     }
   };
 
-  if (!present) return null;
-  return (
+  if (!present || typeof document === "undefined") return null;
+  return createPortal(
     <div className="fixed inset-0 z-50" role="dialog" aria-modal="true" aria-label={title}>
       <div
         ref={scrim}
@@ -223,7 +233,8 @@ export function Sheet({
           </div>
         )}
       </div>
-    </div>
+    </div>,
+    document.body,
   );
 }
 
@@ -277,8 +288,8 @@ export function Panel({
     }
   }, [open, present]);
 
-  if (!present) return null;
-  return (
+  if (!present || typeof document === "undefined") return null;
+  return createPortal(
     <div
       ref={root}
       role="dialog"
@@ -304,6 +315,7 @@ export function Panel({
           {footer}
         </div>
       )}
-    </div>
+    </div>,
+    document.body,
   );
 }

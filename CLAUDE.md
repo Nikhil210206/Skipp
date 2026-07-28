@@ -345,7 +345,31 @@ is deployment and true push notifications.
 Entries below are newest first. **When something breaks, read the relevant entry first**: most
 oddities here (login shell, empty calendar, 429s, duplicated course codes) are already diagnosed.
 
-### DONE: Home cover retuned, display-name override guarded (2026-07-28, latest)
+### DONE: Overlays must be portalled (2026-07-28, latest)
+**`Sheet` and `Panel` render through `createPortal` into `<body>`, and that is
+not a style choice.** Reverting it breaks the leave planner on every phone.
+
+`PullToRefresh` writes a transform on its content wrapper (`gsap.quickSetter`)
+the instant a finger touches the screen. **A transformed ancestor becomes the
+containing block for `position: fixed` descendants**, so an overlay rendered
+inside it stops being sized to the viewport and starts being sized to that
+wrapper, which is as tall as the whole scrolling page.
+
+Measured on the attendance screen, with the transform present:
+
+    panel height   1522px   (the full page)      viewport   693px
+    footer top     1433px   (740px below the fold)
+
+So the calendar appeared but **"See impact" was unreachable**, and the tab bar
+showed through where the footer should have been. It only happens after a touch
+event, which is why it is invisible on a desktop and why it survived the audit.
+After the portal: panel 693px, footer at 604px, whole flow verified through to
+the forecast.
+
+**The general rule: anything `position: fixed` that lives under `AppShell` must
+be portalled.** PullToRefresh wraps every screen.
+
+### DONE: Home cover retuned, display-name override guarded (2026-07-28)
 From real-device screenshots:
 
 - **The cover reserved 62dvh and hung its content off the bottom**, so the top
