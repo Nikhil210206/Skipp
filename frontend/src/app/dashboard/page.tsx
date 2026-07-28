@@ -93,19 +93,19 @@ export default function DashboardPage() {
     <AppShell section={`Hey, ${displayName}`}>
       <div ref={scope} className="flex flex-1 flex-col">
         {/* ---------- 1. THE COVER ---------- */}
-        <section className="bleed bleed-pad relative flex min-h-[62dvh] flex-col justify-end overflow-hidden pb-9 pt-2">
+        <section className="bleed bleed-pad relative flex min-h-[42dvh] flex-col justify-end overflow-hidden pb-9 pt-2">
           {focus?.dayOrder != null && (
             <div
               ref={ghost}
               aria-hidden
-              className="pointer-events-none absolute -right-9 -top-4 select-none text-right"
+              className="pointer-events-none absolute right-0 -top-2 select-none text-right"
             >
               <span className="block text-[11rem] font-bold leading-[0.78] tracking-[-0.06em] text-ink-2">
-                {String(focus.dayOrder).padStart(2, "0")}
+                {focus.dayOrder}
               </span>
               {/* The numeral is the day order, so it says so. Unlabelled it would
                   be ornament, and ornament is what we are avoiding. */}
-              <span className="mr-12 mt-2 block text-label uppercase text-text-3/60">
+              <span className="mt-2 block text-label uppercase text-text-3/60">
                 Day order
               </span>
             </div>

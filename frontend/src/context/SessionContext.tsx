@@ -269,8 +269,12 @@ export function SessionProvider({ children }: { children: React.ReactNode }) {
       displayName: customName || officialFirst || "there",
       setDisplayName(name) {
         const trimmed = name.trim();
-        setCustomName(trimmed || null);
-        if (reg) saveDisplayName(reg, trimmed);
+        // Saving a name identical to the portal's creates an override that
+        // does nothing except outlive the account it was typed on, which is
+        // how one student ended up greeted by another student's name.
+        const custom = trimmed && trimmed !== officialFirst ? trimmed : "";
+        setCustomName(custom || null);
+        if (reg) saveDisplayName(reg, custom);
       },
       async login(next) {
         const snap = await fetchSnapshot(next);

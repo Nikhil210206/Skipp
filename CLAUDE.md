@@ -345,7 +345,24 @@ is deployment and true push notifications.
 Entries below are newest first. **When something breaks, read the relevant entry first**: most
 oddities here (login shell, empty calendar, 429s, duplicated course codes) are already diagnosed.
 
-### DONE: Sign-in stays type only (2026-07-28, latest)
+### DONE: Home cover retuned, display-name override guarded (2026-07-28, latest)
+From real-device screenshots:
+
+- **The cover reserved 62dvh and hung its content off the bottom**, so the top
+  of Home was a dead band under the masthead. Now 42dvh.
+- **The day-order ghost numeral was bled 36px off the right edge**, which cut
+  the second digit of a two-digit string clean in half. It now sits at the edge
+  and the `padStart(2, "0")` is gone: "2" reads as a day order, a "0" beside a
+  sliver reads as breakage. A crop is only a crop when the shape survives it.
+- **A student was greeted by another student's name.** Not a leak: display-name
+  overrides are keyed `skipp.name.<reg>`, and one had genuinely been saved
+  against the friend's registration number while testing. `setDisplayName` now
+  refuses to store a value equal to the portal's own first name, so pressing
+  Save without editing cannot mint an override that outlives the session it was
+  typed in. Clearing one is empty field plus Save (which only became possible
+  once the empty-disables-Save bug was fixed).
+
+### DONE: Sign-in stays type only (2026-07-28)
 A graphic field was built for the sign-in screen (repeated hairline tracks with
 the 75% tick, the Attendance measurement device as texture) and **removed on
 request**. Do not rebuild it.
