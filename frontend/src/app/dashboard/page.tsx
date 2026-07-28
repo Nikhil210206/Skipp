@@ -88,9 +88,7 @@ export default function DashboardPage() {
   );
 
   return (
-    // The masthead greets by name; the date moves into the cover, where it
-    // belongs with the rest of the day's context.
-    <AppShell section={`Hey, ${displayName}`}>
+    <AppShell section={prettyDate(todayISO())}>
       <div ref={scope} className="flex flex-1 flex-col">
         {/* ---------- 1. THE COVER ---------- */}
         <section className="bleed bleed-pad relative flex min-h-[42dvh] flex-col justify-end overflow-hidden pb-9 pt-2">
@@ -112,10 +110,13 @@ export default function DashboardPage() {
           )}
 
           <div className="relative">
-            <p data-reveal className="tnum text-label uppercase text-text-3">
-              {prettyDate(todayISO())}
-            </p>
-            <p data-reveal className="mt-3 text-label uppercase text-accent">
+            {/* Set as a line of type, not as a caption. It is the only thing on
+                the screen addressed to a person rather than about a schedule. */}
+            <h1 data-reveal className="text-hero">
+              <span className="text-text-2">{greeting()}, </span>
+              {displayName}
+            </h1>
+            <p data-reveal className="mt-7 text-label uppercase text-accent">
               {cover.label}
             </p>
 
@@ -227,6 +228,20 @@ export default function DashboardPage() {
       </div>
     </AppShell>
   );
+}
+
+/**
+ * Time-aware and deliberately deterministic: the same hour always gives the
+ * same word. Copy that reshuffles on every render is a novelty the first time
+ * and noise every time after.
+ */
+function greeting(d = new Date()): string {
+  const h = d.getHours();
+  if (h < 5) return "Still up";
+  if (h < 12) return "Morning";
+  if (h < 17) return "Afternoon";
+  if (h < 21) return "Evening";
+  return "Late one";
 }
 
 type Cover = {

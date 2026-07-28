@@ -345,7 +345,38 @@ is deployment and true push notifications.
 Entries below are newest first. **When something breaks, read the relevant entry first**: most
 oddities here (login shell, empty calendar, 429s, duplicated course codes) are already diagnosed.
 
-### DONE: Day-order switching, and the launch (2026-07-28, latest)
+### DONE: Schedule moves with direction, Home greets properly (2026-07-28, latest)
+
+**Fading out and back in still read as a swap, not a movement.** A cross-fade
+has no direction, so the eye has nothing to follow. The column now **travels**:
+tapping a later day order sends the classes out to the left and brings the new
+ones in from the right, and the reverse going back. Measured on a 2 to 5 switch,
+`x` runs 0 to -17, then enters at +19 and settles to 0 while opacity runs 3.0 to
+0.26 to 4.0. One continuous curve, about 600ms including the height tween.
+
+**Schedule defaults to the same day Home features**, via the same `focusDay()`.
+It used to sit on today's day order while Home had already rolled on to
+tomorrow's, because `focusDay` moves on once today's classes are over and this
+screen used the raw `todayDO`. Two screens describing the same day differently
+is the bug; sharing the function is the fix.
+
+Indicators, so the screen says which day it is showing without a sentence:
+- The day-order tabs carry a **filled accent dot for today** and a **hollow ring
+  for the day that comes next**.
+- The label reads "Today" or "Up next, Wed Jul 29".
+- On today only, the running class is marked **Now** and the one after it
+  **Next**, with a brighter spine. Marking "Next" on any other day order would
+  be a lie, so it is scoped to the day it belongs to.
+
+**The greeting was in the wrong slot.** It sat in the masthead, which is an 11px
+small-caps label, so "make it bigger" was really "stop putting a sentence in a
+caption". The date went back to the masthead and the greeting is now a
+`text-hero` line opening the cover, with the verb in `text-2` and the name in
+`text-1` so the person is the emphasis. It is time-aware and **deterministic**
+(`Morning` / `Afternoon` / `Evening` / `Late one` / `Still up`): copy that
+reshuffles every render is a novelty once and noise thereafter.
+
+### DONE: Day-order switching, and the launch (2026-07-28)
 
 **Switching day order is a three-part move, and all three parts matter.**
 

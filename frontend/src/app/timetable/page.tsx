@@ -11,6 +11,7 @@ import {
   fmtTime,
   holidayToday,
   mergeRuns,
+  focusDay,
   nextWorkingDay,
   nowMinutes,
   prettyDate,
@@ -51,7 +52,12 @@ export default function TimetablePage() {
   const cal = timetable?.calendar ?? [];
   const todayDO = calendarDay(cal, todayISO())?.dayOrder ?? null;
   const holiday = holidayToday(cal);
-  const upcoming = todayDO == null ? nextWorkingDay(cal) : null;
+  // The SAME function Home features its day with, so the two screens can never
+  // disagree. It rolls on to the next working day once today's classes are
+  // over, which is why Home showed tomorrow while this screen sat on today.
+  const focus = timetable ? focusDay(timetable) : null;
+  const upcoming =
+    focus && focus.label === "UPCOMING" ? focus : todayDO == null ? nextWorkingDay(cal) : null;
   const upcomingDO = upcoming?.dayOrder ?? null;
 
   const [selected, setSelected] = useState<number | null>(null);
@@ -62,7 +68,8 @@ export default function TimetablePage() {
   // between is what reads as a blink.
   const [target, setTarget] = useState<number | null>(null);
   const [sheetOpen, setSheetOpen] = useState(false);
-  const activeDO = selected ?? todayDO ?? upcomingDO ?? dayOrders[0]?.dayOrder ?? 1;
+  const activeDO =
+    selected ?? focus?.dayOrder ?? todayDO ?? upcomingDO ?? dayOrders[0]?.dayOrder ?? 1;
   const controlDO = target ?? activeDO;
 
   const schedule = scheduleFor(dayOrders, activeDO);
@@ -72,6 +79,11 @@ export default function TimetablePage() {
   const attending = classes.filter((c) => !c.isOptional);
   const isToday = activeDO === todayDO;
   const now = nowMinutes();
+  // The next class that has not started yet, marked only while looking at the
+  // day it belongs to: "Next" on some other day order would be a lie.
+  const nextId = isToday
+    ? (classes.find((c) => c.startMin > now && !c.isOptional)?.id ?? null)
+    : null;
 
   // The whole grid, every day order, not just the day being viewed. Built from
   // the attending schedule so optional courses stay out, with the student's own
@@ -110,14 +122,15 @@ export default function TimetablePage() {
     }
     // A killed tween never fires onComplete, so a second tap mid-exit simply
     // supersedes the first and only the newest day order is committed.
+    dir.current = next > controlDO ? 1 : -1;
     fromHeight.current = el.getBoundingClientRect().height;
     gsap.killTweensOf(el.children);
     gsap.to(el.children, {
       opacity: 0,
-      y: -12,
-      duration: 0.17,
-      ease: EASE.in,
-      stagger: 0.016,
+      x: -22 * dir.current,
+      duration: 0.15,
+      ease: "power2.in",
+      stagger: 0.014,
       overwrite: true,
       onComplete: () => setSelected(next),
     });
@@ -131,6 +144,10 @@ export default function TimetablePage() {
   // classes, so without this the section beneath snaps up or down the instant
   // the rows are replaced, however smoothly the rows themselves move.
   const fromHeight = useRef<number | null>(null);
+  // Which way the swap is travelling. Fading out and back in reads as a
+  // replacement; sliding with the direction of the tap reads as movement
+  // through a sequence, which is what makes it feel continuous.
+  const dir = useRef(1);
   useLayoutEffect(() => {
     const el = list.current;
     if (!el || el.children.length === 0) return;
@@ -164,13 +181,14 @@ export default function TimetablePage() {
 
     gsap.fromTo(
       el.children,
-      { opacity: 0, y: 20 },
+      { opacity: 0, x: 26 * dir.current, y: 6 },
       {
         opacity: 1,
+        x: 0,
         y: 0,
-        duration: 0.55,
+        duration: 0.46,
         ease: EASE.emphasis,
-        stagger: 0.038,
+        stagger: 0.028,
         overwrite: true,
       },
     );
@@ -265,10 +283,14 @@ export default function TimetablePage() {
                     {d.dayOrder}
                   </span>
                   <span data-track className="h-[2px] w-full bg-line" />
+                  {/* Filled marks today, hollow marks the day that comes next,
+                      so the two are legible without reading a word. */}
                   <span className="h-1.5">
-                    {d.dayOrder === todayDO && (
+                    {d.dayOrder === todayDO ? (
                       <span className="block size-1.5 rounded-full bg-accent" />
-                    )}
+                    ) : d.dayOrder === upcomingDO ? (
+                      <span className="block size-1.5 rounded-full border border-text-3" />
+                    ) : null}
                   </span>
                 </button>
               );
@@ -282,7 +304,7 @@ export default function TimetablePage() {
               {isToday
                 ? "Today"
                 : activeDO === upcomingDO
-                  ? `Next · ${prettyDate(upcoming?.date ?? "")}`
+                  ? `Up next · ${prettyDate(upcoming?.date ?? "")}`
                   : "Day order"}
             </p>
             {attending.length > 0 && (
@@ -318,6 +340,7 @@ export default function TimetablePage() {
                     <Block
                       item={c}
                       live={isToday && c.startMin <= now && now < c.endMin}
+                      next={c.id === nextId}
                       past={isToday && now >= c.endMin}
                       onRemove={removeCustomClass}
                       onToggleOptional={toggleOptional}
@@ -368,12 +391,14 @@ function Gap({ minutes }: { minutes: number }) {
 function Block({
   item,
   live,
+  next,
   past,
   onRemove,
   onToggleOptional,
 }: {
   item: ScheduleItem;
   live: boolean;
+  next: boolean;
   past: boolean;
   onRemove: (id: string) => void;
   onToggleOptional: (code: string) => void;
@@ -392,7 +417,7 @@ function Block({
       {/* The spine: solid for the length of the class */}
       <span
         className={`absolute left-[52px] top-0 h-full w-px ${
-          live ? "bg-accent" : muted ? "bg-text-1/20" : "bg-text-1/35"
+          live ? "bg-accent" : next ? "bg-text-1/70" : muted ? "bg-text-1/20" : "bg-text-1/35"
         }`}
       />
       <div className="w-[46px] shrink-0 pt-0.5 text-right">
@@ -404,7 +429,13 @@ function Block({
         <div className="flex items-baseline justify-between gap-3">
           <h3 className="truncate text-headline">{item.title}</h3>
           <span className="tnum shrink-0 text-callout text-text-3">
-            {live ? <span className="text-accent">Now</span> : `${minutes}m`}
+            {live ? (
+              <span className="text-accent">Now</span>
+            ) : next ? (
+              <span className="text-text-1">Next</span>
+            ) : (
+              `${minutes}m`
+            )}
           </span>
         </div>
 
