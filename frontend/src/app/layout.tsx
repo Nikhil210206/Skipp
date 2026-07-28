@@ -5,6 +5,7 @@ import { SessionProvider } from "@/context/SessionContext";
 import { THEME_INIT_SCRIPT } from "@/lib/themeScript";
 import PWARegister from "@/components/PWARegister";
 import Splash from "@/components/Splash";
+import { Analytics } from "@vercel/analytics/next";
 
 const geistSans = Geist({
   variable: "--font-geist-sans",
@@ -68,6 +69,9 @@ export default function RootLayout({
             a client navigation never remounts the root layout. */}
         <Splash />
         <PWARegister />
+        {/* Page views only. It sees route names, and the routes carry no
+            student data: no id, no marks, nothing identifying in a path. */}
+        <Analytics />
       </body>
     </html>
   );
