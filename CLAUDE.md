@@ -345,7 +345,63 @@ is deployment and true push notifications.
 Entries below are newest first. **When something breaks, read the relevant entry first**: most
 oddities here (login shell, empty calendar, 429s, duplicated course codes) are already diagnosed.
 
-### DONE: Production audit, mobile layout fixed (2026-07-28, latest)
+### DONE: Sign-in stays type only (2026-07-28, latest)
+A graphic field was built for the sign-in screen (repeated hairline tracks with
+the 75% tick, the Attendance measurement device as texture) and **removed on
+request**. Do not rebuild it.
+
+The screen is the wordmark, the headline, a rule and the form. Nothing else.
+What made it look plain was never the absence of graphics: the headline was not
+rendering at all on a real phone (see the reduced-motion entry below). With the
+type back, the type is the design.
+
+### DONE: The reduced-motion blind spot (2026-07-28)
+Bugs reported from a real phone that **no test in this project could ever have
+caught**, and the reason is worth keeping.
+
+The entrance system hides content in CSS and reveals it with GSAP. The hiding
+rule sits inside `@media (prefers-reduced-motion: no-preference)`. **The headless
+Chrome behind the DevTools MCP reports `reduce`**, so in every screenshot ever
+taken here the content was never hidden in the first place, and a reveal that
+failed to run looked identical to one that worked. On a real phone the rule
+applies, and a reveal that does not run leaves the screen **blank**.
+
+To reproduce a phone, patching `window.matchMedia` is NOT enough: that only
+changes what JS sees. The CSS start state must be injected as well:
+
+    html.js [data-reveal], html.js [data-mark], html.js [data-enter] { opacity: 0 }
+    html.js [data-word] { transform: translateY(110%) }
+    html.js [data-draw] { transform: scaleX(0) }
+
+Two real failures it was hiding:
+- **Plan a leave opened blank.** `PredictModal`'s `useGsap` did not list `open`
+  in its deps, and its scope lives inside `Panel`, which renders nothing while
+  closed. On the first run the element did not exist; nothing changed after, so
+  `revealIn` never ran for the mounted panel. Verified by inline opacity: four
+  `data-reveal` targets, none written to. **A `useGsap` scope inside a
+  conditionally mounted overlay must depend on whatever mounts it.**
+- **The sign-in headline never appeared.** The words sat frozen at the tween's
+  *from* value (`translate(0px, 41.8px)`) while the mark and the fields in the
+  same timeline finished. The exact GSAP interaction is **not isolated**; what
+  is certain is that `useGsap`'s cleanup calls `ctx.revert()`, which strips
+  GSAP's inline styles and hands the element back to the hidden CSS state.
+
+**`revealStragglers()` in `lib/motion.ts` is the guard**: 900ms after load,
+anything still hidden and not being tweened is written to its final state. It
+does not use `clearProps` (the first version did, which removed the inline
+transform and handed the element straight back to the CSS rule that hides it).
+It turns "invisible forever" into "a beat late".
+
+**The rule this establishes: never let visible content depend on an animation
+having run.** If a reveal is decoration, its failure must be cosmetic.
+
+Also in this pass:
+- Home greets by name (`Hey, <name>`) and the date moved into the cover.
+- The custom display name could be set but never cleared: an empty field
+  disabled the only button that writes it, making it a one-way door. Empty is
+  now a valid submission and restores the portal's name.
+
+### DONE: Production audit, mobile layout fixed (2026-07-28)
 A full audit against the deployed build. **Two layout bugs broke the chrome on
 every screen of every notched phone, and neither was visible on a desktop**,
 which is why they survived so long. Both are measured, not eyeballed: the

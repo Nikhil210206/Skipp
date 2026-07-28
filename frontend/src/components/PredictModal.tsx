@@ -97,9 +97,13 @@ export default function PredictModal({
         })
       : null;
 
+  // `open` MUST be a dependency: this scope lives inside Panel, which renders
+  // nothing while closed, so on the first run the element does not exist yet.
+  // Without it the reveal never ran for the mounted panel and every row stayed
+  // at the CSS start state's opacity 0, i.e. a blank sheet.
   const scope = useGsap(
     ({ self, reduced }) => revealIn(self, reduced, { stagger: 0.045 }),
-    [showResult, ym],
+    [open, showResult, ym],
   );
 
   return (

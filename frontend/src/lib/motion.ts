@@ -10,6 +10,44 @@ import { ScrollTrigger } from "gsap/ScrollTrigger";
 
 if (typeof window !== "undefined") gsap.registerPlugin(ScrollTrigger);
 
+/**
+ * Failsafe for the entrance system.
+ *
+ * Elements opt into an entrance by starting hidden in CSS (`[data-reveal]`,
+ * `[data-word]` and friends) and are revealed by a GSAP timeline. That couples
+ * *visible content* to *an animation running*, and when the animation does not
+ * run the screen is not merely unanimated, it is blank. It has happened twice:
+ * a scope that mounts later than its effect's dependencies, and a context
+ * revert that hands the element back to its hidden CSS state.
+ *
+ * So anything still hidden a beat after load is shown. It only ever touches
+ * elements GSAP has not written to, so it cannot fight a running tween: this
+ * layer still owns the property, it just refuses to leave content invisible.
+ */
+function revealStragglers() {
+  const hidden = document.querySelectorAll<HTMLElement>(
+    "[data-reveal], [data-mark], [data-enter], [data-word], [data-draw]",
+  );
+  hidden.forEach((el) => {
+    if (gsap.isTweening(el)) return;
+    const style = getComputedStyle(el);
+    const invisible = Number(style.opacity) < 0.99;
+    // A word sits in a clipping box; off its own baseline means still hidden.
+    const shifted = style.transform !== "none" && style.transform !== "matrix(1, 0, 0, 1, 0, 0)";
+    if (invisible || shifted) {
+      // No clearProps: removing the inline transform hands the element back to
+      // the very CSS rule that hides it. The final state has to be written.
+      gsap.set(el, { opacity: 1, x: 0, y: 0, xPercent: 0, yPercent: 0, scaleX: 1 });
+    }
+  });
+}
+
+if (typeof window !== "undefined") {
+  // Shortly after the entrances have had time to play out. Late enough not to
+  // interrupt them, early enough that a failure is a beat, not a blank screen.
+  window.setTimeout(revealStragglers, 900);
+}
+
 /** Durations, in seconds (GSAP's unit). */
 export const DUR = {
   micro: 0.14,

@@ -41,6 +41,7 @@ export default function DashboardPage() {
     attendanceState,
     customClasses,
     attendingDayOrders,
+    displayName,
   } = useSession();
 
   const holiday = timetable ? holidayToday(timetable.calendar) : null;
@@ -87,7 +88,9 @@ export default function DashboardPage() {
   );
 
   return (
-    <AppShell section={prettyDate(todayISO())}>
+    // The masthead greets by name; the date moves into the cover, where it
+    // belongs with the rest of the day's context.
+    <AppShell section={`Hey, ${displayName}`}>
       <div ref={scope} className="flex flex-1 flex-col">
         {/* ---------- 1. THE COVER ---------- */}
         <section className="bleed bleed-pad relative flex min-h-[62dvh] flex-col justify-end overflow-hidden pb-9 pt-2">
@@ -109,7 +112,10 @@ export default function DashboardPage() {
           )}
 
           <div className="relative">
-            <p data-reveal className="text-label uppercase text-accent">
+            <p data-reveal className="tnum text-label uppercase text-text-3">
+              {prettyDate(todayISO())}
+            </p>
+            <p data-reveal className="mt-3 text-label uppercase text-accent">
               {cover.label}
             </p>
 

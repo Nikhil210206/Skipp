@@ -86,6 +86,9 @@ export default function ProfilePage() {
             <label htmlFor="name" className="text-callout text-text-3">
               What we call you
             </label>
+            <p className="mt-1 text-callout text-text-3/70">
+              Leave it empty to go back to {tidy(student?.name)?.split(" ")[0] ?? "your portal name"}.
+            </p>
             <div className="mt-2 flex gap-2">
               <input
                 id="name"
@@ -94,10 +97,13 @@ export default function ProfilePage() {
                 placeholder="Your name"
                 className="min-w-0 flex-1 border-b border-line bg-transparent pb-2 text-title outline-none transition-colors focus:border-accent"
               />
+              {/* An empty field is a valid submission: it is how you go back
+                  to the name the portal has for you. Disabling it on empty
+                  made a custom name a one-way door. */}
               <Button
                 onClick={saveName}
                 variant={saved ? "quiet" : "secondary"}
-                disabled={name.trim() === displayName || name.trim() === ""}
+                disabled={name.trim() === displayName}
               >
                 {saved ? "Saved" : "Save"}
               </Button>
