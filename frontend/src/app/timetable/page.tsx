@@ -1,6 +1,7 @@
 "use client";
 
-import { useState } from "react";
+import { useLayoutEffect, useRef, useState } from "react";
+import gsap from "gsap";
 import AppShell from "@/components/AppShell";
 import CustomClassSheet from "@/components/CustomClassSheet";
 import { useSession } from "@/context/SessionContext";
@@ -17,7 +18,8 @@ import {
   todayISO,
   type ScheduleItem,
 } from "@/lib/schedule";
-import { revealIn, revealRows, useGsap } from "@/lib/motion";
+import { EASE, prefersReducedMotion, revealIn, useGsap } from "@/lib/motion";
+import RollingNumber from "@/components/onboarding/RollingNumber";
 import { Button, IconButton, StateView } from "@/components/ui";
 import { IconDownload } from "@/components/Icons";
 import { Marginalia, SectionHead } from "@/components/ui/editorial";
@@ -85,13 +87,56 @@ export default function TimetablePage() {
     }
   }
 
-  const scope = useGsap(
-    ({ self, reduced }) => {
-      revealIn(self, reduced, { y: 14, stagger: 0.05 });
-      revealRows(self, reduced);
-    },
-    [activeDO, classes.length],
-  );
+  const scope = useGsap(({ self, reduced }) => {
+    revealIn(self, reduced, { y: 14, stagger: 0.05 });
+  }, []);
+
+  // Switching day order is a TRANSITION, not a re-entrance. The rows are
+  // animated straight from a start state to their final one in the same frame,
+  // so the column flows over rather than blanking and rebuilding.
+  const list = useRef<HTMLOListElement>(null);
+  useLayoutEffect(() => {
+    const el = list.current;
+    if (!el || el.children.length === 0) return;
+    if (prefersReducedMotion()) {
+      gsap.set(el.children, { opacity: 1, y: 0 });
+      return;
+    }
+    gsap.fromTo(
+      el.children,
+      { opacity: 0, y: 20 },
+      {
+        opacity: 1,
+        y: 0,
+        duration: 0.55,
+        ease: EASE.emphasis,
+        stagger: 0.038,
+        overwrite: true,
+      },
+    );
+  }, [activeDO]);
+
+  // The selected rule slides between day orders instead of blinking from one to
+  // the next, so the control moves with the content it is changing.
+  const picker = useRef<HTMLDivElement>(null);
+  const marker = useRef<HTMLSpanElement>(null);
+  const placed = useRef(false);
+  useLayoutEffect(() => {
+    const box = picker.current;
+    const bar = marker.current;
+    if (!box || !bar) return;
+    const track = box.querySelector<HTMLElement>(`[data-do="${activeDO}"] [data-track]`);
+    if (!track) return;
+    const b = box.getBoundingClientRect();
+    const t = track.getBoundingClientRect();
+    const to = { x: t.left - b.left, y: t.top - b.top, width: t.width };
+    if (!placed.current || prefersReducedMotion()) {
+      placed.current = true;
+      gsap.set(bar, to);
+      return;
+    }
+    gsap.to(bar, { ...to, duration: 0.52, ease: EASE.emphasis, overwrite: "auto" });
+  }, [activeDO, dayOrders.length]);
 
   if (dayOrders.length === 0) {
     return (
@@ -126,18 +171,25 @@ export default function TimetablePage() {
             purpose: the numeral is the subject of the page, not the control. */}
         <div data-reveal className="pt-4">
           <p className="text-label uppercase text-text-3">Day order</p>
-          <p className="tnum optical mt-3 text-poster">
-            {String(activeDO).padStart(2, "0")}
-          </p>
+          <RollingNumber
+            value={String(activeDO).padStart(2, "0")}
+            className="optical mt-3 text-poster"
+          />
 
           {/* Evenly distributed across the column, each a full-height target,
               with the selection marked by a rule rather than by colour alone. */}
-          <div className="mt-8 flex items-stretch justify-between">
+          <div ref={picker} className="relative mt-8 flex items-stretch justify-between">
+            <span
+              ref={marker}
+              aria-hidden
+              className="pointer-events-none absolute left-0 top-0 h-[2px] bg-text-1"
+            />
             {dayOrders.map((d) => {
               const active = d.dayOrder === activeDO;
               return (
                 <button
                   key={d.dayOrder}
+                  data-do={d.dayOrder}
                   onClick={() => setSelected(d.dayOrder)}
                   aria-pressed={active}
                   aria-label={`Day order ${d.dayOrder}`}
@@ -152,11 +204,7 @@ export default function TimetablePage() {
                   >
                     {d.dayOrder}
                   </span>
-                  <span
-                    className={`h-[2px] w-full transition-colors duration-150 ${
-                      active ? "bg-text-1" : "bg-line"
-                    }`}
-                  />
+                  <span data-track className="h-[2px] w-full bg-line" />
                   <span className="h-1.5">
                     {d.dayOrder === todayDO && (
                       <span className="block size-1.5 rounded-full bg-accent" />
@@ -200,12 +248,12 @@ export default function TimetablePage() {
           {classes.length === 0 ? (
             <StateView title="No classes" message={`Day order ${activeDO} is clear.`} />
           ) : (
-            <ol className="relative">
+            <ol ref={list} className="relative">
               {classes.map((c, i) => {
                 const prev = classes[i - 1];
                 const gap = prev ? c.startMin - prev.endMin : 0;
                 return (
-                  <li key={c.id} data-row>
+                  <li key={c.id}>
                     {gap > 0 && <Gap minutes={gap} />}
                     <Block
                       item={c}

@@ -345,7 +345,39 @@ is deployment and true push notifications.
 Entries below are newest first. **When something breaks, read the relevant entry first**: most
 oddities here (login shell, empty calendar, 429s, duplicated course codes) are already diagnosed.
 
-### DONE: Overlays must be portalled (2026-07-28, latest)
+### DONE: Day-order switching, and the launch (2026-07-28, latest)
+
+**The one second blank on Schedule was the entrance re-running.** `useGsap` had
+`[activeDO, classes.length]` as dependencies, so every day-order tap ran
+`ctx.revert()`, which put every row back to the hidden CSS start state, then
+replayed `revealIn` plus `revealRows` (whose ScrollTrigger has to measure before
+anything below the fold appears). The screen genuinely emptied and rebuilt.
+
+The entrance is for **arriving** at a screen; changing day order is a
+**transition**. So `revealIn` runs once (`[]`), the rows are no longer
+`data-row`, and a dedicated `useLayoutEffect` on `[activeDO]` animates them with
+`gsap.fromTo` in the same frame. Measured across a switch: row opacity
+0.00 → 0.58 → 0.89 → 1.00 over ~400ms, continuous, never blank.
+
+Also: the selected rule now **slides** between day orders (measured against the
+active button's own track, so it cannot drift), and the poster numeral uses
+`RollingNumber`, so 02 to 05 rolls rather than cuts.
+
+**`components/Splash.tsx`** is the launch. Mounted in the root layout, so it
+plays on a cold start and never on a client navigation: opening from the app
+switcher is a fresh document, moving between tabs is not.
+
+- The wordmark is split **per letter**, which the entry choreography avoids
+  everywhere else. Showy is the point for five letters on an `aria-hidden`
+  element for under a second.
+- The rule beneath carries the **75% tick in accent**, so the launch is the same
+  single idea the rest of the app is built on.
+- It holds for a **fixed beat and leaves**, deliberately not waiting on the
+  session: a slow portal must never be able to turn the launch into a hang.
+- Verified by sampling: letters ease 37.7px to 0, the rule draws scaleX 0 to 1,
+  the overlay holds to ~1.45s then fades, and the component unmounts itself.
+
+### DONE: Overlays must be portalled (2026-07-28)
 **`Sheet` and `Panel` render through `createPortal` into `<body>`, and that is
 not a style choice.** Reverting it breaks the leave planner on every phone.
 

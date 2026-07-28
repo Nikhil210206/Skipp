@@ -4,6 +4,7 @@ import "./globals.css";
 import { SessionProvider } from "@/context/SessionContext";
 import { THEME_INIT_SCRIPT } from "@/lib/themeScript";
 import PWARegister from "@/components/PWARegister";
+import Splash from "@/components/Splash";
 
 const geistSans = Geist({
   variable: "--font-geist-sans",
@@ -63,6 +64,9 @@ export default function RootLayout({
       </head>
       <body className="min-h-full flex flex-col">
         <SessionProvider>{children}</SessionProvider>
+        {/* Above everything, and mounted here so it plays on a cold start only:
+            a client navigation never remounts the root layout. */}
+        <Splash />
         <PWARegister />
       </body>
     </html>
