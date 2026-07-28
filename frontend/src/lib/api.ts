@@ -72,9 +72,13 @@ export class PortalError extends Error {
 }
 
 async function post<T>(path: string, creds: Credentials): Promise<T> {
+  // Resolved outside the try: apiBase() throws its own, specific error when the
+  // backend URL is unset, and the catch below would otherwise replace it with
+  // the generic "cannot reach" message.
+  const base = apiBase();
   let res: Response;
   try {
-    res = await fetch(`${apiBase()}${path}`, {
+    res = await fetch(`${base}${path}`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify(creds),

@@ -62,23 +62,28 @@ export default function AppShell({
   return (
     <div className="mx-auto flex min-h-full w-full max-w-md flex-1 flex-col md:border-x md:border-line-soft">
       <PullToRefresh onRefresh={refresh}>
-        <header className="flex h-14 shrink-0 items-center justify-between px-[var(--gutter)] pt-[env(safe-area-inset-top)]">
-          <button
-            onClick={tapMasthead}
-            aria-label="Skipp"
-            className="text-label uppercase text-text-3"
-          >
-            {signature ? (
-              <span className="font-signature normal-case tracking-normal text-accent">
-                {CREATOR.prefix} {CREATOR.name}
-              </span>
-            ) : (
-              section
-            )}
-          </button>
-          <div className="flex items-center gap-1">
-            {action}
-            {pathname !== "/profile" && <ProfileMark name={displayName} />}
+        {/* The inset is padding on the wrapper, never on the bar itself: with
+            box-sizing: border-box a 59px notch inset would eat the whole 56px
+            bar and leave the content with zero height to sit in. */}
+        <header className="shrink-0 pt-[env(safe-area-inset-top)]">
+          <div className="flex h-14 items-center justify-between px-[var(--gutter)]">
+            <button
+              onClick={tapMasthead}
+              aria-label="Skipp"
+              className="-my-2 py-2 text-label uppercase text-text-3"
+            >
+              {signature ? (
+                <span className="font-signature normal-case tracking-normal text-accent">
+                  {CREATOR.prefix} {CREATOR.name}
+                </span>
+              ) : (
+                section
+              )}
+            </button>
+            <div className="flex items-center gap-1">
+              {action}
+              {pathname !== "/profile" && <ProfileMark name={displayName} />}
+            </div>
           </div>
         </header>
         <main className="flex flex-1 flex-col px-[var(--gutter)] pb-10">
@@ -97,8 +102,10 @@ function RestoringFrame() {
       aria-busy="true"
       aria-label="Loading your data"
     >
-      <div className="flex h-14 items-center px-[var(--gutter)] pt-[env(safe-area-inset-top)]">
-        <Skeleton className="h-3 w-16" />
+      <div className="pt-[env(safe-area-inset-top)]">
+        <div className="flex h-14 items-center px-[var(--gutter)]">
+          <Skeleton className="h-3 w-16" />
+        </div>
       </div>
       <div className="flex flex-1 flex-col gap-4 px-[var(--gutter)] pt-6">
         <Skeleton className="h-4 w-28" />

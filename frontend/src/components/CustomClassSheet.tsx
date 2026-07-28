@@ -11,7 +11,12 @@ import { Button, Label, Segmented } from "@/components/ui";
 function toMin(hhmm: string): number | null {
   const m = /^(\d{1,2}):(\d{2})$/.exec(hhmm);
   if (!m) return null;
-  return Number(m[1]) * 60 + Number(m[2]);
+  const h = Number(m[1]);
+  const min = Number(m[2]);
+  // The shape being right does not make the time real: "25:99" matches the
+  // pattern and would sort a class off the end of the day.
+  if (h > 23 || min > 59) return null;
+  return h * 60 + min;
 }
 
 function autoAbbrev(title: string): string {
@@ -38,10 +43,22 @@ export default function CustomClassSheet({
 }) {
   const [order, setOrder] = useState(dayOrder);
   const [title, setTitle] = useState("");
+  const [wasOpen, setWasOpen] = useState(open);
   const [start, setStart] = useState("09:00");
   const [end, setEnd] = useState("10:00");
   const [room, setRoom] = useState("");
   const [error, setError] = useState<string | null>(null);
+
+  // The sheet stays mounted between openings, so the day order picked up at
+  // mount would stick: opening it from day order 5 still offered day order 3.
+  // Reset during render (React's documented pattern) rather than in an effect.
+  if (open !== wasOpen) {
+    setWasOpen(open);
+    if (open) {
+      setOrder(dayOrder);
+      setError(null);
+    }
+  }
 
   function reset() {
     setTitle("");
@@ -106,8 +123,14 @@ export default function CustomClassSheet({
         />
 
         <div className="grid grid-cols-2 gap-3">
-          <TextField id="cc-start" label="Starts" value={start} onChange={setStart} />
-          <TextField id="cc-end" label="Ends" value={end} onChange={setEnd} />
+          <TextField
+            id="cc-start"
+            label="Starts"
+            value={start}
+            onChange={setStart}
+            numeric
+          />
+          <TextField id="cc-end" label="Ends" value={end} onChange={setEnd} numeric />
         </div>
 
         <TextField
@@ -139,12 +162,15 @@ function TextField({
   value,
   onChange,
   placeholder,
+  numeric = false,
 }: {
   id: string;
   label: string;
   value: string;
   onChange: (v: string) => void;
   placeholder?: string;
+  /** A time field: bring up digits, not the alphabet. */
+  numeric?: boolean;
 }) {
   return (
     <div className="rounded-control border border-line bg-ink-0 px-4 py-3 transition-colors focus-within:border-text-3">
@@ -154,6 +180,8 @@ function TextField({
       <input
         id={id}
         value={value}
+        inputMode={numeric ? "numeric" : undefined}
+        autoComplete="off"
         onChange={(e) => onChange(e.target.value)}
         placeholder={placeholder}
         className="tnum mt-1.5 w-full bg-transparent text-headline text-text-1 outline-none placeholder:font-sans placeholder:text-text-3"

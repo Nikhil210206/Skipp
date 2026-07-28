@@ -207,6 +207,25 @@ export function SessionProvider({ children }: { children: React.ReactNode }) {
     };
   }, [refreshIfStale]);
 
+  // Stable across renders. It used to be rebuilt inside the value memo, so its
+  // identity changed whenever anything in the session did, including the
+  // `refreshing` flag it sets itself. PullToRefresh depends on it, so the pull
+  // handler was being unregistered and re-registered during its own refresh.
+  const refresh = useCallback(async () => {
+    if (!creds) return;
+    setRefreshing(true);
+    try {
+      const fresh = await fetchSnapshot(creds);
+      setSnapshot(fresh);
+      void saveSnapshot(fresh);
+    } catch {
+      // Rate-limited or offline: keep showing the cached snapshot rather than
+      // erroring. (A daily-cap hit just means "no update right now".)
+    } finally {
+      setRefreshing(false);
+    }
+  }, [creds]);
+
   const value = useMemo<SessionValue>(() => {
     const sectionState = (s: SectionStatus | undefined): SectionState =>
       creds && !snapshot ? "loading" : (s ?? "loading");
@@ -260,20 +279,7 @@ export function SessionProvider({ children }: { children: React.ReactNode }) {
         void saveCredentials(next);
         void saveSnapshot(snap);
       },
-      async refresh() {
-        if (!creds) return;
-        setRefreshing(true);
-        try {
-          const fresh = await fetchSnapshot(creds);
-          setSnapshot(fresh);
-          void saveSnapshot(fresh);
-        } catch {
-          // Rate-limited or offline: keep showing the cached snapshot rather
-          // than erroring. (A daily-cap hit just means "no update right now".)
-        } finally {
-          setRefreshing(false);
-        }
-      },
+      refresh,
       logout() {
         setCreds(null);
         setSnapshot(null);
@@ -291,6 +297,7 @@ export function SessionProvider({ children }: { children: React.ReactNode }) {
     customName,
     officialFirst,
     reg,
+    refresh,
   ]);
 
   return (

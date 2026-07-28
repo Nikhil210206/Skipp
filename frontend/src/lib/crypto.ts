@@ -60,8 +60,21 @@ async function getOrCreateKey(): Promise<CryptoKey> {
   return key;
 }
 
-const b64 = (buf: ArrayBuffer) =>
-  btoa(String.fromCharCode(...new Uint8Array(buf)));
+/**
+ * Base64 in chunks. `String.fromCharCode(...bytes)` passes one argument per
+ * byte, and the snapshot is tens of kilobytes and grows with the student's
+ * courses and published marks, so a single spread eventually exceeds the
+ * engine's argument limit (lower on Safari than on Chrome) and throws.
+ */
+function b64(buf: ArrayBuffer): string {
+  const bytes = new Uint8Array(buf);
+  const CHUNK = 0x8000;
+  let out = "";
+  for (let i = 0; i < bytes.length; i += CHUNK) {
+    out += String.fromCharCode(...bytes.subarray(i, i + CHUNK));
+  }
+  return btoa(out);
+}
 const unb64 = (s: string) =>
   Uint8Array.from(atob(s), (c) => c.charCodeAt(0));
 
@@ -93,14 +106,7 @@ async function decryptJSON<T>(blob: string): Promise<T | null> {
 /** Encrypt + persist credentials for reload-survival. Best-effort. */
 export async function saveCredentials(creds: Credentials): Promise<void> {
   try {
-    const key = await getOrCreateKey();
-    const iv = crypto.getRandomValues(new Uint8Array(12));
-    const data = new TextEncoder().encode(JSON.stringify(creds));
-    const ct = await crypto.subtle.encrypt({ name: "AES-GCM", iv }, key, data);
-    localStorage.setItem(
-      BLOB_KEY,
-      `${b64(iv.buffer)}.${b64(ct)}`,
-    );
+    localStorage.setItem(BLOB_KEY, await encryptJSON(creds));
   } catch {
     // Crypto/IDB unavailable, so degrade to in-memory only (re-login on reload).
   }
@@ -111,14 +117,7 @@ export async function loadCredentials(): Promise<Credentials | null> {
   try {
     const blob = localStorage.getItem(BLOB_KEY);
     if (!blob) return null;
-    const [ivB64, ctB64] = blob.split(".");
-    const key = await getOrCreateKey();
-    const pt = await crypto.subtle.decrypt(
-      { name: "AES-GCM", iv: unb64(ivB64) },
-      key,
-      unb64(ctB64),
-    );
-    return JSON.parse(new TextDecoder().decode(pt)) as Credentials;
+    return await decryptJSON<Credentials>(blob);
   } catch {
     return null;
   }

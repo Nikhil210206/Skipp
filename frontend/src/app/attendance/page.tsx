@@ -139,7 +139,9 @@ export default function AttendancePage() {
             )}
 
             <section>
-              <SectionHead aside={`${tracked.length} tracked`}>Subjects</SectionHead>
+              {/* Counts the rows below it, not every tracked subject: the ones
+                  short of the line have their own section above. */}
+              <SectionHead aside={`${rest.length} listed`}>Subjects</SectionHead>
               <ul className="mt-2">
                 {rest.map((s, i) => (
                   <li key={`${s.code}-${s.slot ?? i}`} data-row>

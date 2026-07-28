@@ -345,7 +345,67 @@ is deployment and true push notifications.
 Entries below are newest first. **When something breaks, read the relevant entry first**: most
 oddities here (login shell, empty calendar, 429s, duplicated course codes) are already diagnosed.
 
-### DONE: Deployable on Vercel, both halves (2026-07-28, latest)
+### DONE: Production audit, mobile layout fixed (2026-07-28, latest)
+A full audit against the deployed build. **Two layout bugs broke the chrome on
+every screen of every notched phone, and neither was visible on a desktop**,
+which is why they survived so long. Both are measured, not eyeballed: the
+numbers below come from a simulated 59px/34px inset.
+
+- **The masthead collapsed to zero height.** `AppShell`'s header was
+  `h-14 pt-[env(safe-area-inset-top)]`, and with `box-sizing: border-box` a
+  59px notch inset consumed the entire 56px box (content box 0px, label
+  spilling 6px out). The inset now pads a **wrapper**, so the 56px bar sits
+  below the notch. **Never put a safe-area inset on an element with a fixed
+  height.**
+- **The primary action sat under the tab bar.** `--nav-h` was a hand-kept 58px
+  against a real nav of 65px (desktop) and 91px (home indicator), so
+  `StickyAction` put "Plan a leave" 23px behind the bar. `BottomNav` now
+  publishes its measured height through a `ResizeObserver`. Clearance went from
+  -23px to +12px. **A constant that mirrors a computed layout will drift; make
+  the layout publish it.**
+
+Other fixes in the same pass:
+- **Home split labs in two.** `mergeRuns` ran *after* the hero was sliced off,
+  so a two-period lab showed period 1 as the hero and period 2 as a separate
+  row below, and the countdown ran to the end of period 1. Merge first, then
+  pick the hero.
+- `apiBase()`'s "NEXT_PUBLIC_API_URL is not set" error was thrown **inside** the
+  `try` that catches network failures, so it was replaced by the generic
+  unreachable message. Resolved before the try now.
+- `useLockScroll` used `overflow: hidden`, which **iOS Safari ignores**; sheets
+  now pin the body with `position: fixed` and restore the offset.
+- `Overlay`'s comment claimed both overlays trap focus. They did not. There is
+  a real trap now, with focus restored on close.
+- Custom class sheet: the day order was `useState(dayOrder)` on a component
+  that never unmounts, so it kept the value from first mount; times accepted
+  `25:99`; time fields opened the alphabet. All three fixed.
+- `crypto.ts` base64 spread one argument per byte (`String.fromCharCode(...)`).
+  Measured 28KB against a 120k-argument ceiling in Chrome, lower on Safari, so
+  it was a crash waiting for a bigger snapshot. Chunked at 32KB.
+- `SessionContext.refresh` is a `useCallback`. Its identity used to change with
+  `refreshing`, which it sets itself, so `PullToRefresh` unregistered its own
+  listeners mid-gesture.
+- `timetableImage.ts` (~300 lines of canvas) is now a dynamic import.
+- `RollingNumber` carried its value in `aria-label` on a generic span with all
+  digits `aria-hidden`; it is real `sr-only` text now.
+- Attendance's "Subjects" count described every tracked subject while listing
+  only the ones above the line.
+
+**Known and NOT fixed, needs a decision:** the backend is an open credential
+proxy. Anyone with the URL can POST arbitrary credentials to `/refresh`; the
+typed `user_not_found` vs `wrong_password` responses make it a Net ID oracle,
+and every attempt burns the victim's `SI503` daily cap. CORS restricts browsers,
+not curl. §3 anticipated this ("v2, add a Cloudflare Worker that HMAC-signs
+requests"); deploying is what made it real. In-memory rate limiting is close to
+useless on serverless, so the realistic options are a shared-secret header or a
+KV-backed limiter.
+
+**Dead code found, left in place:** `lib/alerts.ts` (`buildAlerts`) has no
+importer, though §11 still describes it as a live Home feature. Also 16 unused
+icons, `Divider`, `IndexRow`, `Meter`, `upcomingHoliday`, `projectSkip`,
+`projectAttend`, and the three single-section fetchers.
+
+### DONE: Deployable on Vercel, both halves (2026-07-28)
 Frontend and backend both deploy to Vercel, as **two projects** off one repo
 (root directories `frontend/` and `backend/`).
 

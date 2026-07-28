@@ -43,10 +43,10 @@ export default function RollingNumber({
   }, [value]);
 
   return (
-    <span
-      className={`tnum inline-flex items-end -mb-[0.15em] ${className}`}
-      aria-label={value}
-    >
+    <span className={`tnum inline-flex items-end -mb-[0.15em] ${className}`}>
+      {/* Every digit column is aria-hidden, and aria-label on a generic span is
+          not reliably announced, so the value is carried as real text. */}
+      <span className="sr-only">{value}</span>
       {chars.map((c, i) =>
         /\d/.test(c) ? (
           <span

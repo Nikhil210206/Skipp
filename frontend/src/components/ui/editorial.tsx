@@ -215,7 +215,9 @@ export function StickyAction({ children }: { children: React.ReactNode }) {
       />
       <div
         className="bleed bleed-pad bg-ink-0"
-        style={{ paddingBottom: "calc(var(--nav-h) + 10px)" }}
+        // --nav-h is measured and published by BottomNav, so this clears the
+        // real bar including the home-indicator inset rather than a guess.
+        style={{ paddingBottom: "calc(var(--nav-h, 58px) + 12px)" }}
       >
         {children}
       </div>

@@ -28,6 +28,23 @@ export default function BottomNav() {
   const pathname = usePathname();
   const dot = useRef<HTMLSpanElement>(null);
   const bar = useRef<HTMLUListElement>(null);
+  const nav = useRef<HTMLElement>(null);
+
+  // The bar publishes its own height as --nav-h, because anything anchored
+  // above it (StickyAction) needs the real number. It was a hand-maintained
+  // constant of 58px against a real height of 65px on a desktop and 91px on a
+  // phone with a home indicator, which put the primary action underneath the
+  // bar. A measurement cannot drift; a constant already had.
+  useEffect(() => {
+    const el = nav.current;
+    if (!el) return;
+    const apply = (h: number) =>
+      document.documentElement.style.setProperty("--nav-h", `${Math.round(h)}px`);
+    apply(el.getBoundingClientRect().height);
+    const ro = new ResizeObserver(([entry]) => apply(entry.contentRect.height));
+    ro.observe(el);
+    return () => ro.disconnect();
+  }, []);
 
   useEffect(() => {
     const list = bar.current;
@@ -50,6 +67,7 @@ export default function BottomNav() {
 
   return (
     <nav
+      ref={nav}
       aria-label="Primary"
       className="sticky bottom-0 z-30 bg-ink-0/90 backdrop-blur-2xl"
     >

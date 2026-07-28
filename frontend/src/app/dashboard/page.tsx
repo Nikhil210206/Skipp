@@ -47,16 +47,18 @@ export default function DashboardPage() {
   const focus = timetable ? focusDay(timetable) : null;
   // The filtered grid, so optional courses never reach the day's class list.
   const schedule = scheduleFor(attendingDayOrders, focus?.dayOrder ?? null);
-  const classes = daySchedule(
-    schedule?.classes ?? [],
-    customClasses,
-    focus?.dayOrder ?? null,
+  // Merged FIRST. A lab is two or three consecutive periods of one course, and
+  // a student thinks of it as one class: if the hero is picked from unmerged
+  // periods, the rest of the same lab reappears in the list below it, and the
+  // countdown runs to the end of period one rather than the end of the lab.
+  const classes = mergeRuns(
+    daySchedule(schedule?.classes ?? [], customClasses, focus?.dayOrder ?? null),
   );
 
   const cover = buildCover(classes, focus, holiday);
-  const later = mergeRuns(
-    cover.hero ? classes.slice(classes.indexOf(cover.hero) + 1) : classes,
-  );
+  const later = cover.hero
+    ? classes.slice(classes.indexOf(cover.hero) + 1)
+    : classes;
 
   const overall = attendance?.overallPercentage ?? 0;
   const belowTarget =
@@ -88,7 +90,7 @@ export default function DashboardPage() {
     <AppShell section={prettyDate(todayISO())}>
       <div ref={scope} className="flex flex-1 flex-col">
         {/* ---------- 1. THE COVER ---------- */}
-        <section className="bleed bleed-pad relative flex min-h-[62vh] flex-col justify-end overflow-hidden pb-9 pt-2">
+        <section className="bleed bleed-pad relative flex min-h-[62dvh] flex-col justify-end overflow-hidden pb-9 pt-2">
           {focus?.dayOrder != null && (
             <div
               ref={ghost}

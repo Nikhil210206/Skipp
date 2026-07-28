@@ -20,7 +20,6 @@ import {
 import { revealIn, revealRows, useGsap } from "@/lib/motion";
 import { Button, IconButton, StateView } from "@/components/ui";
 import { IconDownload } from "@/components/Icons";
-import { downloadTimetableGrid } from "@/lib/timetableImage";
 import { Marginalia, SectionHead } from "@/components/ui/editorial";
 
 /**
@@ -73,6 +72,9 @@ export default function TimetablePage() {
     if (saving) return;
     setSaving(true);
     try {
+      // Loaded on demand: it is ~300 lines of canvas drawing that only matters
+      // once someone actually asks for the picture.
+      const { downloadTimetableGrid } = await import("@/lib/timetableImage");
       await downloadTimetableGrid(attendingDayOrders, customClasses, {
         studentName: student?.name ?? "",
         section: student?.section ?? null,

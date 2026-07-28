@@ -10,15 +10,82 @@ import { DUR, EASE, prefersReducedMotion } from "@/lib/motion";
 import { IconClose } from "@/components/Icons";
 import { IconButton } from "./index";
 
+/**
+ * Locks the page behind an overlay.
+ *
+ * `overflow: hidden` on the body is ignored by iOS Safari, which happily keeps
+ * scrolling the page behind a sheet. Pinning the body with `position: fixed`
+ * at its current offset is what actually holds, so the scroll position has to
+ * be captured and restored by hand.
+ */
 function useLockScroll(active: boolean) {
   useEffect(() => {
     if (!active) return;
-    const prev = document.body.style.overflow;
-    document.body.style.overflow = "hidden";
+    const body = document.body;
+    const y = window.scrollY;
+    const prev = {
+      position: body.style.position,
+      top: body.style.top,
+      left: body.style.left,
+      right: body.style.right,
+      width: body.style.width,
+      overflow: body.style.overflow,
+    };
+    body.style.position = "fixed";
+    body.style.top = `-${y}px`;
+    body.style.left = "0";
+    body.style.right = "0";
+    body.style.width = "100%";
+    body.style.overflow = "hidden";
     return () => {
-      document.body.style.overflow = prev;
+      Object.assign(body.style, prev);
+      window.scrollTo(0, y);
     };
   }, [active]);
+}
+
+/**
+ * Keeps focus inside the overlay while it is open and gives it back afterwards.
+ *
+ * A dialog that announces `aria-modal` while leaving focus on the page behind
+ * it is worse than no dialog at all: a keyboard or screen reader user is told
+ * they are in a modal and then tabs through content they cannot see.
+ */
+function useFocusTrap(open: boolean, ref: React.RefObject<HTMLElement | null>) {
+  useEffect(() => {
+    const root = ref.current;
+    if (!open || !root) return;
+    const previous = document.activeElement as HTMLElement | null;
+
+    const focusable = () =>
+      Array.from(
+        root.querySelectorAll<HTMLElement>(
+          'a[href], button:not([disabled]), input:not([disabled]), select, textarea, [tabindex]:not([tabindex="-1"])',
+        ),
+      ).filter((el) => el.offsetParent !== null);
+
+    focusable()[0]?.focus();
+
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key !== "Tab") return;
+      const items = focusable();
+      if (items.length === 0) return;
+      const first = items[0];
+      const last = items[items.length - 1];
+      if (e.shiftKey && document.activeElement === first) {
+        e.preventDefault();
+        last.focus();
+      } else if (!e.shiftKey && document.activeElement === last) {
+        e.preventDefault();
+        first.focus();
+      }
+    };
+    document.addEventListener("keydown", onKey);
+    return () => {
+      document.removeEventListener("keydown", onKey);
+      previous?.focus?.();
+    };
+  }, [open, ref]);
 }
 
 /**
@@ -71,6 +138,7 @@ export function Sheet({
   const panel = useRef<HTMLDivElement>(null);
   useLockScroll(present);
   useDismissKey(open, onClose);
+  useFocusTrap(open, panel);
 
   useEffect(() => {
     const p = panel.current;
@@ -99,6 +167,9 @@ export function Sheet({
   const drag = useRef({ startY: 0, active: false });
   const onPointerDown = (e: React.PointerEvent) => {
     if (prefersReducedMotion()) return;
+    // The close button lives inside the drag handle; capturing the pointer for
+    // a drag would swallow its click.
+    if ((e.target as HTMLElement).closest("button")) return;
     drag.current = { startY: e.clientY, active: true };
     (e.target as HTMLElement).setPointerCapture?.(e.pointerId);
   };
@@ -177,6 +248,7 @@ export function Panel({
   const root = useRef<HTMLDivElement>(null);
   useLockScroll(present);
   useDismissKey(open, onClose);
+  useFocusTrap(open, root);
 
   const close = useCallback(() => onClose(), [onClose]);
 
