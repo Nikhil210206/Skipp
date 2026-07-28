@@ -347,7 +347,29 @@ oddities here (login shell, empty calendar, 429s, duplicated course codes) are a
 
 ### DONE: Day-order switching, and the launch (2026-07-28, latest)
 
-**The one second blank on Schedule was the entrance re-running.** `useGsap` had
+**Switching day order is a three-part move, and all three parts matter.**
+
+1. **The entrance was re-running.** `useGsap` had `[activeDO, classes.length]`
+   as dependencies, so every tap called `ctx.revert()`, which put every row back
+   to the hidden CSS start state, then replayed `revealIn` plus `revealRows`
+   (whose ScrollTrigger has to measure before anything below the fold appears).
+   That was the one second blank.
+2. **Then it still blinked**, because the outgoing classes vanished in a single
+   frame and the new ones faded up from nothing. The empty frame between the two
+   is what reads as a blink however smooth each half is. Now the rows on screen
+   **leave first** (170ms, 16ms stagger) and the swap is committed in the tween's
+   `onComplete`. A killed tween never fires `onComplete`, so a second tap
+   mid-exit simply supersedes the first.
+3. **The column's height is tweened across the swap**, because day orders hold
+   different numbers of classes and the section beneath would otherwise snap.
+
+`controlDO` (what was tapped) is deliberately **ahead of** `activeDO` (what is
+drawn): the numeral and the sliding rule answer on the touch frame, the classes
+follow a beat later. Measured across a switch: opacity
+4.0 → 0.12 → 4.0 as one curve, height easing with a **2px** maximum jump per
+frame.
+
+Original diagnosis, kept because the dependency trap is the reusable part: `useGsap` had
 `[activeDO, classes.length]` as dependencies, so every day-order tap ran
 `ctx.revert()`, which put every row back to the hidden CSS start state, then
 replayed `revealIn` plus `revealRows` (whose ScrollTrigger has to measure before

@@ -55,8 +55,15 @@ export default function TimetablePage() {
   const upcomingDO = upcoming?.dayOrder ?? null;
 
   const [selected, setSelected] = useState<number | null>(null);
+  // What the student tapped, which runs AHEAD of what is on screen. The control
+  // answers on the same frame as the touch; the column follows a beat later,
+  // once the outgoing classes have left. Without the split the old rows vanish
+  // in one frame and the new ones fade up from nothing, and that empty frame in
+  // between is what reads as a blink.
+  const [target, setTarget] = useState<number | null>(null);
   const [sheetOpen, setSheetOpen] = useState(false);
   const activeDO = selected ?? todayDO ?? upcomingDO ?? dayOrders[0]?.dayOrder ?? 1;
+  const controlDO = target ?? activeDO;
 
   const schedule = scheduleFor(dayOrders, activeDO);
   const classes = mergeRuns(
@@ -91,17 +98,70 @@ export default function TimetablePage() {
     revealIn(self, reduced, { y: 14, stagger: 0.05 });
   }, []);
 
+  // Tapping a day order: the classes on screen leave first, then the new ones
+  // arrive, so the column is never empty and never jumps.
+  function pick(next: number) {
+    if (next === controlDO) return;
+    setTarget(next);
+    const el = list.current;
+    if (!el || el.children.length === 0 || prefersReducedMotion()) {
+      setSelected(next);
+      return;
+    }
+    // A killed tween never fires onComplete, so a second tap mid-exit simply
+    // supersedes the first and only the newest day order is committed.
+    fromHeight.current = el.getBoundingClientRect().height;
+    gsap.killTweensOf(el.children);
+    gsap.to(el.children, {
+      opacity: 0,
+      y: -12,
+      duration: 0.17,
+      ease: EASE.in,
+      stagger: 0.016,
+      overwrite: true,
+      onComplete: () => setSelected(next),
+    });
+  }
+
   // Switching day order is a TRANSITION, not a re-entrance. The rows are
   // animated straight from a start state to their final one in the same frame,
   // so the column flows over rather than blanking and rebuilding.
   const list = useRef<HTMLOListElement>(null);
+  // The column's height before a swap. Day orders hold different numbers of
+  // classes, so without this the section beneath snaps up or down the instant
+  // the rows are replaced, however smoothly the rows themselves move.
+  const fromHeight = useRef<number | null>(null);
   useLayoutEffect(() => {
     const el = list.current;
     if (!el || el.children.length === 0) return;
     if (prefersReducedMotion()) {
       gsap.set(el.children, { opacity: 1, y: 0 });
+      fromHeight.current = null;
       return;
     }
+
+    // The column resizes to its new contents as one movement with the rows,
+    // rather than jumping to the new height and then filling it.
+    const was = fromHeight.current;
+    fromHeight.current = null;
+    if (was !== null) {
+      const now = el.getBoundingClientRect().height;
+      if (Math.abs(now - was) > 2) {
+        gsap.fromTo(
+          el,
+          { height: was, overflow: "hidden" },
+          {
+            height: now,
+            duration: 0.5,
+            ease: EASE.emphasis,
+            overwrite: "auto",
+            // Back to auto height, or the next day order is trapped at this one.
+            clearProps: "height,overflow",
+          },
+        );
+      }
+    }
+
     gsap.fromTo(
       el.children,
       { opacity: 0, y: 20 },
@@ -125,7 +185,7 @@ export default function TimetablePage() {
     const box = picker.current;
     const bar = marker.current;
     if (!box || !bar) return;
-    const track = box.querySelector<HTMLElement>(`[data-do="${activeDO}"] [data-track]`);
+    const track = box.querySelector<HTMLElement>(`[data-do="${controlDO}"] [data-track]`);
     if (!track) return;
     const b = box.getBoundingClientRect();
     const t = track.getBoundingClientRect();
@@ -136,7 +196,7 @@ export default function TimetablePage() {
       return;
     }
     gsap.to(bar, { ...to, duration: 0.52, ease: EASE.emphasis, overwrite: "auto" });
-  }, [activeDO, dayOrders.length]);
+  }, [controlDO, dayOrders.length]);
 
   if (dayOrders.length === 0) {
     return (
@@ -172,7 +232,7 @@ export default function TimetablePage() {
         <div data-reveal className="pt-4">
           <p className="text-label uppercase text-text-3">Day order</p>
           <RollingNumber
-            value={String(activeDO).padStart(2, "0")}
+            value={String(controlDO).padStart(2, "0")}
             className="optical mt-3 text-poster"
           />
 
@@ -185,12 +245,12 @@ export default function TimetablePage() {
               className="pointer-events-none absolute left-0 top-0 h-[2px] bg-text-1"
             />
             {dayOrders.map((d) => {
-              const active = d.dayOrder === activeDO;
+              const active = d.dayOrder === controlDO;
               return (
                 <button
                   key={d.dayOrder}
                   data-do={d.dayOrder}
-                  onClick={() => setSelected(d.dayOrder)}
+                  onClick={() => pick(d.dayOrder)}
                   aria-pressed={active}
                   aria-label={`Day order ${d.dayOrder}`}
                   className="group relative flex flex-1 flex-col items-center gap-3 pt-1"
