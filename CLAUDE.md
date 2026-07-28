@@ -345,7 +345,31 @@ is deployment and true push notifications.
 Entries below are newest first. **When something breaks, read the relevant entry first**: most
 oddities here (login shell, empty calendar, 429s, duplicated course codes) are already diagnosed.
 
-### DONE: Schedule moves with direction, Home greets properly (2026-07-28, latest)
+### DONE: Install prompt, asked not enforced (2026-07-29, latest)
+`components/InstallPrompt.tsx`, mounted in `AppShell` so it appears once the
+student is signed in and looking at their own data.
+
+Chrome hands over a real install dialog through `beforeinstallprompt`. **Safari
+has no equivalent**, so iOS gets written steps instead, chosen by user agent
+(with the iPadOS-reports-as-Mac case handled via `maxTouchPoints`). Dismissal
+snoozes for five days rather than forever, so one stray tap does not lose it.
+
+**It does not gate the app, and should not.** The request was to block use until
+a shortcut exists. Three reasons that fails:
+- **There is no way to detect that someone made a shortcut.** The only
+  observable fact is whether this page is *running* standalone
+  (`display-mode: standalone`, or `navigator.standalone` on iOS).
+- **On iOS a home screen app gets its own storage container.** Blocking a
+  student until they install means signing in again inside the installed app,
+  spending a second sign-in against the `SI503` daily cap, on an account that
+  has already been CAPTCHA'd for signing in too often.
+- Anyone on a laptop, or a browser without standalone support, would be locked
+  out of their own attendance with no way through.
+
+If it is ever revisited, the honest version is a **reminder that gets firmer**,
+never a wall.
+
+### DONE: Schedule moves with direction, Home greets properly (2026-07-28)
 
 **Fading out and back in still read as a swap, not a movement.** A cross-fade
 has no direction, so the eye has nothing to follow. The column now **travels**:

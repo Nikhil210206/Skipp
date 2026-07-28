@@ -6,6 +6,7 @@ import { useSession } from "@/context/SessionContext";
 import BottomNav from "./BottomNav";
 import PullToRefresh from "./PullToRefresh";
 import ProfileMark from "./ProfileMark";
+import InstallPrompt from "./InstallPrompt";
 import { CREATOR } from "@/lib/creator";
 import { Skeleton } from "./ui";
 
@@ -91,6 +92,9 @@ export default function AppShell({
         </main>
       </PullToRefresh>
       <BottomNav />
+      {/* Asks once the student is actually in and looking at their own data,
+          which is the only moment the offer means anything. */}
+      <InstallPrompt />
     </div>
   );
 }
