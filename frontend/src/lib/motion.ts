@@ -237,6 +237,55 @@ export function revealRows(
 }
 
 /**
+ * Which way the last navigation travelled: 1 to the right, -1 to the left, 0
+ * when it was not a move along the tab bar. Module scope because the outgoing
+ * screen sets it and the incoming screen, a different mount entirely, reads it.
+ */
+let navDirection = 0;
+
+export function setNavDirection(dir: number): void {
+  navDirection = dir;
+}
+
+/**
+ * The screen leaves in the direction of travel, then `pageIn` brings the next
+ * one from the far side, so moving between tabs reads as moving across one
+ * surface rather than cutting between two.
+ *
+ * Resolves when the screen is out, so the caller can navigate on completion.
+ */
+export function pageOut(el: HTMLElement | null, dir: number): Promise<void> {
+  setNavDirection(dir);
+  if (!el || prefersReducedMotion()) return Promise.resolve();
+  return new Promise((resolve) => {
+    gsap.to(el, {
+      x: dir === 0 ? 0 : -26 * dir,
+      opacity: 0,
+      duration: 0.16,
+      ease: EASE.in,
+      overwrite: "auto",
+      onComplete: () => resolve(),
+    });
+  });
+}
+
+/** Brings a freshly mounted screen in from the side it should arrive from. */
+export function pageIn(el: HTMLElement | null): void {
+  if (!el) return;
+  const dir = navDirection;
+  navDirection = 0;
+  if (prefersReducedMotion() || dir === 0) {
+    gsap.set(el, { x: 0, opacity: 1 });
+    return;
+  }
+  gsap.fromTo(
+    el,
+    { x: 30 * dir, opacity: 0 },
+    { x: 0, opacity: 1, duration: 0.34, ease: EASE.emphasis, overwrite: "auto" },
+  );
+}
+
+/**
  * The entrance choreography shared by the intro and the sign-in screen.
  *
  * One timeline so the beats stay in proportion to each other: the mark, then the

@@ -1,7 +1,7 @@
 "use client";
 
 import { usePathname, useRouter } from "next/navigation";
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useLayoutEffect, useRef, useState } from "react";
 import { useSession } from "@/context/SessionContext";
 import BottomNav from "./BottomNav";
 import PullToRefresh from "./PullToRefresh";
@@ -9,6 +9,8 @@ import ProfileMark from "./ProfileMark";
 import InstallPrompt from "./InstallPrompt";
 import { CREATOR } from "@/lib/creator";
 import { Skeleton } from "./ui";
+import { pageIn } from "@/lib/motion";
+import { useSwipeNav } from "@/lib/useSwipeNav";
 
 /**
  * The frame: auth guard, a thin masthead, pull to refresh, tab bar.
@@ -57,11 +59,24 @@ export default function AppShell({
     if (!restoring && !isAuthed) router.replace("/");
   }, [isAuthed, restoring, router]);
 
+  // The arriving screen slides in from the side it was navigated towards.
+  // Layout effect, so the first painted frame is already the start state.
+  const main = useRef<HTMLElement>(null);
+  // Swipe left or right to move between tabs, using the same exit the bar does.
+  const shell = useRef<HTMLDivElement>(null);
+  useSwipeNav(shell, pathname, !restoring && isAuthed);
+  useLayoutEffect(() => {
+    if (!restoring && isAuthed) pageIn(main.current);
+  }, [restoring, isAuthed]);
+
   if (restoring) return <RestoringFrame />;
   if (!isAuthed) return null;
 
   return (
-    <div className="mx-auto flex min-h-full w-full max-w-md flex-1 flex-col md:border-x md:border-line-soft">
+    <div
+      ref={shell}
+      className="mx-auto flex min-h-full w-full max-w-md flex-1 flex-col md:border-x md:border-line-soft"
+    >
       <PullToRefresh onRefresh={refresh}>
         {/* The inset is padding on the wrapper, never on the bar itself: with
             box-sizing: border-box a 59px notch inset would eat the whole 56px
@@ -94,7 +109,7 @@ export default function AppShell({
             </div>
           </div>
         </header>
-        <main className="flex flex-1 flex-col px-[var(--gutter)] pb-10">
+        <main ref={main} className="flex flex-1 flex-col px-[var(--gutter)] pb-10">
           {children}
         </main>
       </PullToRefresh>

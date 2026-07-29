@@ -345,7 +345,59 @@ is deployment and true push notifications.
 Entries below are newest first. **When something breaks, read the relevant entry first**: most
 oddities here (login shell, empty calendar, 429s, duplicated course codes) are already diagnosed.
 
-### DONE: The selection travels (2026-07-29, latest)
+### DONE: Swipe between tabs (2026-07-29, latest)
+`lib/useSwipeNav.ts`, attached to the AppShell root. Swiping left or right moves
+along the tab bar, and past the threshold it hands over to the **same `pageOut`
+the tab bar uses**, so a swipe and a tap end in an identical movement.
+
+- **The screen follows the finger** at 45% of its travel, dropping to 16% at the
+  ends of the bar where there is nowhere to go. The commit threshold (68px) is
+  then discoverable by feel rather than by guessing.
+- **Both touch handlers lock to an axis** on the first real movement.
+  `PullToRefresh` previously engaged on any downward drift, so a sideways swipe
+  that sagged would start a pull and eat the gesture. Vertical pull verified
+  still working afterwards (followed the finger 10, 26, 42, 57px).
+- **An open sheet or panel owns the gesture**, and so does a second finger.
+- Tab order lives in `lib/tabs.ts`, shared with `BottomNav`, so the bar and the
+  gesture can never disagree about which way is left.
+
+**The trap, for the third time:** the effect ran once while `AppShell` was still
+showing its restore frame, so `shell.current` was null, and a ref in the
+dependency array never changes, so it never ran again. **The gesture silently
+did not exist.** It takes a `ready` flag. Identical to the blank leave planner
+(`useGsap` without `open`) and worth checking on any future hook that reaches
+for a conditionally rendered element.
+
+Verified with synthetic touches: swipe left commits, a 25px swipe springs back
+to 0, a vertical drag leaves the page at x 0 and does not navigate, and swipe
+right reverses.
+
+### DONE: Screens travel too (2026-07-29)
+Moving between tabs now reads as moving across one surface: the screen you leave
+slides out in the direction of travel and the next arrives from the far side,
+alongside the tab indicator doing the same. `pageOut()` / `pageIn()` in
+`lib/motion.ts`.
+
+- **Direction comes from the tab order**, computed in `BottomNav`: going right
+  along the bar means the old screen leaves left and the new one enters from the
+  right. Navigating to something that is not a tab (the profile mark) gives
+  direction 0, which fades without sliding rather than picking a side at random.
+- **The direction is module state**, because the screen that sets it and the
+  screen that reads it are different mounts. Same reason `lastPlacement` is.
+- **`pageOut` resolves when the screen is out**, and the caller navigates on
+  completion, so the exit is never cut off by the route change.
+- **Modified clicks are left alone** (cmd, ctrl, shift, middle): those belong to
+  the browser, for opening a tab.
+- `pageIn` runs in a **layout effect**, so the first painted frame is already
+  the start state and nothing flashes at full opacity first.
+
+Measured, marks to calendar and back:
+
+    leaving    0 -> -2 -> -5 -> -14 -> -26px, opacity 1.00 -> 0.00
+    arriving  30 -> 11 -> 4 -> 1 -> 0px,      opacity 0.00 -> 1.00
+    reversed  mirrors exactly
+
+### DONE: The selection travels (2026-07-29)
 Tapping a tab slides the selection from the tab you left to the tab you chose,
 in every theme. `data-nav-pill` in `BottomNav` is one element sized to the
 active tab; each theme decides what it looks like (Brutal fills it with accent,

@@ -40,6 +40,10 @@ export default function PullToRefresh({
     const setOpacity = gsap.quickSetter(dot, "opacity");
 
     let startY: number | null = null;
+    let startX = 0;
+    // Locked on the first real movement. Without it a sideways swipe that
+    // drifts downward engages the pull and eats the navigation gesture.
+    let axis: null | "x" | "y" = null;
     let engaged = false;
     const scrollTop = () =>
       (document.scrollingElement ?? document.documentElement).scrollTop;
@@ -83,11 +87,19 @@ export default function PullToRefresh({
         return;
       }
       startY = e.touches[0].clientY;
+      startX = e.touches[0].clientX;
+      axis = null;
       engaged = false;
     };
     const onMove = (e: TouchEvent) => {
       if (startY === null || busy.current) return;
       const dy = e.touches[0].clientY - startY;
+      const dx = e.touches[0].clientX - startX;
+      if (!axis) {
+        if (Math.abs(dx) < 8 && Math.abs(dy) < 8) return;
+        axis = Math.abs(dx) > Math.abs(dy) ? "x" : "y";
+      }
+      if (axis === "x") return;
       if (dy <= 0 || scrollTop() > 0) {
         if (engaged) paint(0);
         return;

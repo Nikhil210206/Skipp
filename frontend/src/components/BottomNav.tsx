@@ -1,10 +1,11 @@
 "use client";
 
 import Link from "next/link";
-import { usePathname } from "next/navigation";
+import { usePathname, useRouter } from "next/navigation";
 import { useEffect, useRef } from "react";
 import gsap from "gsap";
-import { DUR, EASE, prefersReducedMotion } from "@/lib/motion";
+import { DUR, EASE, pageOut, prefersReducedMotion } from "@/lib/motion";
+import { TAB_HREFS } from "@/lib/tabs";
 import {
   IconAttendance,
   IconCalendar,
@@ -16,13 +17,15 @@ import {
 // Icons only. The labels were repeating what the screen already says in its
 // masthead, and five words along the bottom edge added noise to every screen.
 
-const TABS = [
-  { href: "/marks", label: "Marks", Icon: IconMarks },
-  { href: "/attendance", label: "Attendance", Icon: IconAttendance },
-  { href: "/dashboard", label: "Home", Icon: IconHome },
-  { href: "/timetable", label: "Schedule", Icon: IconTimetable },
-  { href: "/calendar", label: "Calendar", Icon: IconCalendar },
-] as const;
+const META: Record<string, { label: string; Icon: typeof IconMarks }> = {
+  "/marks": { label: "Marks", Icon: IconMarks },
+  "/attendance": { label: "Attendance", Icon: IconAttendance },
+  "/dashboard": { label: "Home", Icon: IconHome },
+  "/timetable": { label: "Schedule", Icon: IconTimetable },
+  "/calendar": { label: "Calendar", Icon: IconCalendar },
+};
+
+const TABS = TAB_HREFS.map((href) => ({ href, ...META[href] }));
 
 /**
  * Where the selection was last time, remembered across mounts.
@@ -37,6 +40,7 @@ let lastPlacement: { x: number; y: number; width: number; height: number } | nul
 
 export default function BottomNav() {
   const pathname = usePathname();
+  const router = useRouter();
   const dot = useRef<HTMLSpanElement>(null);
   const pill = useRef<HTMLSpanElement>(null);
   const bar = useRef<HTMLUListElement>(null);
@@ -137,12 +141,27 @@ export default function BottomNav() {
           aria-hidden
           className="pointer-events-none absolute left-0 top-2 -ml-[3px] size-1.5 rounded-full bg-accent opacity-0"
         />
-        {TABS.map(({ href, label, Icon }) => {
+        {TABS.map(({ href, label, Icon }, i) => {
           const active = pathname === href;
+          const from = TABS.findIndex((t) => t.href === pathname);
+          // Which way the eye should travel: right along the bar means the old
+          // screen leaves to the left and the new one arrives from the right.
+          const dir = from === -1 || from === i ? 0 : i > from ? 1 : -1;
           return (
             <li key={href} className="flex-1">
               <Link
                 href={href}
+                onClick={(e) => {
+                  // Leave modified clicks alone: they are the browser's, for
+                  // opening in a tab or a window.
+                  if (e.metaKey || e.ctrlKey || e.shiftKey || e.button !== 0) return;
+                  if (active) return;
+                  e.preventDefault();
+                  void pageOut(
+                    document.querySelector<HTMLElement>("main"),
+                    dir,
+                  ).then(() => router.push(href));
+                }}
                 data-nav-item
                 aria-current={active ? "page" : undefined}
                 aria-label={label}
