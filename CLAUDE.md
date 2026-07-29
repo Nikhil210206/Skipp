@@ -345,6 +345,35 @@ is deployment and true push notifications.
 Entries below are newest first. **When something breaks, read the relevant entry first**: most
 oddities here (login shell, empty calendar, 429s, duplicated course codes) are already diagnosed.
 
+### DONE: The selection travels (2026-07-29, latest)
+Tapping a tab slides the selection from the tab you left to the tab you chose,
+in every theme. `data-nav-pill` in `BottomNav` is one element sized to the
+active tab; each theme decides what it looks like (Brutal fills it with accent,
+Clay rounds it, Terminal outlines it in phosphor, the skins get a quiet chip).
+The accent dot rides the same measurement, so it is one movement rather than a
+dot sliding while a fill jumps.
+
+**It had never actually travelled**, and there were three separate reasons:
+
+1. **`BottomNav` remounts on every navigation.** Every screen renders its own
+   `AppShell`, so the fresh bar had no idea where the indicator was and always
+   placed it instantly. `lastPlacement` at module scope is what gives it a
+   previous position to move from.
+2. **React runs mount effects twice in development.** The second run saw the
+   indicator already at its destination and overwrote the running tween with a
+   zero-duration set. **`gsap.isTweening()` is false in the instant after
+   `gsap.to()` is scheduled**, so guarding on it did not help.
+3. **The guard's scope was wrong.** Keyed on the route at module scope, it
+   survived a remount and left the *new* element unplaced entirely, with no
+   inline styles at all. It has to be a **ref**, fresh per mount: a real
+   navigation always places, a repeat run never interrupts.
+
+**The pill sits at `z-0` with the links at `z-10`.** At `-z-10` it rendered
+behind the bar's own background and was invisible, which in Brutal meant a white
+icon on a white bar with the tab apparently missing.
+
+Measured across marks to calendar: 19 distinct positions easing 26px to 384px.
+
 ### DONE: Seven themes (2026-07-29, latest)
 `lib/theme.ts` holds the registry, `globals.css` holds one block per theme, and
 Profile has a swatch grid. **Ink** is the original and the default.

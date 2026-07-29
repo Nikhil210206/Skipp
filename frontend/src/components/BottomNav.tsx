@@ -24,11 +24,25 @@ const TABS = [
   { href: "/calendar", label: "Calendar", Icon: IconCalendar },
 ] as const;
 
+/**
+ * Where the selection was last time, remembered across mounts.
+ *
+ * Every screen renders its own AppShell, so this bar is torn down and rebuilt
+ * on each navigation: the fresh mount has no idea where the indicator was and
+ * would always place it instantly. Holding the last position here is what lets
+ * it travel from the tab you left to the tab you chose.
+ */
+let lastPlacement: { x: number; y: number; width: number; height: number } | null =
+  null;
+
 export default function BottomNav() {
   const pathname = usePathname();
   const dot = useRef<HTMLSpanElement>(null);
+  const pill = useRef<HTMLSpanElement>(null);
   const bar = useRef<HTMLUListElement>(null);
   const nav = useRef<HTMLElement>(null);
+  /** Whether THIS mount has placed the indicator yet. */
+  const placed = useRef(false);
 
   // The bar publishes its own height as --nav-h, because anything anchored
   // above it (StickyAction) needs the real number. It was a hand-maintained
@@ -46,23 +60,56 @@ export default function BottomNav() {
     return () => ro.disconnect();
   }, []);
 
+  // One measurement drives both markers, so the selection travels as a single
+  // movement rather than a dot sliding while a fill jumps. The pill is what a
+  // theme fills, outlines or rounds; the dot is the accent riding along.
   useEffect(() => {
     const list = bar.current;
     const marker = dot.current;
-    if (!list || !marker) return;
+    const block = pill.current;
+    if (!list || !marker || !block) return;
+
     const active = list.querySelector<HTMLElement>('[aria-current="page"]');
     if (!active) {
-      gsap.set(marker, { opacity: 0 });
+      gsap.set([marker, block], { opacity: 0 });
       return;
     }
-    const x = active.offsetLeft + active.offsetWidth / 2;
-    const first = gsap.getProperty(marker, "opacity") === 0;
+
+    const to = {
+      x: active.offsetLeft,
+      y: active.offsetTop,
+      width: active.offsetWidth,
+      height: active.offsetHeight,
+    };
+
+    // React runs mount effects twice in development, and the second run used to
+    // overwrite the movement the first had just started with an instant set,
+    // which is why the selection appeared to jump. The guard has to be scoped
+    // to THIS mount: a module-level one survived a remount and left the new
+    // element unplaced entirely. A ref is fresh per mount, so a real navigation
+    // always places, and a repeat run never interrupts.
+    if (placed.current) return;
+    placed.current = true;
+
+    const from = lastPlacement;
+    lastPlacement = to;
+
+    // No previous position means a cold start, not a move: place it.
+    const animate = from !== null && from.x !== to.x && !prefersReducedMotion();
+
+    if (animate) {
+      gsap.set(block, { ...from, opacity: 1 });
+      gsap.set(marker, { x: from.x + from.width / 2, opacity: 1 });
+    }
+    const duration = animate ? DUR.base : 0;
+
     gsap.to(marker, {
-      x,
+      x: to.x + to.width / 2,
       opacity: 1,
-      duration: first || prefersReducedMotion() ? 0 : DUR.base,
+      duration,
       ease: EASE.emphasis,
     });
+    gsap.to(block, { ...to, opacity: 1, duration, ease: EASE.emphasis });
   }, [pathname]);
 
   return (
@@ -77,6 +124,14 @@ export default function BottomNav() {
         ref={bar}
         className="relative mx-auto flex max-w-md pb-[max(8px,env(safe-area-inset-bottom))] pt-1"
       >
+        {/* Behind the icons, so a filled theme can colour the whole tab without
+            hiding what it is. Invisible until a theme gives it a look. */}
+        <span
+          ref={pill}
+          data-nav-pill
+          aria-hidden
+          className="pointer-events-none absolute left-0 top-0 z-0 opacity-0"
+        />
         <span
           ref={dot}
           aria-hidden
@@ -92,7 +147,7 @@ export default function BottomNav() {
                 aria-current={active ? "page" : undefined}
                 aria-label={label}
                 title={label}
-                className={`flex min-h-[52px] items-center justify-center transition-colors ${
+                className={`relative z-10 flex min-h-[52px] items-center justify-center transition-colors ${
                   active ? "text-text-1" : "text-text-3 hover:text-text-2"
                 }`}
               >

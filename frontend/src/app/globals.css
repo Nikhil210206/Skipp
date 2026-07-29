@@ -349,8 +349,10 @@ html[data-theme="brutal"] [data-nav] {
   border-top: 3px solid var(--color-text-1);
   background: var(--color-ink-1);
 }
-html[data-theme="brutal"] [data-nav-item][aria-current="page"] {
+html[data-theme="brutal"] [data-nav-pill] {
   background: var(--color-accent);
+}
+html[data-theme="brutal"] [data-nav-item][aria-current="page"] {
   color: var(--color-accent-ink);
 }
 html[data-theme="brutal"] [data-btn] {
@@ -419,6 +421,10 @@ html[data-theme="terminal"] [data-nav] {
   border-top: var(--border-w) solid var(--color-line-strong);
   background: var(--color-ink-0);
 }
+html[data-theme="terminal"] [data-nav-pill] {
+  border: var(--border-w) solid var(--color-accent);
+  background: color-mix(in oklab, var(--color-accent) 12%, transparent);
+}
 html[data-theme="terminal"] [data-nav-item][aria-current="page"] {
   color: var(--color-accent);
 }
@@ -472,6 +478,10 @@ html[data-theme="clay"] [data-nav] {
 html[data-theme="clay"] [data-nav] > .rule {
   display: none;
 }
+html[data-theme="clay"] [data-nav-pill] {
+  background: var(--color-ink-2);
+  border-radius: 18px;
+}
 html[data-theme="clay"] [data-nav-item][aria-current="page"] {
   color: var(--color-accent);
 }
@@ -488,6 +498,13 @@ html[data-theme="clay"] [data-day].is-today {
 
 html {
   -webkit-tap-highlight-color: transparent;
+}
+
+/* The selection travels in every theme. A structural theme repaints this;
+   the skins get a quiet chip so the movement is visible at all. */
+[data-nav-pill] {
+  background: var(--color-ink-2);
+  border-radius: var(--radius-control);
 }
 
 /* Border weight, routed through the token. Outside @layer so it beats the
