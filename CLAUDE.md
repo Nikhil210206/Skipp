@@ -346,29 +346,25 @@ Entries below are newest first. **When something breaks, read the relevant entry
 oddities here (login shell, empty calendar, 429s, duplicated course codes) are already diagnosed.
 
 ### DONE: The scroll edge (2026-07-29, latest)
-Content no longer passes behind the masthead, it **dissolves into it**: words
-scrolling out of frame lose focus first, then lose themselves in the page.
-`ScrollEdge` in `AppShell`, two layers over a now-sticky masthead.
+Content does not stop at the masthead, it fades out under it: one gradient to
+the page colour over a now-sticky masthead, extending below the bar so the
+effect ends softly rather than at a visible line. `ScrollEdge` in `AppShell`,
+so every screen gets it.
 
-    backdrop-blur + a mask     full strength behind the bar, gone by the bottom
-    a gradient to the page     opaque enough to keep the label readable, then
-                               thinning fast so the blurred words are visible
+**A backdrop-blur version was built and removed on request.** Do not add it
+back. It also cost a `backdrop-filter` on a sticky element during scroll, which
+is the sort of thing that costs frames on older phones for no functional gain.
 
-**The blur has to live on the masthead itself, not on an overlay.** The
+**The effect has to live on the masthead itself, not on an overlay.** The
 masthead sits inside PullToRefresh's transformed wrapper, which is its own
 stacking context, so any sibling overlay raised above the scrolling content
 would also cover the profile mark and stop it being tappable. Same containing
 block problem as the portalled overlays, different symptom.
 
-**The mask is what stops it reading as a frosted panel.** Without it there is a
-hard horizontal edge where the blur ends, which looks like a component rather
-than an effect.
-
-**Balance is the whole thing.** The first version had the gradient at full
-`ink-0` from 0%, so the blur was applied but completely hidden and content just
-went black. The ramp now holds opacity to 30% and thins by 70%, which is what
-makes the transition read as blur rather than as a fade to nothing. Both layers
-are token based, verified in the light theme.
+**Balance is the whole thing.** The ramp holds `ink-0` to 30% and thins by 70%:
+opaque enough behind the bar to keep the label readable, thin enough that words
+are still legible on their way out rather than snapping to black. Token based,
+verified in the light theme.
 
 ### DONE: Reminders (2026-07-29)
 `lib/reminders.ts` (the attendance diff plus the feed builder) and a read-only

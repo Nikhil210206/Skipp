@@ -107,35 +107,48 @@ export default function AppShell({
 }
 
 /**
- * The scroll edge: content does not simply pass behind the masthead, it
- * dissolves into it. Two layers doing two different jobs, both extending below
- * the bar so the effect ends softly instead of at a visible line.
+ * The scroll edge: content fades out under the masthead as it goes.
  *
- *   backdrop-blur + a mask   the words going out of frame lose focus first
- *   a gradient to the page   and then lose themselves in the background
+ * It is absent at rest and arrives with the scroll. A gradient sitting there
+ * from the start dims the top of every screen before anything has moved, which
+ * on Home meant the greeting was being faded out while still the first thing
+ * you read. There is nothing to fade until something is behind the bar.
  *
- * The mask is what stops it reading as a frosted panel with an edge: the blur
- * is at full strength behind the bar and gone by the bottom of the strip.
+ * Written straight to the element on a passive listener, so scrolling never
+ * re-renders React.
  */
-// Full strength behind the bar, gone by the bottom of the strip.
-const FADE = "linear-gradient(to bottom, #000 0%, #000 46%, transparent 100%)";
+const EDGE_TRAVEL = 44;
 
 function ScrollEdge() {
+  const el = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    const node = el.current;
+    if (!node) return;
+    let frame = 0;
+    const paint = () => {
+      frame = 0;
+      const y = window.scrollY;
+      node.style.opacity = String(Math.min(1, Math.max(0, y / EDGE_TRAVEL)));
+    };
+    const onScroll = () => {
+      if (!frame) frame = requestAnimationFrame(paint);
+    };
+    paint();
+    window.addEventListener("scroll", onScroll, { passive: true });
+    return () => {
+      window.removeEventListener("scroll", onScroll);
+      if (frame) cancelAnimationFrame(frame);
+    };
+  }, []);
+
   return (
-    <>
-      <div
-        aria-hidden
-        className="pointer-events-none absolute inset-x-0 top-0 h-[calc(100%+46px)] backdrop-blur-lg"
-        style={{ maskImage: FADE, WebkitMaskImage: FADE }}
-      />
-      <div
-        aria-hidden
-        // Opaque enough behind the bar to keep the label readable, then thin
-        // fast so the blurred words are actually visible on their way out.
-        // Token based, so it inverts correctly in the light theme.
-        className="pointer-events-none absolute inset-x-0 top-0 h-[calc(100%+46px)] bg-gradient-to-b from-ink-0 from-30% via-ink-0/45 via-70% to-transparent"
-      />
-    </>
+    <div
+      ref={el}
+      aria-hidden
+      style={{ opacity: 0 }}
+      className="pointer-events-none absolute inset-x-0 top-0 h-[calc(100%+34px)] bg-gradient-to-b from-ink-0 from-40% via-ink-0/35 via-75% to-transparent"
+    />
   );
 }
 
