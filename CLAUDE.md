@@ -520,6 +520,48 @@ so Terminal costs no extra bytes. Its signature is not the colour: it is
 monospace, `[ SUBJECTS ]` brackets on section labels via `::before`/`::after`,
 segmented meters that read as characters, and `> ` prompts on buttons.
 
+**Fifteen skins now, one per hue** (Ink, Slate, Mono, Paper, Sand plus Rose,
+Ember, Gold, Fern, Teal, Azure, Indigo, Violet, and the light Bloom and
+Meadow). Eighteen themes in total with the three full looks.
+
+**Each hue tints the whole ink ramp**, not just the accent, the way Slate
+already did. A set of skins differing by one small dot would have been the same
+complaint as before: colour has to reach the surfaces to be a different room.
+
+**There is deliberately no red skin.** Red is `risk`, and a red accent makes a
+subject below the line indistinguishable from the furniture. Rose leans pink so
+red stays free for trouble. Where an accent still crowds a state colour, **the
+state moves, never the rule**: Gold darkens `watch`, Fern turns `safe` toward
+teal, Rose and Ember push `risk` clear of the accent. Checked mechanically that
+no theme has `accent` equal to `risk`.
+
+**Only the three looks are tiles on Profile.** Fifteen colours listed there took
+over the page for a choice most people make once. The fourth tile opens
+`components/SkinPicker.tsx`: a strip of discs you flick sideways, snapping to
+centre, **applying whatever reaches the middle straight away** so the app
+recolours live behind the sheet and you choose by looking at the thing rather
+than at a swatch. It stays a scrolling list of real buttons rather than a rotary
+dial, so a keyboard and a screen reader still work through it in order.
+
+**Under the middle and selected are two different states**, and they part company
+when a full look is on: the strip has to park somewhere, so it parks on Ink, but
+ringing Ink there would claim a selection that is not in force. Prominence
+follows `centred`, the ring and `aria-checked` follow the applied theme, and with
+Brutal on nothing is ringed at all.
+
+**The door is a full width row under its own "Skins, colour only" rule, not a
+fourth tile.** As a tile it read as a fourth theme and hid the fact that fifteen
+more colours were behind it, and it was sitting under "Full looks, rebuilds the
+UI" while doing the opposite. A different shape reads as a door.
+
+**The fan is five overlapping discs, each that theme's accent alone**, which
+says "a collection" at a glance. The three tone swatch is right in a full size
+tile but turns to mush sliced to the 20px a stacked disc shows. The lead disc is
+your current skin and is the largest, and the sub-label names it, so the
+selection stays visible on Profile; with a full look on it reads just
+"15 colours". **A ring cannot mark the lead**: the lead is the current skin, so
+an accent border is always exactly the colour of the fill beneath it.
+
 **The picker is two groups**, because they are two different things: **Full
 looks** (Brutal, Clay, "rebuilds the UI") above a rule, then **Skins** ("colour
 only"). Saying so beats letting someone discover it by trying all seven.

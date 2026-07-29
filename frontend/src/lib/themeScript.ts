@@ -17,6 +17,16 @@ const VALID = [
   "brutal",
   "clay",
   "terminal",
+  "rose",
+  "ember",
+  "gold",
+  "fern",
+  "teal",
+  "azure",
+  "indigo",
+  "violet",
+  "bloom",
+  "meadow",
 ];
 
 /** Status bar colour per theme, applied before paint so it never flashes. */
@@ -29,6 +39,16 @@ const BARS: Record<string, string> = {
   brutal: "#fdf6e3",
   clay: "#eceefa",
   terminal: "#040705",
+  rose: "#0c0709",
+  ember: "#0b0705",
+  gold: "#0a0904",
+  fern: "#050a07",
+  teal: "#04090a",
+  azure: "#05080d",
+  indigo: "#07070f",
+  violet: "#0a060f",
+  bloom: "#fff7f8",
+  meadow: "#f6fbf7",
 };
 
 /**

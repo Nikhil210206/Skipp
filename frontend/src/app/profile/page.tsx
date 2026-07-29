@@ -9,6 +9,13 @@ import { revealIn, revealRows, useGsap } from "@/lib/motion";
 import { Button } from "@/components/ui";
 import { Marginalia, Rule, SectionHead, StickyAction } from "@/components/ui/editorial";
 import CreatorCredit from "@/components/CreatorCredit";
+import SkinPicker from "@/components/SkinPicker";
+import { IconChevronRight } from "@/components/Icons";
+
+const SKINS = THEMES.filter((t) => !t.structural);
+const SKIN_COUNT = SKINS.length;
+/** Widely spaced hues, so the fan looks like a range rather than a gradient. */
+const FAN_HUES = ["ember", "gold", "fern", "azure", "violet"];
 
 /**
  * Settings as a plain document: the name is the masthead, everything else is
@@ -33,6 +40,18 @@ export default function ProfilePage() {
   const [name, setName] = useState(displayName);
   const [seededFrom, setSeededFrom] = useState(displayName);
   const [saved, setSaved] = useState(false);
+  const [picking, setPicking] = useState(false);
+  /** The skin in use, or null while one of the full looks is on. */
+  const skin = SKINS.find((t) => t.id === theme) ?? null;
+  // Your colour leads the fan, with a spread of others behind it.
+  const lead = skin ?? SKINS[0];
+  const fan = [
+    lead,
+    ...FAN_HUES.flatMap((id) => {
+      const t = SKINS.find((s) => s.id === id);
+      return t && t.id !== lead.id ? [t] : [];
+    }),
+  ].slice(0, 5);
   if (displayName !== seededFrom) {
     setSeededFrom(displayName);
     setName(displayName);
@@ -117,13 +136,14 @@ export default function ProfilePage() {
               <span className="h-px flex-1 bg-line" />
               <span className="text-callout text-text-3">Rebuilds the UI</span>
             </div>
-            {/* A grid rather than a segmented control: seven options do not fit
-                on one row, and a theme is chosen by looking at it, not by
-                reading its name. Each swatch is painted in its own palette. */}
-            {/* Two groups, because they are two different things: the first
-                two rebuild the interface, the rest recolour it. Saying so is
-                more honest than letting someone discover it by trying all
-                seven. */}
+            {/* A grid rather than a segmented control: a theme is chosen by
+                looking at it, not by reading its name, so each swatch is
+                painted in its own palette. */}
+            {/* Only the three looks are listed. Fifteen colours as tiles took
+                over the page for a choice most people make once, so they live
+                behind the row underneath. The two groups are genuinely
+                different things: these rebuild the interface, the rest
+                recolour it. */}
             <div role="radiogroup" aria-label="Theme" className="grid grid-cols-2 gap-2.5">
               {THEMES.filter((t) => t.structural).map((t) => {
                 const active = t.id === theme;
@@ -162,6 +182,7 @@ export default function ProfilePage() {
                   </button>
                 );
               })}
+
             </div>
 
             <div className="flex items-center gap-3 pb-3.5 pt-6">
@@ -170,37 +191,50 @@ export default function ProfilePage() {
               <span className="text-callout text-text-3">Colour only</span>
             </div>
 
-            <div role="radiogroup" aria-label="Colour theme" className="grid grid-cols-2 gap-2.5">
-              {THEMES.filter((t) => !t.structural).map((t) => {
-                const active = t.id === theme;
-                return (
-                  <button
+            {/* Deliberately NOT a fourth tile in the grid above. Four identical
+                boxes read as four themes, and hid the fact that there are
+                fifteen more colours behind one of them. A full width row of a
+                different shape reads as a door, the fanned discs say there is
+                a collection through it, and the leading one is whichever skin
+                is on so the selection is still visible on this screen. */}
+            <button
+              onClick={() => setPicking(true)}
+              aria-haspopup="dialog"
+              className="group flex w-full items-center gap-3.5 rounded-control border border-line px-3 py-3 text-left transition-colors hover:border-line-strong"
+            >
+              <span aria-hidden className="flex shrink-0 items-center">
+                {fan.map((t, i) => (
+                  <span
                     key={t.id}
-                    role="radio"
-                    aria-checked={active}
-                    onClick={() => setTheme(t.id)}
-                    className={`flex items-center gap-3 rounded-control border px-3 py-3 text-left transition-colors ${
-                      active
-                        ? "border-accent bg-ink-2"
-                        : "border-line hover:border-line-strong"
+                    // Spread apart under a finger, so the stack reads as
+                    // separate colours rather than one decorated swatch.
+                    style={{ "--i": i, marginLeft: i === 0 ? 0 : -13 } as React.CSSProperties}
+                    // The lead disc is your colour, and reads as yours by
+                    // being the largest. A ring cannot say it: the lead IS the
+                    // current skin, so an accent border is always the same
+                    // colour as the fill it sits on.
+                    className={`rounded-full border-2 border-ink-0 transition-transform duration-300 ease-out group-hover:[transform:translateX(calc(var(--i)*4px))] ${
+                      i === 0 ? "size-9" : "size-8"
                     }`}
                   >
+                    {/* Each disc is that theme's accent alone. The three tone
+                        swatch is right in a full size tile, but sliced to the
+                        20px a stacked disc shows it turns to mush. */}
                     <span
-                      aria-hidden
-                      className="flex size-8 shrink-0 overflow-hidden rounded-full border border-line"
-                    >
-                      {t.swatch.map((c, i) => (
-                        <span key={i} className="h-full flex-1" style={{ background: c }} />
-                      ))}
-                    </span>
-                    <span className="min-w-0">
-                      <span className="block truncate text-body text-text-1">{t.name}</span>
-                      <span className="block truncate text-callout text-text-3">{t.note}</span>
-                    </span>
-                  </button>
-                );
-              })}
-            </div>
+                      className="block size-full rounded-full"
+                      style={{ background: t.swatch[2] }}
+                    />
+                  </span>
+                ))}
+              </span>
+              <span className="min-w-0 flex-1">
+                <span className="block truncate text-body text-text-1">More skins</span>
+                <span className="block truncate text-callout text-text-3">
+                  {skin ? `${skin.name} · ${SKIN_COUNT} colours` : `${SKIN_COUNT} colours`}
+                </span>
+              </span>
+              <IconChevronRight size={18} className="shrink-0 text-text-3" />
+            </button>
           </div>
         </section>
 
@@ -283,6 +317,7 @@ export default function ProfilePage() {
           </div>
         </StickyAction>
       </div>
+      <SkinPicker open={picking} onClose={() => setPicking(false)} />
     </AppShell>
   );
 }

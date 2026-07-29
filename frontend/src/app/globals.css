@@ -230,6 +230,221 @@ html[data-theme="brutal"] {
   --shadow-float: 6px 6px 0 var(--color-text-1);
 }
 
+/* ------------------------------------------------------------
+   COLOUR SKINS
+
+   One per hue. The whole ink ramp carries a hint of the colour
+   rather than only the accent, so each is a different room and
+   not the same room with one dot repainted.
+
+   There is deliberately NO red skin: red is `risk`, and a red
+   accent would make a subject below the line indistinguishable
+   from the furniture. Where an accent does crowd a state colour
+   the state moves, never the rule (Gold darkens `watch`, Fern
+   turns `safe` toward teal, Rose and Ember push `risk` clear of
+   the accent).
+   ------------------------------------------------------------ */
+
+/* ROSE. Deep pink. */
+html[data-theme="rose"] {
+  color-scheme: dark;
+  --color-ink-0: #0c0709;
+  --color-ink-1: #150b0f;
+  --color-ink-2: #1d1016;
+  --color-ink-3: #29171f;
+  --color-line: #2e1a22;
+  --color-line-soft: #1a0e13;
+  --color-line-strong: #452835;
+  --color-text-1: #f7e7ec;
+  --color-text-2: #b795a1;
+  --color-text-3: #86636f;
+  --color-accent: #fb7185;
+  --color-accent-ink: #1a0509;
+  --color-safe: #4fa97b;
+  --color-watch: #e0a52f;
+  --color-risk: #ff4d3d;
+}
+
+/* EMBER. Warm orange. */
+html[data-theme="ember"] {
+  color-scheme: dark;
+  --color-ink-0: #0b0705;
+  --color-ink-1: #150d08;
+  --color-ink-2: #1d130c;
+  --color-ink-3: #291b11;
+  --color-line: #2e1f14;
+  --color-line-soft: #1a110a;
+  --color-line-strong: #452e1d;
+  --color-text-1: #f7ebe2;
+  --color-text-2: #b79b86;
+  --color-text-3: #866f5e;
+  --color-accent: #ff8a3d;
+  --color-accent-ink: #1a0c03;
+  --color-safe: #4fa97b;
+  --color-watch: #d4b02a;
+  --color-risk: #ff4d6a;
+}
+
+/* GOLD. Bright yellow. */
+html[data-theme="gold"] {
+  color-scheme: dark;
+  --color-ink-0: #0a0904;
+  --color-ink-1: #14120a;
+  --color-ink-2: #1c190e;
+  --color-ink-3: #282413;
+  --color-line: #2d2815;
+  --color-line-soft: #19170c;
+  --color-line-strong: #443c20;
+  --color-text-1: #f6f0dd;
+  --color-text-2: #b5ab8a;
+  --color-text-3: #847b5f;
+  --color-accent: #f5c542;
+  --color-accent-ink: #161103;
+  --color-safe: #4fa97b;
+  --color-watch: #b8862a;
+  --color-risk: #ff5f56;
+}
+
+/* FERN. Living green. */
+html[data-theme="fern"] {
+  color-scheme: dark;
+  --color-ink-0: #050a07;
+  --color-ink-1: #0b140e;
+  --color-ink-2: #101c14;
+  --color-ink-3: #17281c;
+  --color-line: #1a2e21;
+  --color-line-soft: #0f1a13;
+  --color-line-strong: #27452f;
+  --color-text-1: #e4f5ea;
+  --color-text-2: #93b7a1;
+  --color-text-3: #698574;
+  --color-accent: #4ade80;
+  --color-accent-ink: #04140a;
+  --color-safe: #5eead4;
+  --color-watch: #cf9b34;
+  --color-risk: #ff5f56;
+}
+
+/* TEAL. Cool water. */
+html[data-theme="teal"] {
+  color-scheme: dark;
+  --color-ink-0: #04090a;
+  --color-ink-1: #0a1315;
+  --color-ink-2: #0f1b1d;
+  --color-ink-3: #152628;
+  --color-line: #182c2e;
+  --color-line-soft: #0e191a;
+  --color-line-strong: #244144;
+  --color-text-1: #e0f4f5;
+  --color-text-2: #8db4b7;
+  --color-text-3: #648488;
+  --color-accent: #2dd4bf;
+  --color-accent-ink: #031413;
+  --color-safe: #7bd88f;
+  --color-watch: #cf9b34;
+  --color-risk: #ff5f56;
+}
+
+/* AZURE. True blue. */
+html[data-theme="azure"] {
+  color-scheme: dark;
+  --color-ink-0: #05080d;
+  --color-ink-1: #0b1119;
+  --color-ink-2: #101823;
+  --color-ink-3: #172232;
+  --color-line: #1a2738;
+  --color-line-soft: #0f1520;
+  --color-line-strong: #273a53;
+  --color-text-1: #e6eefb;
+  --color-text-2: #96a8c2;
+  --color-text-3: #6b7d96;
+  --color-accent: #3b82f6;
+  --color-accent-ink: #020814;
+  --color-safe: #4fa97b;
+  --color-watch: #cf9b34;
+  --color-risk: #ff5f56;
+}
+
+/* INDIGO. Deep blue violet. */
+html[data-theme="indigo"] {
+  color-scheme: dark;
+  --color-ink-0: #07070f;
+  --color-ink-1: #0d0e1b;
+  --color-ink-2: #131425;
+  --color-ink-3: #1b1d34;
+  --color-line: #1f213a;
+  --color-line-soft: #121323;
+  --color-line-strong: #2e3155;
+  --color-text-1: #e9e9fb;
+  --color-text-2: #9d9dc4;
+  --color-text-3: #727299;
+  --color-accent: #818cf8;
+  --color-accent-ink: #050615;
+  --color-safe: #4fa97b;
+  --color-watch: #cf9b34;
+  --color-risk: #ff5f56;
+}
+
+/* VIOLET. Electric purple. */
+html[data-theme="violet"] {
+  color-scheme: dark;
+  --color-ink-0: #0a060f;
+  --color-ink-1: #120b1b;
+  --color-ink-2: #191026;
+  --color-ink-3: #241735;
+  --color-line: #2a1b3c;
+  --color-line-soft: #170f22;
+  --color-line-strong: #3f2957;
+  --color-text-1: #f1e8fb;
+  --color-text-2: #ac97c4;
+  --color-text-3: #7f6d99;
+  --color-accent: #c084fc;
+  --color-accent-ink: #0d0417;
+  --color-safe: #4fa97b;
+  --color-watch: #cf9b34;
+  --color-risk: #ff5f56;
+}
+
+/* BLOOM. Light and pink. */
+html[data-theme="bloom"] {
+  color-scheme: light;
+  --color-ink-0: #fff7f8;
+  --color-ink-1: #ffeef1;
+  --color-ink-2: #ffe3e8;
+  --color-ink-3: #ffd2da;
+  --color-line: #f3d3da;
+  --color-line-soft: #fbe8ec;
+  --color-line-strong: #e5aab6;
+  --color-text-1: #2b1119;
+  --color-text-2: #7a4e58;
+  --color-text-3: #a67d86;
+  --color-accent: #d6336c;
+  --color-accent-ink: #ffffff;
+  --color-safe: #1f7d55;
+  --color-watch: #8a6410;
+  --color-risk: #c2321f;
+}
+
+/* MEADOW. Light and green. */
+html[data-theme="meadow"] {
+  color-scheme: light;
+  --color-ink-0: #f6fbf7;
+  --color-ink-1: #ecf6ef;
+  --color-ink-2: #e0efe5;
+  --color-ink-3: #cfe4d6;
+  --color-line: #d4e7da;
+  --color-line-soft: #e9f3ec;
+  --color-line-strong: #a6c7b1;
+  --color-text-1: #0f2318;
+  --color-text-2: #4a6355;
+  --color-text-3: #7a9184;
+  --color-accent: #167c48;
+  --color-accent-ink: #ffffff;
+  --color-safe: #0f6b41;
+  --color-watch: #8a6410;
+  --color-risk: #c23b32;
+}
+
 /* TERMINAL. Monospace throughout, phosphor on near-black, boxes drawn with
    rules rather than filled. The typeface is the loudest change available: it
    costs nothing, because Geist Mono was already shipping and used nowhere. */
