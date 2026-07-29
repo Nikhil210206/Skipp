@@ -388,30 +388,26 @@ Verified with synthetic touches: swipe left commits, a 25px swipe springs back
 to 0, a vertical drag leaves the page at x 0 and does not navigate, and swipe
 right reverses.
 
-### DONE: Screens travel too (2026-07-29)
-Moving between tabs now reads as moving across one surface: the screen you leave
-slides out in the direction of travel and the next arrives from the far side,
-alongside the tab indicator doing the same. `pageOut()` / `pageIn()` in
-`lib/motion.ts`.
+### DONE: Screens turn over, not cut (2026-07-29)
+Moving between tabs slides the screen you are leaving off one side while the
+next comes in from the other, both on one tween each with identical timing, so
+the two read as a single surface turning.
 
-- **Direction comes from the tab order**, computed in `BottomNav`: going right
-  along the bar means the old screen leaves left and the new one enters from the
-  right. Navigating to something that is not a tab (the profile mark) gives
-  direction 0, which fades without sliding rather than picking a side at random.
-- **The direction is module state**, because the screen that sets it and the
-  screen that reads it are different mounts. Same reason `lastPlacement` is.
-- **`pageOut` resolves when the screen is out**, and the caller navigates on
-  completion, so the exit is never cut off by the route change.
-- **Modified clicks are left alone** (cmd, ctrl, shift, middle): those belong to
-  the browser, for opening a tab.
-- `pageIn` runs in a **layout effect**, so the first painted frame is already
-  the start state and nothing flashes at full opacity first.
+**The first version could not glide, structurally.** It animated the old screen
+out, *then* navigated, *then* animated the new one in. Nothing was ever moving
+at the same time and the mount sat in the gap, which is what felt like stutter.
+React only ever has one screen mounted, so **the other one has to be a
+snapshot**: `captureOutgoing()` clones `main` into a fixed, GPU-promoted layer
+pinned to its bounding rect (which already includes however far a finger has
+dragged it), then navigation happens in the same frame. `pageIn()` moves the
+snapshot and the arriving screen together and removes the snapshot on complete.
 
-Measured, marks to calendar and back:
-
-    leaving    0 -> -2 -> -5 -> -14 -> -26px, opacity 1.00 -> 0.00
-    arriving  30 -> 11 -> 4 -> 1 -> 0px,      opacity 0.00 -> 1.00
-    reversed  mirrors exactly
+- **Translate only, no opacity.** Transform stays on the compositor; opacity on
+  a full-page element drags it back onto the paint path.
+- The clone is pinned by `getBoundingClientRect()`, so a swipe continues from
+  where it was released instead of restarting from zero.
+- Measured across a transition: worst frame **21ms**, median 17ms, **zero**
+  frames over 32ms, and no clone left in the DOM afterwards.
 
 ### DONE: The selection travels (2026-07-29)
 Tapping a tab slides the selection from the tab you left to the tab you chose,

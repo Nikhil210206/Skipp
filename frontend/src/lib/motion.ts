@@ -243,45 +243,75 @@ export function revealRows(
  */
 let navDirection = 0;
 
-export function setNavDirection(dir: number): void {
+/**
+ * A still of the screen being left, held in the DOM so both surfaces can move
+ * together.
+ *
+ * Animating the old screen out, then navigating, then animating the new one in
+ * cannot glide: nothing is ever moving at the same time, and the mount sits in
+ * the gap. React only ever has one screen mounted, so the other one has to be a
+ * snapshot.
+ */
+let outgoing: HTMLElement | null = null;
+
+/**
+ * Freeze the screen being left exactly where it is, including any distance the
+ * finger has already dragged it, and navigate immediately. `pageIn` moves this
+ * and the arriving screen as one gesture.
+ */
+export function captureOutgoing(el: HTMLElement | null, dir: number): void {
   navDirection = dir;
+  outgoing?.remove();
+  outgoing = null;
+  if (!el || dir === 0 || prefersReducedMotion()) return;
+
+  // The rect already includes the drag offset, so pinning to it and clearing
+  // the transform continues from wherever the finger let go.
+  const r = el.getBoundingClientRect();
+  const clone = el.cloneNode(true) as HTMLElement;
+  clone.setAttribute("aria-hidden", "true");
+  clone.style.cssText =
+    `position:fixed;left:${r.left}px;top:${r.top}px;` +
+    `width:${r.width}px;height:${r.height}px;margin:0;` +
+    `overflow:hidden;pointer-events:none;z-index:25;` +
+    `transform:translateZ(0);will-change:transform;`;
+  document.body.appendChild(clone);
+  outgoing = clone;
 }
 
 /**
- * The screen leaves in the direction of travel, then `pageIn` brings the next
- * one from the far side, so moving between tabs reads as moving across one
- * surface rather than cutting between two.
- *
- * Resolves when the screen is out, so the caller can navigate on completion.
+ * Slide the snapshot off one side while the arriving screen comes in from the
+ * other, on one tween each with identical timing, so the two read as a single
+ * surface turning over. Translate only: no opacity, which keeps it on the
+ * compositor and off the paint path.
  */
-export function pageOut(el: HTMLElement | null, dir: number): Promise<void> {
-  setNavDirection(dir);
-  if (!el || prefersReducedMotion()) return Promise.resolve();
-  return new Promise((resolve) => {
-    gsap.to(el, {
-      x: dir === 0 ? 0 : -26 * dir,
-      opacity: 0,
-      duration: 0.16,
-      ease: EASE.in,
-      overwrite: "auto",
-      onComplete: () => resolve(),
-    });
-  });
-}
-
-/** Brings a freshly mounted screen in from the side it should arrive from. */
 export function pageIn(el: HTMLElement | null): void {
-  if (!el) return;
   const dir = navDirection;
+  const prev = outgoing;
   navDirection = 0;
-  if (prefersReducedMotion() || dir === 0) {
-    gsap.set(el, { x: 0, opacity: 1 });
+  outgoing = null;
+
+  if (!el || dir === 0 || prefersReducedMotion()) {
+    prev?.remove();
+    if (el) gsap.set(el, { x: 0, opacity: 1 });
     return;
+  }
+
+  const width = el.getBoundingClientRect().width || window.innerWidth;
+  const travel = width * dir;
+
+  if (prev) {
+    gsap.to(prev, {
+      x: -travel,
+      duration: DUR.slow,
+      ease: EASE.emphasis,
+      onComplete: () => prev.remove(),
+    });
   }
   gsap.fromTo(
     el,
-    { x: 30 * dir, opacity: 0 },
-    { x: 0, opacity: 1, duration: 0.34, ease: EASE.emphasis, overwrite: "auto" },
+    { x: travel, opacity: 1 },
+    { x: 0, duration: DUR.slow, ease: EASE.emphasis, overwrite: "auto" },
   );
 }
 

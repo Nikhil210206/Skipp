@@ -4,7 +4,7 @@ import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import { useEffect, useRef } from "react";
 import gsap from "gsap";
-import { DUR, EASE, pageOut, prefersReducedMotion } from "@/lib/motion";
+import { captureOutgoing, DUR, EASE, prefersReducedMotion } from "@/lib/motion";
 import { TAB_HREFS } from "@/lib/tabs";
 import {
   IconAttendance,
@@ -157,10 +157,11 @@ export default function BottomNav() {
                   if (e.metaKey || e.ctrlKey || e.shiftKey || e.button !== 0) return;
                   if (active) return;
                   e.preventDefault();
-                  void pageOut(
-                    document.querySelector<HTMLElement>("main"),
-                    dir,
-                  ).then(() => router.push(href));
+                  // Freeze the current screen and navigate in the same frame.
+                  // Waiting for an exit to finish first is what put a hole in
+                  // the middle of the transition.
+                  captureOutgoing(document.querySelector<HTMLElement>("main"), dir);
+                  router.push(href);
                 }}
                 data-nav-item
                 aria-current={active ? "page" : undefined}

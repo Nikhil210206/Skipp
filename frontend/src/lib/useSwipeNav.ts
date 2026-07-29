@@ -3,7 +3,7 @@
 import { useEffect, type RefObject } from "react";
 import { useRouter } from "next/navigation";
 import gsap from "gsap";
-import { DUR, EASE, pageOut, prefersReducedMotion } from "./motion";
+import { captureOutgoing, DUR, EASE, prefersReducedMotion } from "./motion";
 import { TAB_HREFS } from "./tabs";
 
 // How far a swipe must travel to count, and how much of the finger's movement
@@ -86,10 +86,10 @@ export function useSwipeNav(
       const dx = e.changedTouches[0].clientX - startX;
       const next = targetFor(dx);
       if (Math.abs(dx) >= COMMIT && inRange(next)) {
-        // Same exit the tab bar plays, so both routes into a screen look alike.
-        void pageOut(main(), dx < 0 ? 1 : -1).then(() =>
-          router.push(TAB_HREFS[next]),
-        );
+        // Snapshot where the finger left it and navigate at once, so the
+        // arriving screen picks the movement up rather than starting over.
+        captureOutgoing(main(), dx < 0 ? 1 : -1);
+        router.push(TAB_HREFS[next]);
         return;
       }
       gsap.to(main(), {
