@@ -345,7 +345,32 @@ is deployment and true push notifications.
 Entries below are newest first. **When something breaks, read the relevant entry first**: most
 oddities here (login shell, empty calendar, 429s, duplicated course codes) are already diagnosed.
 
-### DONE: Reminders (2026-07-29, latest)
+### DONE: The scroll edge (2026-07-29, latest)
+Content no longer passes behind the masthead, it **dissolves into it**: words
+scrolling out of frame lose focus first, then lose themselves in the page.
+`ScrollEdge` in `AppShell`, two layers over a now-sticky masthead.
+
+    backdrop-blur + a mask     full strength behind the bar, gone by the bottom
+    a gradient to the page     opaque enough to keep the label readable, then
+                               thinning fast so the blurred words are visible
+
+**The blur has to live on the masthead itself, not on an overlay.** The
+masthead sits inside PullToRefresh's transformed wrapper, which is its own
+stacking context, so any sibling overlay raised above the scrolling content
+would also cover the profile mark and stop it being tappable. Same containing
+block problem as the portalled overlays, different symptom.
+
+**The mask is what stops it reading as a frosted panel.** Without it there is a
+hard horizontal edge where the blur ends, which looks like a component rather
+than an effect.
+
+**Balance is the whole thing.** The first version had the gradient at full
+`ink-0` from 0%, so the blur was applied but completely hidden and content just
+went black. The ramp now holds opacity to 30% and thins by 70%, which is what
+makes the transition read as blur rather than as a fade to nothing. Both layers
+are token based, verified in the light theme.
+
+### DONE: Reminders (2026-07-29)
 `lib/reminders.ts` (the attendance diff plus the feed builder) and a read-only
 Reminders section on Home. **`lib/alerts.ts` is deleted**: it was dead code the
 audit found, and this replaces it.

@@ -65,9 +65,16 @@ export default function AppShell({
       <PullToRefresh onRefresh={refresh}>
         {/* The inset is padding on the wrapper, never on the bar itself: with
             box-sizing: border-box a 59px notch inset would eat the whole 56px
-            bar and leave the content with zero height to sit in. */}
-        <header className="shrink-0 pt-[env(safe-area-inset-top)]">
-          <div className="flex h-14 items-center justify-between px-[var(--gutter)]">
+            bar and leave the content with zero height to sit in.
+
+            Sticky, so the scroll edge has something to happen against. The blur
+            has to live on this element rather than on a sibling overlay: the
+            masthead sits inside PullToRefresh's transformed wrapper, which is
+            its own stacking context, so any overlay raised above the content
+            would also cover the profile mark and stop it being tappable. */}
+        <header className="sticky top-0 z-20 shrink-0 pt-[env(safe-area-inset-top)]">
+          <ScrollEdge />
+          <div className="relative flex h-14 items-center justify-between px-[var(--gutter)]">
             <button
               onClick={tapMasthead}
               aria-label="Skipp"
@@ -96,6 +103,39 @@ export default function AppShell({
           which is the only moment the offer means anything. */}
       <InstallPrompt />
     </div>
+  );
+}
+
+/**
+ * The scroll edge: content does not simply pass behind the masthead, it
+ * dissolves into it. Two layers doing two different jobs, both extending below
+ * the bar so the effect ends softly instead of at a visible line.
+ *
+ *   backdrop-blur + a mask   the words going out of frame lose focus first
+ *   a gradient to the page   and then lose themselves in the background
+ *
+ * The mask is what stops it reading as a frosted panel with an edge: the blur
+ * is at full strength behind the bar and gone by the bottom of the strip.
+ */
+// Full strength behind the bar, gone by the bottom of the strip.
+const FADE = "linear-gradient(to bottom, #000 0%, #000 46%, transparent 100%)";
+
+function ScrollEdge() {
+  return (
+    <>
+      <div
+        aria-hidden
+        className="pointer-events-none absolute inset-x-0 top-0 h-[calc(100%+46px)] backdrop-blur-lg"
+        style={{ maskImage: FADE, WebkitMaskImage: FADE }}
+      />
+      <div
+        aria-hidden
+        // Opaque enough behind the bar to keep the label readable, then thin
+        // fast so the blurred words are actually visible on their way out.
+        // Token based, so it inverts correctly in the light theme.
+        className="pointer-events-none absolute inset-x-0 top-0 h-[calc(100%+46px)] bg-gradient-to-b from-ink-0 from-30% via-ink-0/45 via-70% to-transparent"
+      />
+    </>
   );
 }
 
