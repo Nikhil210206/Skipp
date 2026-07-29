@@ -46,7 +46,7 @@ export default function DashboardPage() {
     attendingDayOrders,
     displayName,
     reminders: userReminders,
-    reminderPrefs,
+    attendanceChanges,
   } = useSession();
   const [remindersOpen, setRemindersOpen] = useState(false);
 
@@ -87,7 +87,7 @@ export default function DashboardPage() {
     nextWorking:
       timetable?.calendar.find((d) => d.date > today && d.dayOrder != null) ?? null,
     user: userReminders,
-    prefs: reminderPrefs,
+    changes: attendanceChanges,
   });
 
   const pct = useRef<HTMLSpanElement>(null);

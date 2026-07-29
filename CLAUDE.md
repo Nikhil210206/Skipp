@@ -345,33 +345,49 @@ is deployment and true push notifications.
 Entries below are newest first. **When something breaks, read the relevant entry first**: most
 oddities here (login shell, empty calendar, 429s, duplicated course codes) are already diagnosed.
 
-### DONE: Reminders, in-app by necessity (2026-07-29, latest)
-`lib/reminders.ts` (storage plus the feed builder), `RemindersSheet.tsx`, and a
-Reminders section on Home. **`lib/alerts.ts` is deleted**: it was dead code the
-audit found, and this replaces it.
+### DONE: Reminders (2026-07-29, latest)
+`lib/reminders.ts` (storage, the attendance diff, the feed builder),
+`RemindersSheet.tsx`, and a Reminders section on Home. **`lib/alerts.ts` is
+deleted**: it was dead code the audit found, and this replaces it.
 
-**The web cannot schedule a notification for later on-device.** Notification
-Triggers never shipped and Safari never had it. So a reminder that fires while
-Skipp is closed can only come from a server holding push tokens and schedules,
-which breaks §3 and the in-app disclaimer, or from the phone's own calendar.
-Chosen deliberately: **in-app only**, which tells the truth about what it is.
-If push is ever revisited, note iOS only allows it for an installed PWA.
+**In-app only, by necessity.** The web cannot schedule a notification for later
+on device (Notification Triggers never shipped, Safari never had it). The
+alternatives were a server holding push tokens and schedules, which breaks §3
+and the disclaimer, or handing the job to the phone's calendar. If push is ever
+revisited: iOS allows it only for an installed PWA.
 
-Four sources, merged and sorted by tone (danger, warning, muted, success):
-1. **The student's own**, free text at a time, once or daily. Stored per
-   registration number on-device like every other preference. A reminder more
-   than an hour past is dropped: one you have already walked past is noise.
-2. **A class starting** inside a chosen window (off / 10 / 30 / 60 minutes).
-3. **Attendance**, reusing the old alert logic: below the line with the number
-   needed to clear it, or exactly on the line where one miss drops it.
-4. **The rotation**, which is the thing that actually catches people: a holiday
-   does not advance the day order, so "tomorrow is the next number" is often
-   wrong. It names the day order and how long the gap is.
+Five sources, merged and sorted by tone:
+1. **The student's own**, free text, once on a date or every day. Native
+   `<input type="time">` and `<input type="date">`, so a phone gives a proper
+   wheel and the value can never come back malformed. One more than an hour past
+   is dropped: a reminder you have already walked past is noise.
+2. **A class starting**, always on, always `CLASS_LEAD_MIN` (30). **Not a
+   setting.** Asking someone to pick a number before the feature does anything
+   is a worse default than picking the sensible one.
+3. **What the portal just marked.** `diffAttendance()` compares each snapshot
+   against the last, keyed `code::category` because **a course has separate
+   Theory and Practical rows sharing one code**. A subject with no previous
+   reading is not a change, or a first sign-in would have every subject announce
+   itself.
+4. **Attendance standing**: below the line with the number needed, or exactly on
+   it where one miss drops you.
+5. **The rotation.** A holiday does not advance the day order, so "tomorrow is
+   the next number" is often wrong.
 
-**Trap found while building:** `nextWorkingDay()` returns **today** when today is
-a working day, so the rotation note read "Wed, Jul 29 is day order 2" about the
-day you are already standing in. It needs the first calendar entry strictly
-after today. Verified live: now reads "Tomorrow is day order 3".
+**`installSnapshot()` in SessionContext is the single door fresh data enters
+by**, so the diff is computed exactly once, at the moment it becomes true. The
+cached-rehydrate path deliberately does not diff (same data as last time) but
+**does seed the baseline**: without that, the first refresh of a session had
+nothing to compare against and silently reported no change however much had been
+marked.
+
+**Trap:** `nextWorkingDay()` returns **today** when today is a working day, so
+the rotation note first read "Wed, Jul 29 is day order 2" about the day you are
+standing in. It needs the first calendar entry strictly after today.
+
+Verified by compiling the real module and running `diffAttendance` over six
+cases (no baseline, no change, attended, missed, two held one missed, and a
+theory/practical pair). No portal sign-in was spent doing it.
 
 ### DONE: Install prompt, asked not enforced (2026-07-29)
 `components/InstallPrompt.tsx`, mounted in `AppShell` so it appears once the

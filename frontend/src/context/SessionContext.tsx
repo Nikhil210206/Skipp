@@ -46,13 +46,13 @@ function isStale(fetchedAt: string): boolean {
   return Number.isNaN(t) || Date.now() - t > STALE_MS;
 }
 import {
-  DEFAULT_PREFS,
-  loadPrefs,
+  diffAttendance,
   loadReminders,
+  loadSeenAttendance,
   newReminderId,
-  savePrefs,
   saveReminders,
-  type ReminderPrefs,
+  saveSeenAttendance,
+  type AttendanceChange,
   type UserReminder,
 } from "@/lib/reminders";
 import {
@@ -95,8 +95,8 @@ type SessionValue = {
   reminders: UserReminder[];
   addReminder: (r: Omit<UserReminder, "id">) => void;
   removeReminder: (id: string) => void;
-  reminderPrefs: ReminderPrefs;
-  setReminderPrefs: (p: ReminderPrefs) => void;
+  /** Classes the portal recorded since the previous snapshot. */
+  attendanceChanges: AttendanceChange[];
   displayName: string; // custom name if set, else official first name
   setDisplayName: (name: string) => void;
   login: (creds: Credentials) => Promise<void>;
@@ -115,7 +115,7 @@ export function SessionProvider({ children }: { children: React.ReactNode }) {
   const [optionalCourses, setOptionalCourses] = useState<string[]>([]);
   const [customName, setCustomName] = useState<string | null>(null);
   const [reminders, setReminders] = useState<UserReminder[]>([]);
-  const [reminderPrefs, setPrefs] = useState<ReminderPrefs>(DEFAULT_PREFS);
+  const [attendanceChanges, setChanges] = useState<AttendanceChange[]>([]);
   const [loadedReg, setLoadedReg] = useState<string | null>(null);
 
   const reg = snapshot?.timetable.student.registrationNumber ?? null;
@@ -133,8 +133,21 @@ export function SessionProvider({ children }: { children: React.ReactNode }) {
     setOptionalCourses(reg ? loadOptionalCourses(reg) : []);
     setCustomName(reg ? loadDisplayName(reg) : null);
     setReminders(reg ? loadReminders(reg) : []);
-    setPrefs(reg ? loadPrefs(reg) : DEFAULT_PREFS);
   }
+
+  /**
+   * The one way fresh data enters the app. Before installing a snapshot it is
+   * compared against the last one seen, so "what the portal marked since you
+   * last looked" is computed exactly once, at the moment it becomes true.
+   */
+  const installSnapshot = useCallback((snap: Snapshot) => {
+    const id = snap.timetable.student.registrationNumber;
+    if (id) {
+      setChanges(diffAttendance(snap.attendance, loadSeenAttendance(id)));
+      saveSeenAttendance(id, snap.attendance);
+    }
+    setSnapshot(snap);
+  }, []);
 
   // Rehydrate from a prior visit. If we have an encrypted cached snapshot, show
   // it INSTANTLY (no login, no spinner) and only re-fetch in the background when
@@ -154,6 +167,13 @@ export function SessionProvider({ children }: { children: React.ReactNode }) {
         // Instant: show cached data, then quietly refresh if it's gone stale.
         setCreds(saved);
         setSnapshot(cached);
+        // Seed the baseline from what is on screen. Without this the first
+        // refresh of a session has nothing to compare against and silently
+        // reports no change, however much the portal marked in between.
+        saveSeenAttendance(
+          cached.timetable.student.registrationNumber,
+          cached.attendance,
+        );
         setRestoring(false);
         if (isStale(cached.fetchedAt)) void backgroundRefresh(saved);
         return;
@@ -164,7 +184,7 @@ export function SessionProvider({ children }: { children: React.ReactNode }) {
         const snap = await fetchSnapshot(saved);
         if (!cancelled) {
           setCreds(saved);
-          setSnapshot(snap);
+          installSnapshot(snap);
           void saveSnapshot(snap);
         }
       } catch (e) {
@@ -181,7 +201,7 @@ export function SessionProvider({ children }: { children: React.ReactNode }) {
       try {
         const fresh = await fetchSnapshot(withCreds);
         if (!cancelled) {
-          setSnapshot(fresh);
+          installSnapshot(fresh);
           void saveSnapshot(fresh);
         }
       } catch {
@@ -192,7 +212,7 @@ export function SessionProvider({ children }: { children: React.ReactNode }) {
     return () => {
       cancelled = true;
     };
-  }, []);
+  }, [installSnapshot]);
 
   // Silent background refresh (used by focus + pull-to-refresh's stale checks).
   const bgRefreshing = useRef(false);
@@ -202,14 +222,14 @@ export function SessionProvider({ children }: { children: React.ReactNode }) {
     bgRefreshing.current = true;
     try {
       const fresh = await fetchSnapshot(creds);
-      setSnapshot(fresh);
+      installSnapshot(fresh);
       void saveSnapshot(fresh);
     } catch {
       // keep cache
     } finally {
       bgRefreshing.current = false;
     }
-  }, [creds, snapshot]);
+  }, [creds, snapshot, installSnapshot]);
 
   // Refresh when the app is reopened / brought back to the foreground, if the
   // cached data has gone stale, so a class update shows up without any manual
@@ -235,7 +255,7 @@ export function SessionProvider({ children }: { children: React.ReactNode }) {
     setRefreshing(true);
     try {
       const fresh = await fetchSnapshot(creds);
-      setSnapshot(fresh);
+      installSnapshot(fresh);
       void saveSnapshot(fresh);
     } catch {
       // Rate-limited or offline: keep showing the cached snapshot rather than
@@ -243,7 +263,7 @@ export function SessionProvider({ children }: { children: React.ReactNode }) {
     } finally {
       setRefreshing(false);
     }
-  }, [creds]);
+  }, [creds, installSnapshot]);
 
   const value = useMemo<SessionValue>(() => {
     const sectionState = (s: SectionStatus | undefined): SectionState =>
@@ -288,11 +308,7 @@ export function SessionProvider({ children }: { children: React.ReactNode }) {
         setReminders(next);
         if (reg) saveReminders(reg, next);
       },
-      reminderPrefs,
-      setReminderPrefs(p) {
-        setPrefs(p);
-        if (reg) savePrefs(reg, p);
-      },
+      attendanceChanges,
       optionalCourses,
       toggleOptional(code) {
         const next = optionalCourses.includes(code)
@@ -314,7 +330,7 @@ export function SessionProvider({ children }: { children: React.ReactNode }) {
       async login(next) {
         const snap = await fetchSnapshot(next);
         setCreds(next);
-        setSnapshot(snap);
+        installSnapshot(snap);
         void saveCredentials(next);
         void saveSnapshot(snap);
       },
@@ -327,6 +343,7 @@ export function SessionProvider({ children }: { children: React.ReactNode }) {
       },
     };
   }, [
+    installSnapshot,
     creds,
     snapshot,
     restoring,
@@ -334,7 +351,7 @@ export function SessionProvider({ children }: { children: React.ReactNode }) {
     customClasses,
     optionalCourses,
     reminders,
-    reminderPrefs,
+    attendanceChanges,
     customName,
     officialFirst,
     reg,

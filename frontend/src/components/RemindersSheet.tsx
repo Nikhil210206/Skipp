@@ -3,20 +3,35 @@
 import { useState } from "react";
 import { Sheet } from "@/components/ui/Overlay";
 import { Button, Label, Segmented } from "@/components/ui";
+import { CLASS_LEAD_MIN } from "@/lib/reminders";
 import { Rule } from "@/components/ui/editorial";
 import { useSession } from "@/context/SessionContext";
 import { todayISO } from "@/lib/schedule";
 import type { UserReminder } from "@/lib/reminders";
 
-const OFFSETS = [10, 30, 60] as const;
+function Field({
+  id,
+  label,
+  children,
+}: {
+  id: string;
+  label: string;
+  children: React.ReactNode;
+}) {
+  return (
+    <div className="rounded-control border border-line bg-ink-0 px-4 py-3 transition-colors focus-within:border-text-3">
+      <label htmlFor={id} className="text-label uppercase text-text-3">
+        {label}
+      </label>
+      {children}
+    </div>
+  );
+}
 
+/** `<input type="time">` always yields HH:MM, so this cannot be malformed. */
 function toMin(hhmm: string): number | null {
-  const m = /^(\d{1,2}):(\d{2})$/.exec(hhmm);
-  if (!m) return null;
-  const h = Number(m[1]);
-  const min = Number(m[2]);
-  if (h > 23 || min > 59) return null;
-  return h * 60 + min;
+  const m = /^(\d{2}):(\d{2})$/.exec(hhmm);
+  return m ? Number(m[1]) * 60 + Number(m[2]) : null;
 }
 
 const fmt = (min: number) => {
@@ -32,16 +47,11 @@ export default function RemindersSheet({
   open: boolean;
   onClose: () => void;
 }) {
-  const {
-    reminders,
-    addReminder,
-    removeReminder,
-    reminderPrefs,
-    setReminderPrefs,
-  } = useSession();
+  const { reminders, addReminder, removeReminder } = useSession();
 
   const [text, setText] = useState("");
   const [time, setTime] = useState("09:00");
+  const [date, setDate] = useState(todayISO());
   const [mode, setMode] = useState<UserReminder["mode"]>("once");
   const [error, setError] = useState<string | null>(null);
 
@@ -52,7 +62,7 @@ export default function RemindersSheet({
     addReminder({
       text: text.trim(),
       mode,
-      date: mode === "once" ? todayISO() : null,
+      date: mode === "once" ? date : null,
       atMin: at,
     });
     setText("");
@@ -71,25 +81,12 @@ export default function RemindersSheet({
       }
     >
       <div className="flex flex-col gap-6 pb-2 pt-1">
-        <div>
-          <Label>Before a class</Label>
-          <div className="mt-3">
-            <Segmented<number>
-              label="Class reminder"
-              value={reminderPrefs.classOffsetMin ?? 0}
-              onChange={(v) =>
-                setReminderPrefs({ classOffsetMin: v === 0 ? null : v })
-              }
-              options={[
-                { value: 0, label: "Off" },
-                ...OFFSETS.map((o) => ({ value: o as number, label: `${o}m` })),
-              ]}
-            />
-          </div>
-          <p className="mt-3 text-callout leading-relaxed text-text-3">
-            Flags a class this long before it starts, whenever you open Skipp.
-          </p>
-        </div>
+        {/* Not a setting. Stating what already happens is more use than asking
+            someone to configure it before the feature does anything. */}
+        <p className="text-callout leading-relaxed text-text-3">
+          Classes are flagged {CLASS_LEAD_MIN} minutes before they start, and
+          attendance is reported the moment the portal marks it. Both automatic.
+        </p>
 
         <div>
           <Label>Your own</Label>
@@ -107,31 +104,46 @@ export default function RemindersSheet({
             />
           </div>
 
+          <div className="mt-3">
+            <Segmented<UserReminder["mode"]>
+              label="Repeat"
+              value={mode}
+              onChange={setMode}
+              options={[
+                { value: "once", label: "On a day" },
+                { value: "daily", label: "Every day" },
+              ]}
+            />
+          </div>
+
+          {/* Native pickers: a phone gives a proper wheel, and the value can
+              never come back malformed. */}
           <div className="mt-3 grid grid-cols-2 gap-3">
-            <div className="rounded-control border border-line bg-ink-0 px-4 py-3 transition-colors focus-within:border-text-3">
-              <label htmlFor="rem-time" className="text-label uppercase text-text-3">
-                At
-              </label>
+            <Field id="rem-time" label="Time">
               <input
                 id="rem-time"
+                type="time"
                 value={time}
-                inputMode="numeric"
-                autoComplete="off"
                 onChange={(e) => setTime(e.target.value)}
                 className="tnum mt-1.5 w-full bg-transparent text-headline text-text-1 outline-none"
               />
-            </div>
-            <div>
-              <Segmented<UserReminder["mode"]>
-                label="Repeat"
-                value={mode}
-                onChange={setMode}
-                options={[
-                  { value: "once", label: "Today" },
-                  { value: "daily", label: "Daily" },
-                ]}
-              />
-            </div>
+            </Field>
+            {mode === "once" ? (
+              <Field id="rem-date" label="Date">
+                <input
+                  id="rem-date"
+                  type="date"
+                  value={date}
+                  min={todayISO()}
+                  onChange={(e) => setDate(e.target.value)}
+                  className="tnum mt-1.5 w-full bg-transparent text-headline text-text-1 outline-none"
+                />
+              </Field>
+            ) : (
+              <div className="flex items-end pb-3 pl-1">
+                <p className="text-callout text-text-3">Repeats daily</p>
+              </div>
+            )}
           </div>
 
           {error && (
@@ -152,7 +164,12 @@ export default function RemindersSheet({
                     <div className="min-w-0">
                       <p className="truncate text-body">{r.text}</p>
                       <p className="tnum mt-1 text-callout text-text-3">
-                        {fmt(r.atMin)} · {r.mode === "daily" ? "Every day" : "Today"}
+                        {fmt(r.atMin)} ·{" "}
+                        {r.mode === "daily"
+                          ? "Every day"
+                          : r.date === todayISO()
+                            ? "Today"
+                            : (r.date ?? "")}
                       </p>
                     </div>
                     <button

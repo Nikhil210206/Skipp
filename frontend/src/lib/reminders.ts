@@ -14,7 +14,13 @@ import type { ScheduleItem } from "./schedule";
 import { prettyDate } from "./schedule";
 
 export type ReminderTone = "danger" | "warning" | "muted" | "success";
-export type ReminderKind = "custom" | "class" | "risk" | "edge" | "dayorder";
+export type ReminderKind =
+  | "custom"
+  | "class"
+  | "marked"
+  | "risk"
+  | "edge"
+  | "dayorder";
 
 /** One line in the feed. */
 export type Reminder = {
@@ -39,17 +45,82 @@ export type UserReminder = {
   atMin: number;
 };
 
-export type ReminderPrefs = {
-  /** Minutes before a class to flag it, or null when switched off. */
-  classOffsetMin: number | null;
+/**
+ * How long before a class it gets flagged. A constant, not a setting: asking
+ * someone to choose a number before the feature does anything is a worse
+ * default than simply picking the sensible one.
+ */
+export const CLASS_LEAD_MIN = 30;
+
+/** What attendance looked like last time, so a change can be spotted. */
+export type SeenAttendance = Record<string, { attended: number; conducted: number }>;
+
+export type AttendanceChange = {
+  title: string;
+  /** Classes newly recorded. */
+  held: number;
+  /** How many of those the student was present for. */
+  present: number;
+  percentage: number;
 };
 
-export const DEFAULT_PREFS: ReminderPrefs = { classOffsetMin: 30 };
+const seenKey = (reg: string) => `skipp.attnSeen.${reg}`;
+const rowKey = (code: string, category: string) => `${code}::${category}`;
+
+export function loadSeenAttendance(reg: string): SeenAttendance {
+  try {
+    const raw = localStorage.getItem(seenKey(reg));
+    return raw ? (JSON.parse(raw) as SeenAttendance) : {};
+  } catch {
+    return {};
+  }
+}
+
+export function saveSeenAttendance(
+  reg: string | null,
+  a: Attendance | null,
+): void {
+  if (!reg || !a) return;
+  try {
+    const map: SeenAttendance = {};
+    for (const s of a.subjects) {
+      map[rowKey(s.code, s.category)] = { attended: s.attended, conducted: s.conducted };
+    }
+    localStorage.setItem(seenKey(reg), JSON.stringify(map));
+  } catch {
+    /* non-fatal */
+  }
+}
+
+/**
+ * What the portal recorded since the last snapshot. A subject with no previous
+ * reading is NOT a change: on a first sign-in every subject would otherwise
+ * announce itself, which is noise rather than news.
+ */
+export function diffAttendance(
+  current: Attendance | null,
+  seen: SeenAttendance,
+): AttendanceChange[] {
+  if (!current) return [];
+  const out: AttendanceChange[] = [];
+  for (const s of current.subjects) {
+    const was = seen[rowKey(s.code, s.category)];
+    if (!was) continue;
+    const held = s.conducted - was.conducted;
+    if (held <= 0) continue;
+    out.push({
+      title: s.title || s.code,
+      held,
+      present: s.attended - was.attended,
+      percentage: s.percentage,
+    });
+  }
+  return out;
+}
 
 // ---- storage, keyed per student like the rest of the on-device prefs -------
 
 const listKey = (reg: string) => `skipp.reminders.${reg}`;
-const prefsKey = (reg: string) => `skipp.reminderPrefs.${reg}`;
 
 export function loadReminders(reg: string): UserReminder[] {
   try {
@@ -63,23 +134,6 @@ export function loadReminders(reg: string): UserReminder[] {
 export function saveReminders(reg: string, list: UserReminder[]): void {
   try {
     localStorage.setItem(listKey(reg), JSON.stringify(list));
-  } catch {
-    /* non-fatal */
-  }
-}
-
-export function loadPrefs(reg: string): ReminderPrefs {
-  try {
-    const raw = localStorage.getItem(prefsKey(reg));
-    return raw ? { ...DEFAULT_PREFS, ...JSON.parse(raw) } : DEFAULT_PREFS;
-  } catch {
-    return DEFAULT_PREFS;
-  }
-}
-
-export function savePrefs(reg: string, prefs: ReminderPrefs): void {
-  try {
-    localStorage.setItem(prefsKey(reg), JSON.stringify(prefs));
   } catch {
     /* non-fatal */
   }
@@ -118,7 +172,8 @@ export function buildReminders(opts: {
   /** The next working day after today, for the day-order note. */
   nextWorking: CalendarDay | null;
   user: UserReminder[];
-  prefs: ReminderPrefs;
+  /** What the portal recorded since the last snapshot. */
+  changes: AttendanceChange[];
 }): Reminder[] {
   const threshold = opts.threshold ?? 75;
   const out: Reminder[] = [];
@@ -141,11 +196,11 @@ export function buildReminders(opts: {
     });
   }
 
-  // 2. A class starting inside the chosen window.
-  const offset = opts.prefs.classOffsetMin;
-  if (offset !== null && opts.nowMin !== null) {
+  // 2. A class starting soon. Always on, always the same lead time.
+  if (opts.nowMin !== null) {
+    const now = opts.nowMin;
     const soon = opts.todayClasses.find(
-      (c) => c.startMin > opts.nowMin! && c.startMin - opts.nowMin! <= offset,
+      (c) => c.startMin > now && c.startMin - now <= CLASS_LEAD_MIN,
     );
     if (soon) {
       const mins = soon.startMin - opts.nowMin;
@@ -159,7 +214,23 @@ export function buildReminders(opts: {
     }
   }
 
-  // 3. Attendance, the reason the app exists.
+  // 3. What the portal marked since the last look. The thing a student most
+  //    wants to know and cannot get from the portal without going and checking.
+  for (const c of opts.changes) {
+    const missed = c.held - c.present;
+    out.push({
+      id: `marked-${c.title}`,
+      kind: "marked",
+      tone: missed > 0 ? "warning" : "success",
+      title:
+        missed > 0
+          ? `${short(c.title)}: ${missed} of ${c.held} marked absent`
+          : `${short(c.title)}: ${c.held} marked present`,
+      meta: `Now at ${c.percentage.toFixed(0)}%`,
+    });
+  }
+
+  // 4. Attendance standing, the reason the app exists.
   if (opts.attendanceReady && opts.attendance) {
     for (const s of opts.attendance.subjects) {
       if (s.conducted === 0) continue;
@@ -183,7 +254,7 @@ export function buildReminders(opts: {
     }
   }
 
-  // 4. The rotation, which is what actually catches people out: a holiday does
+  // 5. The rotation, which is what actually catches people out: a holiday does
   //    not advance the day order, so "tomorrow is the next number" is wrong
   //    surprisingly often.
   if (opts.nextWorking?.dayOrder != null) {
