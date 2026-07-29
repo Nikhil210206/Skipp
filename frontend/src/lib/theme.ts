@@ -17,7 +17,8 @@ export type Theme =
   | "paper"
   | "sand"
   | "brutal"
-  | "clay";
+  | "clay"
+  | "terminal";
 
 export type ThemeInfo = {
   id: Theme;
@@ -27,9 +28,35 @@ export type ThemeInfo = {
   bar: string;
   /** Three tones for the picker swatch: page, surface, accent. */
   swatch: [string, string, string];
+  /** True when the theme changes structure, not just colour. */
+  structural?: true;
 };
 
 export const THEMES: ThemeInfo[] = [
+  {
+    id: "brutal",
+    name: "Brutal",
+    note: "Blocks, hard shadows, filled labels",
+    bar: "#fdf6e3",
+    swatch: ["#fdf6e3", "#ffd54a", "#ff4a00"],
+    structural: true,
+  },
+  {
+    id: "clay",
+    name: "Clay",
+    note: "Soft cards, round everything",
+    bar: "#eceefa",
+    swatch: ["#eceefa", "#d9ddf7", "#6b4dff"],
+    structural: true,
+  },
+  {
+    id: "terminal",
+    name: "Terminal",
+    note: "Monospace, phosphor, drawn boxes",
+    bar: "#040705",
+    swatch: ["#040705", "#17251b", "#3ef08c"],
+    structural: true,
+  },
   {
     id: "ink",
     name: "Ink",
@@ -64,20 +91,6 @@ export const THEMES: ThemeInfo[] = [
     note: "Warm light",
     bar: "#faf6ef",
     swatch: ["#faf6ef", "#ded2be", "#b8430b"],
-  },
-  {
-    id: "brutal",
-    name: "Brutal",
-    note: "Heavy rules, hard shadows",
-    bar: "#fdf6e3",
-    swatch: ["#fdf6e3", "#ffd54a", "#ff4a00"],
-  },
-  {
-    id: "clay",
-    name: "Clay",
-    note: "Soft and rounded",
-    bar: "#eceefa",
-    swatch: ["#eceefa", "#d9ddf7", "#6b4dff"],
   },
 ];
 

@@ -376,6 +376,59 @@ Brutal turns every row into a bordered block on a hard offset, section labels
 into filled slabs, and the meter into a chunky bordered bar. Clay turns the same
 rows into soft filled cards with pill meters and rounded label chips.
 
+**Two things broke on Schedule once rows became cards**, both worth knowing
+before adding another material theme:
+- **The timeline spine ran through the card**, striking a line through the class
+  times. It is the hairline layout's device; a card border already separates, so
+  `[data-spine]` is hidden under both material themes.
+- **Every hairline is black in Brutal**, so the five day-order tracks merged
+  into one continuous rule and swallowed the selection marker, which is also
+  near-black. The tracks are faded to 18% and the marker is the accent at 4px.
+
+**Terminal is the third full look**, and it was about an hour, because the
+marker vocabulary already existed. The recipe, for a fourth:
+1. write the idea as tokens (colour ramp, radius, shadow, `--border-w`),
+2. write the rules against the existing markers,
+3. sweep the six screens for the known collisions (connecting lines inside
+   cards, hairlines merging when every line is one colour, `bleed` escaping a
+   card, and never touching `transform` on a button),
+4. add it to `THEMES` with `structural: true`.
+
+The only question that decides the cost is whether the idea can be *said* with
+the markers. If not, add the marker first, then follow the recipe.
+
+**Type is the biggest lever and was untouched until Terminal.** `--font-sans` is
+a token and `body` reads it, so a theme changes the entire feel of the app in
+one line. Geist Mono was already being shipped on every page and used nowhere,
+so Terminal costs no extra bytes. Its signature is not the colour: it is
+monospace, `[ SUBJECTS ]` brackets on section labels via `::before`/`::after`,
+segmented meters that read as characters, and `> ` prompts on buttons.
+
+**The picker is two groups**, because they are two different things: **Full
+looks** (Brutal, Clay, "rebuilds the UI") above a rule, then **Skins** ("colour
+only"). Saying so beats letting someone discover it by trying all seven.
+
+**Both material themes reach every screen**, through markers on the shared
+pieces rather than per-screen CSS:
+
+| marker | Brutal | Clay |
+| --- | --- | --- |
+| `data-surface` (rows) | bordered block on a hard offset | soft filled card |
+| `data-band` (section labels) | filled accent slab | rounded chip |
+| `data-meter` (TrackRule) | chunky bordered bar | pill |
+| `data-nav` | 3px slab, filled active tab | floating rounded bar |
+| `data-btn` | offset shadow, presses in on `:active` | soft shadow |
+| `data-day` (calendar) | a real grid of boxes | rounded cells |
+| `data-spine`, `data-rule` | hidden, the card does the separating | hidden |
+
+**Buttons change `box-shadow` on `:active`, never `transform`.** `pressable()`
+already owns that element's transform, and two systems writing one property is
+the standing trap in this codebase.
+
+**Screens verified in Brutal and Clay:** Home, Attendance, Marks, Schedule,
+Calendar, Profile. Anything added later needs the same pass: a theme that adds
+surfaces will collide with any layout that draws its own connecting lines.
+
 **Brutal deliberately breaks the house rules.** §8 says filled blocks are
 banned and the accent is ink, never fill. Brutal is loud fill on cream with
 black rules. That was the point of choosing "full separate looks": a theme

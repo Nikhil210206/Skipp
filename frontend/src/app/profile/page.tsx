@@ -112,15 +112,20 @@ export default function ProfilePage() {
 
           <div className="pt-7">
             <p className="pb-3 text-callout text-text-3">Appearance</p>
+            <div className="flex items-center gap-3 pb-3.5">
+              <span className="text-label uppercase text-text-3">Full looks</span>
+              <span className="h-px flex-1 bg-line" />
+              <span className="text-callout text-text-3">Rebuilds the UI</span>
+            </div>
             {/* A grid rather than a segmented control: seven options do not fit
                 on one row, and a theme is chosen by looking at it, not by
                 reading its name. Each swatch is painted in its own palette. */}
-            <div
-              role="radiogroup"
-              aria-label="Theme"
-              className="grid grid-cols-2 gap-2.5"
-            >
-              {THEMES.map((t) => {
+            {/* Two groups, because they are two different things: the first
+                two rebuild the interface, the rest recolour it. Saying so is
+                more honest than letting someone discover it by trying all
+                seven. */}
+            <div role="radiogroup" aria-label="Theme" className="grid grid-cols-2 gap-2.5">
+              {THEMES.filter((t) => t.structural).map((t) => {
                 const active = t.id === theme;
                 return (
                   <button
@@ -153,6 +158,44 @@ export default function ProfilePage() {
                       <span className="block truncate text-callout text-text-3">
                         {t.note}
                       </span>
+                    </span>
+                  </button>
+                );
+              })}
+            </div>
+
+            <div className="flex items-center gap-3 pb-3.5 pt-6">
+              <span className="text-label uppercase text-text-3">Skins</span>
+              <span className="h-px flex-1 bg-line" />
+              <span className="text-callout text-text-3">Colour only</span>
+            </div>
+
+            <div role="radiogroup" aria-label="Colour theme" className="grid grid-cols-2 gap-2.5">
+              {THEMES.filter((t) => !t.structural).map((t) => {
+                const active = t.id === theme;
+                return (
+                  <button
+                    key={t.id}
+                    role="radio"
+                    aria-checked={active}
+                    onClick={() => setTheme(t.id)}
+                    className={`flex items-center gap-3 rounded-control border px-3 py-3 text-left transition-colors ${
+                      active
+                        ? "border-accent bg-ink-2"
+                        : "border-line hover:border-line-strong"
+                    }`}
+                  >
+                    <span
+                      aria-hidden
+                      className="flex size-8 shrink-0 overflow-hidden rounded-full border border-line"
+                    >
+                      {t.swatch.map((c, i) => (
+                        <span key={i} className="h-full flex-1" style={{ background: c }} />
+                      ))}
+                    </span>
+                    <span className="min-w-0">
+                      <span className="block truncate text-body text-text-1">{t.name}</span>
+                      <span className="block truncate text-callout text-text-3">{t.note}</span>
                     </span>
                   </button>
                 );

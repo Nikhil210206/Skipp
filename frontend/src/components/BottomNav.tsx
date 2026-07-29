@@ -68,6 +68,7 @@ export default function BottomNav() {
   return (
     <nav
       ref={nav}
+      data-nav
       aria-label="Primary"
       className="sticky bottom-0 z-30 bg-ink-0/90 backdrop-blur-2xl"
     >
@@ -87,6 +88,7 @@ export default function BottomNav() {
             <li key={href} className="flex-1">
               <Link
                 href={href}
+                data-nav-item
                 aria-current={active ? "page" : undefined}
                 aria-label={label}
                 title={label}

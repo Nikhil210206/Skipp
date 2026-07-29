@@ -176,6 +176,7 @@ export default function CalendarPage() {
                   onClick={() => setSelected(date)}
                   aria-pressed={isSel}
                   aria-label={`${d} ${MONTHS[month0]}${works ? `, day order ${day!.dayOrder}` : ""}`}
+                  data-day
                   className="relative flex h-[52px] flex-col items-center justify-center"
                 >
                   <span

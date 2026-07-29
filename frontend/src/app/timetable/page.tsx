@@ -260,6 +260,7 @@ export default function TimetablePage() {
             <span
               ref={marker}
               aria-hidden
+              data-do-marker
               className="pointer-events-none absolute left-0 top-0 h-[2px] bg-text-1"
             />
             {dayOrders.map((d) => {
@@ -380,7 +381,7 @@ function Gap({ minutes }: { minutes: number }) {
       className="relative flex items-center"
       style={{ height: Math.max(34, minutes * PX_PER_MIN) }}
     >
-      <span className="absolute left-[52px] top-0 h-full w-px bg-line-soft" />
+      <span data-spine className="absolute left-[52px] top-0 h-full w-px bg-line-soft" />
       <span className="tnum pl-[68px] text-callout text-text-3/70">
         {minutes} min free
       </span>
@@ -417,6 +418,7 @@ function Block({
     >
       {/* The spine: solid for the length of the class */}
       <span
+        data-spine
         className={`absolute left-[52px] top-0 h-full w-px ${
           live ? "bg-accent" : next ? "bg-text-1/70" : muted ? "bg-text-1/20" : "bg-text-1/35"
         }`}

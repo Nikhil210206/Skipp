@@ -8,7 +8,16 @@ export const LEGACY_THEMES: Record<string, string> = {
   light: "paper",
 };
 
-const VALID = ["ink", "slate", "mono", "paper", "sand", "brutal", "clay"];
+const VALID = [
+  "ink",
+  "slate",
+  "mono",
+  "paper",
+  "sand",
+  "brutal",
+  "clay",
+  "terminal",
+];
 
 /** Status bar colour per theme, applied before paint so it never flashes. */
 const BARS: Record<string, string> = {
@@ -19,6 +28,7 @@ const BARS: Record<string, string> = {
   sand: "#faf6ef",
   brutal: "#fdf6e3",
   clay: "#eceefa",
+  terminal: "#040705",
 };
 
 /**

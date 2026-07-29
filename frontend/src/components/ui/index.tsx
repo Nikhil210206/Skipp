@@ -114,6 +114,7 @@ export function Button({
   return (
     <button
       ref={ref}
+      data-btn
       type={type}
       onClick={onClick}
       disabled={disabled}
