@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { useRef, useState } from "react";
+import { useRef } from "react";
 import gsap from "gsap";
 import AppShell from "@/components/AppShell";
 import Countdown from "@/components/Countdown";
@@ -19,9 +19,7 @@ import {
 } from "@/lib/schedule";
 import { countTo, revealIn, useGsap } from "@/lib/motion";
 import { IconChevronRight } from "@/components/Icons";
-import { Button } from "@/components/ui";
 import { SectionHead, TrackRule } from "@/components/ui/editorial";
-import RemindersSheet from "@/components/RemindersSheet";
 import { buildReminders } from "@/lib/reminders";
 
 /**
@@ -45,10 +43,8 @@ export default function DashboardPage() {
     customClasses,
     attendingDayOrders,
     displayName,
-    reminders: userReminders,
     attendanceChanges,
   } = useSession();
-  const [remindersOpen, setRemindersOpen] = useState(false);
 
   const holiday = timetable ? holidayToday(timetable.calendar) : null;
   const focus = timetable ? focusDay(timetable) : null;
@@ -86,7 +82,6 @@ export default function DashboardPage() {
     // standing in.
     nextWorking:
       timetable?.calendar.find((d) => d.date > today && d.dayOrder != null) ?? null,
-    user: userReminders,
     changes: attendanceChanges,
   });
 
@@ -253,12 +248,6 @@ export default function DashboardPage() {
               ))}
             </ul>
           )}
-
-          <div data-reveal className="pt-7">
-            <Button variant="secondary" full onClick={() => setRemindersOpen(true)}>
-              Add a reminder
-            </Button>
-          </div>
         </section>
 
         {/* ---------- 4. THE REST OF THE DAY ---------- */}
@@ -299,10 +288,6 @@ export default function DashboardPage() {
         )}
       </div>
 
-      <RemindersSheet
-        open={remindersOpen}
-        onClose={() => setRemindersOpen(false)}
-      />
     </AppShell>
   );
 }

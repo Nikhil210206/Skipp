@@ -47,13 +47,9 @@ function isStale(fetchedAt: string): boolean {
 }
 import {
   diffAttendance,
-  loadReminders,
   loadSeenAttendance,
-  newReminderId,
-  saveReminders,
   saveSeenAttendance,
   type AttendanceChange,
-  type UserReminder,
 } from "@/lib/reminders";
 import {
   loadCustomClasses,
@@ -92,9 +88,6 @@ type SessionValue = {
   removeCustomClass: (id: string) => void;
   optionalCourses: string[];
   toggleOptional: (code: string) => void;
-  reminders: UserReminder[];
-  addReminder: (r: Omit<UserReminder, "id">) => void;
-  removeReminder: (id: string) => void;
   /** Classes the portal recorded since the previous snapshot. */
   attendanceChanges: AttendanceChange[];
   displayName: string; // custom name if set, else official first name
@@ -114,7 +107,6 @@ export function SessionProvider({ children }: { children: React.ReactNode }) {
   const [customClasses, setCustomClasses] = useState<CustomClass[]>([]);
   const [optionalCourses, setOptionalCourses] = useState<string[]>([]);
   const [customName, setCustomName] = useState<string | null>(null);
-  const [reminders, setReminders] = useState<UserReminder[]>([]);
   const [attendanceChanges, setChanges] = useState<AttendanceChange[]>([]);
   const [loadedReg, setLoadedReg] = useState<string | null>(null);
 
@@ -132,7 +124,6 @@ export function SessionProvider({ children }: { children: React.ReactNode }) {
     setCustomClasses(reg ? loadCustomClasses(reg) : []);
     setOptionalCourses(reg ? loadOptionalCourses(reg) : []);
     setCustomName(reg ? loadDisplayName(reg) : null);
-    setReminders(reg ? loadReminders(reg) : []);
   }
 
   /**
@@ -297,17 +288,6 @@ export function SessionProvider({ children }: { children: React.ReactNode }) {
         setCustomClasses(next);
         if (reg) saveCustomClasses(reg, next);
       },
-      reminders,
-      addReminder(r) {
-        const next = [...reminders, { ...r, id: newReminderId() }];
-        setReminders(next);
-        if (reg) saveReminders(reg, next);
-      },
-      removeReminder(id) {
-        const next = reminders.filter((r) => r.id !== id);
-        setReminders(next);
-        if (reg) saveReminders(reg, next);
-      },
       attendanceChanges,
       optionalCourses,
       toggleOptional(code) {
@@ -350,7 +330,6 @@ export function SessionProvider({ children }: { children: React.ReactNode }) {
     refreshing,
     customClasses,
     optionalCourses,
-    reminders,
     attendanceChanges,
     customName,
     officialFirst,

@@ -15,7 +15,6 @@ import { prettyDate } from "./schedule";
 
 export type ReminderTone = "danger" | "warning" | "muted" | "success";
 export type ReminderKind =
-  | "custom"
   | "class"
   | "marked"
   | "risk"
@@ -29,20 +28,6 @@ export type Reminder = {
   tone: ReminderTone;
   title: string;
   meta?: string;
-  /** Present only for the student's own reminders, so they can be cleared. */
-  userId?: string;
-};
-
-/** A reminder the student wrote. Lives on this device only. */
-export type UserReminder = {
-  id: string;
-  text: string;
-  /** "once" needs a date; "daily" fires every day at the time. */
-  mode: "once" | "daily";
-  /** ISO date, for "once". */
-  date: string | null;
-  /** Minutes since midnight. */
-  atMin: number;
 };
 
 /**
@@ -118,31 +103,6 @@ export function diffAttendance(
   return out;
 }
 
-// ---- storage, keyed per student like the rest of the on-device prefs -------
-
-const listKey = (reg: string) => `skipp.reminders.${reg}`;
-
-export function loadReminders(reg: string): UserReminder[] {
-  try {
-    const raw = localStorage.getItem(listKey(reg));
-    return raw ? (JSON.parse(raw) as UserReminder[]) : [];
-  } catch {
-    return [];
-  }
-}
-
-export function saveReminders(reg: string, list: UserReminder[]): void {
-  try {
-    localStorage.setItem(listKey(reg), JSON.stringify(list));
-  } catch {
-    /* non-fatal */
-  }
-}
-
-export function newReminderId(): string {
-  return `r_${Math.random().toString(36).slice(2, 10)}`;
-}
-
 // ---- the feed --------------------------------------------------------------
 
 const ORDER: Record<ReminderTone, number> = {
@@ -153,12 +113,6 @@ const ORDER: Record<ReminderTone, number> = {
 };
 
 const short = (t: string) => (t.length > 30 ? `${t.slice(0, 28).trimEnd()}…` : t);
-
-const fmt = (min: number) => {
-  let h = Math.floor(min / 60);
-  if (h > 12) h -= 12;
-  return `${String(h).padStart(2, "0")}:${String(min % 60).padStart(2, "0")}`;
-};
 
 export function buildReminders(opts: {
   attendance: Attendance | null;
@@ -171,32 +125,13 @@ export function buildReminders(opts: {
   todayISO: string;
   /** The next working day after today, for the day-order note. */
   nextWorking: CalendarDay | null;
-  user: UserReminder[];
   /** What the portal recorded since the last snapshot. */
   changes: AttendanceChange[];
 }): Reminder[] {
   const threshold = opts.threshold ?? 75;
   const out: Reminder[] = [];
 
-  // 1. The student's own, due today and not yet past by more than an hour: a
-  //    reminder you have already walked past is noise, not a reminder.
-  for (const r of opts.user) {
-    const forToday = r.mode === "daily" || r.date === opts.todayISO;
-    if (!forToday) continue;
-    const due = opts.nowMin === null ? false : opts.nowMin >= r.atMin;
-    const stale = opts.nowMin !== null && opts.nowMin - r.atMin > 60;
-    if (stale) continue;
-    out.push({
-      id: `user-${r.id}`,
-      userId: r.id,
-      kind: "custom",
-      tone: due ? "warning" : "muted",
-      title: r.text,
-      meta: due ? `Was due ${fmt(r.atMin)}` : `At ${fmt(r.atMin)}`,
-    });
-  }
-
-  // 2. A class starting soon. Always on, always the same lead time.
+  // 1. A class starting soon. Always on, always the same lead time.
   if (opts.nowMin !== null) {
     const now = opts.nowMin;
     const soon = opts.todayClasses.find(
@@ -214,7 +149,7 @@ export function buildReminders(opts: {
     }
   }
 
-  // 3. What the portal marked since the last look. The thing a student most
+  // 2. What the portal marked since the last look. The thing a student most
   //    wants to know and cannot get from the portal without going and checking.
   for (const c of opts.changes) {
     const missed = c.held - c.present;
@@ -230,7 +165,7 @@ export function buildReminders(opts: {
     });
   }
 
-  // 4. Attendance standing, the reason the app exists.
+  // 3. Attendance standing, the reason the app exists.
   if (opts.attendanceReady && opts.attendance) {
     for (const s of opts.attendance.subjects) {
       if (s.conducted === 0) continue;
@@ -254,7 +189,7 @@ export function buildReminders(opts: {
     }
   }
 
-  // 5. The rotation, which is what actually catches people out: a holiday does
+  // 4. The rotation, which is what actually catches people out: a holiday does
   //    not advance the day order, so "tomorrow is the next number" is wrong
   //    surprisingly often.
   if (opts.nextWorking?.dayOrder != null) {

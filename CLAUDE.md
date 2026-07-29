@@ -346,9 +346,15 @@ Entries below are newest first. **When something breaks, read the relevant entry
 oddities here (login shell, empty calendar, 429s, duplicated course codes) are already diagnosed.
 
 ### DONE: Reminders (2026-07-29, latest)
-`lib/reminders.ts` (storage, the attendance diff, the feed builder),
-`RemindersSheet.tsx`, and a Reminders section on Home. **`lib/alerts.ts` is
-deleted**: it was dead code the audit found, and this replaces it.
+`lib/reminders.ts` (the attendance diff plus the feed builder) and a read-only
+Reminders section on Home. **`lib/alerts.ts` is deleted**: it was dead code the
+audit found, and this replaces it.
+
+**Everything here is derived. There is nothing to configure and nothing to
+type.** User-written reminders were built and then removed on request, along
+with the sheet that held them; the class lead time was a setting and is now the
+constant `CLASS_LEAD_MIN` (30). Do not rebuild either without being asked. What
+is left needs no input at all, which is why the section has no controls.
 
 **In-app only, by necessity.** The web cannot schedule a notification for later
 on device (Notification Triggers never shipped, Safari never had it). The
@@ -356,22 +362,16 @@ alternatives were a server holding push tokens and schedules, which breaks §3
 and the disclaimer, or handing the job to the phone's calendar. If push is ever
 revisited: iOS allows it only for an installed PWA.
 
-Five sources, merged and sorted by tone:
-1. **The student's own**, free text, once on a date or every day. Native
-   `<input type="time">` and `<input type="date">`, so a phone gives a proper
-   wheel and the value can never come back malformed. One more than an hour past
-   is dropped: a reminder you have already walked past is noise.
-2. **A class starting**, always on, always `CLASS_LEAD_MIN` (30). **Not a
-   setting.** Asking someone to pick a number before the feature does anything
-   is a worse default than picking the sensible one.
-3. **What the portal just marked.** `diffAttendance()` compares each snapshot
+Four sources, merged and sorted by tone:
+1. **A class starting** within `CLASS_LEAD_MIN`.
+2. **What the portal just marked.** `diffAttendance()` compares each snapshot
    against the last, keyed `code::category` because **a course has separate
    Theory and Practical rows sharing one code**. A subject with no previous
    reading is not a change, or a first sign-in would have every subject announce
    itself.
-4. **Attendance standing**: below the line with the number needed, or exactly on
+3. **Attendance standing**: below the line with the number needed, or exactly on
    it where one miss drops you.
-5. **The rotation.** A holiday does not advance the day order, so "tomorrow is
+4. **The rotation.** A holiday does not advance the day order, so "tomorrow is
    the next number" is often wrong.
 
 **`installSnapshot()` in SessionContext is the single door fresh data enters
