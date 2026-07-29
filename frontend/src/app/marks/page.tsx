@@ -145,7 +145,7 @@ export default function MarksPage() {
                 {subjects.map((s, i) => (
                   <li key={`${s.code}-${i}`} data-row>
                     <Rule soft={i > 0} />
-                    <div className="py-4">
+                    <div data-surface className="py-4">
                       <div className="flex items-baseline gap-3">
                         <span className="min-w-0 shrink truncate text-headline">
                           {s.title || s.code}

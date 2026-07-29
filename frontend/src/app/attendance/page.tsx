@@ -182,7 +182,7 @@ function Ledger({ s, tone = "neutral" }: { s: Subject; tone?: "neutral" | "accen
   const label = none ? "No classes" : p.isSafe ? "Margin" : "Required";
 
   return (
-    <div className="pt-6">
+    <div data-surface className="pt-6">
       <div className="flex items-start justify-between gap-5">
         <div className="min-w-0 flex-1 pt-1">
           <p className="truncate text-headline">{s.title || s.code}</p>

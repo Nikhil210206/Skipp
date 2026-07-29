@@ -44,6 +44,7 @@ export function WordMask({
 export function Rule({ soft = false }: { soft?: boolean }) {
   return (
     <div
+      data-rule
       role="presentation"
       className={`bleed h-px ${soft ? "bg-line-soft" : "bg-line"}`}
     />
@@ -65,7 +66,9 @@ export function SectionHead({
 }) {
   return (
     <div className={`flex items-baseline gap-4 ${className}`}>
-      <span className="text-label uppercase text-text-2">{children}</span>
+      <span data-band className="text-label uppercase text-text-2">
+        {children}
+      </span>
       <span className="h-px flex-1 bg-line" />
       {aside && <span className="tnum text-callout text-text-3">{aside}</span>}
     </div>
@@ -178,8 +181,9 @@ export function TrackRule({
 }) {
   const pct = Math.max(0, Math.min(100, value));
   return (
-    <div className={`relative h-[2px] w-full bg-line ${className}`}>
+    <div data-meter className={`relative h-[2px] w-full bg-line ${className}`}>
       <div
+        data-meter-fill
         className={`absolute inset-y-0 left-0 ${
           tone === "accent" ? "bg-accent" : "bg-text-1"
         }`}

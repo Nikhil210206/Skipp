@@ -257,6 +257,79 @@ html[data-theme="clay"] {
   --shadow-float: 0 18px 40px -16px rgb(70 60 160 / 0.36), inset 0 -4px 8px rgb(255 255 255 / 0.8);
 }
 
+/* ------------------------------------------------------------
+   STRUCTURE PER THEME
+
+   The design is deliberately surface-less: hairlines and type, one
+   use of rounded-card in the whole app. So radius and shadow tokens
+   alone changed nothing visible, and every theme looked like a
+   recolour. These rules give the two material themes real structure
+   to work with, addressed through markers on the primitives so the
+   components stay single-source.
+   ------------------------------------------------------------ */
+
+/* BRUTAL: every row becomes a bordered block sitting on a hard offset,
+   section labels become filled slabs, and the meter becomes a chunky bar. */
+html[data-theme="brutal"] [data-surface] {
+  border: var(--border-w) solid var(--color-text-1);
+  background: var(--color-ink-1);
+  box-shadow: var(--shadow-lift);
+  padding: 14px;
+  margin-bottom: 18px;
+}
+html[data-theme="brutal"] [data-surface] .bleed {
+  margin-left: 0;
+  margin-right: 0;
+}
+html[data-theme="brutal"] [data-rule] {
+  display: none;
+}
+html[data-theme="brutal"] [data-band] {
+  background: var(--color-accent);
+  color: var(--color-accent-ink);
+  padding: 4px 9px;
+  border: var(--border-w) solid var(--color-text-1);
+}
+html[data-theme="brutal"] [data-meter] {
+  height: 12px;
+  border: var(--border-w) solid var(--color-text-1);
+  background: var(--color-ink-0);
+}
+html[data-theme="brutal"] [data-meter-fill] {
+  background: var(--color-accent);
+}
+
+/* CLAY: the same rows become soft filled cards, and every edge is round. */
+html[data-theme="clay"] [data-surface] {
+  background: var(--color-ink-1);
+  border-radius: var(--radius-card);
+  box-shadow: var(--shadow-lift);
+  padding: 16px 18px;
+  margin-bottom: 14px;
+}
+html[data-theme="clay"] [data-surface] .bleed {
+  margin-left: 0;
+  margin-right: 0;
+}
+html[data-theme="clay"] [data-rule] {
+  display: none;
+}
+html[data-theme="clay"] [data-band] {
+  background: var(--color-ink-3);
+  color: var(--color-text-1);
+  padding: 4px 11px;
+  border-radius: 999px;
+}
+html[data-theme="clay"] [data-meter] {
+  height: 9px;
+  border-radius: 999px;
+  overflow: hidden;
+  background: var(--color-ink-3);
+}
+html[data-theme="clay"] [data-meter-fill] {
+  border-radius: 999px;
+}
+
 html {
   -webkit-tap-highlight-color: transparent;
 }

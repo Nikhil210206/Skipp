@@ -349,16 +349,32 @@ oddities here (login shell, empty calendar, 429s, duplicated course codes) are a
 `lib/theme.ts` holds the registry, `globals.css` holds one block per theme, and
 Profile has a swatch grid. **Ink** is the original and the default.
 
-**Material is tokenised now, not just colour.** `--border-w` joins the radius
-and shadow tokens, and Tailwind's `.border` utilities are re-pointed at it by
-plain rules outside `@layer` (so they win, and the 1px default leaves the
-existing look untouched). That is what lets a theme be a *look*:
+**Tokens alone were not enough, and the reason is the design itself.** The first
+attempt swapped colour, radius, shadow and border weight and every theme still
+looked like a recolour, correctly called out. The app is deliberately
+surface-less: **one use of `rounded-card` and two of the shadow tokens in the
+whole codebase**, because the art direction is hairlines and type. Radius and
+shadow tokens had nothing to act on.
+
+So the primitives carry markers (`data-surface` on a row, `data-band` on a
+section label, `data-meter` on a TrackRule) and the two material themes restyle
+those in `globals.css`. The components stay single-source; the theme supplies
+the structure. **A theme in this app has to add surfaces, not restyle them,
+because there are almost none to begin with.**
+
+`--border-w` joins the radius and shadow tokens, and Tailwind's `.border`
+utilities are re-pointed at it by plain rules outside `@layer` (so they win, and
+the 1px default leaves the existing look untouched):
 
 | | palette | radius | shadow | border |
 | --- | --- | --- | --- | --- |
 | Ink, Slate, Mono, Paper, Sand | yes | | | |
 | **Brutal** | yes | 0 | hard offset | 2px |
 | **Clay** | yes | 18-34px | soft, with an inner highlight | |
+
+Brutal turns every row into a bordered block on a hard offset, section labels
+into filled slabs, and the meter into a chunky bordered bar. Clay turns the same
+rows into soft filled cards with pill meters and rounded label chips.
 
 **Brutal deliberately breaks the house rules.** §8 says filled blocks are
 banned and the accent is ink, never fill. Brutal is loud fill on cream with

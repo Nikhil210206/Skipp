@@ -409,6 +409,7 @@ function Block({
 
   return (
     <div
+      data-surface
       className={`relative flex gap-5 transition-opacity duration-200 ${
         muted ? "opacity-30" : past ? "opacity-60" : ""
       }`}
