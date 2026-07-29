@@ -96,6 +96,10 @@
 :root {
   --gutter: 22px;
   --nav-h: 58px;
+  /* Material. A theme sets these to change how the app FEELS: hairlines and
+     soft shadows, or heavy rules and hard offsets. Components never hardcode
+     them, which is what lets a theme be a look rather than a palette. */
+  --border-w: 1px;
   --dur-1: 0.14s;
   --dur-2: 0.24s;
   --dur-3: 0.42s;
@@ -104,7 +108,7 @@
   color-scheme: dark;
 }
 
-html[data-theme="light"] {
+html[data-theme="paper"] {
   color-scheme: light;
   --color-ink-0: #ffffff;
   --color-ink-1: #f6f6f7;
@@ -129,8 +133,147 @@ html[data-theme="light"] {
   --shadow-float: 0 2px 8px rgb(0 0 0 / 0.07), 0 28px 56px -28px rgb(0 0 0 / 0.3);
 }
 
+/* ============================================================
+   THEMES
+   Ink is the default and lives in @theme above. Each block below
+   overrides only what it changes. A palette touches colour; the
+   two material themes also move radius, shadow and border weight,
+   which is what makes them a different look rather than a recolour.
+   ============================================================ */
+
+/* SLATE. Cool and dim, for reading in the dark. */
+html[data-theme="slate"] {
+  --color-ink-0: #0a0f16;
+  --color-ink-1: #101823;
+  --color-ink-2: #17212e;
+  --color-ink-3: #21303f;
+  --color-line: #23303d;
+  --color-line-soft: #151e28;
+  --color-line-strong: #33465a;
+  --color-text-1: #e9f0f8;
+  --color-text-2: #93a6bb;
+  --color-text-3: #62748c;
+  --color-accent: #38bdf8;
+  --color-accent-ink: #05121c;
+  --color-safe: #34d399;
+  --color-watch: #fbbf24;
+  --color-risk: #fb7185;
+}
+
+/* MONO. No hue except where something is wrong. */
+html[data-theme="mono"] {
+  --color-ink-0: #000000;
+  --color-ink-1: #0b0b0b;
+  --color-ink-2: #151515;
+  --color-ink-3: #1f1f1f;
+  --color-line: #2b2b2b;
+  --color-line-soft: #161616;
+  --color-line-strong: #454545;
+  --color-text-1: #ffffff;
+  --color-text-2: #a3a3a3;
+  --color-text-3: #6e6e6e;
+  --color-accent: #ffffff;
+  --color-accent-ink: #000000;
+  --color-safe: #d4d4d4;
+  --color-watch: #a3a3a3;
+  --color-risk: #ff4d4d;
+}
+
+/* SAND. Warm paper, easier than white in daylight. */
+html[data-theme="sand"] {
+  color-scheme: light;
+  --color-ink-0: #faf6ef;
+  --color-ink-1: #f3ece1;
+  --color-ink-2: #ebe2d3;
+  --color-ink-3: #ded2be;
+  --color-line: #e2d8c8;
+  --color-line-soft: #efe8dc;
+  --color-line-strong: #c9bba5;
+  --color-text-1: #231e18;
+  --color-text-2: #6b6053;
+  --color-text-3: #948877;
+  --color-accent: #b8430b;
+  --color-accent-ink: #fffaf3;
+  --color-safe: #1f7d55;
+  --color-watch: #8a6410;
+  --color-risk: #b3352c;
+  --shadow-lift: 0 1px 2px rgb(80 60 30 / 0.06), 0 12px 28px -18px rgb(80 60 30 / 0.3);
+  --shadow-float: 0 2px 8px rgb(80 60 30 / 0.08), 0 28px 56px -28px rgb(80 60 30 / 0.32);
+}
+
+/* BRUTAL. Heavy rules, no rounding, shadows that are offsets rather than
+   blurs, and the accent used as fill. This one deliberately breaks the house
+   rule that the accent is ink: it is a different art direction, not a tint. */
+html[data-theme="brutal"] {
+  color-scheme: light;
+  --color-ink-0: #fdf6e3;
+  --color-ink-1: #ffffff;
+  --color-ink-2: #ffe8a3;
+  --color-ink-3: #ffd54a;
+  --color-line: #000000;
+  --color-line-soft: #000000;
+  --color-line-strong: #000000;
+  --color-text-1: #000000;
+  --color-text-2: #2b2b2b;
+  --color-text-3: #575757;
+  --color-accent: #ff4a00;
+  --color-accent-ink: #ffffff;
+  --color-safe: #00875a;
+  --color-watch: #b45309;
+  --color-risk: #d92d20;
+
+  --border-w: 2px;
+  --radius-control: 0px;
+  --radius-card: 0px;
+  --radius-sheet: 0px;
+  --shadow-lift: 4px 4px 0 var(--color-text-1);
+  --shadow-float: 6px 6px 0 var(--color-text-1);
+}
+
+/* CLAY. Everything soft: large radii and shadows that sit under a surface
+   rather than behind it. */
+html[data-theme="clay"] {
+  color-scheme: light;
+  --color-ink-0: #eceefa;
+  --color-ink-1: #f6f7fe;
+  --color-ink-2: #e6e9fb;
+  --color-ink-3: #d9ddf7;
+  --color-line: #dfe3f7;
+  --color-line-soft: #e9ecfb;
+  --color-line-strong: #c2c8ee;
+  --color-text-1: #23243a;
+  --color-text-2: #5f6386;
+  --color-text-3: #8b90b0;
+  --color-accent: #6b4dff;
+  --color-accent-ink: #ffffff;
+  --color-safe: #2a9d68;
+  --color-watch: #b07d16;
+  --color-risk: #e05260;
+
+  --radius-control: 18px;
+  --radius-card: 26px;
+  --radius-sheet: 34px;
+  --shadow-lift: 0 8px 18px -8px rgb(70 60 160 / 0.28), inset 0 -3px 6px rgb(255 255 255 / 0.7);
+  --shadow-float: 0 18px 40px -16px rgb(70 60 160 / 0.36), inset 0 -4px 8px rgb(255 255 255 / 0.8);
+}
+
 html {
   -webkit-tap-highlight-color: transparent;
+}
+
+/* Border weight, routed through the token. Outside @layer so it beats the
+   utility, and defaulted to 1px so the existing look is untouched. */
+.border {
+  border-width: var(--border-w);
+}
+.border-t {
+  border-top-width: var(--border-w);
+}
+.border-b {
+  border-bottom-width: var(--border-w);
+}
+.border-x {
+  border-inline-width: var(--border-w);
 }
 
 body {

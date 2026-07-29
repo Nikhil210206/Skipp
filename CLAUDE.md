@@ -345,7 +345,40 @@ is deployment and true push notifications.
 Entries below are newest first. **When something breaks, read the relevant entry first**: most
 oddities here (login shell, empty calendar, 429s, duplicated course codes) are already diagnosed.
 
-### DONE: The scroll edge (2026-07-29, latest)
+### DONE: Seven themes (2026-07-29, latest)
+`lib/theme.ts` holds the registry, `globals.css` holds one block per theme, and
+Profile has a swatch grid. **Ink** is the original and the default.
+
+**Material is tokenised now, not just colour.** `--border-w` joins the radius
+and shadow tokens, and Tailwind's `.border` utilities are re-pointed at it by
+plain rules outside `@layer` (so they win, and the 1px default leaves the
+existing look untouched). That is what lets a theme be a *look*:
+
+| | palette | radius | shadow | border |
+| --- | --- | --- | --- | --- |
+| Ink, Slate, Mono, Paper, Sand | yes | | | |
+| **Brutal** | yes | 0 | hard offset | 2px |
+| **Clay** | yes | 18-34px | soft, with an inner highlight | |
+
+**Brutal deliberately breaks the house rules.** §8 says filled blocks are
+banned and the accent is ink, never fill. Brutal is loud fill on cream with
+black rules. That was the point of choosing "full separate looks": a theme
+replaces the art direction rather than tinting it. Ink still obeys every rule.
+
+**Glassmorphism was considered and rejected**, on the grounds that translucency
+needs something behind it and a black app has no wallpaper to reveal, so it
+degrades to grey panels. Neumorphism was rejected for contrast. Bento grid is a
+layout, not a theme.
+
+**Old preferences migrate.** `dark` becomes `ink` and `light` becomes `paper`,
+in both `normalizeTheme()` and the pre-paint script; anything unrecognised falls
+back to Ink. Verified by compiling the real module and running the script over
+dark/light/valid/junk/null.
+
+**The status bar colour is set before paint too.** It used to be applied only by
+`setTheme()`, so a Brutal user got a flash of Ink's dark bar on every launch.
+
+### DONE: The scroll edge (2026-07-29)
 Content does not stop at the masthead, it fades out under it: one gradient to
 the page colour over a now-sticky masthead, extending below the bar so the
 effect ends softly rather than at a visible line. `ScrollEdge` in `AppShell`,

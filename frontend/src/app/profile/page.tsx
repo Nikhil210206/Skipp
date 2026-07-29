@@ -4,9 +4,9 @@ import { useRouter } from "next/navigation";
 import { useState } from "react";
 import AppShell from "@/components/AppShell";
 import { useSession } from "@/context/SessionContext";
-import { setTheme, useTheme, type Theme } from "@/lib/theme";
+import { setTheme, THEMES, useTheme } from "@/lib/theme";
 import { revealIn, revealRows, useGsap } from "@/lib/motion";
-import { Button, Segmented } from "@/components/ui";
+import { Button } from "@/components/ui";
 import { Marginalia, Rule, SectionHead, StickyAction } from "@/components/ui/editorial";
 import CreatorCredit from "@/components/CreatorCredit";
 
@@ -112,15 +112,52 @@ export default function ProfilePage() {
 
           <div className="pt-7">
             <p className="pb-3 text-callout text-text-3">Appearance</p>
-            <Segmented<Theme>
-              label="Theme"
-              value={theme}
-              onChange={setTheme}
-              options={[
-                { value: "dark", label: "Dark" },
-                { value: "light", label: "Light" },
-              ]}
-            />
+            {/* A grid rather than a segmented control: seven options do not fit
+                on one row, and a theme is chosen by looking at it, not by
+                reading its name. Each swatch is painted in its own palette. */}
+            <div
+              role="radiogroup"
+              aria-label="Theme"
+              className="grid grid-cols-2 gap-2.5"
+            >
+              {THEMES.map((t) => {
+                const active = t.id === theme;
+                return (
+                  <button
+                    key={t.id}
+                    role="radio"
+                    aria-checked={active}
+                    onClick={() => setTheme(t.id)}
+                    className={`flex items-center gap-3 rounded-control border px-3 py-3 text-left transition-colors ${
+                      active
+                        ? "border-accent bg-ink-2"
+                        : "border-line hover:border-line-strong"
+                    }`}
+                  >
+                    <span
+                      aria-hidden
+                      className="flex size-8 shrink-0 overflow-hidden rounded-full border border-line"
+                    >
+                      {t.swatch.map((c, i) => (
+                        <span
+                          key={i}
+                          className="h-full flex-1"
+                          style={{ background: c }}
+                        />
+                      ))}
+                    </span>
+                    <span className="min-w-0">
+                      <span className="block truncate text-body text-text-1">
+                        {t.name}
+                      </span>
+                      <span className="block truncate text-callout text-text-3">
+                        {t.note}
+                      </span>
+                    </span>
+                  </button>
+                );
+              })}
+            </div>
           </div>
         </section>
 
