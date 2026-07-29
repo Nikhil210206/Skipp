@@ -81,6 +81,8 @@ export default function TimetablePage() {
   const now = nowMinutes();
   // The next class that has not started yet, marked only while looking at the
   // day it belongs to: "Next" on some other day order would be a lie.
+  const lastEnd = classes.at(-1)?.endMin ?? 0;
+  const dayDone = isToday && classes.length > 0 && now >= lastEnd;
   const nextId = isToday
     ? (classes.find((c) => c.startMin > now && !c.isOptional)?.id ?? null)
     : null;
@@ -303,7 +305,9 @@ export default function TimetablePage() {
               className={`text-label uppercase ${isToday ? "text-accent" : "text-text-3"}`}
             >
               {isToday
-                ? "Today"
+                ? dayDone
+                  ? "Today · finished"
+                  : "Today"
                 : activeDO === upcomingDO
                   ? `Up next · ${prettyDate(upcoming?.date ?? "")}`
                   : "Day order"}
@@ -342,7 +346,6 @@ export default function TimetablePage() {
                       item={c}
                       live={isToday && c.startMin <= now && now < c.endMin}
                       next={c.id === nextId}
-                      past={isToday && now >= c.endMin}
                       onRemove={removeCustomClass}
                       onToggleOptional={toggleOptional}
                     />
@@ -393,14 +396,12 @@ function Block({
   item,
   live,
   next,
-  past,
   onRemove,
   onToggleOptional,
 }: {
   item: ScheduleItem;
   live: boolean;
   next: boolean;
-  past: boolean;
   onRemove: (id: string) => void;
   onToggleOptional: (code: string) => void;
 }) {
@@ -412,7 +413,7 @@ function Block({
     <div
       data-surface
       className={`relative flex gap-5 transition-opacity duration-200 ${
-        muted ? "opacity-30" : past ? "opacity-60" : ""
+        muted ? "opacity-30" : ""
       }`}
       style={{ minHeight: Math.max(MIN_BLOCK, minutes * PX_PER_MIN) }}
     >

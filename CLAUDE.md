@@ -345,7 +345,23 @@ is deployment and true push notifications.
 Entries below are newest first. **When something breaks, read the relevant entry first**: most
 oddities here (login shell, empty calendar, 429s, duplicated course codes) are already diagnosed.
 
-### DONE: Swipe between tabs (2026-07-29, latest)
+### DONE: A finished day says so instead of fading (2026-07-29, latest)
+Reported as "why is day order 2 faded". It was not a rendering fault: day order
+2 was **today**, every class on it had ended, and `Block` dimmed a past class to
+60%. Confirmed it was nothing else by measuring: all five picker numbers were
+byte-identical, and no course was marked optional.
+
+**Past-dimming is gone from Schedule.** The label carries it instead:
+"Today · finished" once the last class has ended. Dimming a day you navigated to
+*deliberately* hides a schedule you opened in order to read, and the screen
+defaults to the upcoming day order, so switching to today was the first thing
+anyone would do and it looked broken.
+
+`Now` and `Next` stay, because those are live and useful. The only thing dimmed
+in the class list now is an **optional** course, and that says something about
+the class rather than about the time of day.
+
+### DONE: Swipe between tabs (2026-07-29)
 `lib/useSwipeNav.ts`, attached to the AppShell root. Swiping left or right moves
 along the tab bar, and past the threshold it hands over to the **same `pageOut`
 the tab bar uses**, so a swipe and a tap end in an identical movement.
