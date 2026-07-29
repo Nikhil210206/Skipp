@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { useRef } from "react";
+import { useRef, useState } from "react";
 import gsap from "gsap";
 import AppShell from "@/components/AppShell";
 import Countdown from "@/components/Countdown";
@@ -19,7 +19,10 @@ import {
 } from "@/lib/schedule";
 import { countTo, revealIn, useGsap } from "@/lib/motion";
 import { IconChevronRight } from "@/components/Icons";
-import { TrackRule } from "@/components/ui/editorial";
+import { Button } from "@/components/ui";
+import { SectionHead, TrackRule } from "@/components/ui/editorial";
+import RemindersSheet from "@/components/RemindersSheet";
+import { buildReminders } from "@/lib/reminders";
 
 /**
  * HOME: a cover, not a dashboard.
@@ -42,7 +45,10 @@ export default function DashboardPage() {
     customClasses,
     attendingDayOrders,
     displayName,
+    reminders: userReminders,
+    reminderPrefs,
   } = useSession();
+  const [remindersOpen, setRemindersOpen] = useState(false);
 
   const holiday = timetable ? holidayToday(timetable.calendar) : null;
   const focus = timetable ? focusDay(timetable) : null;
@@ -64,6 +70,25 @@ export default function DashboardPage() {
   const overall = attendance?.overallPercentage ?? 0;
   const belowTarget =
     attendance?.subjects.filter((s) => s.conducted > 0 && !s.isSafe).length ?? 0;
+
+  // Everything that wants attention right now, derived from the snapshot
+  // already on the device plus the student's own reminders.
+  const today = todayISO();
+  const isTodayFocused = focus?.label === "TODAY";
+  const feed = buildReminders({
+    attendance,
+    attendanceReady: attendanceState === "ready",
+    todayClasses: isTodayFocused ? classes : [],
+    nowMin: isTodayFocused ? nowMinutes() : null,
+    todayISO: today,
+    // Strictly AFTER today: `nextWorkingDay` returns today itself when today
+    // is a working day, which made the note describe the day you are already
+    // standing in.
+    nextWorking:
+      timetable?.calendar.find((d) => d.date > today && d.dayOrder != null) ?? null,
+    user: userReminders,
+    prefs: reminderPrefs,
+  });
 
   const pct = useRef<HTMLSpanElement>(null);
   const ghost = useRef<HTMLDivElement>(null);
@@ -189,7 +214,54 @@ export default function DashboardPage() {
           )}
         </Link>
 
-        {/* ---------- 3. THE REST OF THE DAY ---------- */}
+        {/* ---------- 3. WHAT WANTS ATTENTION ---------- */}
+        <section className="pt-12">
+          {/* The aside slot is for counts, the way every other section on
+              every other screen uses it. The action is a real control below. */}
+          <div data-reveal>
+            <SectionHead aside={feed.length > 0 ? `${feed.length} active` : undefined}>
+              Reminders
+            </SectionHead>
+          </div>
+          {feed.length === 0 ? (
+            <p data-reveal className="pt-5 text-body text-text-3">
+              Nothing needs you right now.
+            </p>
+          ) : (
+            <ul className="mt-5 flex flex-col gap-5">
+              {feed.map((r) => (
+                <li key={r.id} data-reveal className="flex items-start gap-4">
+                  <span
+                    aria-hidden
+                    className={`mt-1.5 size-1.5 shrink-0 rounded-full ${
+                      r.tone === "danger"
+                        ? "bg-risk"
+                        : r.tone === "warning"
+                          ? "bg-accent"
+                          : "bg-text-3"
+                    }`}
+                  />
+                  <span className="min-w-0 flex-1">
+                    <span className="block text-body text-text-1">{r.title}</span>
+                    {r.meta && (
+                      <span className="tnum mt-1 block text-callout text-text-3">
+                        {r.meta}
+                      </span>
+                    )}
+                  </span>
+                </li>
+              ))}
+            </ul>
+          )}
+
+          <div data-reveal className="pt-7">
+            <Button variant="secondary" full onClick={() => setRemindersOpen(true)}>
+              Add a reminder
+            </Button>
+          </div>
+        </section>
+
+        {/* ---------- 4. THE REST OF THE DAY ---------- */}
         {later.length > 0 && (
           <section className="pt-12">
             <div data-reveal className="flex items-baseline justify-between">
@@ -226,6 +298,11 @@ export default function DashboardPage() {
           </section>
         )}
       </div>
+
+      <RemindersSheet
+        open={remindersOpen}
+        onClose={() => setRemindersOpen(false)}
+      />
     </AppShell>
   );
 }

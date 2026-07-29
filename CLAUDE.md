@@ -345,7 +345,35 @@ is deployment and true push notifications.
 Entries below are newest first. **When something breaks, read the relevant entry first**: most
 oddities here (login shell, empty calendar, 429s, duplicated course codes) are already diagnosed.
 
-### DONE: Install prompt, asked not enforced (2026-07-29, latest)
+### DONE: Reminders, in-app by necessity (2026-07-29, latest)
+`lib/reminders.ts` (storage plus the feed builder), `RemindersSheet.tsx`, and a
+Reminders section on Home. **`lib/alerts.ts` is deleted**: it was dead code the
+audit found, and this replaces it.
+
+**The web cannot schedule a notification for later on-device.** Notification
+Triggers never shipped and Safari never had it. So a reminder that fires while
+Skipp is closed can only come from a server holding push tokens and schedules,
+which breaks §3 and the in-app disclaimer, or from the phone's own calendar.
+Chosen deliberately: **in-app only**, which tells the truth about what it is.
+If push is ever revisited, note iOS only allows it for an installed PWA.
+
+Four sources, merged and sorted by tone (danger, warning, muted, success):
+1. **The student's own**, free text at a time, once or daily. Stored per
+   registration number on-device like every other preference. A reminder more
+   than an hour past is dropped: one you have already walked past is noise.
+2. **A class starting** inside a chosen window (off / 10 / 30 / 60 minutes).
+3. **Attendance**, reusing the old alert logic: below the line with the number
+   needed to clear it, or exactly on the line where one miss drops it.
+4. **The rotation**, which is the thing that actually catches people: a holiday
+   does not advance the day order, so "tomorrow is the next number" is often
+   wrong. It names the day order and how long the gap is.
+
+**Trap found while building:** `nextWorkingDay()` returns **today** when today is
+a working day, so the rotation note read "Wed, Jul 29 is day order 2" about the
+day you are already standing in. It needs the first calendar entry strictly
+after today. Verified live: now reads "Tomorrow is day order 3".
+
+### DONE: Install prompt, asked not enforced (2026-07-29)
 `components/InstallPrompt.tsx`, mounted in `AppShell` so it appears once the
 student is signed in and looking at their own data.
 

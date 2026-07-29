@@ -46,6 +46,16 @@ function isStale(fetchedAt: string): boolean {
   return Number.isNaN(t) || Date.now() - t > STALE_MS;
 }
 import {
+  DEFAULT_PREFS,
+  loadPrefs,
+  loadReminders,
+  newReminderId,
+  savePrefs,
+  saveReminders,
+  type ReminderPrefs,
+  type UserReminder,
+} from "@/lib/reminders";
+import {
   loadCustomClasses,
   loadDisplayName,
   loadOptionalCourses,
@@ -82,6 +92,11 @@ type SessionValue = {
   removeCustomClass: (id: string) => void;
   optionalCourses: string[];
   toggleOptional: (code: string) => void;
+  reminders: UserReminder[];
+  addReminder: (r: Omit<UserReminder, "id">) => void;
+  removeReminder: (id: string) => void;
+  reminderPrefs: ReminderPrefs;
+  setReminderPrefs: (p: ReminderPrefs) => void;
   displayName: string; // custom name if set, else official first name
   setDisplayName: (name: string) => void;
   login: (creds: Credentials) => Promise<void>;
@@ -99,6 +114,8 @@ export function SessionProvider({ children }: { children: React.ReactNode }) {
   const [customClasses, setCustomClasses] = useState<CustomClass[]>([]);
   const [optionalCourses, setOptionalCourses] = useState<string[]>([]);
   const [customName, setCustomName] = useState<string | null>(null);
+  const [reminders, setReminders] = useState<UserReminder[]>([]);
+  const [reminderPrefs, setPrefs] = useState<ReminderPrefs>(DEFAULT_PREFS);
   const [loadedReg, setLoadedReg] = useState<string | null>(null);
 
   const reg = snapshot?.timetable.student.registrationNumber ?? null;
@@ -115,6 +132,8 @@ export function SessionProvider({ children }: { children: React.ReactNode }) {
     setCustomClasses(reg ? loadCustomClasses(reg) : []);
     setOptionalCourses(reg ? loadOptionalCourses(reg) : []);
     setCustomName(reg ? loadDisplayName(reg) : null);
+    setReminders(reg ? loadReminders(reg) : []);
+    setPrefs(reg ? loadPrefs(reg) : DEFAULT_PREFS);
   }
 
   // Rehydrate from a prior visit. If we have an encrypted cached snapshot, show
@@ -258,6 +277,22 @@ export function SessionProvider({ children }: { children: React.ReactNode }) {
         setCustomClasses(next);
         if (reg) saveCustomClasses(reg, next);
       },
+      reminders,
+      addReminder(r) {
+        const next = [...reminders, { ...r, id: newReminderId() }];
+        setReminders(next);
+        if (reg) saveReminders(reg, next);
+      },
+      removeReminder(id) {
+        const next = reminders.filter((r) => r.id !== id);
+        setReminders(next);
+        if (reg) saveReminders(reg, next);
+      },
+      reminderPrefs,
+      setReminderPrefs(p) {
+        setPrefs(p);
+        if (reg) savePrefs(reg, p);
+      },
       optionalCourses,
       toggleOptional(code) {
         const next = optionalCourses.includes(code)
@@ -298,6 +333,8 @@ export function SessionProvider({ children }: { children: React.ReactNode }) {
     refreshing,
     customClasses,
     optionalCourses,
+    reminders,
+    reminderPrefs,
     customName,
     officialFirst,
     reg,
