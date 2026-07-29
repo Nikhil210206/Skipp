@@ -33,7 +33,7 @@ export default function AppShell({
 }) {
   const router = useRouter();
   const pathname = usePathname();
-  const { isAuthed, restoring, displayName, refresh } = useSession();
+  const { isAuthed, restoring, displayName, student, refresh } = useSession();
 
   // A signature rather than a feature: tap the masthead label five times and the
   // credit appears for a few seconds, then puts itself away.
@@ -105,7 +105,11 @@ export default function AppShell({
             </button>
             <div className="flex items-center gap-1">
               {action}
-              {pathname !== "/profile" && <ProfileMark name={displayName} />}
+              {pathname !== "/profile" && (
+              // Seeded by the registration number, not the display name: the
+              // mark should be stable even when someone renames themselves.
+              <ProfileMark seed={student?.registrationNumber ?? displayName} />
+            )}
             </div>
           </div>
         </header>

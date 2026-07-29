@@ -345,7 +345,30 @@ is deployment and true push notifications.
 Entries below are newest first. **When something breaks, read the relevant entry first**: most
 oddities here (login shell, empty calendar, 429s, duplicated course codes) are already diagnosed.
 
-### DONE: A finished day says so instead of fading (2026-07-29, latest)
+### DONE: The profile mark is generated (2026-07-29, latest)
+`lib/mark.ts` draws a figure from the student's **registration number**, and
+`ProfileMark` renders it as SVG. Every student gets a different mark, nobody
+chooses anything, and nothing is stored: the same number always draws the same
+figure, so it is a pure function of data already on the device.
+
+- **Mirrored down the middle**, identicon style, because a symmetric figure
+  reads as a mark at 32px where an arbitrary one reads as noise. 15 generated
+  bits reflected into a 5x5 grid, with a single lit cell in the accent so each
+  mark has its point of colour in its own place.
+- **Seeded by the registration number, not the display name**, so renaming
+  yourself does not change your mark.
+- A seed that lands nearly empty gets a second pass rather than being rejected,
+  which keeps the result a pure function of the number.
+- **On press the cells collapse toward the centre and spring back**, staggered
+  from the middle out. Measured: 1.00 to 0.30 on the way in, overshooting to
+  1.12 and settling on release.
+- **`transform-box: fill-box` on every cell.** An SVG element scales about the
+  viewBox origin by default, which flings the cells across the tile instead of
+  shrinking them where they stand.
+- Verified over 400 registration numbers: 400 distinct marks, identical output
+  for a repeated seed, 5 to 21 lit cells of 25.
+
+### DONE: A finished day says so instead of fading (2026-07-29)
 Reported as "why is day order 2 faded". It was not a rendering fault: day order
 2 was **today**, every class on it had ended, and `Block` dimmed a past class to
 60%. Confirmed it was nothing else by measuring: all five picker numbers were
