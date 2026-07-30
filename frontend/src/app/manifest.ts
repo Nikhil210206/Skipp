@@ -16,8 +16,11 @@ export default function manifest(): MetadataRoute.Manifest {
     icons: [
       { src: "/icon-192.png", sizes: "192x192", type: "image/png", purpose: "any" },
       { src: "/icon-512.png", sizes: "512x512", type: "image/png", purpose: "any" },
+      // Its own file, drawn full bleed with the mark pulled in, so a platform
+      // that crops to a circle cannot cut the blades off. The rounded tile
+      // above was being used for this and would have been clipped twice.
       {
-        src: "/icon-512.png",
+        src: "/icon-maskable-512.png",
         sizes: "512x512",
         type: "image/png",
         purpose: "maskable",

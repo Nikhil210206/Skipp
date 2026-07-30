@@ -345,6 +345,59 @@ is deployment and true push notifications.
 Entries below are newest first. **When something breaks, read the relevant entry first**: most
 oddities here (login shell, empty calendar, 429s, duplicated course codes) are already diagnosed.
 
+### DONE: New mark, a mortarboard on the line (2026-07-30, latest)
+**A skip button was built first and rejected**: "i dont want a skipp button as a
+logo, i want something creative to do with collage, studies". It was a clever
+pun (Skipp is literally a skip button) but it read as a media app, which is the
+wrong shelf entirely. Do not rebuild it.
+
+**The mark is a mortarboard sitting on a rule.** The cap says college without a
+word of explanation, and the rule under it is the app's own device, the same
+hairline the 75% tick sits on across every screen. So it reads as "a student,
+and the line they answer to".
+
+- **The tassel is the only accent, and it does two jobs**: it is the detail that
+  makes a cap a cap, and the one vertical against all those horizontals, which
+  is what stops the mark reading as a flat stack.
+- **The tuft has to be clearly wider than the cord.** At equal weights the two
+  merge into one plain stick and the tassel stops reading as a tassel.
+- **`lib/logo.ts` is the single source of truth for the geometry**, and
+  `scripts/make-icons.mjs` imports it (through `jiti`, which lets a plain node
+  script read the TS) and draws the PNGs with `sharp`. The icon and the mark on
+  screen cannot drift, because the paths exist once. Re-run with
+  `node scripts/make-icons.mjs` from `frontend/` after any change to the shape.
+- **The maskable icon is now its own file.** The manifest pointed the maskable
+  purpose at the rounded tile, so a platform cropping to a circle would have
+  clipped an already rounded icon twice. `icon-maskable-512.png` is full bleed
+  with the mark pulled further in.
+- Verified legible down to **16px** by rendering the tile at 16 / 32 / 64 / 120.
+
+**The wordmark carries its signature on the double p**: the second one is set in
+the accent and the pair is tracked tight, which turns the odd thing about the
+name into a deliberate detail rather than a typo people squint at. `Wordmark` in
+`components/Logo.tsx`, used on the sign in and both onboarding headers, and the
+launch colours its last letter to match.
+
+**The launch plays the mark** (`Splash.tsx`): the rule draws and waits, the cap
+drops onto it, and the tassel swings from the landing, pivoted where it is tied
+on. Measured on a real run: cap `y` **-26 to 0** over 32 values, rule `scaleX`
+**0 to 1** over 16, tassel **-24 degrees, overshooting to +6.6, settling at 0**
+over 27. Total **1.79s**.
+
+**Three traps worth keeping:**
+- **A swinging SVG child needs `svgOrigin`, not `transformOrigin`.** The pivot is
+  a point on the cap, not on the tassel's own box, and `transform-box: fill-box`
+  would pin it to the box. `TASSEL_PIVOT` is exported for exactly this.
+- **The launch cannot be screenshotted at speed.** It is over before a tool call
+  lands, and GSAP is not on `window` in a bundled app so it cannot be slowed
+  from an `initScript`. Either measure it from a sampler installed as an
+  `initScript`, or add a temporary `tl.timeScale()` in the file, look, and take
+  it out again.
+- **Scope that sampler to the launch overlay.** A first attempt queried the
+  document, kept matching the sign in header's static Logo after the overlay had
+  gone, and `getComputedStyle().transform` of `"none"` is truthy, so it reported
+  a frozen animation that was in fact running perfectly.
+
 ### DONE: The profile mark is generated (2026-07-29, latest)
 `lib/mark.ts` draws a figure from the student's **registration number**, and
 `ProfileMark` renders it as SVG. Every student gets a different mark, nobody

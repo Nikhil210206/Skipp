@@ -33,7 +33,8 @@ export default function AppShell({
 }) {
   const router = useRouter();
   const pathname = usePathname();
-  const { isAuthed, restoring, displayName, student, refresh } = useSession();
+  const { isAuthed, restoring, displayName, student, refresh, fetchedAt } =
+    useSession();
 
   // A signature rather than a feature: tap the masthead label five times and the
   // credit appears for a few seconds, then puts itself away.
@@ -77,7 +78,7 @@ export default function AppShell({
       ref={shell}
       className="mx-auto flex min-h-full w-full max-w-md flex-1 flex-col md:border-x md:border-line-soft"
     >
-      <PullToRefresh onRefresh={refresh}>
+      <PullToRefresh onRefresh={refresh} fetchedAt={fetchedAt}>
         {/* The inset is padding on the wrapper, never on the bar itself: with
             box-sizing: border-box a 59px notch inset would eat the whole 56px
             bar and leave the content with zero height to sit in.

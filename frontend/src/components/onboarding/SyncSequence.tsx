@@ -4,6 +4,7 @@ import { useEffect, useLayoutEffect, useRef, useState } from "react";
 import gsap from "gsap";
 import RollingNumber from "./RollingNumber";
 import { DUR, EASE, prefersReducedMotion } from "@/lib/motion";
+import Logo, { Wordmark } from "@/components/Logo";
 
 export type Fact = { label: string; value: string };
 
@@ -138,7 +139,10 @@ export default function SyncSequence({
       className="fixed inset-0 z-50 flex flex-col bg-ink-0 px-[var(--gutter)] pb-[max(28px,env(safe-area-inset-bottom))] pt-[max(48px,calc(env(safe-area-inset-top)+28px))]"
     >
       <div className="mx-auto flex w-full max-w-md flex-1 flex-col">
-        <p className="text-label uppercase text-text-3">Skipp</p>
+        <span className="flex items-center gap-2">
+          <Logo size={20} className="text-text-1" />
+          <Wordmark className="text-body text-text-1" />
+        </span>
 
         <div className="flex flex-1 flex-col justify-center pb-16">
           {!done && (

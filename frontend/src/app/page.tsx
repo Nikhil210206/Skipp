@@ -7,6 +7,7 @@ import Onboarding from "@/components/onboarding/Onboarding";
 import SyncSequence, { type Fact } from "@/components/onboarding/SyncSequence";
 import { markIntroSeen, useSeenIntro } from "@/lib/firstRun";
 import CreatorCredit from "@/components/CreatorCredit";
+import Logo, { Wordmark } from "@/components/Logo";
 import { useSession } from "@/context/SessionContext";
 import { playEntrance, useGsap } from "@/lib/motion";
 import { WordMask } from "@/components/ui/editorial";
@@ -88,9 +89,10 @@ export default function LoginPage() {
       <main className="mx-auto flex min-h-full w-full max-w-md flex-1 flex-col justify-between px-[var(--gutter)] pb-[max(28px,env(safe-area-inset-bottom))] pt-[max(48px,calc(env(safe-area-inset-top)+28px))] md:border-x md:border-line-soft">
         <div ref={scope} className="flex flex-1 flex-col">
           <header className="pt-6">
-            <p data-mark className="text-label uppercase text-text-3">
-              Skipp
-            </p>
+            <div data-mark className="flex items-center gap-2">
+              <Logo size={22} className="text-text-1" />
+              <Wordmark className="text-headline text-text-1" />
+            </div>
             <h1 className="mt-4 text-hero">
               <WordMask text="Know before" className="block" />
               <WordMask text="you bunk." className="block" />

@@ -6,6 +6,7 @@ import RollingNumber from "./RollingNumber";
 import { Button } from "@/components/ui";
 import { DUR, EASE, prefersReducedMotion, useGsap } from "@/lib/motion";
 import { predict } from "@/lib/predictor";
+import Logo, { Wordmark } from "@/components/Logo";
 
 /**
  * THE OPENING.
@@ -146,7 +147,10 @@ export default function Onboarding({ onDone }: { onDone: () => void }) {
     >
       <div ref={scope} className="flex flex-1 flex-col">
         <header data-enter className="flex items-baseline justify-between">
-          <p className="text-label uppercase text-text-3">Skipp</p>
+          <span className="flex items-center gap-2">
+          <Logo size={20} className="text-text-1" />
+          <Wordmark className="text-body text-text-1" />
+        </span>
           <button
             onClick={handoff}
             className="text-callout text-text-3 transition-colors hover:text-text-1"

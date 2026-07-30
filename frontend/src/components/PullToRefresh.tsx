@@ -3,27 +3,58 @@
 import { useEffect, useRef, useState } from "react";
 import gsap from "gsap";
 import { DUR, EASE, prefersReducedMotion } from "@/lib/motion";
+import type { RefreshOutcome } from "@/context/SessionContext";
+import { IconArrowDown, IconCheck } from "./Icons";
 
 // Pull down from the top to refresh. Engages only at scroll position zero.
 // The content follows the finger with resistance; past the threshold the
-// indicator locks in and releasing triggers the refresh.
+// indicator arms (the arrow flips and the pill takes the accent) and releasing
+// triggers the refresh.
+//
+// The pull always arms, even when the data is too fresh to be worth fetching,
+// and the answer comes on release. Refusing to arm would be cheaper but it
+// reads as a broken gesture; saying "up to date" reads as an answer. What it
+// must never do is spin as though it fetched when it did not, because then the
+// one control that means "go and look" stops meaning anything.
 
 const THRESHOLD = 68;
 const MAX = 116;
 const REST = 52;
+/** How long an answer stays up before the pill retracts. */
+const NOTE_MS = 1250;
+
+function ago(iso: string | null): string {
+  if (!iso) return "";
+  const mins = Math.floor((Date.now() - Date.parse(iso)) / 60000);
+  if (!Number.isFinite(mins) || mins < 1) return "checked just now";
+  if (mins < 60) return `checked ${mins} min ago`;
+  const hrs = Math.floor(mins / 60);
+  return hrs < 24 ? `checked ${hrs}h ago` : `checked ${Math.floor(hrs / 24)}d ago`;
+}
 
 export default function PullToRefresh({
   onRefresh,
+  fetchedAt,
   children,
 }: {
-  onRefresh: () => Promise<void>;
+  onRefresh: () => Promise<RefreshOutcome>;
+  /** When the data on screen was fetched, so a refusal can say how fresh it is. */
+  fetchedAt: string | null;
   children: React.ReactNode;
 }) {
   const wrap = useRef<HTMLDivElement>(null);
   const content = useRef<HTMLDivElement>(null);
   const badge = useRef<HTMLDivElement>(null);
   const [refreshing, setRefreshing] = useState(false);
+  const [armed, setArmed] = useState(false);
+  const [note, setNote] = useState<{ title: string; detail: string } | null>(null);
   const busy = useRef(false);
+  // Read inside the gesture without making the listeners depend on it. Written
+  // in an effect rather than during render, which the React compiler rejects.
+  const at = useRef(fetchedAt);
+  useEffect(() => {
+    at.current = fetchedAt;
+  }, [fetchedAt]);
 
   useEffect(() => {
     const el = wrap.current;
@@ -45,6 +76,7 @@ export default function PullToRefresh({
     // drifts downward engages the pull and eats the navigation gesture.
     let axis: null | "x" | "y" = null;
     let engaged = false;
+    let wasArmed = false;
     const scrollTop = () =>
       (document.scrollingElement ?? document.documentElement).scrollTop;
 
@@ -90,6 +122,8 @@ export default function PullToRefresh({
       startX = e.touches[0].clientX;
       axis = null;
       engaged = false;
+      wasArmed = false;
+      setNote(null);
     };
     const onMove = (e: TouchEvent) => {
       if (startY === null || busy.current) return;
@@ -108,6 +142,13 @@ export default function PullToRefresh({
       e.preventDefault();
       // Resistance: the further you pull, the less it gives.
       paint(Math.min(MAX, dy * 0.52));
+      // Announce the moment it becomes releasable, so the threshold is
+      // discoverable by feel rather than by guessing.
+      const nowArmed = pull >= THRESHOLD;
+      if (nowArmed !== wasArmed) {
+        wasArmed = nowArmed;
+        setArmed(nowArmed);
+      }
     };
     const onEnd = async () => {
       if (startY === null) return;
@@ -117,14 +158,34 @@ export default function PullToRefresh({
         busy.current = true;
         setRefreshing(true);
         settle(REST);
+        let outcome: RefreshOutcome = "failed";
         try {
-          await onRefresh();
+          outcome = await onRefresh();
         } finally {
-          busy.current = false;
           setRefreshing(false);
+          setArmed(false);
+        }
+        if (outcome === "updated") {
+          busy.current = false;
           settle(0);
+        } else {
+          // Nothing was fetched, so say what is true and hold it long enough
+          // to be read before retracting.
+          setNote(
+            outcome === "fresh"
+              ? { title: "Up to date", detail: ago(at.current) }
+              : outcome === "cooldown"
+                ? { title: "Portal is busy", detail: "try again shortly" }
+                : { title: "Could not reach Skipp", detail: "showing saved data" },
+          );
+          setTimeout(() => {
+            busy.current = false;
+            setNote(null);
+            settle(0);
+          }, NOTE_MS);
         }
       } else {
+        setArmed(false);
         settle(0);
       }
       engaged = false;
@@ -142,6 +203,8 @@ export default function PullToRefresh({
     };
   }, [onRefresh]);
 
+  const live = armed || refreshing || note !== null;
+
   return (
     <div ref={wrap} className="relative flex flex-1 flex-col">
       <div
@@ -149,12 +212,32 @@ export default function PullToRefresh({
         aria-hidden
         className="pointer-events-none absolute inset-x-0 top-0 z-20 flex justify-center opacity-0"
       >
-        <div className="flex size-9 items-center justify-center rounded-full border border-line bg-ink-1 shadow-lift">
-          <span
-            className={`size-3.5 rounded-full border-2 border-line border-t-accent ${
-              refreshing ? "animate-spin" : ""
-            }`}
-          />
+        {/* The outer element is GSAP's (y, scale, opacity). Everything that
+            reacts to state is styled on this inner pill instead, so the two
+            never write the same property. */}
+        <div
+          className={`flex h-9 items-center gap-2 rounded-full border bg-ink-1 px-3 shadow-lift transition-colors duration-200 ${
+            live ? "border-accent" : "border-line"
+          }`}
+        >
+          {refreshing ? (
+            <span className="size-3.5 animate-spin rounded-full border-2 border-line border-t-accent" />
+          ) : note ? (
+            <IconCheck size={15} className="text-accent" />
+          ) : (
+            <IconArrowDown
+              size={15}
+              className={`transition-transform duration-200 ${
+                armed ? "-rotate-180 text-accent" : "text-text-3"
+              }`}
+            />
+          )}
+          {note && (
+            <span className="whitespace-nowrap text-callout text-text-2">
+              <span className="text-text-1">{note.title}</span>
+              {note.detail ? ` · ${note.detail}` : ""}
+            </span>
+          )}
         </div>
       </div>
       <div ref={content} className="flex flex-1 flex-col">

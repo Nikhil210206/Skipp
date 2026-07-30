@@ -36,10 +36,51 @@ import {
   saveSnapshot,
 } from "@/lib/crypto";
 
-// Background-refresh the cached snapshot only when it's older than this. Fresh
-// enough that a class update shows soon after you open the app, but capped so
-// rapid reloads/focus events don't burn Zoho sign-ins (which are daily-limited).
-const STALE_MS = 15 * 60 * 1000; // 15 minutes
+// How old cached data may get before the app quietly goes and looks again.
+// Faculty mark attendance a handful of times a day, so a tighter window spends
+// sign-ins on fetching data that has not changed. Every sign-in counts against
+// the portal's own limits (CAPTCHA at IN108, a hard daily cap at SI503).
+const STALE_MS = 60 * 60 * 1000; // 1 hour
+
+/**
+ * The floor under a deliberate pull to refresh. Without one, pulling is free to
+ * the finger and expensive to the account: ten pulls is ten real portal
+ * sign-ins, which is roughly what it takes to earn a CAPTCHA.
+ */
+const MANUAL_MIN_MS = 5 * 60 * 1000; // 5 minutes
+
+/**
+ * How long to leave the portal alone once it has said no.
+ *
+ * The rate limits clear on their own, but only if we stop knocking. Retrying on
+ * every launch and every foreground is what turns a short cooldown into a lost
+ * day.
+ */
+const COOLDOWN_MS = 30 * 60 * 1000; // 30 minutes
+
+/** What a refresh actually did, so the UI can say so honestly. */
+export type RefreshOutcome = "updated" | "fresh" | "cooldown" | "failed";
+
+/** Wrong Net ID or wrong password, as opposed to the portal simply saying no. */
+function isBadCredentials(e: AuthError): boolean {
+  return e.code === "user_not_found" || e.code === "wrong_password";
+}
+
+/**
+ * When the portal last rate limited us. Module scope rather than state, so it
+ * survives the remount every navigation causes and a new screen cannot forget
+ * that we are meant to be standing down.
+ */
+let cooldownUntil = 0;
+
+/** Records a refusal so nothing else tries until the cooldown is up. */
+function noteFailure(e: unknown): void {
+  if (e instanceof AuthError && (e.code === "captcha" || e.code === "signin_limit")) {
+    cooldownUntil = Date.now() + COOLDOWN_MS;
+  }
+}
+
+const inCooldown = () => Date.now() < cooldownUntil;
 
 function isStale(fetchedAt: string): boolean {
   const t = Date.parse(fetchedAt);
@@ -93,7 +134,8 @@ type SessionValue = {
   displayName: string; // custom name if set, else official first name
   setDisplayName: (name: string) => void;
   login: (creds: Credentials) => Promise<void>;
-  refresh: () => Promise<void>;
+  /** Resolves with what actually happened, so the caller can say so. */
+  refresh: () => Promise<RefreshOutcome>;
   logout: () => void;
 };
 
@@ -166,7 +208,7 @@ export function SessionProvider({ children }: { children: React.ReactNode }) {
           cached.attendance,
         );
         setRestoring(false);
-        if (isStale(cached.fetchedAt)) void backgroundRefresh(saved);
+        if (isStale(cached.fetchedAt) && !inCooldown()) void backgroundRefresh(saved);
         return;
       }
 
@@ -179,10 +221,11 @@ export function SessionProvider({ children }: { children: React.ReactNode }) {
           void saveSnapshot(snap);
         }
       } catch (e) {
-        // Only forget the saved session on a real auth failure. A transient
-        // error (backend down, network blip, rate limit) keeps the creds so a
-        // reload retries without the user re-typing their password.
-        if (e instanceof AuthError) clearCredentials();
+        // Only forget the saved session when the credentials are genuinely
+        // wrong. A rate limit also arrives as an AuthError (HTTP 429), and
+        // signing the student out over one meant they retyped their password,
+        // which spent another sign-in against the very limit they had just hit.
+        if (e instanceof AuthError && isBadCredentials(e)) clearCredentials();
       } finally {
         if (!cancelled) setRestoring(false);
       }
@@ -195,8 +238,10 @@ export function SessionProvider({ children }: { children: React.ReactNode }) {
           installSnapshot(fresh);
           void saveSnapshot(fresh);
         }
-      } catch {
-        // Keep showing the cached snapshot; a rate-limit/blip is non-fatal.
+      } catch (e) {
+        // Keep showing the cached snapshot; a rate-limit or blip is non-fatal.
+        // Recording it is what stops the next launch knocking again.
+        noteFailure(e);
       }
     }
 
@@ -209,14 +254,14 @@ export function SessionProvider({ children }: { children: React.ReactNode }) {
   const bgRefreshing = useRef(false);
   const refreshIfStale = useCallback(async () => {
     if (!creds || !snapshot || bgRefreshing.current) return;
-    if (!isStale(snapshot.fetchedAt)) return;
+    if (!isStale(snapshot.fetchedAt) || inCooldown()) return;
     bgRefreshing.current = true;
     try {
       const fresh = await fetchSnapshot(creds);
       installSnapshot(fresh);
       void saveSnapshot(fresh);
-    } catch {
-      // keep cache
+    } catch (e) {
+      noteFailure(e); // keep cache, and stop knocking
     } finally {
       bgRefreshing.current = false;
     }
@@ -241,20 +286,31 @@ export function SessionProvider({ children }: { children: React.ReactNode }) {
   // identity changed whenever anything in the session did, including the
   // `refreshing` flag it sets itself. PullToRefresh depends on it, so the pull
   // handler was being unregistered and re-registered during its own refresh.
-  const refresh = useCallback(async () => {
-    if (!creds) return;
+  const refresh = useCallback(async (): Promise<RefreshOutcome> => {
+    if (!creds) return "failed";
+    // A pull is deliberate, so it is honoured ahead of the hourly window, but
+    // it still cannot reach the portal more than once every few minutes. The
+    // caller is told which happened so it can say "up to date" rather than
+    // pretending to have fetched.
+    if (snapshot && Date.now() - Date.parse(snapshot.fetchedAt) < MANUAL_MIN_MS) {
+      return "fresh";
+    }
+    if (inCooldown()) return "cooldown";
     setRefreshing(true);
     try {
       const fresh = await fetchSnapshot(creds);
       installSnapshot(fresh);
       void saveSnapshot(fresh);
-    } catch {
+      return "updated";
+    } catch (e) {
       // Rate-limited or offline: keep showing the cached snapshot rather than
       // erroring. (A daily-cap hit just means "no update right now".)
+      noteFailure(e);
+      return e instanceof AuthError ? "cooldown" : "failed";
     } finally {
       setRefreshing(false);
     }
-  }, [creds, installSnapshot]);
+  }, [creds, snapshot, installSnapshot]);
 
   const value = useMemo<SessionValue>(() => {
     const sectionState = (s: SectionStatus | undefined): SectionState =>
