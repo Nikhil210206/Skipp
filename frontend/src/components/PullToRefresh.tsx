@@ -4,7 +4,7 @@ import { useEffect, useRef, useState } from "react";
 import gsap from "gsap";
 import { DUR, EASE, prefersReducedMotion } from "@/lib/motion";
 import type { RefreshOutcome } from "@/context/SessionContext";
-import { IconArrowDown, IconCheck } from "./Icons";
+import { IconAlert, IconArrowDown, IconCheck } from "./Icons";
 
 // Pull down from the top to refresh. Engages only at scroll position zero.
 // The content follows the finger with resistance; past the threshold the
@@ -47,7 +47,12 @@ export default function PullToRefresh({
   const badge = useRef<HTMLDivElement>(null);
   const [refreshing, setRefreshing] = useState(false);
   const [armed, setArmed] = useState(false);
-  const [note, setNote] = useState<{ title: string; detail: string } | null>(null);
+  const [note, setNote] = useState<{
+    title: string;
+    detail: string;
+    /** A tick only when the data really is fine. A refusal is not a success. */
+    ok: boolean;
+  } | null>(null);
   const busy = useRef(false);
   // Read inside the gesture without making the listeners depend on it. Written
   // in an effect rather than during render, which the React compiler rejects.
@@ -173,10 +178,14 @@ export default function PullToRefresh({
           // to be read before retracting.
           setNote(
             outcome === "fresh"
-              ? { title: "Up to date", detail: ago(at.current) }
+              ? { title: "Up to date", detail: ago(at.current), ok: true }
               : outcome === "cooldown"
-                ? { title: "Portal is busy", detail: "try again shortly" }
-                : { title: "Could not reach Skipp", detail: "showing saved data" },
+                ? { title: "Portal is busy", detail: "try again shortly", ok: false }
+                : {
+                    title: "Could not reach Skipp",
+                    detail: "showing saved data",
+                    ok: false,
+                  },
           );
           setTimeout(() => {
             busy.current = false;
@@ -223,7 +232,11 @@ export default function PullToRefresh({
           {refreshing ? (
             <span className="size-3.5 animate-spin rounded-full border-2 border-line border-t-accent" />
           ) : note ? (
-            <IconCheck size={15} className="text-accent" />
+            note.ok ? (
+              <IconCheck size={15} className="text-accent" />
+            ) : (
+              <IconAlert size={15} className="text-watch" />
+            )
           ) : (
             <IconArrowDown
               size={15}

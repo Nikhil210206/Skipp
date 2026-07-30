@@ -345,6 +345,54 @@ is deployment and true push notifications.
 Entries below are newest first. **When something breaks, read the relevant entry first**: most
 oddities here (login shell, empty calendar, 429s, duplicated course codes) are already diagnosed.
 
+### DONE: The sign-in budget, defended in code (2026-07-30, latest)
+**A CAPTCHA (`IN108`) was earned during UI work on this project, and it was the
+tooling that earned it.** `apiBase()` resolves to `localhost:8000` in dev, a
+local backend was up, and `SessionContext` background-refreshes on **every**
+rehydrate whose cache is stale. Repeatedly reloading a signed-in dev page to
+look at a logo is therefore repeatedly signing in to the real portal, silently,
+with no spinner to give it away. **Reloading the authed app is not free.** Stop
+the backend, or point `NEXT_PUBLIC_API_URL` at a dead host, before UI work.
+
+That prompted four fixes, all in `SessionContext.tsx` unless noted:
+
+1. **`STALE_MS` 15 min to 1 hour.** Faculty mark attendance a handful of times a
+   day. A tighter window spends sign-ins fetching data that has not changed.
+2. **`MANUAL_MIN_MS` (5 min) under pull to refresh.** `refresh()` had no guard at
+   all, so ten pulls was ten real sign-ins. Worst case is now 12 an hour from a
+   determined puller instead of unbounded.
+3. **`COOLDOWN_MS` (30 min) after a refusal.** Every path swallowed rate limits
+   with a bare `catch {}`, so a CAPTCHA'd student kept knocking on every launch
+   and every foreground. **The limits only clear if we stop knocking**, so this
+   is what separates a short cooldown from a lost day. `cooldownUntil` is at
+   module scope deliberately: every navigation remounts the provider, and a
+   fresh mount must not forget it is meant to be standing down.
+4. **A rate limit no longer signs the student out.** HTTP 429 arrives as
+   `AuthError`, and the rehydrate path did `if (e instanceof AuthError)
+   clearCredentials()` while its own comment claimed rate limits were exempt. So
+   being rate limited wiped the saved session, the student retyped their
+   password, and that spent another sign-in against the limit they had just hit.
+   Now gated on `isBadCredentials()`, which is `user_not_found` or
+   `wrong_password` only.
+
+**`refresh()` now resolves with a `RefreshOutcome`** (`updated` / `fresh` /
+`cooldown` / `failed`) so the UI can say what actually happened.
+
+**The pull arms, and answers on release** (`PullToRefresh.tsx`). Past the
+threshold the arrow flips and the pill takes the accent, so the trigger point is
+discoverable by feel; the outcome then appears in the pill ("Up to date, checked
+2 min ago") and holds 1.25s before retracting. **It must never spin as though it
+fetched when it did not**, or the one control meaning "go and look" stops
+meaning anything. A tick is shown only for `fresh`, since a refusal is not a
+success.
+
+- **The state styling lives on an inner pill, not on the badge**, because GSAP's
+  quickSetters own the badge's `y`, `scale` and `opacity`. Same standing rule:
+  never let two systems write one property.
+- Verified the gate arithmetic with a node script (10 cases: the 5 min floor,
+  the 1 hour window, cooldown blocking both paths, and both resuming after it).
+  No portal sign-in was spent doing it.
+
 ### DONE: New mark, a mortarboard on the line (2026-07-30, latest)
 **A skip button was built first and rejected**: "i dont want a skipp button as a
 logo, i want something creative to do with collage, studies". It was a clever
