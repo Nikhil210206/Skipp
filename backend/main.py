@@ -313,29 +313,39 @@ _MARKS_GATED_MSG = (
 )
 
 
-# TEMPORARY DIAGNOSTIC (2026-07-31). Remove once the deployed routing is fixed.
-#
-# The deployed backend answers FastAPI's own 404 on every declared route while
-# its middleware, and therefore CORS, works perfectly. That means the request
-# reaches this app but arrives carrying a path no route matches, and two
-# attempts to guess that path from the outside have now been wrong. This says
-# what the path actually is instead.
-#
-# Declared last, so every real route above still wins. Returns no credentials
-# and no portal data, only routing facts.
-@app.api_route("/{_diag_path:path}", methods=["GET"])
-async def _diagnose_routing(request: Request, _diag_path: str) -> dict:
-    interesting = ("x-vercel", "x-forwarded", "host", "x-matched", "x-now")
-    return {
-        "diagnostic": "remove me",
-        "path": request.url.path,
-        "captured": _diag_path,
-        "root_path": request.scope.get("root_path"),
-        "raw_path": str(request.scope.get("raw_path") or b"", "utf-8", "replace"),
-        "query": str(request.url.query),
-        "headers": {
-            k: v
-            for k, v in request.headers.items()
-            if any(k.lower().startswith(p) for p in interesting)
-        },
-    }
+class _StripMountPath:
+    """Serves the path the caller asked for, not the one the platform mounted.
+
+    On Vercel this app is a function at `api/index.py` and `vercel.json`
+    rewrites every request to `/api/index/$1`, so a request for `/health`
+    arrives asking for `/api/index/health` and matches no route. The whole API
+    then answers FastAPI's own `{"detail":"Not Found"}` while the middleware,
+    and therefore CORS, keeps working perfectly, which reads as a broken login
+    rather than a broken deployment.
+
+    This has to live on the app rather than around it. Wrapping the ASGI app in
+    `api/index.py` was tried first and had no effect in production: the runtime
+    does not necessarily serve the object exported from that module. Middleware
+    registered here provably runs, because the CORS rejection does.
+
+    Locally there is no prefix to remove, so this is a no-op under uvicorn.
+    """
+
+    #: Where the serverless function is mounted.
+    MOUNT = "/api/index"
+
+    def __init__(self, app) -> None:
+        self.app = app
+
+    async def __call__(self, scope, receive, send):
+        if scope.get("type") == "http":
+            path = scope.get("path", "")
+            if path == self.MOUNT or path.startswith(self.MOUNT + "/"):
+                trimmed = path[len(self.MOUNT) :] or "/"
+                scope = {**scope, "path": trimmed, "raw_path": trimmed.encode()}
+        await self.app(scope, receive, send)
+
+
+# Added last so it is the outermost layer: the path is corrected before routing
+# and before CORS ever looks at it.
+app.add_middleware(_StripMountPath)

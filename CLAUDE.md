@@ -1097,6 +1097,41 @@ importer, though §11 still describes it as a live Home feature. Also 16 unused
 icons, `Divider`, `IndexRow`, `Meter`, `upcomingHoliday`, `projectSkip`,
 `projectAttend`, and the three single-section fetchers.
 
+### DONE: The deployed API 404'd every route, and why (2026-07-31)
+**Symptom:** every route on the deployed backend answered FastAPI's own
+`{"detail":"Not Found"}`, including `/health` and `/openapi.json`, while CORS
+kept working perfectly. The frontend turned that bare 404 into "No account with
+that Net ID", so it read as a broken login and cost a lot of time.
+
+**Cause, measured rather than guessed:** the `vercel.json` rewrite sends every
+request to the function as `/api/index/$1`, and **the app receives that prefixed
+path**. A request for `/health` arrives asking for `/api/index/health` and
+matches no route.
+
+**The fix has to be middleware on the app, not a wrapper around it.**
+`_StripMountPath` in `main.py` takes the mount prefix back off. An identical
+wrapper was tried first in `api/index.py`, exported as `app`, and **had no
+effect in production**: the runtime does not necessarily serve the object that
+module exports, so a wrapper there can be silently skipped. Middleware
+registered on the app provably runs, which is exactly what the surviving CORS
+rejection proved. Locally there is no prefix, so it is a no-op under uvicorn.
+
+**How it was found, after two wrong guesses.** A temporary catch-all route
+returning `request.url.path` and the routing headers, deployed once, printed
+`"path": "/api/index/health"` and ended the argument. Declared last so real
+routes still win, and returning no credentials or portal data. **`vercel dev`
+does not reproduce this**: it runs the function under plain uvicorn, answers
+`/health` with 200, and would have talked you out of the real bug.
+
+**Three signals worth recognising together next time:** FastAPI's own JSON 404
+(so the app is running), CORS still enforcing the allowlist (so `main.py` is
+loaded and middleware runs), and *every* path failing including `/openapi.json`
+(so it is routing, not a broken route). That combination means the path is
+wrong, nothing else.
+
+Verified live: `/health` 200, `POST /refresh` 422 with field errors, preflight
+200 for the real origin and 400 for a bogus one, and no diagnostic left behind.
+
 ### DONE: Deployable on Vercel, both halves (2026-07-28)
 Frontend and backend both deploy to Vercel, as **two projects** off one repo
 (root directories `frontend/` and `backend/`).
