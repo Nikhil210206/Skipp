@@ -1142,6 +1142,25 @@ importer, though §11 still describes it as a live Home feature. Also 16 unused
 icons, `Divider`, `IndexRow`, `Meter`, `upcomingHoliday`, `projectSkip`,
 `projectAttend`, and the three single-section fetchers.
 
+### DONE: iOS decides on the first touchmove (2026-07-31)
+**The gesture has to be claimed on the FIRST `touchmove`, before the axis is
+locked.** Safari decides at the start of a gesture whether the page scrolls, and
+once it has decided it **ignores every later `preventDefault`**. Our axis lock
+returned early for the first 8px without preventing anything, which handed iOS
+the gesture every single time: it started its own rubber-band, our transform
+never got to draw, and the result was a blank band with no indicator.
+
+**Chrome is forgiving about this and iOS is not**, which is why the gesture
+measured perfectly in every synthetic test here and did nothing on a phone. A
+synthetic `TouchEvent` in headless Chrome cannot reproduce it. **Treat "works in
+the browser, dead on the phone" as this until proven otherwise.**
+
+Only a downward drag from `scrollTop` 0 is claimed, so upward scrolling, mid
+page scrolling and the horizontal swipe navigation are untouched. Verified by
+reading `defaultPrevented` on the first move of four gestures: pull down at the
+top is claimed, the other three are not, and the horizontal swipe still
+navigates.
+
 ### DONE: The pull indicator was behind the masthead all along (2026-07-31)
 **The indicator was `z-20`. AppShell's sticky header is also `z-20`.** Same
 stacking context, and the header comes later in the DOM, so it painted on top.

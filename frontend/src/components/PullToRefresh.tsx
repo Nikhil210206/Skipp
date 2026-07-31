@@ -152,6 +152,23 @@ export default function PullToRefresh({
       if (startY === null || busy.current) return;
       const dy = e.touches[0].clientY - startY;
       const dx = e.touches[0].clientX - startX;
+
+      // Claimed on the FIRST touchmove, before the axis is even locked.
+      //
+      // Safari decides at the start of a gesture whether the page scrolls, and
+      // once it has decided it ignores every later preventDefault. The axis
+      // lock below returns early for the first few pixels, which handed iOS the
+      // gesture every time: it started its own rubber-band, our transform never
+      // got to draw, and the result was a blank band with no indicator. Chrome
+      // is forgiving about this, which is exactly why it measured perfectly in
+      // every test here and did nothing on a phone.
+      //
+      // Only a downward drag from the very top is claimed, so upward scrolling
+      // and the bounce at the end of the page are untouched.
+      if (dy > 0 && Math.abs(dy) >= Math.abs(dx) && scrollTop() <= 0) {
+        e.preventDefault();
+      }
+
       if (!axis) {
         if (Math.abs(dx) < 8 && Math.abs(dy) < 8) return;
         axis = Math.abs(dx) > Math.abs(dy) ? "x" : "y";
