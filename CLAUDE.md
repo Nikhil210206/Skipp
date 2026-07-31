@@ -1097,6 +1097,40 @@ importer, though §11 still describes it as a live Home feature. Also 16 unused
 icons, `Divider`, `IndexRow`, `Meter`, `upcomingHoliday`, `projectSkip`,
 `projectAttend`, and the three single-section fetchers.
 
+### DONE: The 31st of every month was missing (2026-07-31)
+Reported as "today July 31 shows no classes but it was day order 4". It was not
+the timetable or the calendar screen: **the planner parser never had that day**.
+
+**The portal emits malformed HTML.** It closes the second to last calendar row
+and then writes the last row's cells with no opening tag at all:
+
+    ... - </td></tr><td bgcolor='#80987d'>31</td><td>Fri</td> ...
+
+A parser has to put orphan cells somewhere, and BeautifulSoup's `html.parser`
+lifts them clean out of the table, so the row silently never exists. The
+calendar came back as exactly **180 entries, 6 x 30**, which looks plausible
+enough to pass unnoticed. It cost **the 31st of every 31-day month**: Jul 31,
+Aug 31, Oct 31, Dec 31.
+
+`_repair_orphan_rows()` in `services/academic_planner.py` reopens the row before
+parsing. `</tr>` can only legally be followed by `<tr>`, `</tbody>` or
+`</table>`, never by a bare `<td>`, so the substitution is a repair and cannot
+damage well-formed markup.
+
+Verified against the real captured planner: **184 of 184 days, none missing**,
+and `2026-07-31 Fri dayOrder=4`, which is what the student said it was. Aug 31
+comes back as day order 4 too; Oct 31 and Dec 31 correctly have none, being a
+Saturday and out of term.
+
+**The lesson for every other parser here: a count that looks tidy is not a
+check.** 180 is exactly what a naive reader would expect from six months, and
+that is precisely why nobody looked. Assert against the real date range instead,
+which is how this was found.
+
+**A cached snapshot keeps the old calendar** until it is refreshed, so fixing
+the backend is not enough on its own: the student has to pull to refresh (one
+sign-in) before the day appears.
+
 ### DONE: The deployed API 404'd every route, and why (2026-07-31)
 **Symptom:** every route on the deployed backend answered FastAPI's own
 `{"detail":"Not Found"}`, including `/health` and `/openapi.json`, while CORS

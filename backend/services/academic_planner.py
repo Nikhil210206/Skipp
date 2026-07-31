@@ -39,7 +39,7 @@ def parse_planner(
     the 2026-27 ODD semester). The planner ships HTML-entity-encoded (`&lt;td&gt;`
     …), so we unescape first; idempotent if already decoded.
     """
-    soup = BeautifulSoup(_html.unescape(raw), "html.parser")
+    soup = BeautifulSoup(_repair_orphan_rows(_html.unescape(raw)), "html.parser")
     table = _find_calendar_table(soup)
     if table is None:
         raise AcademicPlannerError("Calendar table not found.")
@@ -79,6 +79,27 @@ def parse_planner(
             }
 
     return [days[k] for k in sorted(days)]
+
+
+#: The portal closes the second-to-last calendar row and then emits the last
+#: row's cells with no opening <tr> at all:
+#:
+#:     ... - </td></tr><td bgcolor='#80987d'>31</td><td>Fri</td> ...
+#:
+#: An HTML parser has to put those orphan cells somewhere, and BeautifulSoup's
+#: html.parser lifts them out of the table entirely, so the row silently never
+#: exists. That quietly cost the 31st of every 31-day month (Jul, Aug, Oct and
+#: Dec), which is why a real class day showed up with no day order at all.
+#:
+#: `</tr>` can only legally be followed by another `<tr>`, `</tbody>` or
+#: `</table>`, never by a bare `<td>`, so reopening a row here is a repair and
+#: cannot damage well-formed markup.
+_ORPHAN_ROW = re.compile(r"</tr\s*>\s*(?=<td\b)", re.IGNORECASE)
+
+
+def _repair_orphan_rows(html: str) -> str:
+    """Give the planner's unopened last row its missing <tr>."""
+    return _ORPHAN_ROW.sub("</tr><tr>", html)
 
 
 def _find_calendar_table(soup: BeautifulSoup):
