@@ -921,6 +921,66 @@ From real-device screenshots:
   typed in. Clearing one is empty field plus Save (which only became possible
   once the empty-disables-Save bug was fixed).
 
+### DONE: A display face on the entry screens, and the domain in the field (2026-07-31, latest)
+**`@srmist.edu.in` is printed after what you type**, in `LoginForm`'s `Field`
+via a `suffix` prop. The portal wants the full email and appends the domain
+itself (see the login flow notes), so showing it is honest as well as clearer:
+students no longer have to guess whether to type it.
+
+**The input is sized to its own text so the domain hugs it** and the two read as
+one address. A full width input parks the suffix against the far edge, where it
+reads as a separate label rather than the rest of your address. A hidden sizer
+span carrying the same text at the same size is measured, and the width is
+written **straight to the element in a layout effect**, not held in state: a
+measurement driving one style is not worth a re-render, and `setState` in an
+effect is rejected by the compiler lint. Verified the suffix tracks the typing
+(input 21px, 63px, 90px as the Net ID grows) and stays inside the box.
+
+**Bricolage Grotesque is the display face, on the entry screens only.**
+`--font-display` in `@theme`, loaded in `layout.tsx`, applied as `font-display`
+on the sign-in and both onboarding roots so everything on those screens
+inherits it, including the Net ID you type and the domain.
+
+**It is deliberately NOT wired to `--font-sans`.** Doing that is one line and
+restyles the whole app, and the data screens do not want it: attendance
+percentages, marks and the timetable rely on tabular figures lining up, and
+that is Geist's job here. Entry screens are the pitch and get a voice; the app
+stays neutral. Confirmed after the change that `/dashboard` (body, headings and
+every `.tnum`) is still Geist.
+
+That makes **three faces with three jobs**, and the separation is the point:
+Geist for the app, Bricolage Grotesque for the way in, Space Grotesk for the
+maker's signature alone.
+
+### DONE: The sign-in cover, and why it looked empty (2026-07-31, latest)
+Reported from a 6.7 inch phone as "garbage on mobile, users will think this is a
+normal boring app". It was neither a missing graphic nor a taste problem, it was
+**two measurable layout faults**:
+
+- **The headline was set at `text-hero`, which is 2.375rem (38px).** In a 430px
+  column with acres of space around it, 38px reads as a caption, not a cover.
+  It is `text-display` (56px) now. Checked it cannot overflow: the widest word
+  measures 166px against a minimum column of about 272px at a 320px viewport.
+- **`justify-between` plus `mt-auto` hung the header off the top and the form
+  off the bottom**, so every pixel a taller phone added became dead band. The
+  header is now `flex-1` and centres its contents, so extra height goes to the
+  type instead of to a void.
+
+Also: the screen asked for a password without ever naming the product. There is
+a line under the headline now saying what Skipp is.
+
+**This is the second time this screen has been called boring, and the first time
+the cause was also not decoration** (see the entry below: the headline was not
+rendering at all). **Reach for the measurements before reaching for graphics.**
+The rejected graphic field stays rejected.
+
+**The straggler sweep runs twice now** (`lib/motion.ts`), and the second pass is
+not optional. It fired once at 900ms, which since the new launch animation lands
+**while the overlay is still up** (~1.8s): anything mid-tween at 900ms is skipped
+by the `isTweening` guard and never looked at again, so an entrance created late,
+or reverted by a re-render after that sweep, would stay invisible permanently.
+Second sweep at 2400ms.
+
 ### DONE: Sign-in stays type only (2026-07-28)
 A graphic field was built for the sign-in screen (repeated hairline tracks with
 the 75% tick, the Attendance measurement device as texture) and **removed on

@@ -136,7 +136,7 @@ export default function SyncSequence({
   return (
     <div
       ref={root}
-      className="fixed inset-0 z-50 flex flex-col bg-ink-0 px-[var(--gutter)] pb-[max(28px,env(safe-area-inset-bottom))] pt-[max(48px,calc(env(safe-area-inset-top)+28px))]"
+      className="font-display fixed inset-0 z-50 flex flex-col bg-ink-0 px-[var(--gutter)] pb-[max(28px,env(safe-area-inset-bottom))] pt-[max(48px,calc(env(safe-area-inset-top)+28px))]"
     >
       <div className="mx-auto flex w-full max-w-md flex-1 flex-col">
         <span className="flex items-center gap-2">

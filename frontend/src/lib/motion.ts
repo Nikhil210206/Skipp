@@ -43,9 +43,14 @@ function revealStragglers() {
 }
 
 if (typeof window !== "undefined") {
-  // Shortly after the entrances have had time to play out. Late enough not to
-  // interrupt them, early enough that a failure is a beat, not a blank screen.
+  // Swept twice, and the second pass is not optional. The first is late enough
+  // not to interrupt an entrance and early enough that a failure reads as a
+  // beat rather than a blank screen, but it lands while the launch overlay is
+  // still up (that runs ~1.8s), so anything still tweening at 900ms is skipped
+  // and never looked at again. An entrance that is created late, or reverted by
+  // a re-render after the first sweep, would stay invisible for good.
   window.setTimeout(revealStragglers, 900);
+  window.setTimeout(revealStragglers, 2400);
 }
 
 /** Durations, in seconds (GSAP's unit). */

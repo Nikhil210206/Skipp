@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useLayoutEffect, useRef, useState } from "react";
 import { useSession } from "@/context/SessionContext";
 import { AuthError, PortalError, type FailureCode } from "@/lib/api";
 import { Button } from "@/components/ui";
@@ -102,6 +102,7 @@ export default function LoginForm({
       <Field
         id="username"
         label="SRM Net ID"
+        suffix="@srmist.edu.in"
         value={username}
         onChange={setUsername}
         placeholder="ab1234"
@@ -152,6 +153,7 @@ function Field({
   placeholder,
   type = "text",
   autoComplete,
+  suffix,
 }: {
   id: string;
   label: string;
@@ -160,7 +162,21 @@ function Field({
   placeholder?: string;
   type?: string;
   autoComplete?: string;
+  /** Fixed text shown after what you type, as part of the same address. */
+  suffix?: string;
 }) {
+  const input = useRef<HTMLInputElement>(null);
+  const sizer = useRef<HTMLSpanElement>(null);
+
+  // Written straight to the element rather than held in state: a measurement
+  // driving a style is not something the rest of the component needs to
+  // re-render for, and setState in an effect is rejected by the compiler lint.
+  useLayoutEffect(() => {
+    if (input.current && sizer.current) {
+      input.current.style.width = `${sizer.current.offsetWidth + 1}px`;
+    }
+  });
+
   return (
     <div
       data-enter
@@ -169,15 +185,46 @@ function Field({
       <label htmlFor={id} className="text-label uppercase text-text-3">
         {label}
       </label>
-      <input
-        id={id}
-        type={type}
-        value={value}
-        autoComplete={autoComplete}
-        onChange={(e) => onChange(e.target.value)}
-        placeholder={placeholder}
-        className="mt-1.5 w-full bg-transparent text-headline text-text-1 outline-none placeholder:text-text-3"
-      />
+      {suffix ? (
+        <div className="mt-1.5 flex items-baseline">
+          {/* The input is sized to its own text so the domain hugs what you
+              typed and the two read as one address. A full width input would
+              park the suffix against the far edge, which reads as a separate
+              label rather than the rest of your address. */}
+          <span className="relative min-w-0">
+            <input
+              ref={input}
+              id={id}
+              type={type}
+              value={value}
+              autoComplete={autoComplete}
+              onChange={(e) => onChange(e.target.value)}
+              placeholder={placeholder}
+              className="w-full max-w-full bg-transparent text-headline text-text-1 outline-none placeholder:text-text-3"
+            />
+            {/* Measured, never shown. Same face and size as the input, so the
+                width it reports is the width the text actually occupies. */}
+            <span
+              ref={sizer}
+              aria-hidden
+              className="pointer-events-none invisible absolute left-0 top-0 whitespace-pre text-headline"
+            >
+              {value || placeholder || ""}
+            </span>
+          </span>
+          <span className="shrink-0 text-headline text-text-3">{suffix}</span>
+        </div>
+      ) : (
+        <input
+          id={id}
+          type={type}
+          value={value}
+          autoComplete={autoComplete}
+          onChange={(e) => onChange(e.target.value)}
+          placeholder={placeholder}
+          className="mt-1.5 w-full bg-transparent text-headline text-text-1 outline-none placeholder:text-text-3"
+        />
+      )}
     </div>
   );
 }

@@ -143,7 +143,7 @@ export default function Onboarding({ onDone }: { onDone: () => void }) {
   return (
     <main
       ref={root}
-      className="mx-auto flex min-h-full w-full max-w-md flex-1 flex-col px-[var(--gutter)] pb-[max(22px,env(safe-area-inset-bottom))] pt-[max(40px,calc(env(safe-area-inset-top)+22px))] md:border-x md:border-line-soft"
+      className="font-display mx-auto flex min-h-full w-full max-w-md flex-1 flex-col px-[var(--gutter)] pb-[max(22px,env(safe-area-inset-bottom))] pt-[max(40px,calc(env(safe-area-inset-top)+22px))] md:border-x md:border-line-soft"
     >
       <div ref={scope} className="flex flex-1 flex-col">
         <header data-enter className="flex items-baseline justify-between">

@@ -1,5 +1,10 @@
 import type { Metadata, Viewport } from "next";
-import { Geist, Geist_Mono, Space_Grotesk } from "next/font/google";
+import {
+  Bricolage_Grotesque,
+  Geist,
+  Geist_Mono,
+  Space_Grotesk,
+} from "next/font/google";
 import "./globals.css";
 import { SessionProvider } from "@/context/SessionContext";
 import { THEME_INIT_SCRIPT } from "@/lib/themeScript";
@@ -23,6 +28,15 @@ const signature = Space_Grotesk({
   variable: "--font-signature-src",
   subsets: ["latin"],
   weight: ["400", "500"],
+});
+
+// The entry screens only: sign-in and onboarding. Those screens are the pitch
+// and get to have a voice, while the app itself stays in Geist, because a
+// screen full of attendance figures wants a neutral face and dependable
+// tabular numerals. Deliberately not wired to --font-sans.
+const display = Bricolage_Grotesque({
+  variable: "--font-display-src",
+  subsets: ["latin"],
 });
 
 export const metadata: Metadata = {
@@ -57,7 +71,7 @@ export default function RootLayout({
     <html
       lang="en"
       suppressHydrationWarning
-      className={`${geistSans.variable} ${geistMono.variable} ${signature.variable} h-full antialiased`}
+      className={`${geistSans.variable} ${geistMono.variable} ${signature.variable} ${display.variable} h-full antialiased`}
     >
       <head>
         {/* Applies the saved theme before paint so there is no flash. */}

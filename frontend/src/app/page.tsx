@@ -86,21 +86,34 @@ export default function LoginPage() {
 
   return (
     <>
-      <main className="mx-auto flex min-h-full w-full max-w-md flex-1 flex-col justify-between px-[var(--gutter)] pb-[max(28px,env(safe-area-inset-bottom))] pt-[max(48px,calc(env(safe-area-inset-top)+28px))] md:border-x md:border-line-soft">
+      <main className="mx-auto flex min-h-full w-full max-w-md flex-1 flex-col font-display px-[var(--gutter)] pb-[max(28px,env(safe-area-inset-bottom))] pt-[max(48px,calc(env(safe-area-inset-top)+28px))] md:border-x md:border-line-soft">
         <div ref={scope} className="flex flex-1 flex-col">
-          <header className="pt-6">
-            <div data-mark className="flex items-center gap-2">
-              <Logo size={22} className="text-text-1" />
-              <Wordmark className="text-headline text-text-1" />
-            </div>
-            <h1 className="mt-4 text-hero">
+          <div data-mark className="flex items-center gap-2 pt-2">
+            <Logo size={22} className="text-text-1" />
+            <Wordmark className="text-headline text-text-1" />
+          </div>
+
+          {/* The cover. It grows to take whatever height the phone has and
+              centres inside it, so a tall screen gives the type more room to
+              breathe instead of opening a dead band above the form. The old
+              layout hung the header off the top and the form off the bottom,
+              which on a 6.7 inch phone left two voids and read as an empty
+              form rather than a cover. */}
+          <header className="flex flex-1 flex-col justify-center py-12">
+            <h1 className="text-display">
               <WordMask text="Know before" className="block" />
               <WordMask text="you bunk." className="block" />
             </h1>
-            <div data-draw className="bleed mt-7 h-px bg-line" />
+            {/* Says what the thing actually is. The screen previously asked for
+                a password without once naming the product. */}
+            <p data-enter className="mt-5 max-w-[24ch] text-body text-text-2">
+              Your attendance, marks and timetable, in one place. Minus the
+              portal.
+            </p>
           </header>
 
-          <div className="mt-auto pt-12">
+          <div>
+            <div data-draw className="bleed mb-9 h-px bg-line" />
             <LoginForm onPhase={setPhase} />
             <p
               data-enter
