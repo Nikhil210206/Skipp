@@ -97,10 +97,22 @@ async function post<T>(path: string, creds: Credentials): Promise<T> {
   const code: FailureCode | undefined =
     typeof raw === "object" && raw ? (raw.code as FailureCode) : undefined;
 
+  // A 404 only means "no such student" when the backend says so in its own
+  // typed body. A bare 404 is our API not being there at all: a misrouted
+  // deployment answers every path with FastAPI's `{"detail":"Not Found"}`, and
+  // reading that as user_not_found told students their Net ID was wrong when
+  // the portal had never been asked. Never blame the credentials for a routing
+  // fault.
+  if (res.status === 404 && !code) {
+    throw new PortalError(
+      "Can't reach Skipp. The server is not answering properly.",
+      "unreachable",
+    );
+  }
   if (res.status === 401 || res.status === 404) {
     throw new AuthError(
       detail ?? "Wrong SRM net id or password.",
-      code ?? (res.status === 404 ? "user_not_found" : "wrong_password"),
+      code ?? "wrong_password",
     );
   }
   if (res.status === 429) {

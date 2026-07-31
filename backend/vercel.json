@@ -7,5 +7,10 @@
       "includeFiles": "{core,services,models}/**"
     }
   },
-  "rewrites": [{ "source": "/(.*)", "destination": "/api/index" }]
+  "rewrites": [
+    {
+      "source": "/(.*)",
+      "destination": "/api/index/$1"
+    }
+  ]
 }
