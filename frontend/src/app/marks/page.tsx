@@ -56,6 +56,16 @@ export default function MarksPage() {
   const max = subjects.reduce((x, s) => x + s.maxTotal, 0);
   const graded = subjects.filter((s) => s.components.length > 0);
 
+  // One row per course for the waiting list. A course with separate theory and
+  // practical assessments arrives as two rows sharing a code AND a title, with
+  // nothing in the marks data to tell them apart, so listing both showed the
+  // same subject twice with no way to read the difference (and duplicated a
+  // React key). The count is taken from the same deduped list, or the figure
+  // would say 9 above a list of 8.
+  const waiting = subjects.filter(
+    (s, i) => subjects.findIndex((o) => o.code === s.code) === i,
+  );
+
   const scope = useGsap(
     ({ self, reduced }) => {
       revealIn(self, reduced, { y: 16, stagger: 0.07 });
@@ -98,19 +108,40 @@ export default function MarksPage() {
         {/* Nothing published yet is still a moment: the count of subjects
             waiting, set at poster scale, instead of an apologetic empty box. */}
         {marksState === "ready" && (subjects.length === 0 || max === 0) && (
-          // Centred, with no extra bottom padding. `pb-16` on top of
-          // `justify-center` centres the block inside a box 64px shorter than
-          // the screen, so it sits visibly above the middle and opens a dead
-          // band underneath that reads as a layout fault.
-          <div data-reveal className="flex flex-1 flex-col justify-center">
+          // Top aligned and carrying the actual list. Centring a short block in
+          // a full height column looked like a layout fault on a tall phone:
+          // the page was most of a screen of nothing whichever way it was
+          // aligned. Naming the subjects it is waiting on fills the page with
+          // something true and answers the obvious next question, which is
+          // "waiting on what".
+          <div data-reveal className="flex flex-1 flex-col pt-4">
             <p className="text-label uppercase text-text-3">Awaiting results</p>
-            <p className="tnum optical mt-5 text-poster">{subjects.length}</p>
+            <p className="tnum optical mt-5 text-poster">{waiting.length}</p>
             <div className="bleed mt-7 h-px bg-line" />
             <p className="mt-5 max-w-[26ch] text-body text-text-2">
               {subjects.length > 0
                 ? "subjects are being tracked. The first published assessment appears here on its own."
                 : "Your internal assessments will show here once results are out."}
             </p>
+
+            {waiting.length > 0 && (
+              <ul className="mt-9">
+                {waiting.map((s) => (
+                  <li
+                    key={s.code}
+                    data-row
+                    className="flex items-baseline gap-3 border-b border-line-soft py-3.5"
+                  >
+                    <span className="min-w-0 flex-1 truncate text-body text-text-1">
+                      {s.title || s.code}
+                    </span>
+                    <span className="shrink-0 text-callout text-text-3">
+                      {s.code}
+                    </span>
+                  </li>
+                ))}
+              </ul>
+            )}
           </div>
         )}
 

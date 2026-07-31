@@ -103,7 +103,11 @@ export default function PullToRefresh({
         return;
       }
       setY(y);
-      setBadge(Math.min(y, MAX) - 40);
+      // Travels DOWN from the safe area edge. It used to start 40px above its
+      // anchor, which on a notched phone parks it inside the status bar for
+      // most of the pull, so the indicator only appeared right at the end (or
+      // not at all). Opacity is what hides it at rest, not position.
+      setBadge(Math.min(y, MAX) * 0.55);
       setScale(0.6 + Math.min(y / THRESHOLD, 1) * 0.4);
       setOpacity(Math.min(y / (THRESHOLD * 0.6), 1));
       setRing(Math.min(y / THRESHOLD, 1));

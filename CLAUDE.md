@@ -1142,6 +1142,42 @@ importer, though §11 still describes it as a live Home feature. Also 16 unused
 icons, `Divider`, `IndexRow`, `Meter`, `upcomingHoliday`, `projectSkip`,
 `projectAttend`, and the three single-section fetchers.
 
+### DONE: The pull and the marks page, second attempt (2026-07-31)
+Both were reported as still broken after a first round of fixes. **The fixes
+were live** (checked against the deployed build, not assumed), so they were
+wrong rather than missing. Both first attempts treated a symptom.
+
+**Pull to refresh: `overscroll-behavior-y` was set on `body`, but the scrolling
+element is `html`.** So iOS rubber-banded the whole document on a downward drag,
+opening a blank band far taller than our own 116px pull, with the indicator
+nowhere near it. It is set on `html` as well now. **Setting it on body alone is
+not enough.**
+
+Second cause in the same gesture: `setBadge` positioned the indicator at
+`pull - 40`, i.e. **40px above its own anchor**. With the anchor at the safe
+area, a 59px notch keeps it hidden for most of the travel, so it only emerged
+right at the end. It now travels *down* from the safe edge (`pull * 0.55`), and
+opacity alone is what hides it at rest.
+
+Verified with synthetic touches on the deployed build: badge -34 to 48px,
+opacity 0.15 to 1, content following 6 to 88px. **That test only works with
+`matchMedia` patched**: under the reduced motion that headless Chrome reports,
+`paint()` sets opacity and returns before touching any transform, so the gesture
+looks dead when it is working perfectly.
+
+**Marks: centring was never the problem.** A screen that is most of a screen of
+nothing reads as broken whatever it is aligned to. It is top aligned now and
+**lists the subjects it is waiting on**, which fills the page with something
+true and answers the obvious question, "waiting on what".
+
+Two real bugs surfaced while doing it:
+- **A duplicate React key.** A course with separate theory and practical
+  assessments arrives as two rows sharing a code *and* a title, and
+  `SubjectMarks` carries nothing to tell them apart. It also showed the same
+  subject twice with no readable difference. Deduped by code.
+- **The figure disagreed with the list**: `subjects.length` counted 9 rows above
+  a list of 8 courses. Both come from the deduped list now.
+
 ### DONE: Three phone bugs, all invisible on a desktop (2026-07-31)
 **The Net ID field was mostly untappable.** Sizing the input to its own text so
 `@srmist.edu.in` would hug it (built earlier the same day) made the *tap target*

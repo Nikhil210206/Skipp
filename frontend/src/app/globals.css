@@ -739,6 +739,15 @@ html {
   border-inline-width: var(--border-w);
 }
 
+/* The scrolling element is <html>, not <body>, so the bounce has to be
+   suppressed here too. With it only on body, iOS rubber-banded the whole page
+   on a downward drag: a blank band opened above the content, far taller than
+   our own 116px pull, and our indicator was nowhere near it. That reads as a
+   pull to refresh that does nothing. */
+html {
+  overscroll-behavior-y: none;
+}
+
 body {
   background: var(--color-ink-0);
   color: var(--color-text-1);
