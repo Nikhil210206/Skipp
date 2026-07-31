@@ -311,3 +311,31 @@ _MARKS_GATED_MSG = (
     "Marks aren't published on the portal yet "
     "(they appear once internal assessments are graded)."
 )
+
+
+# TEMPORARY DIAGNOSTIC (2026-07-31). Remove once the deployed routing is fixed.
+#
+# The deployed backend answers FastAPI's own 404 on every declared route while
+# its middleware, and therefore CORS, works perfectly. That means the request
+# reaches this app but arrives carrying a path no route matches, and two
+# attempts to guess that path from the outside have now been wrong. This says
+# what the path actually is instead.
+#
+# Declared last, so every real route above still wins. Returns no credentials
+# and no portal data, only routing facts.
+@app.api_route("/{_diag_path:path}", methods=["GET"])
+async def _diagnose_routing(request: Request, _diag_path: str) -> dict:
+    interesting = ("x-vercel", "x-forwarded", "host", "x-matched", "x-now")
+    return {
+        "diagnostic": "remove me",
+        "path": request.url.path,
+        "captured": _diag_path,
+        "root_path": request.scope.get("root_path"),
+        "raw_path": str(request.scope.get("raw_path") or b"", "utf-8", "replace"),
+        "query": str(request.url.query),
+        "headers": {
+            k: v
+            for k, v in request.headers.items()
+            if any(k.lower().startswith(p) for p in interesting)
+        },
+    }
