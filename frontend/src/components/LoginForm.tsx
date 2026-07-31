@@ -1,6 +1,6 @@
 "use client";
 
-import { useLayoutEffect, useRef, useState } from "react";
+import { useRef, useState } from "react";
 import { useSession } from "@/context/SessionContext";
 import { AuthError, PortalError, type FailureCode } from "@/lib/api";
 import { Button } from "@/components/ui";
@@ -64,14 +64,23 @@ export type SignInPhase = "idle" | "working" | "done";
 /** Verifies against the portal and hands the session to the page. */
 export default function LoginForm({
   onPhase,
+  onFilled,
 }: {
   onPhase: (p: SignInPhase) => void;
+  /** How many of the two fields have something in them, 0 to 2. */
+  onFilled?: (n: number) => void;
 }) {
   const { login } = useSession();
   const [username, setUsername] = useState("");
   const [password, setPassword] = useState("");
   const [failure, setFailure] = useState<Failure | null>(null);
   const [busy, setBusy] = useState(false);
+
+  // Reported from the change handlers rather than an effect: the parent draws
+  // a progress rule from it, and setState in an effect is rejected by the
+  // compiler lint.
+  const report = (u: string, p: string) =>
+    onFilled?.((u.trim() ? 1 : 0) + (p ? 1 : 0));
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
@@ -104,15 +113,20 @@ export default function LoginForm({
         label="SRM Net ID"
         suffix="@srmist.edu.in"
         value={username}
-        onChange={setUsername}
-        placeholder="ab1234"
+        onChange={(v) => {
+          setUsername(v);
+          report(v, password);
+        }}
         autoComplete="username"
       />
       <Field
         id="password"
         label="Password"
         value={password}
-        onChange={setPassword}
+        onChange={(v) => {
+          setPassword(v);
+          report(username, v);
+        }}
         placeholder="••••••••"
         type="password"
         autoComplete="current-password"
@@ -166,52 +180,33 @@ function Field({
   suffix?: string;
 }) {
   const input = useRef<HTMLInputElement>(null);
-  const sizer = useRef<HTMLSpanElement>(null);
-
-  // Written straight to the element rather than held in state: a measurement
-  // driving a style is not something the rest of the component needs to
-  // re-render for, and setState in an effect is rejected by the compiler lint.
-  useLayoutEffect(() => {
-    if (input.current && sizer.current) {
-      input.current.style.width = `${sizer.current.offsetWidth + 1}px`;
-    }
-  });
 
   return (
-    <div
+    // The whole box is the label, so tapping anywhere in it focuses the input
+    // rather than only the few pixels the text happens to occupy.
+    <label
+      htmlFor={id}
+      data-field
       data-enter
-      className="rounded-control border border-line bg-ink-1 px-4 py-3 transition-colors focus-within:border-text-3"
+      className="block cursor-text rounded-control border border-line bg-ink-1 px-4 py-3 transition-colors focus-within:border-accent"
     >
-      <label htmlFor={id} className="text-label uppercase text-text-3">
-        {label}
-      </label>
+      <span className="block text-label uppercase text-text-3">{label}</span>
       {suffix ? (
-        <div className="mt-1.5 flex items-baseline">
-          {/* The input is sized to its own text so the domain hugs what you
-              typed and the two read as one address. A full width input would
-              park the suffix against the far edge, which reads as a separate
-              label rather than the rest of your address. */}
-          <span className="relative min-w-0">
-            <input
-              ref={input}
-              id={id}
-              type={type}
-              value={value}
-              autoComplete={autoComplete}
-              onChange={(e) => onChange(e.target.value)}
-              placeholder={placeholder}
-              className="w-full max-w-full bg-transparent text-headline text-text-1 outline-none placeholder:text-text-3"
-            />
-            {/* Measured, never shown. Same face and size as the input, so the
-                width it reports is the width the text actually occupies. */}
-            <span
-              ref={sizer}
-              aria-hidden
-              className="pointer-events-none invisible absolute left-0 top-0 whitespace-pre text-headline"
-            >
-              {value || placeholder || ""}
-            </span>
-          </span>
+        // The input takes the whole row and the domain sits at the end of it.
+        // Sizing the input to its own text was tried and was a real bug on a
+        // phone: it made the tap target only as wide as the text, so most of
+        // the field looked like an input and did nothing when you touched it.
+        // A field you cannot tap is worse than a suffix that does not hug.
+        <div className="mt-1.5 flex items-baseline gap-1">
+          <input
+            ref={input}
+            id={id}
+            type={type}
+            value={value}
+            autoComplete={autoComplete}
+            onChange={(e) => onChange(e.target.value)}
+            className="min-w-0 flex-1 appearance-none bg-transparent text-headline text-text-1 outline-none focus:outline-none focus-visible:outline-none placeholder:text-text-3"
+          />
           <span className="shrink-0 text-headline text-text-3">{suffix}</span>
         </div>
       ) : (
@@ -222,9 +217,9 @@ function Field({
           autoComplete={autoComplete}
           onChange={(e) => onChange(e.target.value)}
           placeholder={placeholder}
-          className="mt-1.5 w-full bg-transparent text-headline text-text-1 outline-none placeholder:text-text-3"
+          className="mt-1.5 w-full appearance-none bg-transparent text-headline text-text-1 outline-none focus:outline-none focus-visible:outline-none placeholder:text-text-3"
         />
       )}
-    </div>
+    </label>
   );
 }

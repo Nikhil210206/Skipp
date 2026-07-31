@@ -808,3 +808,16 @@ body {
   outline-offset: 3px;
   border-radius: 6px;
 }
+
+/* A field whose own box already shows focus must not ring the input as well.
+   Two nested rounded boxes read as a small tappable target sitting inside a
+   large dead one, which is exactly how the sign-in field was being misread: it
+   looked like only the inner box accepted a tap. The box keeps the indicator,
+   so nothing is lost for a keyboard user.
+
+   Unlayered on purpose: the rule above is unlayered too, and layered Tailwind
+   utilities lose to it, so `focus-visible:outline-none` on the input alone
+   silently does nothing. */
+[data-field] :focus-visible {
+  outline: none;
+}

@@ -981,6 +981,51 @@ by the `isTweening` guard and never looked at again, so an entrance created late
 or reverted by a re-render after that sweep, would stay invisible permanently.
 Second sweep at 2400ms.
 
+### DONE: The sign-in greets you, in seven languages (2026-07-31)
+`components/Greeting.tsx` cycles "hello" above the headline through the
+languages this campus actually speaks: English, Tamil, Hindi, Telugu, Malayalam,
+Kannada, Bengali. Verified it runs the full set in order and loops.
+
+**It is the one looping animation in the app, and that is a decision, not an
+oversight.** The standing rule was that nothing loops beside a password field,
+because motion that never stops becomes a distraction after the first visit. The
+user chose to break it for the greeting specifically. It is kept slow, low
+contrast, and it never moves anything the eye needs in order to type.
+
+**The first version was rejected as rough and misaligned, and it deserved to
+be.** It faded one word out, swapped the text, then faded the next in, on a
+single element. **That leaves a frame with nothing on it**, and that gap is what
+reads as rough however smooth each half is on its own. The rebuild:
+
+- **Every greeting is rendered, stacked in one CSS grid cell** (`gridArea:
+  "1 / 1"`). The box is therefore always as wide and as deep as the largest
+  word and can never resize mid-transition. Sizing a box to its current word
+  makes the cover twitch on every change, because Indic scripts are deeper than
+  Latin ones.
+- **Outgoing and incoming overlap**, same duration, started together. Measured
+  over 361 frames across two handovers: **combined opacity never drops below 1**
+  and peaks at 1.56 at the crossover. There is no instant where the greeting is
+  dimmer than one full word.
+- They travel 42% of their own height on a soft ease and scale 0.94 to 1, so it
+  is a drift rather than a jump.
+- Measured over 8s: greeting box fixed at 24px, headline fixed at one position.
+- **Only the Latin greeting is in the display face.** Bricolage carries no Tamil
+  or Devanagari, so the Indic scripts fall back to the system face deliberately
+  rather than to a mangled substitute.
+- `aria-label="Hello"` is fixed on the element, so a screen reader announces it
+  once instead of chattering on every swap.
+
+**The rule under the headline fills as the form is completed**, half per field,
+in the same language as every other measurement in the app. Measured 0px, 224px,
+448px as the two fields are filled.
+
+**The progress mark is a separate element from the `[data-draw]` rule**, and has
+to be: the entrance tween owns that element's `scaleX`, and this only ever sets
+a `width`. Two systems writing one property is the standing trap here.
+
+**The count is reported from the change handlers, not an effect**, since
+`setState` in an effect is rejected by the compiler lint.
+
 ### DONE: Sign-in stays type only (2026-07-28)
 A graphic field was built for the sign-in screen (repeated hairline tracks with
 the 75% tick, the Attendance measurement device as texture) and **removed on
@@ -1096,6 +1141,39 @@ KV-backed limiter.
 importer, though §11 still describes it as a live Home feature. Also 16 unused
 icons, `Divider`, `IndexRow`, `Meter`, `upcomingHoliday`, `projectSkip`,
 `projectAttend`, and the three single-section fetchers.
+
+### DONE: Three phone bugs, all invisible on a desktop (2026-07-31)
+**The Net ID field was mostly untappable.** Sizing the input to its own text so
+`@srmist.edu.in` would hug it (built earlier the same day) made the *tap target*
+only as wide as the text: most of the field looked like an input and did
+nothing. The input is full width again and the domain sits at the end of the
+row. **A field you cannot tap is worse than a suffix that does not hug.**
+
+- The whole box is now a `<label htmlFor>`, so touching anywhere in it focuses
+  the input rather than only the pixels the text occupies.
+- The example Net ID placeholder is gone; the label already names the field.
+- **The orange box was the global `:focus-visible` rule** in `globals.css`
+  drawing a ring around the input *inside* the field's own border: two nested
+  rounded boxes, which is precisely what made it read as a small live target in
+  a large dead one. `[data-field] :focus-visible { outline: none }` opts these
+  fields out and the box border carries focus instead. **It has to be unlayered**
+  like the rule it overrides, or the layered Tailwind utility loses to it and
+  `focus-visible:outline-none` on the input silently does nothing. Same trap as
+  the border weight tokens.
+
+**Pull to refresh opened a blank band**, because the indicator was positioned at
+`top-0` of a wrapper that starts at the very top of the viewport. On a notched
+phone that is behind the status bar (59px inset on a 6.7 inch iPhone), and the
+badge only travels to about 28px at the threshold, so it was never visible at
+all. It is anchored at `env(safe-area-inset-top)` now. **Never position a pull
+indicator against the raw top of a full height wrapper.** It also gained a ring
+that fills with the pull, so the gesture is answered continuously rather than
+only once it arms.
+
+**The marks empty state had a dead band under it.** `justify-center` plus
+`pb-16` centres the block inside a box 64px shorter than the screen, so it sits
+above the middle and opens a gap beneath that reads as a layout fault. Padding
+removed; it centres honestly.
 
 ### DONE: The 31st of every month was missing (2026-07-31)
 Reported as "today July 31 shows no classes but it was day order 4". It was not

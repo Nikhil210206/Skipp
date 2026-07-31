@@ -98,7 +98,11 @@ export default function MarksPage() {
         {/* Nothing published yet is still a moment: the count of subjects
             waiting, set at poster scale, instead of an apologetic empty box. */}
         {marksState === "ready" && (subjects.length === 0 || max === 0) && (
-          <div data-reveal className="flex flex-1 flex-col justify-center pb-16">
+          // Centred, with no extra bottom padding. `pb-16` on top of
+          // `justify-center` centres the block inside a box 64px shorter than
+          // the screen, so it sits visibly above the middle and opens a dead
+          // band underneath that reads as a layout fault.
+          <div data-reveal className="flex flex-1 flex-col justify-center">
             <p className="text-label uppercase text-text-3">Awaiting results</p>
             <p className="tnum optical mt-5 text-poster">{subjects.length}</p>
             <div className="bleed mt-7 h-px bg-line" />

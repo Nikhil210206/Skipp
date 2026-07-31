@@ -8,6 +8,7 @@ import SyncSequence, { type Fact } from "@/components/onboarding/SyncSequence";
 import { markIntroSeen, useSeenIntro } from "@/lib/firstRun";
 import CreatorCredit from "@/components/CreatorCredit";
 import Logo, { Wordmark } from "@/components/Logo";
+import Greeting from "@/components/Greeting";
 import { useSession } from "@/context/SessionContext";
 import { playEntrance, useGsap } from "@/lib/motion";
 import { WordMask } from "@/components/ui/editorial";
@@ -31,6 +32,8 @@ export default function LoginPage() {
   // While the sign-in sequence is playing we are authenticated but deliberately
   // still here, so the redirect below has to stand down until it finishes.
   const [phase, setPhase] = useState<SignInPhase>("idle");
+  /** How much of the form is done, 0 to 2, drawn as the rule above it. */
+  const [filled, setFilled] = useState(0);
 
   useEffect(() => {
     if (isAuthed && phase === "idle") router.replace("/dashboard");
@@ -100,6 +103,9 @@ export default function LoginPage() {
               which on a 6.7 inch phone left two voids and read as an empty
               form rather than a cover. */}
           <header className="flex flex-1 flex-col justify-center py-12">
+            <div data-enter className="pb-4">
+              <Greeting />
+            </div>
             <h1 className="text-display">
               <WordMask text="Know before" className="block" />
               <WordMask text="you bunk." className="block" />
@@ -113,8 +119,18 @@ export default function LoginPage() {
           </header>
 
           <div>
-            <div data-draw className="bleed mb-9 h-px bg-line" />
-            <LoginForm onPhase={setPhase} />
+            <div data-draw className="bleed relative mb-9 h-px bg-line">
+              {/* Fills as the two fields are completed, in the same language as
+                  every other measurement in the app: a rule that reaches its
+                  mark. Width only, so it can never fight the entrance tween
+                  that owns this element's scaleX. */}
+              <span
+                aria-hidden
+                className="absolute inset-y-0 left-0 bg-accent transition-[width] duration-500 ease-out"
+                style={{ width: `${(filled / 2) * 100}%` }}
+              />
+            </div>
+            <LoginForm onPhase={setPhase} onFilled={setFilled} />
             <p
               data-enter
               className="mt-5 text-callout leading-relaxed text-text-3"

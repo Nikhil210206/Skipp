@@ -20,6 +20,9 @@ import { IconAlert, IconArrowDown, IconCheck } from "./Icons";
 const THRESHOLD = 68;
 const MAX = 116;
 const REST = 52;
+/** Progress ring geometry, in the 20 unit box the SVG is drawn in. */
+const RING_R = 8;
+const RING_C = 2 * Math.PI * RING_R;
 /** How long an answer stays up before the pill retracts. */
 const NOTE_MS = 1250;
 
@@ -45,6 +48,7 @@ export default function PullToRefresh({
   const wrap = useRef<HTMLDivElement>(null);
   const content = useRef<HTMLDivElement>(null);
   const badge = useRef<HTMLDivElement>(null);
+  const ring = useRef<SVGCircleElement>(null);
   const [refreshing, setRefreshing] = useState(false);
   const [armed, setArmed] = useState(false);
   const [note, setNote] = useState<{
@@ -74,6 +78,11 @@ export default function PullToRefresh({
     const setBadge = gsap.quickSetter(dot, "y", "px");
     const setScale = gsap.quickSetter(dot, "scale");
     const setOpacity = gsap.quickSetter(dot, "opacity");
+    const setRing = (p: number) => {
+      if (ring.current) {
+        ring.current.style.strokeDashoffset = String(RING_C * (1 - p));
+      }
+    };
 
     let startY: number | null = null;
     let startX = 0;
@@ -97,6 +106,7 @@ export default function PullToRefresh({
       setBadge(Math.min(y, MAX) - 40);
       setScale(0.6 + Math.min(y / THRESHOLD, 1) * 0.4);
       setOpacity(Math.min(y / (THRESHOLD * 0.6), 1));
+      setRing(Math.min(y / THRESHOLD, 1));
     };
     const settle = (to: number, done?: () => void) => {
       if (reduced) {
@@ -219,7 +229,13 @@ export default function PullToRefresh({
       <div
         ref={badge}
         aria-hidden
-        className="pointer-events-none absolute inset-x-0 top-0 z-20 flex justify-center opacity-0"
+        // Anchored BELOW the notch. At top-0 the badge sits behind the status
+        // bar on any phone with an inset (59px on a 6.7 inch iPhone), and since
+        // it only travels to about 28px at the threshold it was never visible
+        // at all: pulling just opened a blank band. Never position a pull
+        // indicator against the raw top of a full height wrapper.
+        style={{ top: "env(safe-area-inset-top)" }}
+        className="pointer-events-none absolute inset-x-0 z-20 flex justify-center opacity-0"
       >
         {/* The outer element is GSAP's (y, scale, opacity). Everything that
             reacts to state is styled on this inner pill instead, so the two
@@ -238,12 +254,38 @@ export default function PullToRefresh({
               <IconAlert size={15} className="text-watch" />
             )
           ) : (
-            <IconArrowDown
-              size={15}
-              className={`transition-transform duration-200 ${
-                armed ? "-rotate-180 text-accent" : "text-text-3"
-              }`}
-            />
+            <span className="relative flex size-[18px] items-center justify-center">
+              {/* Fills as the finger travels, so the gesture is answered the
+                  whole way down instead of only once it arms. */}
+              <svg viewBox="0 0 20 20" className="absolute inset-0 -rotate-90">
+                <circle
+                  cx="10"
+                  cy="10"
+                  r={RING_R}
+                  fill="none"
+                  strokeWidth="2"
+                  className="stroke-line"
+                />
+                <circle
+                  ref={ring}
+                  cx="10"
+                  cy="10"
+                  r={RING_R}
+                  fill="none"
+                  strokeWidth="2"
+                  strokeLinecap="round"
+                  strokeDasharray={RING_C}
+                  strokeDashoffset={RING_C}
+                  className="stroke-accent"
+                />
+              </svg>
+              <IconArrowDown
+                size={11}
+                className={`transition-transform duration-200 ${
+                  armed ? "-rotate-180 text-accent" : "text-text-3"
+                }`}
+              />
+            </span>
           )}
           {note && (
             <span className="whitespace-nowrap text-callout text-text-2">
