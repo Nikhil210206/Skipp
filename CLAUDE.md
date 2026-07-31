@@ -1142,6 +1142,37 @@ importer, though §11 still describes it as a live Home feature. Also 16 unused
 icons, `Divider`, `IndexRow`, `Meter`, `upcomingHoliday`, `projectSkip`,
 `projectAttend`, and the three single-section fetchers.
 
+### DONE: Pull to refresh, third attempt, and the reduced motion trap (2026-07-31)
+**The likeliest reason it kept reading as broken: `prefersReducedMotion()` was
+switching off the indicator, not just the decoration.** `paint()` set opacity and
+returned before touching the badge position, the scale or the progress ring, so
+on any phone with Reduce Motion on the gesture had almost no visible answer. The
+earlier `overscroll-behavior` fix then removed the native bounce too, taking away
+the only feedback that was left.
+
+**A control that tracks your finger is feedback, not flourish.** The badge, its
+scale and the ring now move under reduced motion; only the page rubber-band and
+the bottom bounce are dropped. Verified with the setting ON: badge travels 4.3,
+17.2, 34.3px and opacity ramps 0.19 to 1 while the page correctly stays still.
+
+**The bottom edge bounces, drawn by us.** `overscroll-behavior` cannot be kept at
+one edge and suppressed at the other, and suppressing it at the top is what lets
+pull to refresh exist at all, so the bottom is animated in the same component.
+`onStart` no longer bails unless `scrollTop` is 0 (that blocked the bottom
+gesture entirely); the edge is decided once per gesture into `pull`, `bounce` or
+`scroll`. Measured: content follows the finger to a clamped -84px and springs
+back to 0.
+
+**It settles without crossing zero, deliberately.** An overshoot would carry the
+content past its rest position and open a gap under the masthead. iOS's own
+bounce decelerates back to rest rather than overshooting, so this matches it.
+
+**Deploy note, learned the hard way:** `vercel --prod` from `frontend/` does NOT
+deploy skipp-q1sf. That project has Root Directory `frontend` and is deployed
+from the repo root; running it from inside the folder has no project link and
+**creates a brand new project**. One was created and removed. The frontend goes
+out through git.
+
 ### DONE: The pull and the marks page, second attempt (2026-07-31)
 Both were reported as still broken after a first round of fixes. **The fixes
 were live** (checked against the deployed build, not assumed), so they were

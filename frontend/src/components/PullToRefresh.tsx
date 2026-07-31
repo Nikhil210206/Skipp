@@ -20,6 +20,8 @@ import { IconAlert, IconArrowDown, IconCheck } from "./Icons";
 const THRESHOLD = 68;
 const MAX = 116;
 const REST = 52;
+/** How far the end of the page gives before it springs back. */
+const BOUNCE = 84;
 /** Progress ring geometry, in the 20 unit box the SVG is drawn in. */
 const RING_R = 8;
 const RING_C = 2 * Math.PI * RING_R;
@@ -71,8 +73,11 @@ export default function PullToRefresh({
     const dot = badge.current;
     if (!el || !inner || !dot) return;
 
-    // Reduced motion removes the rubber-band, not the gesture: the pull still
-    // refreshes, it just does not move the page.
+    // Reduced motion drops the page rubber-band and the bottom bounce, which
+    // are decoration. It must NOT drop the indicator: a control that tracks
+    // your finger is feedback, not flourish, and hiding it left the gesture
+    // looking dead on any phone with the setting on. That is the likeliest
+    // reason this read as broken while testing fine everywhere else.
     const reduced = prefersReducedMotion();
     const setY = gsap.quickSetter(inner, "y", "px");
     const setBadge = gsap.quickSetter(dot, "y", "px");
@@ -89,20 +94,23 @@ export default function PullToRefresh({
     // Locked on the first real movement. Without it a sideways swipe that
     // drifts downward engages the pull and eats the navigation gesture.
     let axis: null | "x" | "y" = null;
+    /** Which edge this gesture is acting on, or a plain scroll. */
+    let mode: null | "pull" | "bounce" | "scroll" = null;
     let engaged = false;
     let wasArmed = false;
-    const scrollTop = () =>
-      (document.scrollingElement ?? document.documentElement).scrollTop;
+    const scroller = () => document.scrollingElement ?? document.documentElement;
+    const scrollTop = () => scroller().scrollTop;
+    const atBottom = () => {
+      const el = scroller();
+      return el.scrollTop + el.clientHeight >= el.scrollHeight - 2;
+    };
 
     // How far the finger has travelled, tracked even when we do not animate.
     let pull = 0;
     const paint = (y: number) => {
       pull = y;
-      if (reduced) {
-        setOpacity(y > 0 ? 1 : 0);
-        return;
-      }
-      setY(y);
+      // The page only moves when motion is welcome; the indicator always does.
+      if (!reduced) setY(y);
       // Travels DOWN from the safe area edge. It used to start 40px above its
       // anchor, which on a notched phone parks it inside the status bar for
       // most of the pull, so the indicator only appeared right at the end (or
@@ -133,10 +141,11 @@ export default function PullToRefresh({
     };
 
     const onStart = (e: TouchEvent) => {
-      if (busy.current || scrollTop() > 0) {
+      if (busy.current) {
         startY = null;
         return;
       }
+      mode = null;
       startY = e.touches[0].clientY;
       startX = e.touches[0].clientX;
       axis = null;
@@ -153,10 +162,26 @@ export default function PullToRefresh({
         axis = Math.abs(dx) > Math.abs(dy) ? "x" : "y";
       }
       if (axis === "x") return;
-      if (dy <= 0 || scrollTop() > 0) {
-        if (engaged) paint(0);
+
+      // Which edge this gesture belongs to, decided once. Anything else is an
+      // ordinary scroll and must be left alone.
+      if (mode === null) {
+        if (dy > 0 && scrollTop() <= 0) mode = "pull";
+        else if (dy < 0 && atBottom()) mode = "bounce";
+        else mode = "scroll";
+      }
+      if (mode === "scroll") return;
+
+      if (mode === "bounce") {
+        // The end of the page gives a little and springs back. We draw it
+        // ourselves because the native bounce is switched off: it cannot be
+        // kept at one edge and suppressed at the other, and suppressing it at
+        // the top is what lets pull to refresh exist at all.
+        e.preventDefault();
+        if (!reduced) setY(Math.max(-BOUNCE, dy * 0.34));
         return;
       }
+
       engaged = true;
       e.preventDefault();
       // Resistance: the further you pull, the less it gives.
@@ -172,7 +197,21 @@ export default function PullToRefresh({
     const onEnd = async () => {
       if (startY === null) return;
       const pulled = pull;
+      const wasMode = mode;
       startY = null;
+      mode = null;
+
+      if (wasMode === "bounce") {
+        if (!reduced) {
+          gsap.to(inner, {
+            y: 0,
+            duration: 0.72,
+            ease: "elastic.out(1, 0.5)",
+            overwrite: "auto",
+          });
+        }
+        return;
+      }
       if (engaged && pulled >= THRESHOLD && !busy.current) {
         busy.current = true;
         setRefreshing(true);
