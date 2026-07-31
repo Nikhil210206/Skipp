@@ -1142,6 +1142,31 @@ importer, though §11 still describes it as a live Home feature. Also 16 unused
 icons, `Divider`, `IndexRow`, `Meter`, `upcomingHoliday`, `projectSkip`,
 `projectAttend`, and the three single-section fetchers.
 
+### DONE: The pull indicator was behind the masthead all along (2026-07-31)
+**The indicator was `z-20`. AppShell's sticky header is also `z-20`.** Same
+stacking context, and the header comes later in the DOM, so it painted on top.
+The badge spent its entire travel (0 to about 64px) behind an opaque bar. Every
+fix before this one was correct and completely invisible, which is why it kept
+being reported as not working: position, opacity, ring and threshold were all
+measurably right the whole time.
+
+**Equal z-index is not equal.** Ties inside one stacking context are broken by
+document order. The badge is `z-40` now, above the header (20) and the nav (30).
+
+**`elementFromPoint` cannot check this.** The badge is `pointer-events-none`, so
+hit testing skips it and reports whatever is underneath, which looks exactly
+like being covered. Confirm paint order by reading the z-indexes, or by holding
+the gesture open and taking a screenshot.
+
+**The bottom bounce is the platform's again.** `overscroll-behavior-y` is
+`contain`, not `none`: both stop the browser's own pull to refresh, which is the
+only reason the property is here, but `none` also kills the rubber-band at the
+end of the page. The hand-drawn replacement was deleted because it could not
+handle the ordinary case, scrolling to the end and continuing in one motion:
+that gesture begins mid page, native scrolling already owns it, and
+`preventDefault` is ignored. Ours now claims only a downward drag from
+`scrollTop` 0 and leaves everything else to the browser.
+
 ### DONE: Pull to refresh, third attempt, and the reduced motion trap (2026-07-31)
 **The likeliest reason it kept reading as broken: `prefersReducedMotion()` was
 switching off the indicator, not just the decoration.** `paint()` set opacity and

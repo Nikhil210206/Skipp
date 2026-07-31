@@ -20,8 +20,6 @@ import { IconAlert, IconArrowDown, IconCheck } from "./Icons";
 const THRESHOLD = 68;
 const MAX = 116;
 const REST = 52;
-/** How far the end of the page gives before it springs back. */
-const BOUNCE = 84;
 /** Progress ring geometry, in the 20 unit box the SVG is drawn in. */
 const RING_R = 8;
 const RING_C = 2 * Math.PI * RING_R;
@@ -94,16 +92,13 @@ export default function PullToRefresh({
     // Locked on the first real movement. Without it a sideways swipe that
     // drifts downward engages the pull and eats the navigation gesture.
     let axis: null | "x" | "y" = null;
-    /** Which edge this gesture is acting on, or a plain scroll. */
-    let mode: null | "pull" | "bounce" | "scroll" = null;
+    /** Whether this gesture is ours to draw, or an ordinary scroll. */
+    let mode: null | "pull" | "scroll" = null;
     let engaged = false;
     let wasArmed = false;
     const scroller = () => document.scrollingElement ?? document.documentElement;
     const scrollTop = () => scroller().scrollTop;
-    const atBottom = () => {
-      const el = scroller();
-      return el.scrollTop + el.clientHeight >= el.scrollHeight - 2;
-    };
+
 
     // How far the finger has travelled, tracked even when we do not animate.
     let pull = 0;
@@ -166,21 +161,11 @@ export default function PullToRefresh({
       // Which edge this gesture belongs to, decided once. Anything else is an
       // ordinary scroll and must be left alone.
       if (mode === null) {
-        if (dy > 0 && scrollTop() <= 0) mode = "pull";
-        else if (dy < 0 && atBottom()) mode = "bounce";
-        else mode = "scroll";
+        // Downward, from the very top, is ours. Everything else is the
+        // browser's, including the bounce at the end of the page.
+        mode = dy > 0 && scrollTop() <= 0 ? "pull" : "scroll";
       }
       if (mode === "scroll") return;
-
-      if (mode === "bounce") {
-        // The end of the page gives a little and springs back. We draw it
-        // ourselves because the native bounce is switched off: it cannot be
-        // kept at one edge and suppressed at the other, and suppressing it at
-        // the top is what lets pull to refresh exist at all.
-        e.preventDefault();
-        if (!reduced) setY(Math.max(-BOUNCE, dy * 0.34));
-        return;
-      }
 
       engaged = true;
       e.preventDefault();
@@ -197,21 +182,10 @@ export default function PullToRefresh({
     const onEnd = async () => {
       if (startY === null) return;
       const pulled = pull;
-      const wasMode = mode;
       startY = null;
       mode = null;
 
-      if (wasMode === "bounce") {
-        if (!reduced) {
-          gsap.to(inner, {
-            y: 0,
-            duration: 0.72,
-            ease: "elastic.out(1, 0.5)",
-            overwrite: "auto",
-          });
-        }
-        return;
-      }
+
       if (engaged && pulled >= THRESHOLD && !busy.current) {
         busy.current = true;
         setRefreshing(true);
@@ -278,7 +252,12 @@ export default function PullToRefresh({
         // at all: pulling just opened a blank band. Never position a pull
         // indicator against the raw top of a full height wrapper.
         style={{ top: "env(safe-area-inset-top)" }}
-        className="pointer-events-none absolute inset-x-0 z-20 flex justify-center opacity-0"
+        // Above the masthead. At z-20 it tied with AppShell's sticky header and
+        // lost, because the header comes later in the DOM: the indicator spent
+        // its whole travel behind an opaque bar and was never visible, however
+        // correctly it moved. Ties in the same stacking context are decided by
+        // document order, so equal z-index is not equal.
+        className="pointer-events-none absolute inset-x-0 z-40 flex justify-center opacity-0"
       >
         {/* The outer element is GSAP's (y, scale, opacity). Everything that
             reacts to state is styled on this inner pill instead, so the two

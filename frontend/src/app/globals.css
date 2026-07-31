@@ -739,13 +739,16 @@ html {
   border-inline-width: var(--border-w);
 }
 
-/* The scrolling element is <html>, not <body>, so the bounce has to be
-   suppressed here too. With it only on body, iOS rubber-banded the whole page
-   on a downward drag: a blank band opened above the content, far taller than
-   our own 116px pull, and our indicator was nowhere near it. That reads as a
-   pull to refresh that does nothing. */
+/* `contain`, not `none`. Both stop the browser's own pull to refresh, which is
+   the reason this is here at all, but `none` also kills the rubber-band at the
+   BOTTOM of the page, and that bounce is worth keeping: it is the platform's
+   own, it is free, and it handles the case our JS cannot (scrolling to the end
+   and continuing in one motion, where the gesture began mid page and native
+   scrolling already owns it, so preventDefault is ignored).
+
+   Set on <html> as well as <body>, because the scrolling element is <html>. */
 html {
-  overscroll-behavior-y: none;
+  overscroll-behavior-y: contain;
 }
 
 body {
@@ -754,8 +757,8 @@ body {
   font-family: var(--font-sans), ui-sans-serif, system-ui, sans-serif;
   -webkit-font-smoothing: antialiased;
   text-rendering: optimizeLegibility;
-  /* We ship our own pull-to-refresh. */
-  overscroll-behavior-y: none;
+  /* We ship our own pull-to-refresh; see the note on <html> above. */
+  overscroll-behavior-y: contain;
 }
 
 /* Every figure in this app is data: lock the widths so numbers never jitter. */
