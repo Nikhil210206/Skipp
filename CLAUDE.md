@@ -512,6 +512,38 @@ Verified with synthetic touches: swipe left commits, a 25px swipe springs back
 to 0, a vertical drag leaves the page at x 0 and does not navigate, and swipe
 right reverses.
 
+### DONE: The swipe was never the slow part (2026-08-01)
+Reported as laggy and buggy. **Traced rather than guessed, and the transform was
+innocent.** One tab change showed **56ms of forced reflow, 51ms of it inside
+GSAP's `_getComputedProperty`**: that is the ARRIVING screen building its
+entrance, `revealIn` plus `revealRows` plus every ScrollTrigger measuring, on
+exactly the frames the slide needs. Three dropped frames on a desktop and far
+worse on a phone, which reads as a stuttering swipe.
+
+**`useGsap` now waits for the transition before it builds anything.** `pageIn`
+records when the slide will end (`transitionEndsAt`, module scope because the
+two screens are different React trees) and the hook holds off until then, so the
+measuring happens on a still screen.
+
+**Check the blank risk whenever an entrance is delayed.** Reveal targets start
+hidden in CSS, so deferring their animation could have left every arriving
+screen empty for 620ms, which would have been worse than the jank. Measured with
+the real hiding CSS injected and reduced motion forced off: first content
+visible at 2ms, **zero frames with targets present and nothing visible**.
+
+The outgoing clone also carries `contain: layout paint` now. It is a dead
+snapshot, so the browser should never reflow or repaint the live page on its
+account.
+
+Measured after, at **4x CPU throttling** to stand in for a phone: worst frame
+28.7ms, median 16.7ms, **zero frames over 32ms**. At 1x it is 20.8ms worst.
+
+**What this does NOT prove.** The reflow total is trace wide, so it cannot show
+whether the work moved off the animating frames, only that the same work still
+happens somewhere. And the lag was never reproducible here at any throttle. If
+it persists on the device, the next honest step is a frame sampler running on
+the phone itself rather than another fix aimed at a symptom nobody here can see.
+
 ### DONE: Screens turn over, not cut (2026-07-29)
 Moving between tabs slides the screen you are leaving off one side while the
 next comes in from the other, both on one tween each with identical timing, so

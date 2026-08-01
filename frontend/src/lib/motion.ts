@@ -89,8 +89,32 @@ export function useGsap(
     const self = scope.current;
     if (!self) return;
     const reduced = prefersReducedMotion();
-    const ctx = gsap.context(() => fn({ self, reduced }), self);
-    return () => ctx.revert();
+
+    // **Never build an entrance while a page is still sliding.**
+    //
+    // Setting up the reveals means GSAP and ScrollTrigger reading computed
+    // styles for every target, and a trace of one tab change measured 56ms of
+    // forced reflow with 51ms of it inside `_getComputedProperty`. That is
+    // three dropped frames on a desktop and far worse on a phone, landing
+    // exactly on top of the transform that is supposed to be gliding. It reads
+    // as a stuttering swipe, and the swipe was never the problem.
+    //
+    // Deferred until the transition has finished, the measuring happens on a
+    // still screen and the slide keeps the compositor to itself.
+    let ctx: gsap.Context | null = null;
+    let timer = 0;
+    const build = () => {
+      if (!scope.current) return;
+      ctx = gsap.context(() => fn({ self, reduced }), self);
+    };
+    const wait = Math.max(0, transitionEndsAt - performance.now());
+    if (wait > 0) timer = window.setTimeout(build, wait);
+    else build();
+
+    return () => {
+      if (timer) window.clearTimeout(timer);
+      ctx?.revert();
+    };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, deps);
   return scope;
@@ -258,6 +282,12 @@ let navDirection = 0;
  * snapshot.
  */
 let outgoing: HTMLElement | null = null;
+/**
+ * When the transition currently running will be finished, so an entrance on the
+ * arriving screen can wait its turn instead of measuring over the top of it.
+ * Module scope, because the two screens are different React trees.
+ */
+let transitionEndsAt = 0;
 
 /**
  * Freeze the screen being left exactly where it is, including any distance the
@@ -279,7 +309,9 @@ export function captureOutgoing(el: HTMLElement | null, dir: number): void {
     `position:fixed;left:${r.left}px;top:${r.top}px;` +
     `width:${r.width}px;height:${r.height}px;margin:0;` +
     `overflow:hidden;pointer-events:none;z-index:25;` +
-    `transform:translateZ(0);will-change:transform;`;
+    // `contain` walls the clone off: it is a dead snapshot, so the browser
+    // never needs to reflow or repaint the live page on its account.
+    `transform:translateZ(0);will-change:transform;contain:layout paint;`;
   document.body.appendChild(clone);
   outgoing = clone;
 }
@@ -304,6 +336,9 @@ export function pageIn(el: HTMLElement | null): void {
 
   const width = el.getBoundingClientRect().width || window.innerWidth;
   const travel = width * dir;
+  // Claim the window. Entrances built during it would read computed styles on
+  // the very frames the slide needs, so `useGsap` holds off until this passes.
+  transitionEndsAt = performance.now() + DUR.slow * 1000;
 
   if (prev) {
     gsap.to(prev, {
