@@ -33,14 +33,18 @@ import { prefersReducedMotion } from "@/lib/motion";
  */
 
 const GREETINGS = [
-  { text: "hello", lang: "en" },
-  { text: "வணக்கம்", lang: "ta" },
-  { text: "नमस्ते", lang: "hi" },
-  { text: "నమస్కారం", lang: "te" },
-  { text: "നമസ്കാരം", lang: "ml" },
-  { text: "ನಮಸ್ಕಾರ", lang: "kn" },
-  { text: "নমস্কার", lang: "bn" },
+  { text: "hello", lang: "en", name: "English" },
+  { text: "வணக்கம்", lang: "ta", name: "Tamil" },
+  { text: "नमस्ते", lang: "hi", name: "Hindi" },
+  { text: "నమస్కారం", lang: "te", name: "Telugu" },
+  { text: "നമസ്കാരം", lang: "ml", name: "Malayalam" },
+  { text: "ನಮಸ್ಕಾರ", lang: "kn", name: "Kannada" },
+  { text: "ନମସ୍କାର", lang: "or", name: "Odia" },
+  { text: "নমস্কার", lang: "bn", name: "Bengali" },
+  { text: "नमस्कार", lang: "mr", name: "Marathi" },
 ];
+
+export const GREETING_COUNT = GREETINGS.length;
 
 /** How long each greeting holds before the next one takes over, in ms. */
 const STEP = 2600;
@@ -49,7 +53,7 @@ const CROSS = 0.9;
 /** How far a word travels, as a share of its own height. */
 const TRAVEL = 42;
 
-export default function Greeting() {
+export default function Greeting({ className = "text-title" }: { className?: string }) {
   const [i, setI] = useState(0);
   const items = useRef<(HTMLSpanElement | null)[]>([]);
   const first = useRef(true);
@@ -87,11 +91,18 @@ export default function Greeting() {
 
     // Both tweens start together and run the same length, so at every instant
     // one word is arriving by exactly as much as the other is leaving.
+    //
+    // **Transform and opacity only.** A clip reveal was tried and glitched: the
+    // finished word had its `clipPath` cleared, so the next time it left it had
+    // to animate FROM `none`, which does not interpolate and snapped. Blur had
+    // the same problem in reverse, dropping a composited layer mid loop. On an
+    // animation that runs forever, every property must have a real value at
+    // both ends of every cycle, and these two always do.
     if (outgoing) {
       gsap.to(outgoing, {
-        opacity: 0,
         yPercent: -TRAVEL,
-        scale: 0.94,
+        opacity: 0,
+        scale: 0.96,
         duration: CROSS,
         ease: "power2.inOut",
         overwrite: "auto",
@@ -100,10 +111,10 @@ export default function Greeting() {
     if (incoming) {
       gsap.fromTo(
         incoming,
-        { opacity: 0, yPercent: TRAVEL, scale: 0.94 },
+        { yPercent: TRAVEL, opacity: 0, scale: 0.96 },
         {
-          opacity: 1,
           yPercent: 0,
+          opacity: 1,
           scale: 1,
           duration: CROSS,
           ease: "power2.out",
@@ -116,7 +127,9 @@ export default function Greeting() {
   return (
     // Grid, with every word in the same cell. The cell is sized by the largest
     // of them, so nothing below can be nudged by a change of script.
-    <span className="grid text-title leading-none text-text-2">
+    // Leading has to clear the deepest script, not the Latin one. At 0.9 the
+    // Kannada and Malayalam descenders ran into whatever sat below the box.
+    <span className={`grid select-none leading-[1.15] ${className}`}>
       {GREETINGS.map((g, k) => (
         <span
           key={g.lang}

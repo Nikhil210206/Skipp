@@ -981,6 +981,58 @@ by the `isTweening` guard and never looked at again, so an entrance created late
 or reverted by a re-render after that sweep, would stay invisible permanently.
 Second sweep at 2400ms.
 
+### DONE: The sign-in is the greeting (2026-08-01, latest)
+Rebuilt to carry the same weight as the new way in. **The multilingual hello is
+now the hero**, set at display scale (clamp to 4.5rem, 70px on a 430px phone)
+and cycling through the seven languages. "Know before you bunk" drops to a small
+caps eyebrow above it, and the product line sits underneath.
+
+**A sign in screen has one job and one moment, and the moment is being greeted.**
+Selling the product to somebody who has already opened the app is the wrong use
+of the biggest type on the page.
+
+`Greeting` now takes a `className` so its caller sets the size; it kept its own
+crossfade, where every word is stacked in one grid cell and the outgoing and
+incoming overlap so combined opacity never drops below one.
+
+**The greeting is set in the ACCENT**, which is the one token that differs
+across all eighteen themes, so the look somebody just chose in the deck pays off
+the instant they land rather than waiting for the dashboard. Verified the colour
+really does follow: Ink orange, Terminal phosphor, Rose pink, Meadow deep green.
+**Continue went from `outline` to `primary`** because the greeting now owns the
+accent, and two accent objects on one screen is exactly the muddle the one
+action per screen rule exists to prevent.
+
+**Nine languages, cycling on their own**: English, Tamil, Hindi, Telugu,
+Malayalam, Kannada, Odia, Bengali, Marathi. The tap to change was built and then
+removed on request; a greeting should welcome, not ask to be operated. The
+script is named beside it so you know what you are looking at.
+
+**The handover is transform and opacity only, and that is the fix for a real
+glitch.** A clip reveal with a blur was built first and stuttered every time a
+word came back around: the finished word had its `clipPath` and `filter`
+cleared with `clearProps`, so the next time it left it had to animate FROM
+`none`, which does not interpolate, and it snapped. **On an animation that runs
+forever, every property must hold a real value at both ends of every cycle.**
+Transform and opacity always do, and they stay on the compositor.
+
+**Each word is animated whole, and that is not laziness.** Splitting a word per
+character is the obvious way to make this showier and it would be wrong: Indic
+scripts build a syllable from a base plus combining marks, and slicing the
+string by JS characters tears those into glyphs the language does not have.
+
+Verified over a full lap of all nine: combined opacity never leaves the range 1
+to 1.56 so there is never a blank frame, **no leftover clipPath or filter is
+left on any word**, and the box top and height never move (97px).
+
+**Two things have to be sized by the widest and deepest script, not the Latin
+one:**
+- **Leading.** At `leading-[0.9]` the Kannada and Malayalam descenders ran into
+  the label below. At 1.15 the tightest gap across all seven is 12px.
+- **The type ceiling.** At `clamp(..., 6rem)` the Malayalam greeting measured
+  **428px against a 409px column** and overflowed. Capped at 5.25rem, the widest
+  is 380px and every script fits.
+
 ### DONE: The sign-in greets you, in seven languages (2026-07-31)
 `components/Greeting.tsx` cycles "hello" above the headline through the
 languages this campus actually speaks: English, Tamil, Hindi, Telugu, Malayalam,

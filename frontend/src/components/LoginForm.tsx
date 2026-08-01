@@ -145,9 +145,13 @@ export default function LoginForm({
           Button already owns its own transform through `pressable`, and two
           tweens on one element leave it stuck at whichever ran first. */}
       <div data-enter className="mt-3">
+        {/* Solid, not outline. The greeting owns the accent on this screen now,
+            and two accent objects competing is exactly the muddle the one
+            action per screen rule exists to prevent. A filled button is also
+            simply more inviting than a hairline one. */}
         <Button
           type="submit"
-          variant="outline"
+          variant="primary"
           size="lg"
           full
           disabled={busy || !username || !password}

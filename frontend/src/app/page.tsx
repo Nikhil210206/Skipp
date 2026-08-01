@@ -11,7 +11,6 @@ import Logo, { Wordmark } from "@/components/Logo";
 import Greeting from "@/components/Greeting";
 import { useSession } from "@/context/SessionContext";
 import { playEntrance, useGsap } from "@/lib/motion";
-import { WordMask } from "@/components/ui/editorial";
 import { Spinner } from "@/components/ui";
 
 /**
@@ -96,23 +95,29 @@ export default function LoginPage() {
             <Wordmark className="text-headline text-text-1" />
           </div>
 
-          {/* The cover. It grows to take whatever height the phone has and
-              centres inside it, so a tall screen gives the type more room to
-              breathe instead of opening a dead band above the form. The old
-              layout hung the header off the top and the form off the bottom,
-              which on a 6.7 inch phone left two voids and read as an empty
-              form rather than a cover. */}
-          <header className="flex flex-1 flex-col justify-center py-12">
-            <div data-enter className="pb-4">
-              <Greeting />
+          {/* The cover. The greeting is the poster and it is set in the
+              ACCENT, which is the one thing that differs between all eighteen
+              themes, so the look somebody just chose pays off the instant they
+              land here rather than waiting for the dashboard.
+              It is also tappable: touch it and it hands over to the next
+              language early. A greeting that answers you is worth more than a
+              greeting that only performs. */}
+          <header className="flex flex-1 flex-col justify-center py-8">
+            <p
+              data-enter
+              className="text-label uppercase tracking-[0.22em] text-text-3"
+            >
+              know before you bunk
+            </p>
+
+            {/* The greeting owns the space between the eyebrow and the line
+                below it. Its box is a fixed height whatever the script, so the
+                gaps do not breathe as the languages turn. */}
+            <div data-enter className="mt-5">
+              <Greeting className="text-accent optical font-bold tracking-[-0.05em] [font-size:clamp(3.25rem,19vw,5.25rem)]" />
             </div>
-            <h1 className="text-display">
-              <WordMask text="Know before" className="block" />
-              <WordMask text="you bunk." className="block" />
-            </h1>
-            {/* Says what the thing actually is. The screen previously asked for
-                a password without once naming the product. */}
-            <p data-enter className="mt-5 max-w-[24ch] text-body text-text-2">
+
+            <p data-enter className="mt-7 max-w-[24ch] text-body leading-relaxed text-text-2">
               Your attendance, marks and timetable, in one place. Minus the
               portal.
             </p>
