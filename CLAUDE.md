@@ -1142,7 +1142,60 @@ importer, though §11 still describes it as a live Home feature. Also 16 unused
 icons, `Divider`, `IndexRow`, `Meter`, `upcomingHoliday`, `projectSkip`,
 `projectAttend`, and the three single-section fetchers.
 
-### DONE: Investigative pass, and the fixes from it (2026-08-01, latest)
+### DONE: Onboarding, third build: fixed furniture, changing contents (2026-08-01, latest)
+Two rebuilds were rejected first, and both failures are worth keeping because
+they are opposite mistakes:
+
+1. **A gradient-and-glass deck**: hero title, subtitle, feature cards, Next
+   button, four times. "Looks generic and looks like ai vibe coded." **If every
+   screen has the same silhouette it is a template**, whatever the colours do.
+2. **A no-button version driven entirely by one drag.** Rejected for the right
+   reason: "users will get confused if to pull or not". A gesture that is the
+   only way forward puts the reader in charge of something they never asked to
+   hold. **The button stays.**
+
+What works, taken from studying the reference app's structure rather than its
+look: **fixed furniture, changing contents**. Every chapter carries the same
+bottom assembly (small caps eyebrow, enormous chapter word, mark and rungs left,
+round advance right) and the space above it holds a completely different KIND of
+object each time: a fanned stack of cards in real 3D, a numbered index of rules,
+a live meter, a rack of colour pills, a closing statement. The furniture repeats
+so the deck feels like one place; the contents never repeat so it never feels
+like a template.
+
+**The room colour is the attendance** in the third chapter, interpolated live
+from the percentage. Measured across four presses: 87.5% olive, 82.3% amber,
+77.8% amber-red, 73.7% red. The arithmetic is `predict(14, 15 + skipped, 75)`,
+the app's own, so it can never quote a margin the attendance screen would
+disagree with. **The interaction is a labelled button**, not a gesture.
+
+**Two real bugs found while checking, both worth remembering:**
+- **A child cannot be more opaque than its parent.** The meter's track carried
+  `opacity: 0.26` on the wrapper, which dragged the fill down with it, so the
+  bar read as full at every value. The alpha belongs on a sibling track, never
+  on the element the fill lives inside. Same family as the GSAP-versus-CSS
+  opacity trap already in this file.
+- A fanned card stack overlapped across the very figures it was fanning, so the
+  offset has to clear the line you are meant to read.
+
+**The theme chapter offers both kinds**, because they are two different things:
+the three that rebuild the interface as named pills, then six of the fifteen
+colours as plain discs. **All eighteen at once was clumsy**, and a colour needs
+no name to be judged, so the discs carry no labels and the rest are left to the
+profile. Watch the two counts: an eyebrow reading "eighteen of them" over a
+section reading "15 of them" is two true numbers arguing on one screen.
+
+**Back is a permanent control, disabled on the first chapter rather than
+hidden.** A button that appears and disappears makes the pair jump every time
+you advance.
+
+Verified: five chapters, the word and field changing per chapter, the meter fill
+measuring 70% against a tick at 75% (it stops short, which is the whole product
+idea drawn literally), a full look and a colour each applying live
+(ink to terminal to rose), back actually rewinding a chapter, and the last
+action landing on the sign in form.
+
+### DONE: Investigative pass, and the fixes from it (2026-08-01)
 A full sweep of both halves. Typecheck, lint, every screen walked for console
 errors, tap targets measured, the pure logic exercised against edge cases, and
 the backend checked for credential leakage (**nothing logs or persists them, and

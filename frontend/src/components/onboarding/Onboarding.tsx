@@ -1,351 +1,577 @@
 "use client";
 
-import { useLayoutEffect, useRef, useState } from "react";
+import { useCallback, useLayoutEffect, useRef, useState } from "react";
 import gsap from "gsap";
-import RollingNumber from "./RollingNumber";
-import { Button } from "@/components/ui";
-import { DUR, EASE, prefersReducedMotion, useGsap } from "@/lib/motion";
+import Logo from "@/components/Logo";
+import { prefersReducedMotion } from "@/lib/motion";
+import { haptic } from "@/lib/haptics";
 import { predict } from "@/lib/predictor";
-import Logo, { Wordmark } from "@/components/Logo";
+import { setTheme, THEMES, type Theme } from "@/lib/theme";
 
 /**
- * THE OPENING.
+ * THE WAY IN.
  *
- * Not a tutorial. The first thing a student does in Skipp is the thing Skipp is
- * for: decide what to skip. So that is the opening, played on a sample week
- * before anyone has signed in.
+ * The frame is fixed and the contents are not. Every chapter carries the same
+ * furniture, a small caps eyebrow over an enormous chapter word along the
+ * bottom, the mark in one corner and the advance in the other, while the space
+ * above it holds a completely different KIND of object each time: a fanned
+ * stack of cards, a list of marks, a live meter, a rack of colours.
  *
- * Tap a class and it comes out of your attendance. The figure rolls down, the
- * bar loses ground, the count of classes you have in hand drops by one. There
- * are exactly five classes and exactly four to spare, so the last tap is the
- * one that breaks the line. Nothing on this screen explains attendance
- * percentages, margins, thresholds or recovery, and by the time the sixth tap
- * lands the student knows all four.
+ * That is the discipline. A deck where every screen has the same silhouette
+ * reads as a template no matter how good the colours are, and a deck with no
+ * repeated furniture reads as five unrelated screens. The furniture repeats;
+ * the content never does.
  *
- * The arithmetic is the app's own `predict`, on invented numbers, so this
- * screen can never quote a margin the attendance page would disagree with.
+ * **In the third chapter the room colour IS the attendance**, interpolated live
+ * from the percentage. Skipping turns it green through amber to red. Colour as
+ * data is the only reason a surface leading into an app built from hairlines is
+ * allowed this much of it.
+ *
+ * Earlier attempts, both rejected, are worth naming so they are not rebuilt: a
+ * gradient-and-glass deck of hero titles over feature cards ("looks ai vibe
+ * coded"), and a version where progress was a drag with no button, which put
+ * the reader in charge of something they had not asked to hold.
  */
 
-const ATTENDED = 17;
-const HELD = 18;
-const TARGET = 75;
+const CREAM = "#F7F3EC";
+const INK = "#0A0A0C";
 
-const WEEK = [
-  { time: "08:00", title: "Data Structures", note: "TP 605" },
-  { time: "09:00", title: "Operating Systems", note: "TP 605" },
-  { time: "10:00", title: "Computer Networks", note: "TP 402" },
-  { time: "11:50", title: "Data Structures Lab", note: "Lab 3" },
-  { time: "14:00", title: "Software Engineering", note: "TP 311" },
+type Chapter = {
+  id: "hello" | "does" | "line" | "look" | "ready";
+  eyebrow: string;
+  word: string;
+  field: string;
+  ink: string;
+};
+
+const CHAPTERS: Chapter[] = [
+  { id: "hello", eyebrow: "know before you bunk", word: "SKIPP", field: "#1B0B3B", ink: CREAM },
+  { id: "does", eyebrow: "the whole portal, minus the portal", word: "THE LOT", field: "#07302C", ink: CREAM },
+  { id: "line", eyebrow: "seventy five percent", word: "THE LINE", field: "#064E3B", ink: CREAM },
+  { id: "look", eyebrow: "three looks, fifteen colours", word: "YOUR LOOK", field: "#111A33", ink: CREAM },
+  { id: "ready", eyebrow: "that is everything", word: "LESSSGO", field: INK, ink: CREAM },
 ];
 
+/** 14 of 15 held. Three in hand, so the fourth skip is the one that crosses. */
+const ATTENDED = 14;
+const HELD = 15;
+const SAFE_FIELD = "#064E3B";
+const WATCH_FIELD = "#7A4E06";
+const RISK_FIELD = "#7A1220";
+
+/** The three that rebuild the interface, and a taste of the colours. Showing
+ *  all eighteen here was clumsy: this is a first impression, not the picker. */
+const LOOKS = THEMES.filter((t) => t.structural);
+const COLOURS = THEMES.filter((t) => !t.structural).slice(0, 6);
+const SKIN_TOTAL = THEMES.filter((t) => !t.structural).length;
+
 export default function Onboarding({ onDone }: { onDone: () => void }) {
-  const [skipped, setSkipped] = useState<number[]>([]);
-  const [flash, setFlash] = useState<{ id: number; text: string } | null>(null);
-  const leaving = useRef(false);
-  // A plain counter rather than a timestamp: it only has to be unique enough to
-  // remount the flash, and Date.now during a render is not allowed.
-  const tick = useRef(0);
-
-  const held = HELD + skipped.length;
-  const {
-    percentage: pct,
-    canSkip: margin,
-    mustAttend: recover,
-    isSafe,
-  } = predict(ATTENDED, held, TARGET);
-  const below = !isSafe;
-
+  const [c, setC] = useState(0);
+  const [skipped, setSkipped] = useState(0);
+  const [picked, setPicked] = useState<Theme | null>(null);
   const root = useRef<HTMLDivElement>(null);
-  const fill = useRef<HTMLSpanElement>(null);
-  const figure = useRef<HTMLDivElement>(null);
-  const list = useRef<HTMLUListElement>(null);
 
-  // Arrival. The rule draws, the figure rolls up from zero on its own (the
-  // digit columns start at 0), the bar chases it, then the week arrives row by
-  // row. One continuous move, about a second and a half.
-  const scope = useGsap(({ self, reduced }) => {
-    if (reduced) {
-      gsap.set(self.querySelectorAll("[data-enter], [data-row]"), { opacity: 1 });
-      return;
-    }
-    const tl = gsap.timeline({ defaults: { ease: EASE.out } });
-    tl.fromTo(
-      self.querySelectorAll("[data-enter]"),
-      { opacity: 0, y: 12 },
-      { opacity: 1, y: 0, duration: DUR.base, stagger: 0.07 },
-    ).fromTo(
-      self.querySelectorAll("[data-row]"),
-      { opacity: 0, y: 16 },
-      { opacity: 1, y: 0, duration: DUR.base, stagger: 0.055 },
-      0.5,
-    );
-  }, []);
+  const ch = CHAPTERS[c];
+  const meter = predict(ATTENDED, HELD + skipped, 75);
 
-  // The bar tracks the figure. Kept in GSAP rather than a CSS transition so it
-  // shares the app's easing and cannot fight a transform written elsewhere.
-  useLayoutEffect(() => {
-    const el = fill.current;
-    if (!el) return;
-    const to = { scaleX: Math.max(0, Math.min(1, pct / 100)) };
-    if (prefersReducedMotion()) {
-      gsap.set(el, to);
-      return;
-    }
-    gsap.to(el, { ...to, duration: 0.7, ease: EASE.emphasis, overwrite: "auto" });
-  }, [pct]);
-
-  function toggle(i: number) {
-    if (leaving.current) return;
-    const on = skipped.includes(i);
-    const next = on ? skipped.filter((x) => x !== i) : [...skipped, i];
-    const delta = predict(ATTENDED, HELD + next.length, TARGET).percentage - pct;
-    setSkipped(next);
-    setFlash({
-      id: ++tick.current,
-      text: `${delta < 0 ? "−" : "+"}${Math.abs(delta).toFixed(1)}`,
-    });
-    if (figure.current && !prefersReducedMotion()) {
-      gsap.fromTo(
-        figure.current,
-        { x: on ? 3 : -3 },
-        { x: 0, duration: 0.5, ease: "elastic.out(1, 0.45)" },
-      );
-    }
-  }
-
-  // Handing over: the week clears itself out from the bottom up, the figure
-  // rises and goes, and the sign-in takes the same black screen.
-  function handoff() {
-    if (leaving.current) return;
-    leaving.current = true;
-    if (prefersReducedMotion() || !root.current) {
-      onDone();
-      return;
-    }
-    gsap
-      .timeline({ onComplete: onDone })
-      .to(list.current?.children ?? [], {
-        opacity: 0,
-        y: -10,
-        duration: DUR.quick,
-        stagger: { each: 0.035, from: "end" },
-        ease: EASE.in,
-      })
-      .to(
-        root.current.querySelectorAll("[data-enter]"),
-        { opacity: 0, y: -14, duration: DUR.base, stagger: 0.03, ease: EASE.in },
-        0.1,
-      );
-  }
-
-  const touched = skipped.length > 0;
-
-  return (
-    <main
-      ref={root}
-      className="font-display mx-auto flex min-h-full w-full max-w-md flex-1 flex-col px-[var(--gutter)] pb-[max(22px,env(safe-area-inset-bottom))] pt-[max(40px,calc(env(safe-area-inset-top)+22px))] md:border-x md:border-line-soft"
-    >
-      <div ref={scope} className="flex flex-1 flex-col">
-        <header data-enter className="flex items-baseline justify-between">
-          <span className="flex items-center gap-2">
-          <Logo size={20} className="text-text-1" />
-          <Wordmark className="text-body text-text-1" />
-        </span>
-          <button
-            onClick={handoff}
-            className="text-callout text-text-3 transition-colors hover:text-text-1"
-          >
-            Sign in
-          </button>
-        </header>
-
-        {/* The instruction is four words and it is the only instruction. */}
-        <p data-enter className="mt-8 text-label uppercase text-text-3">
-          Tap a class to skip it
-        </p>
-
-        <div className="mt-4 flex items-end justify-between gap-4">
-          <div ref={figure} className="will-change-transform">
-            <RollingNumber
-              value={`${pct.toFixed(1)}%`}
-              className={`optical text-poster transition-colors duration-300 ${
-                below ? "text-risk" : "text-text-1"
-              }`}
-            />
-          </div>
-          <div className="pb-3">
-            {flash && <Flash key={flash.id} text={flash.text} down={below} />}
-          </div>
-        </div>
-
-        {/* The line you are arguing with, drawn where it actually falls. */}
-        <div data-enter className="bleed relative mt-5 h-px bg-line">
-          <span
-            ref={fill}
-            className={`absolute inset-0 origin-left ${below ? "bg-risk" : "bg-text-1"}`}
-          />
-          <span
-            className="absolute -top-[5px] h-[11px] w-px bg-text-3"
-            style={{ left: `${TARGET}%` }}
-          />
-          <span
-            className="tnum absolute top-2.5 text-label uppercase text-text-3"
-            style={{ left: `${TARGET}%`, transform: "translateX(-50%)" }}
-          >
-            {TARGET}
-          </span>
-        </div>
-
-        <p data-enter className="mt-8 text-body text-text-2">
-          {below ? (
-            <>
-              <span className="text-risk">Below the line.</span> Attend{" "}
-              <span className="tnum text-text-1">{recover}</span> to come back.
-            </>
-          ) : margin === 0 ? (
-            <>
-              <span className="text-text-1">No room left.</span> One more and you
-              are under.
-            </>
-          ) : (
-            <>
-              <span className="tnum text-text-1">{margin}</span> more{" "}
-              {margin === 1 ? "class" : "classes"} in hand.
-            </>
-          )}
-        </p>
-
-        <ul ref={list} className="mt-6">
-          {WEEK.map((c, i) => (
-            <Row
-              key={c.title}
-              {...c}
-              off={skipped.includes(i)}
-              onTap={() => toggle(i)}
-            />
-          ))}
-        </ul>
-
-        <div className="mt-auto pt-7">
-          {/* Held back until the first tap, and inert until then so it is not
-              a focus stop nobody can see. */}
-          <div
-            inert={!touched}
-            className={`transition-opacity duration-500 ${
-              touched ? "opacity-100" : "opacity-0"
-            }`}
-          >
-            <Button variant="outline" size="lg" full onClick={handoff}>
-              Now do it with mine
-            </Button>
-          </div>
-          <p data-enter className="mt-4 text-callout text-text-3">
-            Sample week. Yours arrives when you sign in.
-          </p>
-        </div>
-      </div>
-    </main>
-  );
-}
-
-/** One class. Skipping it strikes it through and greys it out, in place. */
-function Row({
-  time,
-  title,
-  note,
-  off,
-  onTap,
-}: {
-  time: string;
-  title: string;
-  note: string;
-  off: boolean;
-  onTap: () => void;
-}) {
-  const strike = useRef<HTMLSpanElement>(null);
+  /** Chapter three lights the room from the percentage rather than a constant. */
+  const field =
+    ch.id !== "line"
+      ? ch.field
+      : (() => {
+          const t = gsap.utils.clamp(0, 1, (93.3 - meter.percentage) / (93.3 - 73));
+          return t < 0.5
+            ? (gsap.utils.interpolate(SAFE_FIELD, WATCH_FIELD, t * 2) as string)
+            : (gsap.utils.interpolate(WATCH_FIELD, RISK_FIELD, (t - 0.5) * 2) as string);
+        })();
 
   useLayoutEffect(() => {
-    const el = strike.current;
+    const el = root.current;
     if (!el) return;
-    const to = { scaleX: off ? 1 : 0 };
-    if (prefersReducedMotion()) {
-      gsap.set(el, to);
-      return;
-    }
     gsap.to(el, {
-      ...to,
-      duration: 0.34,
-      ease: off ? EASE.emphasis : EASE.in,
+      backgroundColor: field,
+      color: ch.ink,
+      duration: prefersReducedMotion() ? 0 : 0.85,
+      ease: "power2.out",
       overwrite: "auto",
     });
-  }, [off]);
+  }, [field, ch.ink]);
+
+  // The chapter word is the only thing that moves the same way every time, so
+  // the deck has a heartbeat. Everything else arrives on its own terms.
+  useLayoutEffect(() => {
+    const el = root.current;
+    if (!el) return;
+    if (prefersReducedMotion()) {
+      gsap.set(el.querySelectorAll("[data-word-part], [data-in]"), {
+        opacity: 1,
+        y: 0,
+        yPercent: 0,
+        filter: "none",
+      });
+      return;
+    }
+    const ctx = gsap.context(() => {
+      gsap.fromTo(
+        "[data-word-part]",
+        { yPercent: 118 },
+        { yPercent: 0, duration: 1, ease: "expo.out", stagger: 0.05 },
+      );
+      gsap.fromTo(
+        `[data-chapter="${c}"] [data-in]`,
+        { opacity: 0, y: 34, filter: "blur(10px)" },
+        {
+          opacity: 1,
+          y: 0,
+          filter: "blur(0px)",
+          duration: 0.9,
+          ease: "expo.out",
+          stagger: 0.07,
+          delay: 0.12,
+          onComplete: () =>
+            gsap.set(`[data-chapter="${c}"] [data-in]`, { clearProps: "filter" }),
+        },
+      );
+    }, el);
+    return () => ctx.revert();
+  }, [c]);
+
+  const go = useCallback(
+    (n: number) => {
+      const next = gsap.utils.clamp(0, CHAPTERS.length - 1, n);
+      if (next === c) return;
+      haptic("tick");
+      setC(next);
+    },
+    [c],
+  );
+
+  const advance = () => (c === CHAPTERS.length - 1 ? finish() : go(c + 1));
+  const finish = () => {
+    haptic("commit");
+    onDone();
+  };
+
+  // Swipe is a shortcut, never the only way through: the button is the control.
+  const startX = useRef<number | null>(null);
 
   return (
-    <li>
+    <div
+      ref={root}
+      onTouchStart={(e) => {
+        startX.current = e.touches[0].clientX;
+      }}
+      onTouchEnd={(e) => {
+        if (startX.current === null) return;
+        const dx = e.changedTouches[0].clientX - startX.current;
+        if (Math.abs(dx) > 70) go(c + (dx < 0 ? 1 : -1));
+        startX.current = null;
+      }}
+      className="fixed inset-0 z-50 flex flex-col overflow-hidden"
+      style={{ background: CHAPTERS[0].field, color: CREAM }}
+    >
       <button
-        onClick={onTap}
-        aria-pressed={off}
-        className="group flex w-full items-baseline gap-4 border-b border-line-soft py-3 text-left"
+        onClick={finish}
+        className="absolute right-[var(--gutter)] top-[max(20px,env(safe-area-inset-top))] z-30 -mr-2 inline-flex min-h-11 items-center px-2 text-callout opacity-55 transition-opacity hover:opacity-100"
       >
-        <span
-          className={`tnum w-11 shrink-0 text-callout transition-colors duration-200 ${
-            off ? "text-text-3/50" : "text-text-3"
-          }`}
-        >
-          {time}
-        </span>
-        <span className="relative min-w-0 flex-1">
-          <span
-            className={`block truncate text-headline transition-colors duration-200 ${
-              off ? "text-text-3/50" : "text-text-1 group-hover:text-text-1"
-            }`}
-          >
-            {title}
-          </span>
-          <span
-            ref={strike}
-            aria-hidden
-            className="absolute left-0 top-1/2 h-px w-full origin-left bg-text-3"
-          />
-        </span>
-        <span
-          className={`shrink-0 text-callout transition-colors duration-200 ${
-            off ? "text-text-3/50" : "text-text-3"
-          }`}
-        >
-          {off ? "Skipped" : note}
-        </span>
+        Skip
       </button>
-    </li>
+
+      {/* The stage. A different kind of object every time. */}
+      <div className="relative z-10 min-h-0 flex-1">
+        {CHAPTERS.map((x, k) =>
+          k === c ? (
+            <div key={x.id} data-chapter={k} className="absolute inset-0">
+              {x.id === "hello" && <Hello />}
+              {x.id === "does" && <Does />}
+              {x.id === "line" && (
+                <TheLine
+                  meter={meter}
+                  skipped={skipped}
+                  onSkip={() => {
+                    haptic("select");
+                    setSkipped((s) => Math.min(5, s + 1));
+                  }}
+                  onReset={() => {
+                    haptic("tick");
+                    setSkipped(0);
+                  }}
+                />
+              )}
+              {x.id === "look" && (
+                <Look
+                  picked={picked}
+                  onPick={(t) => {
+                    haptic("select");
+                    setPicked(t);
+                    setTheme(t);
+                  }}
+                />
+              )}
+              {x.id === "ready" && <Ready picked={picked} />}
+            </div>
+          ) : null,
+        )}
+      </div>
+
+      {/* The furniture, identical in every chapter. */}
+      <div className="relative z-20 shrink-0 px-[var(--gutter)] pb-[max(22px,env(safe-area-inset-bottom))]">
+        <p className="text-label uppercase tracking-[0.22em] opacity-55">{ch.eyebrow}</p>
+        <h1
+          key={ch.word}
+          className="mt-2 flex overflow-hidden font-bold leading-[0.86]"
+          style={{ fontSize: "clamp(3rem, 17vw, 7rem)", letterSpacing: "-0.045em" }}
+        >
+          {ch.word.split("").map((ltr, k) => (
+            <span key={k} data-word-part className="inline-block whitespace-pre">
+              {ltr}
+            </span>
+          ))}
+        </h1>
+
+        <div className="mt-6 flex items-center justify-between gap-4">
+          <span className="flex items-center gap-3">
+            <Logo size={20} mono />
+            <Rungs count={CHAPTERS.length} active={c} onPick={go} />
+          </span>
+          <span className="flex shrink-0 items-center gap-2.5">
+            {/* Back, so a chapter can be read twice. It holds its place rather
+                than unmounting on the first chapter: a control that appears and
+                disappears makes the pair jump every time you advance. */}
+            <button
+              onClick={() => go(c - 1)}
+              disabled={c === 0}
+              aria-label="Back"
+              className="grid size-[52px] place-items-center rounded-full border transition-all duration-300 active:scale-90 disabled:pointer-events-none disabled:opacity-20"
+              style={{ borderColor: "currentColor" }}
+            >
+              <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.4" strokeLinecap="round" strokeLinejoin="round">
+                <path d="M19 12H5" />
+                <path d="M11 18l-6-6 6-6" />
+              </svg>
+            </button>
+          <button
+            onClick={advance}
+            aria-label={c === CHAPTERS.length - 1 ? "Sign in" : "Next"}
+            className="grid size-[62px] shrink-0 place-items-center rounded-full transition-transform duration-200 active:scale-90"
+            style={{ background: ch.ink, color: field }}
+          >
+            <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.4" strokeLinecap="round" strokeLinejoin="round">
+              {c === CHAPTERS.length - 1 ? (
+                <path d="M20 6L9 17l-5-5" />
+              ) : (
+                <>
+                  <path d="M5 12h14" />
+                  <path d="M13 6l6 6-6 6" />
+                </>
+              )}
+            </svg>
+          </button>
+          </span>
+        </div>
+      </div>
+    </div>
   );
 }
 
-/** The cost of the tap, thrown off the figure and gone. */
-function Flash({ text, down }: { text: string; down: boolean }) {
-  const el = useRef<HTMLSpanElement>(null);
-  useLayoutEffect(() => {
-    if (!el.current || prefersReducedMotion()) return;
-    gsap
-      .timeline()
-      .fromTo(
-        el.current,
-        { opacity: 0, y: 10 },
-        { opacity: 1, y: 0, duration: DUR.quick, ease: EASE.out },
-      )
-      .to(el.current, {
-        opacity: 0,
-        y: -12,
-        duration: DUR.base,
-        delay: 0.75,
-        ease: EASE.in,
-      });
-  }, []);
+/* ------------------------------------------------------------- chapter 1 */
+
+/** A fanned stack of the app's own surfaces, standing in real depth. */
+function Hello() {
+  const cards = [
+    { t: "97.7%", s: "every subject clear", rot: -9, x: -18, y: 18, z: 0 },
+    { t: "Day order 5", s: "Discrete Mathematics, 02:20", rot: 4, x: 14, y: 0, z: 40 },
+    { t: "41 / 60", s: "on track for B plus", rot: -3, x: -6, y: -22, z: 80 },
+  ];
   return (
-    <span
-      ref={el}
-      className={`tnum block text-title ${down ? "text-risk" : "text-text-2"}`}
-    >
-      {text}
+    <div className="flex h-full items-center justify-center px-[var(--gutter)]" style={{ perspective: 1100 }}>
+      <div className="relative h-[300px] w-full max-w-[330px]" style={{ transformStyle: "preserve-3d" }}>
+        {cards.map((k, idx) => (
+          <div
+            key={k.t}
+            data-in
+            className="absolute inset-x-0 mx-auto rounded-[22px] px-5 py-5"
+            style={{
+              top: `${idx * 86}px`,
+              background: CREAM,
+              color: INK,
+              transform: `translate3d(${k.x}px, ${k.y}px, ${k.z}px) rotate(${k.rot}deg)`,
+              boxShadow: "0 30px 60px -24px rgba(0,0,0,0.65)",
+            }}
+          >
+            <p className="tnum text-title leading-none">{k.t}</p>
+            <p className="mt-1.5 text-callout opacity-60">{k.s}</p>
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+}
+
+/* ------------------------------------------------------------- chapter 2 */
+
+/** A list that is mostly rule, so it reads as an index rather than as cards. */
+function Does() {
+  const rows = [
+    ["01", "Attendance", "and how many you can still miss"],
+    ["02", "Marks", "internals, and the grade you are on for"],
+    ["03", "Schedule", "day orders, breaks, the whole term"],
+    ["04", "Leave planner", "book days off and see the damage first"],
+  ];
+  return (
+    <div className="flex h-full flex-col justify-center px-[var(--gutter)]">
+      {rows.map(([n, t, s]) => (
+        <div key={n} data-in className="border-t py-5" style={{ borderColor: "currentColor", borderTopWidth: 1, opacity: 0.999 }}>
+          <div className="flex items-baseline gap-4">
+            <span className="tnum text-label opacity-45">{n}</span>
+            <span className="min-w-0 flex-1">
+              <span className="block text-headline">{t}</span>
+              <span className="mt-1 block text-callout opacity-60">{s}</span>
+            </span>
+          </div>
+        </div>
+      ))}
+    </div>
+  );
+}
+
+/* ------------------------------------------------------------- chapter 3 */
+
+/** The live meter. One labelled button, so nobody has to guess the gesture. */
+function TheLine({
+  meter,
+  skipped,
+  onSkip,
+  onReset,
+}: {
+  meter: ReturnType<typeof predict>;
+  skipped: number;
+  onSkip: () => void;
+  onReset: () => void;
+}) {
+  const num = useRef<HTMLSpanElement>(null);
+  useLayoutEffect(() => {
+    const n = num.current;
+    if (!n) return;
+    if (prefersReducedMotion()) {
+      n.textContent = meter.percentage.toFixed(1);
+      return;
+    }
+    const o = { v: Number(n.textContent) || 93.3 };
+    const t = gsap.to(o, {
+      v: meter.percentage,
+      duration: 0.7,
+      ease: "expo.out",
+      onUpdate: () => {
+        n.textContent = o.v.toFixed(1);
+      },
+    });
+    return () => {
+      t.kill();
+    };
+  }, [meter.percentage]);
+
+  const broken = !meter.isSafe;
+  return (
+    <div className="flex h-full flex-col justify-center px-[var(--gutter)]">
+      <div data-in className="flex items-end justify-between gap-4">
+        <span ref={num} className="tnum font-bold leading-[0.8]" style={{ fontSize: "clamp(4.5rem,24vw,9rem)", letterSpacing: "-0.05em" }}>
+          93.3
+        </span>
+        <span className="pb-3 text-right text-label uppercase tracking-[0.16em] opacity-60">
+          {broken
+            ? `attend ${meter.mustAttend} to come back`
+            : `${meter.canSkip} still in hand`}
+        </span>
+      </div>
+
+      {/* The rule and its tick: the app's own device, full bleed. */}
+      {/* The track carries its own alpha as a SIBLING, never as this element's
+          opacity: a child cannot be more opaque than its parent, so a faded
+          wrapper would drag the fill down with it and the meter would read as
+          full at every value. */}
+      <div data-in className="relative mt-6 h-[3px] w-full">
+        <span className="absolute inset-0" style={{ background: "currentColor", opacity: 0.26 }} />
+        <span
+          className="absolute inset-y-0 left-0 transition-[width] duration-700 ease-out"
+          style={{ width: `${meter.percentage}%`, background: "currentColor" }}
+        />
+        <span className="absolute" style={{ left: "75%", top: -8, width: 2, height: 19, background: "currentColor" }} />
+      </div>
+
+      <p data-in className="mt-5 max-w-[24ch] text-body leading-relaxed opacity-75">
+        {broken
+          ? "Below the line. Skipp tells you exactly how many to sit to climb back."
+          : "Skipp works out how many you can miss and still stay above it."}
+      </p>
+
+      <div data-in className="mt-7 flex flex-wrap gap-2.5">
+        <button
+          onClick={onSkip}
+          disabled={skipped >= 5}
+          className="inline-flex min-h-12 items-center rounded-full border px-5 text-body font-semibold transition-transform duration-200 active:scale-95 disabled:opacity-30"
+          style={{ borderColor: "currentColor" }}
+        >
+          Skip a class
+        </button>
+        {skipped > 0 && (
+          <button
+            onClick={onReset}
+            className="inline-flex min-h-12 items-center px-3 text-body opacity-55 transition-opacity hover:opacity-100"
+          >
+            Undo
+          </button>
+        )}
+      </div>
+    </div>
+  );
+}
+
+/* ------------------------------------------------------------- chapter 4 */
+
+/**
+ * Two kinds of theme, because they are two different things: three that rebuild
+ * the interface, and colours that only recolour it. Six of the eighteen are
+ * shown; the rest live in the profile, since a first impression is not a picker.
+ */
+function Look({ picked, onPick }: { picked: Theme | null; onPick: (t: Theme) => void }) {
+  return (
+    <div className="flex h-full flex-col justify-center gap-7 px-[var(--gutter)]">
+      <div>
+        <p data-in className="text-label uppercase tracking-[0.18em] opacity-45">
+          Full looks, rebuilds the UI
+        </p>
+        <div className="mt-3 flex flex-col gap-2.5">
+          {LOOKS.map((t) => {
+            const on = picked === t.id;
+            return (
+              <button
+                key={t.id}
+                data-in
+                onClick={() => onPick(t.id)}
+                aria-pressed={on}
+                className="flex min-h-[56px] items-center justify-between gap-4 rounded-full px-5 transition-all duration-300"
+                style={{
+                  background: on ? CREAM : "transparent",
+                  color: on ? INK : "inherit",
+                  border: `1px solid ${on ? CREAM : "currentColor"}`,
+                  opacity: on ? 1 : 0.75,
+                }}
+              >
+                <span className="min-w-0 text-left">
+                  <span className="block text-headline">{t.name}</span>
+                  <span className="block truncate text-callout opacity-60">{t.note}</span>
+                </span>
+                <span className="flex shrink-0 gap-1.5">
+                  {t.swatch.map((sw, k) => (
+                    <span key={k} className="size-3.5 rounded-full" style={{ background: sw }} />
+                  ))}
+                </span>
+              </button>
+            );
+          })}
+        </div>
+      </div>
+
+      <div>
+        <p data-in className="text-label uppercase tracking-[0.18em] opacity-45">
+          Colours, {SKIN_TOTAL} of them
+        </p>
+        {/* Discs rather than rows: a colour needs no name to be judged, and six
+            pills would have doubled the height of this chapter for no gain. */}
+        <div data-in className="mt-3.5 flex gap-3.5">
+          {COLOURS.map((t) => {
+            const on = picked === t.id;
+            return (
+              <button
+                key={t.id}
+                onClick={() => onPick(t.id)}
+                aria-pressed={on}
+                aria-label={t.name}
+                className="grid size-12 shrink-0 place-items-center rounded-full transition-transform duration-300 active:scale-90"
+                style={{
+                  border: `2px solid ${on ? CREAM : "transparent"}`,
+                  transform: on ? "scale(1.08)" : undefined,
+                }}
+              >
+                <span
+                  className="flex size-9 overflow-hidden rounded-full"
+                  style={{ opacity: on ? 1 : 0.8 }}
+                >
+                  {t.swatch.map((sw, k) => (
+                    <span key={k} className="h-full flex-1" style={{ background: sw }} />
+                  ))}
+                </span>
+              </button>
+            );
+          })}
+        </div>
+        <p data-in className="mt-4 text-callout opacity-45">
+          The rest are waiting in your profile.
+        </p>
+      </div>
+    </div>
+  );
+}
+
+/* ------------------------------------------------------------- chapter 5 */
+
+function Ready({ picked }: { picked: Theme | null }) {
+  const name = picked ? THEMES.find((t) => t.id === picked)?.name : null;
+  return (
+    <div className="flex h-full flex-col justify-center px-[var(--gutter)]">
+      <p data-in className="text-label uppercase tracking-[0.22em] opacity-55">
+        one sign in, and it is yours
+      </p>
+      <p data-in className="mt-5 max-w-[20ch] font-bold leading-[1.02]" style={{ fontSize: "clamp(2rem,10vw,3.6rem)" }}>
+        Your Net ID. Nothing else.
+      </p>
+      <p data-in className="mt-5 max-w-[28ch] text-body leading-relaxed opacity-70">
+        It goes to the SRM portal to sign you in and nowhere else. No account, no
+        server, nothing kept.
+      </p>
+      {name && (
+        <p data-in className="mt-6 text-callout opacity-55">
+          {name} is on. Change it any time in your profile.
+        </p>
+      )}
+    </div>
+  );
+}
+
+/* -------------------------------------------------------------- furniture */
+
+/** Progress as rungs, in the same language as the tick on the rule. */
+function Rungs({
+  count,
+  active,
+  onPick,
+}: {
+  count: number;
+  active: number;
+  onPick: (i: number) => void;
+}) {
+  return (
+    <span className="flex items-center gap-1.5" role="tablist" aria-label="Onboarding">
+      {Array.from({ length: count }, (_, k) => (
+        <button
+          key={k}
+          role="tab"
+          aria-selected={k === active}
+          aria-label={`Chapter ${k + 1}`}
+          onClick={() => onPick(k)}
+          className="-my-3 px-0.5 py-3"
+        >
+          <span
+            className="block h-[3px] rounded-full transition-all duration-500 ease-out"
+            style={{
+              width: k === active ? 26 : 7,
+              background: "currentColor",
+              opacity: k === active ? 1 : 0.3,
+            }}
+          />
+        </button>
+      ))}
     </span>
   );
 }
