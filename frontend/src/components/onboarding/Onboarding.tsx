@@ -7,6 +7,7 @@ import { prefersReducedMotion } from "@/lib/motion";
 import { haptic } from "@/lib/haptics";
 import { predict } from "@/lib/predictor";
 import { setTheme, THEMES, type Theme } from "@/lib/theme";
+import { useLockScroll } from "@/components/ui/Overlay";
 
 /**
  * THE WAY IN.
@@ -69,14 +70,28 @@ export default function Onboarding({ onDone }: { onDone: () => void }) {
   const [c, setC] = useState(0);
   const [skipped, setSkipped] = useState(0);
   const [picked, setPicked] = useState<Theme | null>(null);
+  /**
+   * The colours the chosen theme actually paints with, read from the live CSS
+   * variables after it is applied. Choosing a look has to CHANGE this chapter,
+   * or the student is picking blind: a swatch tells you the hues, it does not
+   * tell you what the app will feel like.
+   */
+  const [preview, setPreview] = useState<{ field: string; ink: string } | null>(null);
   const root = useRef<HTMLDivElement>(null);
+
+  // The page behind is still a scrolling document. Without this, iOS bounces
+  // it under the fixed overlay and the app's own black shows through at the
+  // bottom edge, which reads as a gap in the onboarding itself.
+  useLockScroll(true);
 
   const ch = CHAPTERS[c];
   const meter = predict(ATTENDED, HELD + skipped, 75);
 
   /** Chapter three lights the room from the percentage rather than a constant. */
   const field =
-    ch.id !== "line"
+    ch.id === "look" && preview
+      ? preview.field
+      : ch.id !== "line"
       ? ch.field
       : (() => {
           const t = gsap.utils.clamp(0, 1, (93.3 - meter.percentage) / (93.3 - 73));
@@ -85,17 +100,19 @@ export default function Onboarding({ onDone }: { onDone: () => void }) {
             : (gsap.utils.interpolate(WATCH_FIELD, RISK_FIELD, (t - 0.5) * 2) as string);
         })();
 
+  const ink = ch.id === "look" && preview ? preview.ink : ch.ink;
+
   useLayoutEffect(() => {
     const el = root.current;
     if (!el) return;
     gsap.to(el, {
       backgroundColor: field,
-      color: ch.ink,
+      color: ink,
       duration: prefersReducedMotion() ? 0 : 0.85,
       ease: "power2.out",
       overwrite: "auto",
     });
-  }, [field, ch.ink]);
+  }, [field, ink]);
 
   // The chapter word is the only thing that moves the same way every time, so
   // the deck has a heartbeat. Everything else arrives on its own terms.
@@ -200,11 +217,22 @@ export default function Onboarding({ onDone }: { onDone: () => void }) {
               )}
               {x.id === "look" && (
                 <Look
+                  field={field}
+                  ink={ink}
                   picked={picked}
                   onPick={(t) => {
                     haptic("select");
                     setPicked(t);
                     setTheme(t);
+                    // Read AFTER the attribute lands, so the variables have
+                    // resolved to the new theme rather than the old one.
+                    requestAnimationFrame(() => {
+                      const cs = getComputedStyle(document.documentElement);
+                      setPreview({
+                        field: cs.getPropertyValue("--color-ink-0").trim(),
+                        ink: cs.getPropertyValue("--color-text-1").trim(),
+                      });
+                    });
                   }}
                 />
               )}
@@ -254,7 +282,7 @@ export default function Onboarding({ onDone }: { onDone: () => void }) {
             onClick={advance}
             aria-label={c === CHAPTERS.length - 1 ? "Sign in" : "Next"}
             className="grid size-[62px] shrink-0 place-items-center rounded-full transition-transform duration-200 active:scale-90"
-            style={{ background: ch.ink, color: field }}
+            style={{ background: ink, color: field }}
           >
             <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.4" strokeLinecap="round" strokeLinejoin="round">
               {c === CHAPTERS.length - 1 ? (
@@ -434,7 +462,17 @@ function TheLine({
  * the interface, and colours that only recolour it. Six of the eighteen are
  * shown; the rest live in the profile, since a first impression is not a picker.
  */
-function Look({ picked, onPick }: { picked: Theme | null; onPick: (t: Theme) => void }) {
+function Look({
+  field,
+  ink,
+  picked,
+  onPick,
+}: {
+  field: string;
+  ink: string;
+  picked: Theme | null;
+  onPick: (t: Theme) => void;
+}) {
   return (
     <div className="flex h-full flex-col justify-center gap-7 px-[var(--gutter)]">
       <div>
@@ -451,10 +489,12 @@ function Look({ picked, onPick }: { picked: Theme | null; onPick: (t: Theme) => 
                 onClick={() => onPick(t.id)}
                 aria-pressed={on}
                 className="flex min-h-[56px] items-center justify-between gap-4 rounded-full px-5 transition-all duration-300"
+                // Inverted against whatever the theme actually paints with, so
+                // a light theme does not put cream on cream.
                 style={{
-                  background: on ? CREAM : "transparent",
-                  color: on ? INK : "inherit",
-                  border: `1px solid ${on ? CREAM : "currentColor"}`,
+                  background: on ? ink : "transparent",
+                  color: on ? field : "inherit",
+                  border: `1px solid ${on ? ink : "currentColor"}`,
                   opacity: on ? 1 : 0.75,
                 }}
               >
@@ -490,7 +530,7 @@ function Look({ picked, onPick }: { picked: Theme | null; onPick: (t: Theme) => 
                 aria-label={t.name}
                 className="grid size-12 shrink-0 place-items-center rounded-full transition-transform duration-300 active:scale-90"
                 style={{
-                  border: `2px solid ${on ? CREAM : "transparent"}`,
+                  border: `2px solid ${on ? ink : "transparent"}`,
                   transform: on ? "scale(1.08)" : undefined,
                 }}
               >

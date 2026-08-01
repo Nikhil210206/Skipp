@@ -1237,6 +1237,22 @@ no name to be judged, so the discs carry no labels and the rest are left to the
 profile. Watch the two counts: an eyebrow reading "eighteen of them" over a
 section reading "15 of them" is two true numbers arguing on one screen.
 
+**The page behind has to be pinned.** The deck is a `fixed inset-0` overlay, but
+the document under it still scrolls, and iOS bounces it into view at the bottom
+edge, so the app's own black showed through and read as a gap in the onboarding
+itself. `useLockScroll` (exported from `ui/Overlay.tsx`, which already solved
+this for sheets) holds the body with `position: fixed`, since **iOS ignores
+`overflow: hidden` on the body**. Verified the lock is released on the way out,
+which matters more than the lock: a deck that forgets to unpin leaves the whole
+app unscrollable.
+
+**Choosing a look repaints that chapter in the look's own colours**, read from
+the live CSS variables after the theme lands rather than from the swatch. A
+swatch tells you the hues; it does not tell you what the app will feel like.
+Verified: Brutal turns the chapter cream on black, Terminal near black on mint,
+Clay lavender on navy. The pills and the round advance invert against whatever
+is underneath, so a light theme never puts cream on cream.
+
 **Back is a permanent control, disabled on the first chapter rather than
 hidden.** A button that appears and disappears makes the pair jump every time
 you advance.

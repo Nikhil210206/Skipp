@@ -28,7 +28,7 @@ import { IconButton } from "./index";
  * at its current offset is what actually holds, so the scroll position has to
  * be captured and restored by hand.
  */
-function useLockScroll(active: boolean) {
+export function useLockScroll(active: boolean) {
   useEffect(() => {
     if (!active) return;
     const body = document.body;
