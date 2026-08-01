@@ -2,7 +2,9 @@
 // loads offline, with a network-first strategy (fresh when online, cached when
 // not). Data itself is cached separately (encrypted) in the app.
 
-const CACHE = "skipp-v1";
+// Bumped whenever the shipped assets must supersede what a phone already has.
+// A byte-identical sw.js is never treated as an update by the browser.
+const CACHE = "skipp-v2";
 
 self.addEventListener("install", () => self.skipWaiting());
 

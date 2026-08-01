@@ -1142,6 +1142,37 @@ importer, though §11 still describes it as a live Home feature. Also 16 unused
 icons, `Divider`, `IndexRow`, `Meter`, `upcomingHoliday`, `projectSkip`,
 `projectAttend`, and the three single-section fetchers.
 
+### DONE: An installed iOS PWA does not reload (2026-08-01)
+**The pull to refresh gesture was reported broken across four separate fixes,
+and the behaviour never changed once.** Not after the z-index fix, which alone
+should have made the indicator appear. **That pattern is not a code bug, it is a
+stale bundle**, and it should have been suspected far sooner than it was.
+
+**A home screen PWA resumed from the app switcher does not reload.** iOS
+restores the previous page instance with the old JavaScript still in memory, so
+a student can sit on a build from days ago. Every deploy was verified live and
+correct; none of them had ever executed on the phone.
+
+The service worker was not the culprit: it is network first with `skipWaiting`
+and `clients.claim`, so it does serve fresh assets. The page simply never
+re-ran.
+
+`PWARegister.tsx` now calls `registration.update()` whenever the app comes to
+the foreground and reloads on `controllerchange`, guarded so a first install
+does not flash. `CACHE` in `sw.js` is bumped to `skipp-v2`, because **a byte
+identical sw.js is never treated as an update**.
+
+**The diagnostic lesson, which is the reusable part:** when a symptom survives
+several genuinely different, individually verified fixes, stop fixing and ask
+what would have to be true for none of them to have taken effect. "Works
+everywhere I can test, unchanged on the device" is a delivery problem until
+proven otherwise.
+
+**Also live in this build:** a temporary readout behind `?pulldebug=1` that
+prints what the phone itself sees (reduced motion, standalone, scrollTop,
+whether the first touchmove was claimed and whether `defaultPrevented` held,
+badge opacity and position). Remove it once this is confirmed closed.
+
 ### DONE: iOS decides on the first touchmove (2026-07-31)
 **The gesture has to be claimed on the FIRST `touchmove`, before the axis is
 locked.** Safari decides at the start of a gesture whether the page scrolls, and
