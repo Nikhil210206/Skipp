@@ -2,13 +2,7 @@
 // Credentials are POSTed per request (the backend is stateless) over HTTPS and
 // never stored server-side. See CLAUDE.md §3.
 
-import type {
-  Attendance,
-  Credentials,
-  Marks,
-  Snapshot,
-  Timetable,
-} from "@/types";
+import type { Credentials, Snapshot } from "@/types";
 
 // Backend base URL. Prefer an explicit env (prod), else talk to the backend on
 // the SAME host the app was opened from (port 8000), so it works on the laptop
@@ -127,12 +121,6 @@ async function post<T>(path: string, creds: Credentials): Promise<T> {
   throw new PortalError(detail ?? `Something went wrong (${res.status}).`, code ?? "portal");
 }
 
-/** One login gives timetable, attendance and marks. Prefer this over the singles. */
+/** One login gives timetable, attendance and marks: the only fetch there is. */
 export const fetchSnapshot = (c: Credentials) => post<Snapshot>("/refresh", c);
 
-// Single-section endpoints (each does its own login, so use sparingly).
-export const fetchTimetable = (c: Credentials) =>
-  post<Timetable>("/timetable", c);
-export const fetchAttendance = (c: Credentials) =>
-  post<Attendance>("/attendance", c);
-export const fetchMarks = (c: Credentials) => post<Marks>("/marks", c);

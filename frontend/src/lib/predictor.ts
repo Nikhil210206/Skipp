@@ -35,22 +35,3 @@ export function predict(
   return { percentage: Math.round(pct * 100) / 100, canSkip, mustAttend, isSafe };
 }
 
-/** Projected % if you skip `skip` more classes (attend none of them). */
-export function projectSkip(
-  attended: number,
-  conducted: number,
-  skip: number,
-): number {
-  const c = conducted + skip;
-  return c > 0 ? Math.round((attended / c) * 10000) / 100 : 0;
-}
-
-/** Projected % if you attend all of the next `attend` classes. */
-export function projectAttend(
-  attended: number,
-  conducted: number,
-  attend: number,
-): number {
-  const c = conducted + attend;
-  return c > 0 ? Math.round(((attended + attend) / c) * 10000) / 100 : 0;
-}

@@ -13,6 +13,7 @@ from pydantic import BaseModel, Field
 
 import logging
 import os
+import time
 
 from core.client import (
     TimeBudgetExceeded,
@@ -106,6 +107,63 @@ def health() -> dict:
     }
 
 
+# --- Abuse limits ------------------------------------------------------------
+#
+# Every request here spends a real Zoho sign-in against a real student's daily
+# cap, so an unthrottled endpoint is not merely a load problem: anyone who knows
+# the URL can burn a stranger's access to their own attendance, and the typed
+# `user_not_found` / `wrong_password` replies make it a Net ID oracle while they
+# are at it. CORS does not help, it restrains browsers and not curl.
+#
+# This is a floor, not a fix. Fluid Compute reuses instances so the counters do
+# survive between requests, but they are per instance and reset on a cold start.
+# The real answer is a shared secret in front or a KV backed limiter; until that
+# is decided, this makes casual scripted abuse expensive without touching the
+# normal path (a student signs in far below these numbers).
+
+_RATE: dict[str, list[float]] = {}
+_PER_IP_PER_HOUR = 20
+_PER_ACCOUNT_PER_HOUR = 10
+_WINDOW = 3600.0
+
+
+def _client_ip(request: Request) -> str:
+    """The caller, as far as the platform will tell us.
+
+    `x-forwarded-for` is a chain and only the FIRST entry is the origin client;
+    taking the last would let a caller append their own and rotate it freely.
+    """
+    fwd = request.headers.get("x-forwarded-for", "")
+    if fwd:
+        return fwd.split(",")[0].strip()
+    return request.client.host if request.client else "unknown"
+
+
+def _rate_check(request: Request, username: str) -> None:
+    """Refuse when one caller, or one account, is being hammered."""
+    now = time.monotonic()
+    for key, ceiling in (
+        (f"ip:{_client_ip(request)}", _PER_IP_PER_HOUR),
+        # Lowercased so casing cannot be used to multiply the allowance.
+        (f"acct:{username.strip().lower()}", _PER_ACCOUNT_PER_HOUR),
+    ):
+        hits = [t for t in _RATE.get(key, []) if now - t < _WINDOW]
+        if len(hits) >= ceiling:
+            raise _fail(
+                429,
+                "captcha",
+                "Too many sign-in attempts. Wait a while and try again.",
+            )
+        hits.append(now)
+        _RATE[key] = hits
+
+    # Unbounded growth would be its own denial of service on a long lived
+    # instance, so drop keys nobody is using.
+    if len(_RATE) > 2048:
+        for k in [k for k, v in _RATE.items() if not v or now - v[-1] > _WINDOW]:
+            _RATE.pop(k, None)
+
+
 @app.exception_handler(TimeBudgetExceeded)
 def _slow_portal(_: Request, exc: TimeBudgetExceeded) -> JSONResponse:
     """The portal outran our wall-clock budget, so we stopped on our own terms.
@@ -154,13 +212,14 @@ def _login_or_4xx(req: LoginRequest):
 
 
 @app.post("/timetable", response_model=Timetable)
-def timetable(req: LoginRequest) -> Timetable:
+def timetable(req: LoginRequest, request: Request) -> Timetable:
     """Log in and return courses + day-order schedules + semester calendar.
 
     All three pages are fetched in one session. The day-order enrichment is
     best-effort: if the unified time table or planner can't be fetched/parsed,
     we still return the course list (empty dayOrders/calendar).
     """
+    _rate_check(request, req.username)
     session = _login_or_4xx(req)
     try:
         tt = parse_timetable(session.fetch_page(PAGE_TIMETABLE))
@@ -177,13 +236,14 @@ def timetable(req: LoginRequest) -> Timetable:
 
 
 @app.post("/refresh", response_model=Snapshot)
-def refresh(req: LoginRequest) -> Snapshot:
+def refresh(req: LoginRequest, request: Request) -> Snapshot:
     """Everything from ONE login: timetable + attendance + marks.
 
     This is the endpoint the app should use: a whole browsing session costs a
     single Zoho sign-in (which is daily-capped). Only a timetable failure is
     fatal; attendance/marks each carry their own status (ready/gated/error).
     """
+    _rate_check(request, req.username)
     session = _login_or_4xx(req)
     try:
         tt = parse_timetable(session.fetch_page(PAGE_TIMETABLE))
@@ -262,12 +322,13 @@ def _enrich_with_day_orders(session, tt: Timetable) -> None:
 
 
 @app.post("/attendance", response_model=Attendance)
-def attendance(req: LoginRequest) -> Attendance:
+def attendance(req: LoginRequest, request: Request) -> Attendance:
     """Log in and return attendance + the bunk predictor.
 
     The `My_Attendance` page is admin-gated at semester start; until it's live
     we return a clean 503. Once populated, the parser runs automatically.
     """
+    _rate_check(request, req.username)
     session = _login_or_4xx(req)
     try:
         raw = session.fetch_page(PAGE_ATTENDANCE)
@@ -283,12 +344,13 @@ def attendance(req: LoginRequest) -> Attendance:
 
 
 @app.post("/marks", response_model=Marks)
-def marks(req: LoginRequest) -> Marks:
+def marks(req: LoginRequest, request: Request) -> Marks:
     """Log in and return internal marks per subject.
 
     Marks publish onto the attendance page once assessments happen; until then
     this returns a clean 503, then works automatically.
     """
+    _rate_check(request, req.username)
     session = _login_or_4xx(req)
     try:
         raw = session.fetch_page(PAGE_MARKS)

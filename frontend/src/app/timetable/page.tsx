@@ -459,7 +459,11 @@ function Block({
           onClick={() =>
             item.isCustom ? onRemove(item.id) : onToggleOptional(item.code)
           }
-          className="mt-2 text-callout text-text-3/70 transition-colors hover:text-text-1"
+          // 44px of height, with the extra taken as negative margin so the
+          // row's rhythm is unchanged. It measured 84x18 before, which is a
+          // fiddly target on a phone and under the 44px floor this project
+          // sets for itself.
+          className="-my-3 mt-1 inline-flex min-h-11 items-center text-callout text-text-3/70 transition-colors hover:text-text-1"
         >
           {item.isCustom ? "Remove" : muted ? "Make required" : "Make optional"}
         </button>

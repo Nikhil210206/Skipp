@@ -58,22 +58,6 @@ export default function PullToRefresh({
     ok: boolean;
   } | null>(null);
   const busy = useRef(false);
-  /**
-   * TEMPORARY (2026-08-01). Every fix for this gesture has measured correct in
-   * a desktop browser and done nothing on a real iPhone, so this reports what
-   * the phone itself sees. Switched on with `?pulldebug=1`; off for everyone
-   * else. Remove once the cause is found.
-   */
-  const debug = useRef<HTMLPreElement>(null);
-  const log = useRef<Record<string, string | number | boolean>>({});
-  const say = (k: string, v: string | number | boolean) => {
-    log.current[k] = v;
-    if (debug.current) {
-      debug.current.textContent = Object.entries(log.current)
-        .map(([a, b]) => `${a}: ${b}`)
-        .join("\n");
-    }
-  };
   // Read inside the gesture without making the listeners depend on it. Written
   // in an effect rather than during render, which the React compiler rejects.
   const at = useRef(fetchedAt);
@@ -152,16 +136,7 @@ export default function PullToRefresh({
     };
 
     const onStart = (e: TouchEvent) => {
-      say("reducedMotion", reduced);
-      say("touchstart", "yes");
-      say("scrollTopAtStart", Math.round(scrollTop()));
-      say("standalone", String(
-        window.matchMedia("(display-mode: standalone)").matches ||
-          "standalone" in navigator,
-      ));
-      say("badgeExists", !!badge.current);
       if (busy.current) {
-        say("blockedBy", "busy");
         startY = null;
         return;
       }
@@ -192,11 +167,7 @@ export default function PullToRefresh({
       // and the bounce at the end of the page are untouched.
       if (dy > 0 && Math.abs(dy) >= Math.abs(dx) && scrollTop() <= 0) {
         e.preventDefault();
-        say("claimedFirstMove", "yes");
-        say("defaultPreventedHeld", e.defaultPrevented);
-        say("cancelable", e.cancelable);
       }
-      say("dy", Math.round(dy));
 
       if (!axis) {
         if (Math.abs(dx) < 8 && Math.abs(dy) < 8) return;
@@ -217,12 +188,7 @@ export default function PullToRefresh({
       e.preventDefault();
       // Resistance: the further you pull, the less it gives.
       paint(Math.min(MAX, dy * 0.52));
-      say("mode", String(mode));
-      say("pull", Math.round(pull));
       if (badge.current) {
-        say("badgeOpacity", getComputedStyle(badge.current).opacity);
-        say("badgeTransform", badge.current.style.transform || "(none)");
-        say("badgeTop", Math.round(badge.current.getBoundingClientRect().top));
       }
       // Announce the moment it becomes releasable, so the threshold is
       // discoverable by feel rather than by guessing.
@@ -373,16 +339,6 @@ export default function PullToRefresh({
       <div ref={content} className="flex flex-1 flex-col">
         {children}
       </div>
-      {/* TEMPORARY: only with ?pulldebug=1 in the URL. Remove once solved. */}
-      {typeof window !== "undefined" &&
-        window.location.search.includes("pulldebug") && (
-          <pre
-            ref={debug}
-            className="fixed inset-x-2 bottom-24 z-[60] max-h-64 overflow-auto rounded-lg bg-black/90 p-3 text-[11px] leading-snug text-lime-300"
-          >
-            pull the screen down
-          </pre>
-        )}
     </div>
   );
 }

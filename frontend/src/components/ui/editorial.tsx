@@ -75,65 +75,6 @@ export function SectionHead({
   );
 }
 
-/**
- * A content row with an index hung in the left margin. No card, no fill: the
- * rule above it does the separating.
- */
-export function IndexRow({
-  index,
-  title,
-  meta,
-  trailing,
-  dimmed = false,
-  onClick,
-  children,
-}: {
-  index?: React.ReactNode;
-  title: React.ReactNode;
-  meta?: React.ReactNode;
-  trailing?: React.ReactNode;
-  dimmed?: boolean;
-  onClick?: () => void;
-  children?: React.ReactNode;
-}) {
-  const body = (
-    <>
-      <div className="flex items-baseline gap-4">
-        {index !== undefined && (
-          <span className="tnum w-8 shrink-0 pt-1 text-label text-text-3">
-            {index}
-          </span>
-        )}
-        <div className="min-w-0 flex-1">
-          <div className="flex items-baseline justify-between gap-4">
-            <span
-              className={`min-w-0 truncate text-headline ${
-                dimmed ? "text-text-3 line-through decoration-line" : "text-text-1"
-              }`}
-            >
-              {title}
-            </span>
-            {trailing && <span className="shrink-0">{trailing}</span>}
-          </div>
-          {meta && (
-            <div className="mt-1 truncate text-callout text-text-3">{meta}</div>
-          )}
-          {children}
-        </div>
-      </div>
-    </>
-  );
-
-  const cls = `w-full py-4 text-left ${dimmed ? "opacity-60" : ""}`;
-  return onClick ? (
-    <button onClick={onClick} className={cls}>
-      {body}
-    </button>
-  ) : (
-    <div className={cls}>{body}</div>
-  );
-}
-
 /** A figure hung against a baseline: the number dominates, the unit whispers. */
 export function Amount({
   value,

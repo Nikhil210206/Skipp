@@ -94,7 +94,9 @@ export default function AppShell({
             <button
               onClick={tapMasthead}
               aria-label="Skipp"
-              className="-my-2 py-2 text-label uppercase text-text-3"
+              // The full bar height, so the signature tap target clears 44px
+              // without changing where the label sits.
+              className="-my-2 inline-flex min-h-11 items-center py-2 text-label uppercase text-text-3"
             >
               {signature ? (
                 <span className="font-signature normal-case tracking-normal text-accent">

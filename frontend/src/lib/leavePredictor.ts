@@ -56,7 +56,11 @@ export function projectAttendance(opts: {
   const dateToDO = new Map(calendar.map((d) => [d.date, d.dayOrder]));
 
   const subjects: ProjectedSubject[] = [];
-  const byKey = new Map<string, ProjectedSubject>();
+  // A list per key, not a single row. Two attendance rows can share a code and
+  // a lab-ness (the portal is free to report a course twice), and a plain Map
+  // let the second silently replace the first, so the projection landed on the
+  // wrong row and the right one never moved.
+  const byKey = new Map<string, ProjectedSubject[]>();
   for (const s of attendance.subjects) {
     const ps: ProjectedSubject = {
       code: s.code,
@@ -70,18 +74,21 @@ export function projectAttendance(opts: {
     };
     subjects.push(ps);
     const isLab = /practical|lab/i.test(s.category) || s.slot === "LAB";
-    byKey.set(keyOf(s.code, isLab), ps);
+    const k = keyOf(s.code, isLab);
+    byKey.set(k, [...(byKey.get(k) ?? []), ps]);
   }
 
   let affectedDays = 0;
-  for (const date of leaveDates) {
+  // Deduped: the same day off twice is still one day off. The picker cannot
+  // currently produce a repeat, but nothing in this function's contract says
+  // it will not, and a silent double count would overstate the damage.
+  for (const date of new Set(leaveDates)) {
     const counts = classesByKey(dayOrders, dateToDO.get(date) ?? null);
     if (counts.size === 0) continue;
     affectedDays++;
     for (const [k, n] of counts) {
-      const subj = byKey.get(k);
-      if (!subj) continue;
-      subj.conductedAfter += n; // missed, so conducted rises but attended does not
+      // missed, so conducted rises but attended does not
+      for (const subj of byKey.get(k) ?? []) subj.conductedAfter += n;
     }
   }
 

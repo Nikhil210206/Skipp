@@ -1142,6 +1142,62 @@ importer, though §11 still describes it as a live Home feature. Also 16 unused
 icons, `Divider`, `IndexRow`, `Meter`, `upcomingHoliday`, `projectSkip`,
 `projectAttend`, and the three single-section fetchers.
 
+### DONE: Investigative pass, and the fixes from it (2026-08-01, latest)
+A full sweep of both halves. Typecheck, lint, every screen walked for console
+errors, tap targets measured, the pure logic exercised against edge cases, and
+the backend checked for credential leakage (**nothing logs or persists them, and
+the HTML dump is properly gated behind `SKIPP_DEBUG_LOGIN`**).
+
+**Fixed:**
+- **There were no error boundaries at all.** A single render throw took the whole
+  app to a blank page with no way back, which matters more here than most places
+  because these screens render scraped data whose shape SRM can change without
+  warning. `app/error.tsx`, `app/global-error.tsx` and `app/not-found.tsx` now
+  exist, in the app's own voice. **Next 16 names the retry prop
+  `unstable_retry`, not `reset`** (read `node_modules/next/dist/docs`). Verified
+  with a temporary throwing route: caught, styled, both actions over 44px.
+  `global-error` is hand styled because the thing that failed may be what
+  supplies the fonts and tokens.
+- **Tap targets under the 44px floor this project sets itself**: "Make optional"
+  on Schedule measured **84x18**, the masthead signature 65x27. Both now clear
+  44px, with the extra height taken as negative margin so the row rhythm is
+  unchanged (measured: rows still 107px).
+- **`projectAttendance` double counted a repeated leave date** (verified: same
+  date twice gave conducted +2) and **silently dropped rows on a key
+  collision**, because two attendance rows sharing a code and lab-ness
+  overwrote each other in a `Map`, so the projection landed on the wrong row.
+  Dates are deduped and the map holds a list per key. Neither was reachable
+  from today's UI; both were one refactor away.
+- **`loadSeenAttendance` could return `null`.** `JSON.parse("null")` passes the
+  truthy check on the raw string, and `diffAttendance` then threw on
+  `seen[...]`, taking Home down.
+- **Dead code removed**: 12 unused icons, `Card`, `Divider`, `Meter`,
+  `IndexRow`, the three single-section fetchers (each did its own login, so
+  keeping them invited a future caller to spend three sign-ins) and
+  `projectSkip` / `projectAttend`. **`logoSvg` looked dead and is not**: it is
+  imported by `scripts/make-icons.mjs`, outside `src/`.
+- The temporary `?pulldebug` readout is gone.
+
+**Rate limiting on the backend** (`_rate_check` in `main.py`), on all four
+routes that spend a sign-in: 20/hour per IP and 10/hour per account. The
+per-account ceiling is what protects a victim from a distributed probe; the
+per-IP one closes the Net ID oracle. `x-forwarded-for` is read from the FIRST
+entry, since taking the last lets a caller append their own and rotate freely.
+Verified with the portal stubbed: refused at the 11th and 21st respectively, a
+normal student's five sign-ins all pass, a spoofed chain does not reset the
+count, and the table does not grow without bound.
+
+**This is a floor, not the fix.** Counters live in process, and Fluid Compute
+reuses instances so they do survive between requests, but they are per instance
+and reset on a cold start. The open credential proxy still wants either a
+shared secret in front or a KV backed limiter.
+
+**A mistake worth recording: the first run of the limiter test hit the real
+portal.** `TestClient` against the unmodified app means `_login_or_4xx` makes
+real network calls, and about thirty bogus sign-ins went out before the pattern
+of 429s gave it away. **Stub `_login_or_4xx` before exercising any route in
+this file.**
+
 ### DONE: An installed iOS PWA does not reload (2026-08-01)
 **The pull to refresh gesture was reported broken across four separate fixes,
 and the behaviour never changed once.** Not after the z-index fix, which alone

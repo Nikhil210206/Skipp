@@ -30,41 +30,6 @@ export function Label({
 
 // ---------- Surfaces ---------------------------------------------
 
-/**
- * The one card in the system. `flush` drops the padding for lists that
- * manage their own rows.
- */
-export function Card({
-  children,
-  className = "",
-  flush = false,
-  as: As = "div",
-  ...rest
-}: {
-  children: React.ReactNode;
-  className?: string;
-  flush?: boolean;
-  as?: "div" | "section" | "li";
-} & React.HTMLAttributes<HTMLElement>) {
-  return (
-    <As
-      className={`rounded-card border border-line-soft bg-ink-1 ${
-        flush ? "" : "p-5"
-      } ${className}`}
-      {...rest}
-    >
-      {children}
-    </As>
-  );
-}
-
-/** Full-bleed hairline used to separate rows inside a flush Card. */
-export function Divider({ inset = 0 }: { inset?: number }) {
-  return (
-    <div className="rule" style={{ marginLeft: inset, marginRight: 0 }} role="presentation" />
-  );
-}
-
 // ---------- Controls ---------------------------------------------
 
 type ButtonProps = {
@@ -220,36 +185,6 @@ export function Chip({
     >
       {children}
     </span>
-  );
-}
-
-/** Linear progress. Replaces the ring: reads faster, stacks in lists. */
-export function Meter({
-  value,
-  tone = "neutral",
-  className = "",
-}: {
-  value: number;
-  tone?: "neutral" | "safe" | "watch" | "risk";
-  className?: string;
-}) {
-  const fill = {
-    neutral: "bg-text-3",
-    safe: "bg-safe",
-    watch: "bg-watch",
-    risk: "bg-risk",
-  }[tone];
-  return (
-    <div
-      className={`h-[3px] w-full overflow-hidden rounded-full bg-ink-3 ${className}`}
-      role="presentation"
-    >
-      <div
-        data-meter
-        className={`h-full rounded-full ${fill}`}
-        style={{ width: `${Math.max(0, Math.min(100, value))}%` }}
-      />
-    </div>
   );
 }
 

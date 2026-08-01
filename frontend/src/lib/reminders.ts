@@ -55,7 +55,11 @@ const rowKey = (code: string, category: string) => `${code}::${category}`;
 export function loadSeenAttendance(reg: string): SeenAttendance {
   try {
     const raw = localStorage.getItem(seenKey(reg));
-    return raw ? (JSON.parse(raw) as SeenAttendance) : {};
+    // `JSON.parse("null")` is null, and the truthy check on the raw string does
+    // not catch it, so a corrupted entry used to hand back null and every read
+    // of `seen[...]` in diffAttendance threw, taking Home down with it.
+    const parsed = raw ? (JSON.parse(raw) as SeenAttendance | null) : null;
+    return parsed && typeof parsed === "object" ? parsed : {};
   } catch {
     return {};
   }
