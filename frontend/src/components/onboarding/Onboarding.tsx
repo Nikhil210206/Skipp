@@ -7,6 +7,8 @@ import { prefersReducedMotion } from "@/lib/motion";
 import { haptic } from "@/lib/haptics";
 import { predict } from "@/lib/predictor";
 import { setTheme, THEMES, type Theme } from "@/lib/theme";
+import { CREATOR, creatorLinks } from "@/lib/creator";
+import { IconInstagram, IconLinkedIn } from "@/components/Icons";
 import { useLockScroll } from "@/components/ui/Overlay";
 
 /**
@@ -38,7 +40,7 @@ const CREAM = "#F7F3EC";
 const INK = "#0A0A0C";
 
 type Chapter = {
-  id: "hello" | "does" | "line" | "look" | "ready";
+  id: "hello" | "does" | "line" | "look" | "who" | "ready";
   eyebrow: string;
   word: string;
   field: string;
@@ -50,6 +52,7 @@ const CHAPTERS: Chapter[] = [
   { id: "does", eyebrow: "the whole portal, minus the portal", word: "THE LOT", field: "#07302C", ink: CREAM },
   { id: "line", eyebrow: "seventy five percent", word: "THE LINE", field: "#064E3B", ink: CREAM },
   { id: "look", eyebrow: "three looks, fifteen colours", word: "YOUR LOOK", field: "#111A33", ink: CREAM },
+  { id: "who", eyebrow: "one person, a lot of evenings", word: "THE DEV", field: "#2A1033", ink: CREAM },
   { id: "ready", eyebrow: "that is everything", word: "LESSSGO", field: INK, ink: CREAM },
 ];
 
@@ -112,7 +115,27 @@ export default function Onboarding({ onDone }: { onDone: () => void }) {
       ease: "power2.out",
       overwrite: "auto",
     });
+    // The document gets the same colour. `fixed inset-0` is supposed to be the
+    // viewport, but on iOS the visible area and the layout viewport disagree,
+    // and the app's own themed background was showing as a band along the
+    // bottom edge. Painting what is behind means a gap cannot be seen even if
+    // one exists.
+    gsap.to(document.documentElement, {
+      backgroundColor: field,
+      duration: prefersReducedMotion() ? 0 : 0.85,
+      ease: "power2.out",
+      overwrite: "auto",
+    });
   }, [field, ink]);
+
+  // Handed back on the way out, or the app inherits the last chapter's colour.
+  useLayoutEffect(
+    () => () => {
+      gsap.killTweensOf(document.documentElement);
+      document.documentElement.style.removeProperty("background-color");
+    },
+    [],
+  );
 
   // The chapter word is the only thing that moves the same way every time, so
   // the deck has a heartbeat. Everything else arrives on its own terms.
@@ -185,7 +208,9 @@ export default function Onboarding({ onDone }: { onDone: () => void }) {
         startX.current = null;
       }}
       className="fixed inset-0 z-50 flex flex-col overflow-hidden"
-      style={{ background: CHAPTERS[0].field, color: CREAM }}
+      // `100dvh` as well as inset-0: the dynamic viewport unit follows the
+      // visible area on iOS, where inset alone can come up short.
+      style={{ background: CHAPTERS[0].field, color: CREAM, minHeight: "100dvh" }}
     >
       <button
         onClick={finish}
@@ -194,8 +219,10 @@ export default function Onboarding({ onDone }: { onDone: () => void }) {
         Skip
       </button>
 
-      {/* The stage. A different kind of object every time. */}
-      <div className="relative z-10 min-h-0 flex-1">
+      {/* The stage. A different kind of object every time. It clips, so a tall
+          chapter scrolls inside itself rather than spilling over the chapter
+          word and the controls below it. */}
+      <div className="relative z-10 min-h-0 flex-1 overflow-hidden">
         {CHAPTERS.map((x, k) =>
           k === c ? (
             <div key={x.id} data-chapter={k} className="absolute inset-0">
@@ -236,6 +263,7 @@ export default function Onboarding({ onDone }: { onDone: () => void }) {
                   }}
                 />
               )}
+              {x.id === "who" && <Who ink={ink} field={field} />}
               {x.id === "ready" && <Ready picked={picked} />}
             </div>
           ) : null,
@@ -458,8 +486,56 @@ function TheLine({
 /* ------------------------------------------------------------- chapter 4 */
 
 /**
+ * A real row from the app, drawn in the theme's own tokens.
+ *
+ * Swapping the page colour was not enough: Brutal, Clay and Terminal differ in
+ * **structure**, not hue, and with only a background change all three previewed
+ * as the same screen in a different colour. So this carries the actual markers
+ * the themes hook into (`data-band`, `data-surface`, `data-meter`) and inherits
+ * `--font-sans`, which is how Terminal announces itself as monospace. Brutal
+ * turns it into a bordered block on a hard offset, Clay into a soft filled
+ * card, Terminal into a drawn box.
+ *
+ * It sets its own colour and family rather than inheriting the deck's, because
+ * the whole point is that it looks like the app and not like the onboarding.
+ */
+function ThemePreview() {
+  return (
+    <div
+      className="rounded-card border border-line p-4"
+      style={{
+        background: "var(--color-ink-1)",
+        color: "var(--color-text-1)",
+        fontFamily: "var(--font-sans)",
+      }}
+    >
+      <p data-band className="text-label uppercase" style={{ color: "var(--color-text-3)" }}>
+        Attendance
+      </p>
+      <div data-surface className="mt-3">
+        <div className="flex items-baseline justify-between gap-3">
+          <span className="truncate text-headline">Computer Networks</span>
+          <span className="tnum shrink-0 text-headline">92%</span>
+        </div>
+        <div data-meter className="relative mt-2.5 h-[3px] w-full">
+          <span className="absolute inset-0" style={{ background: "var(--color-line)" }} />
+          <span
+            className="absolute inset-y-0 left-0"
+            style={{ width: "92%", background: "var(--color-accent)" }}
+          />
+          <span
+            className="absolute"
+            style={{ left: "75%", top: -5, width: 2, height: 13, background: "var(--color-text-1)" }}
+          />
+        </div>
+      </div>
+    </div>
+  );
+}
+
+/**
  * Two kinds of theme, because they are two different things: three that rebuild
- * the interface, and colours that only recolour it. Six of the eighteen are
+ * the interface, and colours that only recolour it. Six of the fifteen are
  * shown; the rest live in the profile, since a first impression is not a picker.
  */
 function Look({
@@ -474,12 +550,22 @@ function Look({
   onPick: (t: Theme) => void;
 }) {
   return (
-    <div className="flex h-full flex-col justify-center gap-7 px-[var(--gutter)]">
+    // This chapter carries the most, so it clears the header explicitly and is
+    // allowed to scroll rather than running under the Skip control on a short
+    // phone. The others are short enough to centre.
+    // Top aligned, not centred. A centred flex column that overflows pushes its
+    // own top out of reach, so the first card slid under the Skip control and
+    // could not be scrolled back to.
+    <div className="no-scrollbar flex h-full flex-col justify-start gap-5 overflow-y-auto px-[var(--gutter)] pb-4 pt-[max(76px,calc(env(safe-area-inset-top)+62px))]">
+      <div data-in>
+        <ThemePreview />
+      </div>
+
       <div>
         <p data-in className="text-label uppercase tracking-[0.18em] opacity-45">
           Full looks, rebuilds the UI
         </p>
-        <div className="mt-3 flex flex-col gap-2.5">
+        <div className="mt-2.5 flex flex-col gap-2">
           {LOOKS.map((t) => {
             const on = picked === t.id;
             return (
@@ -488,7 +574,7 @@ function Look({
                 data-in
                 onClick={() => onPick(t.id)}
                 aria-pressed={on}
-                className="flex min-h-[56px] items-center justify-between gap-4 rounded-full px-5 transition-all duration-300"
+                className="flex min-h-[48px] items-center justify-between gap-4 rounded-full px-5 transition-all duration-300"
                 // Inverted against whatever the theme actually paints with, so
                 // a light theme does not put cream on cream.
                 style={{
@@ -498,13 +584,16 @@ function Look({
                   opacity: on ? 1 : 0.75,
                 }}
               >
-                <span className="min-w-0 text-left">
-                  <span className="block text-headline">{t.name}</span>
-                  <span className="block truncate text-callout opacity-60">{t.note}</span>
+                {/* Name only. The preview above demonstrates what "hard
+                    shadows" or "soft cards" mean far better than the words
+                    do, and dropping them is what lets this chapter fit a
+                    phone without scrolling. */}
+                <span className="min-w-0 truncate text-left text-body font-semibold">
+                  {t.name}
                 </span>
                 <span className="flex shrink-0 gap-1.5">
                   {t.swatch.map((sw, k) => (
-                    <span key={k} className="size-3.5 rounded-full" style={{ background: sw }} />
+                    <span key={k} className="size-3 rounded-full" style={{ background: sw }} />
                   ))}
                 </span>
               </button>
@@ -517,9 +606,7 @@ function Look({
         <p data-in className="text-label uppercase tracking-[0.18em] opacity-45">
           Colours, {SKIN_TOTAL} of them
         </p>
-        {/* Discs rather than rows: a colour needs no name to be judged, and six
-            pills would have doubled the height of this chapter for no gain. */}
-        <div data-in className="mt-3.5 flex gap-3.5">
+        <div data-in className="mt-3 flex gap-3">
           {COLOURS.map((t) => {
             const on = picked === t.id;
             return (
@@ -528,16 +615,13 @@ function Look({
                 onClick={() => onPick(t.id)}
                 aria-pressed={on}
                 aria-label={t.name}
-                className="grid size-12 shrink-0 place-items-center rounded-full transition-transform duration-300 active:scale-90"
+                className="grid size-11 shrink-0 place-items-center rounded-full transition-transform duration-300 active:scale-90"
                 style={{
                   border: `2px solid ${on ? ink : "transparent"}`,
                   transform: on ? "scale(1.08)" : undefined,
                 }}
               >
-                <span
-                  className="flex size-9 overflow-hidden rounded-full"
-                  style={{ opacity: on ? 1 : 0.8 }}
-                >
+                <span className="flex size-8 overflow-hidden rounded-full" style={{ opacity: on ? 1 : 0.8 }}>
                   {t.swatch.map((sw, k) => (
                     <span key={k} className="h-full flex-1" style={{ background: sw }} />
                   ))}
@@ -546,15 +630,76 @@ function Look({
             );
           })}
         </div>
-        <p data-in className="mt-4 text-callout opacity-45">
-          The rest are waiting in your profile.
-        </p>
       </div>
     </div>
   );
 }
 
 /* ------------------------------------------------------------- chapter 5 */
+
+/**
+ * Who made it. Skipp is one student's evenings, not a company, and saying so
+ * plainly is worth more than a page of personality: it tells a stranger exactly
+ * how much to trust the thing they are about to hand a password to.
+ *
+ * The card is the app's own profile mark language, and the links come from
+ * `lib/creator`, so a blank URL there simply removes an icon rather than
+ * leaving a dead one.
+ */
+function Who({ ink, field }: { ink: string; field: string }) {
+  const links = creatorLinks();
+  return (
+    <div className="flex h-full flex-col justify-center gap-6 px-[var(--gutter)]">
+      <div
+        data-in
+        className="rounded-[26px] p-5"
+        style={{ background: ink, color: field }}
+      >
+        <p className="text-label uppercase tracking-[0.18em] opacity-55">
+          {CREATOR.prefix}
+        </p>
+        <p className="mt-2 text-hero font-bold leading-[1.02]">{CREATOR.name}</p>
+        <p className="mt-3 text-callout leading-relaxed opacity-70">
+          Third year CSE at SRM. Built Skipp because the portal was three taps
+          and a loading spinner away from every answer.
+        </p>
+        {links.length > 0 && (
+          <div className="mt-5 flex gap-2.5">
+            {links.map((l) => (
+              <a
+                key={l.kind}
+                href={l.url}
+                target="_blank"
+                // `noopener` alone, never `noreferrer`: with the referrer
+                // stripped LinkedIn answers with a sign-up wall instead of the
+                // profile. This still closes the window.opener hole.
+                rel="noopener"
+                aria-label={l.kind === "linkedin" ? "LinkedIn" : "Instagram"}
+                className="grid size-11 place-items-center rounded-full transition-transform duration-200 active:scale-90"
+                style={{ border: `1px solid ${field}`, opacity: 0.75 }}
+              >
+                {l.kind === "linkedin" ? <IconLinkedIn size={17} /> : <IconInstagram size={17} />}
+              </a>
+            ))}
+          </div>
+        )}
+      </div>
+
+      <div data-in>
+        <p className="text-label uppercase tracking-[0.18em] opacity-45">
+          Why it exists
+        </p>
+        <p className="mt-3 max-w-[30ch] text-body leading-relaxed opacity-80">
+          Everything here is your own data, read with your own sign in. No
+          account, no server, nothing kept. If something breaks, it breaks for me
+          too.
+        </p>
+      </div>
+    </div>
+  );
+}
+
+
 
 function Ready({ picked }: { picked: Theme | null }) {
   const name = picked ? THEMES.find((t) => t.id === picked)?.name : null;

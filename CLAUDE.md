@@ -1285,6 +1285,37 @@ Verified: Brutal turns the chapter cream on black, Terminal near black on mint,
 Clay lavender on navy. The pills and the round advance invert against whatever
 is underneath, so a light theme never puts cream on cream.
 
+**Six chapters now**, with `THE DEV` before the sign off: who made it, and that
+it is one student rather than a company. That is not vanity, it tells a stranger
+how much to trust the thing they are about to hand a password to. Links come
+from `lib/creator`, so a blank URL there removes an icon instead of leaving a
+dead one, and `rel` is `noopener` alone (never `noreferrer`, which makes
+LinkedIn answer with a sign-up wall).
+
+**The black band at the bottom on a phone.** `fixed inset-0` is meant to be the
+viewport, but on iOS the visible area and the layout viewport disagree and the
+app's own themed background showed through under the deck. Fixed by painting
+`documentElement` the same colour as the chapter and adding `min-height: 100dvh`
+on the overlay, so a gap cannot be seen even if one exists. Both are handed back
+on the way out, verified, or the app would inherit the last chapter's colour.
+
+**The theme preview had to show STRUCTURE, not hue.** Repainting the background
+was not enough: Brutal, Clay and Terminal differ in how things are built, so all
+three previewed as the same screen in a different colour, which is exactly what
+was reported. There is a real app row in the chapter now carrying the markers
+the themes hook into (`data-band`, `data-surface`, `data-meter`) and inheriting
+`--font-sans`. Measured: Ink 18px radius / 1px border / no shadow, **Brutal 0px
+/ 2px / hard 4px offset**, **Clay 26px / soft coloured shadow**, **Terminal Geist
+Mono**. The pill captions were dropped once the preview existed, since it
+demonstrates "hard shadows" better than the words do.
+
+**A centred flex column that overflows pushes its own top out of reach.** With
+the preview added, this chapter's first card slid under the Skip control and
+could not be scrolled back to. Top aligned with explicit header clearance, and
+the stage clips so nothing spills over the chapter word. Five of six chapters
+fit outright; the theme chapter needs 545px against 493px on a 693px test
+viewport and fits on a real phone, scrolling on anything shorter.
+
 **Back is a permanent control, disabled on the first chapter rather than
 hidden.** A button that appears and disappears makes the pair jump every time
 you advance.
