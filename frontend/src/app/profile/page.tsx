@@ -74,8 +74,16 @@ export default function ProfilePage() {
   return (
     <AppShell section="Profile">
       <div ref={scope} className="flex flex-1 flex-col">
-        {/* Masthead */}
-        <div data-reveal className="pb-10 pt-5">
+        {/* Masthead.
+            **Deliberately NOT a `data-reveal` target.** It is this screen's
+            poster object, and a poster that fades up after the page has already
+            slid in reads as the name lagging behind the tap, which is exactly
+            how it was reported. It is present in the first frame of the screen
+            instead, so the page turns over and your name is already on it. The
+            supporting figures and sections below still stage in, so the screen
+            arrives in order rather than all at once. Attendance's percentage is
+            excluded from the reveal for the same reason. */}
+        <div className="pb-10 pt-5">
           {/* Set as large as the longest word allows. A name is not a numeral:
               cropping it mid-word would read as breakage, not as a crop. */}
           <h1

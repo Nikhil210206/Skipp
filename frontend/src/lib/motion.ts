@@ -140,13 +140,17 @@ export function revealIn(
     gsap.set(targets, { opacity: 1, y: 0, clearProps: "transform" });
     return;
   }
+  // The spring stays; the LENGTH does not. Pushing this to `DUR.slow` for
+  // character added 200ms to the arrival of every screen, and on the profile,
+  // where the name is the whole masthead, that read as the name lagging in
+  // behind the page. Character comes from the overshoot, not from the wait.
   gsap.fromTo(
     targets,
     { opacity: 0, y },
     {
       opacity: 1,
       y: 0,
-      duration: DUR.slow,
+      duration: 0.44,
       ease: EASE.spring,
       stagger,
       delay,
@@ -278,7 +282,7 @@ export function revealRows(
         {
           opacity: 1,
           y: 0,
-          duration: DUR.slow,
+          duration: 0.52,
           ease: EASE.spring,
           scrollTrigger: { trigger: row, start: "top bottom-=40", once: true },
         },
