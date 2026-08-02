@@ -42,3 +42,52 @@ export function markIntroSeen() {
   }
   listeners.forEach((l) => l());
 }
+
+
+/* -------------------------------------------------------------------------- */
+
+/**
+ * Whether the profile has ever been opened on this device.
+ *
+ * The profile holds the themes, the display name, the data controls and sign
+ * out, and students were not finding it: the mark in the masthead read as
+ * decoration rather than as a door. An unread dot is the cheapest honest nudge,
+ * because it answers itself. It appears once, it goes away the first time the
+ * page is opened, and it never comes back.
+ */
+const PROFILE_KEY = "skipp.seen-profile";
+
+let profileListeners: (() => void)[] = [];
+
+function subscribeProfile(cb: () => void) {
+  profileListeners.push(cb);
+  return () => {
+    profileListeners = profileListeners.filter((l) => l !== cb);
+  };
+}
+
+function profileSnapshot(): boolean {
+  try {
+    return localStorage.getItem(PROFILE_KEY) === "1";
+  } catch {
+    return true;
+  }
+}
+
+// Claim "seen" on the server, so the dot cannot flash on for a student who has
+// already been. It appears on hydration for anyone who genuinely has not.
+const profileServerSnapshot = () => true;
+
+export function useSeenProfile(): boolean {
+  return useSyncExternalStore(subscribeProfile, profileSnapshot, profileServerSnapshot);
+}
+
+export function markProfileSeen() {
+  try {
+    if (localStorage.getItem(PROFILE_KEY) === "1") return;
+    localStorage.setItem(PROFILE_KEY, "1");
+  } catch {
+    /* private mode: the dot stays, which is harmless */
+  }
+  profileListeners.forEach((l) => l());
+}

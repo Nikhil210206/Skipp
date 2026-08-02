@@ -446,7 +446,43 @@ over 27. Total **1.79s**.
   gone, and `getComputedStyle().transform` of `"none"` is truthy, so it reported
   a frozen animation that was in fact running perfectly.
 
-### DONE: The profile mark is generated (2026-07-29, latest)
+### DONE: The profile mark now asks to be pressed (2026-08-02)
+Reported that students were not opening the profile at all, which hides the
+themes, the display name, the data controls and sign out.
+
+**It was an identicon, and an abstract pattern in a corner reads as
+decoration.** It is a little generated CHARACTER now, head and shoulders with
+eyes and a mouth: a face needs no explaining, it is obviously you and it is
+obviously pressable. Drawn in the **accent** on a tinted tile, so it is also the
+only coloured thing in an otherwise monochrome masthead.
+
+`faceFor()` in `lib/mark.ts` picks a top (none, tuft, sweep, cap), eyes (dots,
+arcs, wide), a mouth (smile, line, open, smirk), a few degrees of tilt and a
+collar, **each from a different slice of the hash**, so adjacent registration
+numbers do not draw near identical faces the way sequential ids otherwise
+would. 400 numbers gave 282 distinct characters, and the same number always
+gives the same one.
+
+**It blinks when you press it**: the eyes squash to 0.12 and spring back with an
+overshoot to 1.18 while the head ducks. That is the reason to press it twice,
+and a control people press twice is a control they find. The blink needs
+`transform-box: fill-box` on the eye group, since **an SVG group scales about
+the viewBox origin by default** and the eyes would fly off the face rather than
+close.
+
+Features are cut in the page colour rather than drawn in a second hue, so they
+survive at 36px where a thin stroke would vanish.
+
+**An unread dot until it has been opened once** (`useSeenProfile` in
+`lib/firstRun`, same `useSyncExternalStore` pattern as the intro flag). This is
+the right kind of nudge because **it answers itself**: it appears once, it goes
+the first time the page is opened, and it never comes back. The server snapshot
+claims "seen" so it cannot flash on for somebody who has already been.
+
+Verified: dot present on a fresh device, gone after one visit, flag persisted,
+and still gone after navigating away and back.
+
+### DONE: The profile mark is generated (2026-07-29)
 `lib/mark.ts` draws a figure from the student's **registration number**, and
 `ProfileMark` renders it as SVG. Every student gets a different mark, nobody
 chooses anything, and nothing is stored: the same number always draws the same
