@@ -9,7 +9,7 @@ import ProfileMark from "./ProfileMark";
 import InstallPrompt from "./InstallPrompt";
 import { CREATOR } from "@/lib/creator";
 import { Skeleton } from "./ui";
-import { pageIn } from "@/lib/motion";
+import { pageIn, prefersReducedMotion, revealWord } from "@/lib/motion";
 import { useSwipeNav } from "@/lib/useSwipeNav";
 
 /**
@@ -41,6 +41,13 @@ export default function AppShell({
   const taps = useRef(0);
   const timer = useRef<number | null>(null);
   const [signature, setSignature] = useState(false);
+  // Runs once per mount, which is every navigation: AppShell remounts on every
+  // route change, so this is the masthead's equivalent of the onboarding
+  // chapter word arriving fresh each time the section name changes.
+  const label = useRef<HTMLSpanElement>(null);
+  useLayoutEffect(() => {
+    revealWord(label.current, prefersReducedMotion());
+  }, []);
   function tapMasthead() {
     taps.current += 1;
     if (timer.current) window.clearTimeout(timer.current);
@@ -103,7 +110,11 @@ export default function AppShell({
                   {CREATOR.prefix} {CREATOR.name}
                 </span>
               ) : (
-                section
+                <span className="inline-block overflow-hidden pb-[0.06em] align-bottom">
+                  <span ref={label} data-word className="inline-block will-change-transform">
+                    {section}
+                  </span>
+                </span>
               )}
             </button>
             <div className="flex items-center gap-1">

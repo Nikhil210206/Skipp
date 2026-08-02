@@ -125,36 +125,48 @@ export function useGsap(
 }
 
 /**
- * The app's standard entrance: content rises and fades in, staggered in the
- * order it appears. Elements opt in with `data-reveal`.
+ * The app's standard entrance: content rises, fades and comes into focus,
+ * staggered in the order it appears. Elements opt in with `data-reveal`.
+ *
+ * The blur is borrowed straight from the onboarding deck's chapter content
+ * (`data-in`, a defocus-to-focus settle), brought over so a tab change reads
+ * as the same publication as the way in. `expo.out` rather than the spring
+ * used everywhere else in the app: a spring overshoots past its target, and
+ * blur has no "past zero" to overshoot into, so pairing the two risked a
+ * fractional negative blur radius browsers silently clamp. Opacity and y stay
+ * on the same tween as the blur so all three settle together.
  */
 export function revealIn(
   scope: HTMLElement,
   reduced: boolean,
-  opts: { selector?: string; y?: number; stagger?: number; delay?: number } = {},
+  opts: {
+    selector?: string;
+    y?: number;
+    stagger?: number;
+    delay?: number;
+    /** Off for `revealRows`: a per-row filter multiplies with row count. */
+    blur?: boolean;
+  } = {},
 ): void {
-  const { selector = "[data-reveal]", y = 22, stagger = 0.07, delay = 0 } = opts;
+  const { selector = "[data-reveal]", y = 22, stagger = 0.07, delay = 0, blur = true } = opts;
   const targets = gsap.utils.toArray<HTMLElement>(scope.querySelectorAll(selector));
   if (targets.length === 0) return;
   if (reduced) {
-    gsap.set(targets, { opacity: 1, y: 0, clearProps: "transform" });
+    gsap.set(targets, { opacity: 1, y: 0, filter: "none", clearProps: "transform,filter" });
     return;
   }
-  // The spring stays; the LENGTH does not. Pushing this to `DUR.slow` for
-  // character added 200ms to the arrival of every screen, and on the profile,
-  // where the name is the whole masthead, that read as the name lagging in
-  // behind the page. Character comes from the overshoot, not from the wait.
   gsap.fromTo(
     targets,
-    { opacity: 0, y },
+    { opacity: 0, y, filter: blur ? "blur(10px)" : "none" },
     {
       opacity: 1,
       y: 0,
-      duration: 0.44,
-      ease: EASE.spring,
+      filter: "blur(0px)",
+      duration: blur ? 0.56 : 0.44,
+      ease: blur ? EASE.emphasis : EASE.spring,
       stagger,
       delay,
-      clearProps: "transform",
+      clearProps: "transform,filter",
     },
   );
 }
@@ -464,4 +476,34 @@ export function playEntrance(
       0.44,
     );
   return tl;
+}
+
+/**
+ * One word rising out of its own clipping box. The masthead's echo of the
+ * onboarding deck's chapter word ("SKIPP", "THE LOT"), cut down from a whole
+ * headline to a single small-caps label so it can run on every navigation.
+ *
+ * Deliberately word level, not letter level, even though the onboarding
+ * chapter word IS split per letter. That split runs once per install; this
+ * one runs on every tab change, and `WordMask`'s own rule already exists for
+ * exactly this reason: "characters are showy, hurt screen readers, and need
+ * measurement." A single label is one word already, so there is nothing
+ * character-splitting would buy here beyond repeating that cost forever.
+ *
+ * Reuses the `[data-word]` convention (and its CSS start state) `playEntrance`
+ * already defines, so a caller that fails to run this still gets caught by
+ * `revealStragglers()`.
+ */
+export function revealWord(el: HTMLElement | null, reduced: boolean): void {
+  if (!el) return;
+  // No `clearProps`, deliberately, matching `playEntrance`'s own `[data-word]`
+  // tween: the CSS start state hides this element via `transform`, not
+  // opacity, so clearing the inline transform on completion would hand it
+  // straight back to the rule that hides it. The inline transform has to stay
+  // set forever, at its resolved value, for the reveal to stick.
+  if (reduced) {
+    gsap.set(el, { yPercent: 0 });
+    return;
+  }
+  gsap.fromTo(el, { yPercent: 110 }, { yPercent: 0, duration: 0.5, ease: EASE.emphasis });
 }
