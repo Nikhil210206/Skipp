@@ -116,7 +116,16 @@ export default function AppShell({
             </div>
           </div>
         </header>
-        <main ref={main} className="flex flex-1 flex-col px-[var(--gutter)] pb-10">
+        <main
+          ref={main}
+          // Permanently lifted and opaque, which is what lets a page
+          // transition work at all: the outgoing snapshot sits at z-index 1
+          // behind this, so the arriving screen genuinely covers what it
+          // replaces. Doing it per transition left a window between the new
+          // page mounting and the tween starting, and in that window the old
+          // page showed through.
+          className="relative z-[2] flex flex-1 flex-col bg-ink-0 px-[var(--gutter)] pb-10"
+        >
           {children}
         </main>
       </PullToRefresh>

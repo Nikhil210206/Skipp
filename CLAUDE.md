@@ -548,6 +548,41 @@ Verified with synthetic touches: swipe left commits, a 25px swipe springs back
 to 0, a vertical drag leaves the page at x 0 and does not navigate, and swipe
 right reverses.
 
+### DONE: The transition ghost, and why swiping felt heavy (2026-08-02, latest)
+Reported as lag, plus a precise observation worth more than any measurement I
+had taken: **"the previous page stays for some time and then fades out."**
+
+**It did, and it was a stacking bug.** The outgoing snapshot was pinned at
+`z-index: 25` while `main` was static, so the page you had just LEFT painted on
+top of the page you had just asked for, hung there at 45% opacity for the whole
+620ms, and vanished when it was removed. Every "depth" tween I had been tuning
+was happening in front of the new screen rather than behind it.
+
+`main` is now permanently `relative z-[2] bg-ink-0` and the snapshot sits at
+`z-index: 1`. **Permanently, not per transition**: doing it inside `pageIn` left
+a window between the new page mounting and the tween starting, and in those four
+frames the old page showed through. Measured after: **zero frames on three
+different changes where the old screen could show through**.
+
+**The swipe drag ran `document.querySelector` and `gsap.set` on every
+touchmove.** A DOM query plus a full property parse per frame, while a finger is
+moving. The element is resolved once per gesture now with a `quickSetter` bound
+to it, which writes straight to the element and skips the parse. At 4x CPU
+throttling the drag holds **17.9ms worst, 16.7ms median, zero frames over 32**.
+
+**Two tuning attempts that made it worse, recorded so they are not repeated:**
+- **Shortening the change to 0.46s.** The theory was that a shorter transition
+  gives a hitch less time to be noticed. It measured worse (10 dropped frames
+  against 8): the same work compressed into fewer frames drops more of them.
+- **Removing the snapshot's opacity tween** to get it off the paint path. No
+  measurable difference, so the fade stayed off on the simpler grounds that an
+  opaque snapshot covered by an opaque screen is what iOS does anyway.
+
+**What is left, honestly.** At 4x throttle a change still costs one or two
+dropped frames, and it is the arriving page MOUNTING and running its entrance,
+not the transition. No amount of tween tuning touches that; it would need the
+screens themselves to render less on arrival. At 1x there is nothing to see.
+
 ### DONE: The whole app got a spring (2026-08-02)
 Reported that the transitions and the animations generally did not feel fun.
 Asked rather than guessed, and the answer was everything: the slide, the way

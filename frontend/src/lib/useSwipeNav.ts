@@ -40,7 +40,17 @@ export function useSwipeNav(
     const index = TAB_HREFS.indexOf(pathname as (typeof TAB_HREFS)[number]);
     if (index === -1) return; // not a tab screen, so there is nothing to swipe between
 
-    const main = () => document.querySelector<HTMLElement>("main");
+    const main = () => document.querySelector<HTMLElement>("main:not([aria-hidden])");
+    /**
+     * Resolved once per gesture, with a quickSetter bound to it.
+     *
+     * The drag used to run `document.querySelector` AND `gsap.set` on **every
+     * touchmove**, which is a DOM query plus a full property parse per frame
+     * while the finger is moving. A quickSetter skips the parsing entirely and
+     * writes straight to the element, which is the whole reason it exists.
+     */
+    let dragEl: HTMLElement | null = null;
+    let setX: ((v: number) => void) | null = null;
     let startX = 0;
     let startY = 0;
     let axis: null | "x" | "y" = null;
@@ -57,6 +67,8 @@ export function useSwipeNav(
       startY = e.touches[0].clientY;
       axis = null;
       tracking = true;
+      dragEl = main();
+      setX = dragEl ? gsap.quickSetter(dragEl, "x", "px") as (v: number) => void : null;
     };
 
     const onMove = (e: TouchEvent) => {
@@ -75,7 +87,7 @@ export function useSwipeNav(
       e.preventDefault();
       if (prefersReducedMotion()) return;
       const resist = inRange(targetFor(dx)) ? FOLLOW : RUBBER;
-      gsap.set(main(), { x: dx * resist });
+      setX?.(dx * resist);
     };
 
     const onEnd = (e: TouchEvent) => {
@@ -88,14 +100,15 @@ export function useSwipeNav(
       if (Math.abs(dx) >= COMMIT && inRange(next)) {
         // Snapshot where the finger left it and navigate at once, so the
         // arriving screen picks the movement up rather than starting over.
-        captureOutgoing(main(), dx < 0 ? 1 : -1);
+        captureOutgoing(dragEl, dx < 0 ? 1 : -1);
         router.push(TAB_HREFS[next]);
         return;
       }
-      gsap.to(main(), {
+      // Springs back, matching everything else the app does on release.
+      gsap.to(dragEl, {
         x: 0,
-        duration: DUR.base,
-        ease: EASE.emphasis,
+        duration: DUR.slow,
+        ease: EASE.spring,
         overwrite: "auto",
       });
     };

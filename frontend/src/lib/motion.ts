@@ -54,6 +54,16 @@ if (typeof window !== "undefined") {
   window.setTimeout(revealStragglers, 2400);
 }
 
+/**
+ * How long a page change takes.
+ *
+ * 0.46 was tried, on the theory that a shorter transition gives a hitch less
+ * time to be noticed, and it measured WORSE: the same work compressed into
+ * fewer frames drops more of them. The cost here is the arriving screen
+ * mounting and animating, not the length of the tween.
+ */
+const PAGE = 0.62;
+
 /** Durations, in seconds (GSAP's unit). */
 export const DUR = {
   micro: 0.14,
@@ -323,7 +333,13 @@ export function captureOutgoing(el: HTMLElement | null, dir: number): void {
   clone.style.cssText =
     `position:fixed;left:${r.left}px;top:${r.top}px;` +
     `width:${r.width}px;height:${r.height}px;margin:0;` +
-    `overflow:hidden;pointer-events:none;z-index:25;` +
+    // BEHIND the arriving screen, and opaque. At z-index 25 over a static
+    // `main` the snapshot painted ON TOP of the page you had just asked for,
+    // hung there at 45% for the whole transition and then vanished when it was
+    // removed. That is the ghost that read as lag: the old screen was never
+    // leaving, it was sitting over the new one.
+    `overflow:hidden;pointer-events:none;z-index:1;` +
+    `background:var(--color-ink-0);` +
     // `contain` walls the clone off: it is a dead snapshot, so the browser
     // never needs to reflow or repaint the live page on its account.
     `transform:translateZ(0);will-change:transform,opacity;contain:layout paint;`;
@@ -360,7 +376,7 @@ export function pageIn(el: HTMLElement | null): void {
   const travel = width * dir;
   // Claim the window, so `revealRows` holds its ScrollTriggers until the
   // movement is over.
-  transitionEndsAt = performance.now() + DUR.slow * 1000;
+  transitionEndsAt = performance.now() + PAGE * 1000;
 
   if (prev) {
     prev.style.transformOrigin = "50% 42%";
@@ -368,8 +384,12 @@ export function pageIn(el: HTMLElement | null): void {
       // A third of the distance, so it falls behind rather than keeping pace.
       x: -travel * 0.32,
       scale: 0.92,
-      opacity: 0.45,
-      duration: DUR.slow,
+      // **No opacity tween.** It stays fully opaque and is simply covered by
+      // the arriving screen, the way a pushed view is on iOS. Fading it was
+      // the only part of this transition still on the paint path, and removing
+      // it is what took the dropped frames out. It is invisible by the time it
+      // is removed because the new screen is opaque and on top.
+      duration: PAGE,
       ease: EASE.emphasis,
       onComplete: () => prev.remove(),
     });
@@ -385,7 +405,7 @@ export function pageIn(el: HTMLElement | null): void {
       x: 0,
       // The spring is what makes the arrival feel like it landed rather than
       // stopped. Mild enough that text never blurs on the overshoot.
-      duration: DUR.slow,
+      duration: PAGE,
       ease: EASE.spring,
       overwrite: "auto",
     },
