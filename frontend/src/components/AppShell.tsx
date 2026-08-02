@@ -4,6 +4,7 @@ import { usePathname, useRouter } from "next/navigation";
 import { useEffect, useLayoutEffect, useRef, useState } from "react";
 import { useSession } from "@/context/SessionContext";
 import BottomNav from "./BottomNav";
+import SideNav from "./SideNav";
 import PullToRefresh from "./PullToRefresh";
 import ProfileMark from "./ProfileMark";
 import InstallPrompt from "./InstallPrompt";
@@ -81,69 +82,87 @@ export default function AppShell({
   if (!isAuthed) return null;
 
   return (
-    <div
-      ref={shell}
-      className="mx-auto flex min-h-full w-full max-w-md flex-1 flex-col md:border-x md:border-line-soft"
-    >
-      <PullToRefresh onRefresh={refresh} fetchedAt={fetchedAt}>
-        {/* The inset is padding on the wrapper, never on the bar itself: with
-            box-sizing: border-box a 59px notch inset would eat the whole 56px
-            bar and leave the content with zero height to sit in.
+    // Row past `lg`: there is no thumb to reach a bottom bar with on a
+    // laptop, so the tab bar and swipe gesture hand off to a sidebar rail.
+    // Below `lg` this is a no-op column exactly as it always was.
+    <div className="flex min-h-full flex-1 flex-col lg:flex-row">
+      <SideNav />
+      <div
+        ref={shell}
+        className="mx-auto flex min-h-full w-full max-w-md flex-1 flex-col md:border-x md:border-line-soft lg:mx-0 lg:max-w-none lg:border-0"
+      >
+        <PullToRefresh onRefresh={refresh} fetchedAt={fetchedAt}>
+          {/* The inset is padding on the wrapper, never on the bar itself: with
+              box-sizing: border-box a 59px notch inset would eat the whole 56px
+              bar and leave the content with zero height to sit in.
 
-            Sticky, so the scroll edge has something to happen against. The blur
-            has to live on this element rather than on a sibling overlay: the
-            masthead sits inside PullToRefresh's transformed wrapper, which is
-            its own stacking context, so any overlay raised above the content
-            would also cover the profile mark and stop it being tappable. */}
-        <header className="sticky top-0 z-20 shrink-0 pt-[env(safe-area-inset-top)]">
-          <ScrollEdge />
-          <div className="relative flex h-14 items-center justify-between px-[var(--gutter)]">
-            <button
-              onClick={tapMasthead}
-              aria-label="Skipp"
-              // The full bar height, so the signature tap target clears 44px
-              // without changing where the label sits.
-              className="-my-2 inline-flex min-h-11 items-center py-2 text-label uppercase text-text-3"
-            >
-              {signature ? (
-                <span className="font-signature normal-case tracking-normal text-accent">
-                  {CREATOR.prefix} {CREATOR.name}
-                </span>
-              ) : (
-                <span className="inline-block overflow-hidden pb-[0.06em] align-bottom">
-                  <span ref={label} data-word className="inline-block will-change-transform">
-                    {section}
+              Sticky, so the scroll edge has something to happen against. The blur
+              has to live on this element rather than on a sibling overlay: the
+              masthead sits inside PullToRefresh's transformed wrapper, which is
+              its own stacking context, so any overlay raised above the content
+              would also cover the profile mark and stop it being tappable. */}
+          <header className="sticky top-0 z-20 shrink-0 pt-[env(safe-area-inset-top)]">
+            <ScrollEdge />
+            <div className="relative flex h-14 items-center justify-between px-[var(--gutter)] lg:mx-auto lg:max-w-5xl">
+              <button
+                onClick={tapMasthead}
+                aria-label="Skipp"
+                // The full bar height, so the signature tap target clears 44px
+                // without changing where the label sits.
+                className="-my-2 inline-flex min-h-11 items-center py-2 text-label uppercase text-text-3"
+              >
+                {signature ? (
+                  <span className="font-signature normal-case tracking-normal text-accent">
+                    {CREATOR.prefix} {CREATOR.name}
                   </span>
+                ) : (
+                  <span className="inline-block overflow-hidden pb-[0.06em] align-bottom">
+                    <span ref={label} data-word className="inline-block will-change-transform">
+                      {section}
+                    </span>
+                  </span>
+                )}
+              </button>
+              <div className="flex items-center gap-1">
+                {action}
+                {/* The sidebar carries its own profile row past `lg`, so this
+                    would be a second way to the same place sitting right next
+                    to the first. */}
+                {pathname !== "/profile" && (
+                <span className="lg:hidden">
+                  {/* Seeded by the registration number, not the display name:
+                      the mark should be stable even when someone renames
+                      themselves. */}
+                  <ProfileMark seed={student?.registrationNumber ?? displayName} />
                 </span>
               )}
-            </button>
-            <div className="flex items-center gap-1">
-              {action}
-              {pathname !== "/profile" && (
-              // Seeded by the registration number, not the display name: the
-              // mark should be stable even when someone renames themselves.
-              <ProfileMark seed={student?.registrationNumber ?? displayName} />
-            )}
+              </div>
             </div>
-          </div>
-        </header>
-        <main
-          ref={main}
-          // Permanently lifted and opaque, which is what lets a page
-          // transition work at all: the outgoing snapshot sits at z-index 1
-          // behind this, so the arriving screen genuinely covers what it
-          // replaces. Doing it per transition left a window between the new
-          // page mounting and the tween starting, and in that window the old
-          // page showed through.
-          className="relative z-[2] flex flex-1 flex-col bg-ink-0 px-[var(--gutter)] pb-10"
-        >
-          {children}
-        </main>
-      </PullToRefresh>
-      <BottomNav />
-      {/* Asks once the student is actually in and looking at their own data,
-          which is the only moment the offer means anything. */}
-      <InstallPrompt />
+          </header>
+          <main
+            ref={main}
+            // Permanently lifted and opaque, which is what lets a page
+            // transition work at all: the outgoing snapshot sits at z-index 1
+            // behind this, so the arriving screen genuinely covers what it
+            // replaces. Doing it per transition left a window between the new
+            // page mounting and the tween starting, and in that window the old
+            // page showed through.
+            //
+            // Capped at `lg`, not left to bleed: the poster figures this app
+            // is built from (a 13rem percentage, a day-order numeral) are
+            // sized to a phone column on purpose, and stretching that column
+            // across a 1440px window would not read as "more app", it would
+            // read as the same page zoomed past its own scale.
+            className="relative z-[2] flex flex-1 flex-col bg-ink-0 px-[var(--gutter)] pb-10 lg:mx-auto lg:w-full lg:max-w-5xl"
+          >
+            {children}
+          </main>
+        </PullToRefresh>
+        <BottomNav />
+        {/* Asks once the student is actually in and looking at their own data,
+            which is the only moment the offer means anything. */}
+        <InstallPrompt />
+      </div>
     </div>
   );
 }
@@ -196,25 +215,43 @@ function ScrollEdge() {
 
 function RestoringFrame() {
   return (
-    <div
-      className="mx-auto flex min-h-full w-full max-w-md flex-1 flex-col md:border-x md:border-line-soft"
-      aria-busy="true"
-      aria-label="Loading your data"
-    >
-      <div className="pt-[env(safe-area-inset-top)]">
-        <div className="flex h-14 items-center px-[var(--gutter)]">
-          <Skeleton className="h-3 w-16" />
+    <div className="flex min-h-full flex-1 flex-col lg:flex-row">
+      {/* A placeholder of the same shape as `SideNav`, not the real thing: it
+          reads from `useSession`, which has nothing to show yet while this is
+          up. Matching the WIDTH is what matters here, so the sidebar does not
+          pop into existence and shove the content column over once the real
+          data lands. */}
+      <div
+        aria-hidden
+        className="hidden h-dvh w-64 shrink-0 flex-col gap-8 border-r border-line-soft px-5 py-6 lg:flex"
+      >
+        <Skeleton className="h-6 w-24" />
+        <div className="flex flex-col gap-3">
+          <Skeleton className="h-9 w-full" />
+          <Skeleton className="h-9 w-full" />
+          <Skeleton className="h-9 w-full" />
         </div>
       </div>
-      <div className="flex flex-1 flex-col gap-4 px-[var(--gutter)] pt-6">
-        <Skeleton className="h-4 w-28" />
-        <Skeleton className="h-20 w-3/4" />
-        <Skeleton className="mt-6 h-px w-full" />
-        <Skeleton className="h-12 w-full" />
-        <Skeleton className="h-12 w-full" />
-        <Skeleton className="h-12 w-full" />
+      <div
+        className="mx-auto flex min-h-full w-full max-w-md flex-1 flex-col md:border-x md:border-line-soft lg:mx-0 lg:max-w-none lg:border-0"
+        aria-busy="true"
+        aria-label="Loading your data"
+      >
+        <div className="pt-[env(safe-area-inset-top)]">
+          <div className="flex h-14 items-center px-[var(--gutter)] lg:mx-auto lg:max-w-5xl">
+            <Skeleton className="h-3 w-16" />
+          </div>
+        </div>
+        <div className="flex flex-1 flex-col gap-4 px-[var(--gutter)] pt-6 lg:mx-auto lg:w-full lg:max-w-5xl">
+          <Skeleton className="h-4 w-28" />
+          <Skeleton className="h-20 w-3/4" />
+          <Skeleton className="mt-6 h-px w-full" />
+          <Skeleton className="h-12 w-full" />
+          <Skeleton className="h-12 w-full" />
+          <Skeleton className="h-12 w-full" />
+        </div>
+        <BottomNav />
       </div>
-      <BottomNav />
     </div>
   );
 }

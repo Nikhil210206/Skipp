@@ -167,6 +167,38 @@ export default function ProfileMark({ seed }: { seed: string }) {
   );
 }
 
+/**
+ * The face alone, with no `<Link>` and no press animation: `ProfileMark` is
+ * a full interactive control in its own right, and `SideNav` already puts its
+ * own `<Link>` around a profile row (mark plus name), so wrapping `ProfileMark`
+ * in that would nest an anchor inside an anchor, invalid HTML that React 19
+ * flags as a hydration error. This is the same SVG, unanimated, for exactly
+ * that "already inside a link" situation.
+ */
+export function ProfileFace({ seed }: { seed: string }) {
+  const face = faceFor(seed);
+  return (
+    <span className="flex size-9 shrink-0 items-center justify-center overflow-hidden rounded-full border border-accent/35 bg-accent/12">
+      <svg viewBox={`0 0 ${FACE_BOX} ${FACE_BOX}`} aria-hidden className="size-9 text-accent">
+        <path
+          d="M2.5 25c0-5 4.2-8.4 9.5-8.4S21.5 20 21.5 25z"
+          fill="currentColor"
+          opacity={0.55}
+        />
+        {face.collar && (
+          <path d="M12 16.6l-2.1 3.1h4.2z" fill="currentColor" opacity={0.9} />
+        )}
+        <g transform={`rotate(${face.tilt} 12 11)`}>
+          <circle cx="12" cy="9.6" r="5.9" fill="currentColor" />
+          <Top variant={face.top} />
+          <Eyes variant={face.eyes} />
+          <Mouth variant={face.mouth} />
+        </g>
+      </svg>
+    </span>
+  );
+}
+
 /* -------------------------------------------------------------------------- */
 
 /** Features are cut out in the page colour rather than drawn in a second hue. */

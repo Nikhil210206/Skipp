@@ -119,7 +119,9 @@ export default function BottomNav() {
       ref={nav}
       data-nav
       aria-label="Primary"
-      className="sticky bottom-0 z-30 bg-ink-0/90 backdrop-blur-2xl"
+      // SideNav takes over past `lg`, where there is a rail instead of a thumb
+      // to reach the bottom of the screen with.
+      className="sticky bottom-0 z-30 bg-ink-0/90 backdrop-blur-2xl lg:hidden"
     >
       <div className="rule" />
       <ul
