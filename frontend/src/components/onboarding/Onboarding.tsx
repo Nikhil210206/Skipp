@@ -81,6 +81,7 @@ export default function Onboarding({ onDone }: { onDone: () => void }) {
    */
   const [preview, setPreview] = useState<{ field: string; ink: string } | null>(null);
   const root = useRef<HTMLDivElement>(null);
+  const word = useRef<HTMLHeadingElement>(null);
 
   // The page behind is still a scrolling document. Without this, iOS bounces
   // it under the fixed overlay and the app's own black shows through at the
@@ -115,17 +116,24 @@ export default function Onboarding({ onDone }: { onDone: () => void }) {
       ease: "power2.out",
       overwrite: "auto",
     });
-    // The document gets the same colour. `fixed inset-0` is supposed to be the
-    // viewport, but on iOS the visible area and the layout viewport disagree,
-    // and the app's own themed background was showing as a band along the
-    // bottom edge. Painting what is behind means a gap cannot be seen even if
-    // one exists.
+    // The document gets the same colour, in case the overlay ever comes up
+    // short of the viewport.
     gsap.to(document.documentElement, {
       backgroundColor: field,
       duration: prefersReducedMotion() ? 0 : 0.85,
       ease: "power2.out",
       overwrite: "auto",
     });
+
+    // **And the status bar meta, which is what the band at the bottom actually
+    // was.** In a standalone PWA iOS paints the area around the web view from
+    // `theme-color`, not from the page, so it kept showing the app's theme
+    // (black on Ink, cream on Sand) while the deck was a different colour
+    // entirely. No amount of covering the viewport fixes that, because it is
+    // not the viewport.
+    document
+      .querySelector('meta[name="theme-color"]')
+      ?.setAttribute("content", field);
   }, [field, ink]);
 
   // Handed back on the way out, or the app inherits the last chapter's colour.
@@ -133,6 +141,10 @@ export default function Onboarding({ onDone }: { onDone: () => void }) {
     () => () => {
       gsap.killTweensOf(document.documentElement);
       document.documentElement.style.removeProperty("background-color");
+      // Re-applying the theme is what restores the status bar, since that is
+      // the only place that knows each theme's bar colour.
+      const stored = document.documentElement.dataset.theme as Theme | undefined;
+      if (stored) setTheme(stored);
     },
     [],
   );
@@ -174,6 +186,32 @@ export default function Onboarding({ onDone }: { onDone: () => void }) {
       );
     }, el);
     return () => ctx.revert();
+  }, [c]);
+
+  // The chapter word is set as large as it can be WITHOUT overflowing its
+  // column, measured rather than guessed. "YOUR LOOK" is nine characters and ran
+  // 8px past the gutter here and further on a narrower phone, which is what put
+  // it under the controls in the corner. A fixed clamp cannot know how long the
+  // next word will be; this can.
+  useLayoutEffect(() => {
+    const h = word.current;
+    const box = h?.parentElement;
+    if (!h || !box) return;
+    // Cleared back to the class clamp, never to nothing: the size lives in the
+    // className precisely so this line cannot delete it.
+    h.style.fontSize = "";
+    const pad = parseFloat(getComputedStyle(box).paddingLeft) || 0;
+    const avail = box.clientWidth - pad * 2;
+    // `scrollWidth` is useless on an overflow-hidden flex row, it reports the
+    // clipped width. The letters know how wide they really are.
+    const natural = [...h.querySelectorAll("span")].reduce(
+      (a, sp) => a + sp.getBoundingClientRect().width,
+      0,
+    );
+    if (natural > avail && avail > 0) {
+      const base = parseFloat(getComputedStyle(h).fontSize);
+      h.style.fontSize = `${Math.floor(base * (avail / natural))}px`;
+    }
   }, [c]);
 
   const go = useCallback(
@@ -274,9 +312,10 @@ export default function Onboarding({ onDone }: { onDone: () => void }) {
       <div className="relative z-20 shrink-0 px-[var(--gutter)] pb-[max(22px,env(safe-area-inset-bottom))]">
         <p className="text-label uppercase tracking-[0.22em] opacity-55">{ch.eyebrow}</p>
         <h1
+          ref={word}
           key={ch.word}
-          className="mt-2 flex overflow-hidden font-bold leading-[0.86]"
-          style={{ fontSize: "clamp(3rem, 17vw, 7rem)", letterSpacing: "-0.045em" }}
+          className="mt-2 flex overflow-hidden font-bold leading-[0.86] [font-size:clamp(3rem,17vw,7rem)]"
+          style={{ letterSpacing: "-0.045em" }}
         >
           {ch.word.split("").map((ltr, k) => (
             <span key={k} data-word-part className="inline-block whitespace-pre">
@@ -556,7 +595,7 @@ function Look({
     // Top aligned, not centred. A centred flex column that overflows pushes its
     // own top out of reach, so the first card slid under the Skip control and
     // could not be scrolled back to.
-    <div className="no-scrollbar flex h-full flex-col justify-start gap-5 overflow-y-auto px-[var(--gutter)] pb-4 pt-[max(76px,calc(env(safe-area-inset-top)+62px))]">
+    <div className="no-scrollbar flex h-full flex-col justify-start gap-3.5 overflow-y-auto px-[var(--gutter)] pb-1 pt-[max(68px,calc(env(safe-area-inset-top)+56px))]">
       <div data-in>
         <ThemePreview />
       </div>
@@ -565,7 +604,7 @@ function Look({
         <p data-in className="text-label uppercase tracking-[0.18em] opacity-45">
           Full looks, rebuilds the UI
         </p>
-        <div className="mt-2.5 flex flex-col gap-2">
+        <div className="mt-2 flex flex-col gap-1.5">
           {LOOKS.map((t) => {
             const on = picked === t.id;
             return (
@@ -574,7 +613,7 @@ function Look({
                 data-in
                 onClick={() => onPick(t.id)}
                 aria-pressed={on}
-                className="flex min-h-[48px] items-center justify-between gap-4 rounded-full px-5 transition-all duration-300"
+                className="flex min-h-[44px] items-center justify-between gap-4 rounded-full px-5 transition-all duration-300"
                 // Inverted against whatever the theme actually paints with, so
                 // a light theme does not put cream on cream.
                 style={{

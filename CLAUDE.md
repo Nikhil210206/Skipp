@@ -1292,12 +1292,15 @@ from `lib/creator`, so a blank URL there removes an icon instead of leaving a
 dead one, and `rel` is `noopener` alone (never `noreferrer`, which makes
 LinkedIn answer with a sign-up wall).
 
-**The black band at the bottom on a phone.** `fixed inset-0` is meant to be the
-viewport, but on iOS the visible area and the layout viewport disagree and the
-app's own themed background showed through under the deck. Fixed by painting
-`documentElement` the same colour as the chapter and adding `min-height: 100dvh`
-on the overlay, so a gap cannot be seen even if one exists. Both are handed back
-on the way out, verified, or the app would inherit the last chapter's colour.
+**The black band at the bottom was the `theme-color` meta, not a gap.** In a
+standalone PWA **iOS paints the area around the web view from `theme-color`**,
+so it kept showing the app's theme (black on Ink, cream on Sand) while the deck
+was a different colour entirely. **No amount of covering the viewport fixes
+that, because it is not the viewport**, which is why painting
+`documentElement` and adding `min-height: 100dvh` changed nothing. The meta is
+now set to the chapter colour and restored by re-applying the theme on the way
+out (the only place that knows each theme's bar colour). The clue was that the
+band matched the THEME rather than anything on screen.
 
 **The theme preview had to show STRUCTURE, not hue.** Repainting the background
 was not enough: Brutal, Clay and Terminal differ in how things are built, so all
@@ -1312,9 +1315,21 @@ demonstrates "hard shadows" better than the words do.
 **A centred flex column that overflows pushes its own top out of reach.** With
 the preview added, this chapter's first card slid under the Skip control and
 could not be scrolled back to. Top aligned with explicit header clearance, and
-the stage clips so nothing spills over the chapter word. Five of six chapters
-fit outright; the theme chapter needs 545px against 493px on a 693px test
-viewport and fits on a real phone, scrolling on anything shorter.
+the stage clips so nothing spills over the chapter word. The chapter was then
+measured 37px over on the shortest viewport and trimmed by exactly that, from
+padding, gaps and pill height rather than from the preview. All six now fit with
+nothing spilling.
+
+**The chapter word is fitted by measurement, not by a clamp.** "YOUR LOOK" is
+nine characters and ran past the gutter into the controls in the corner. A fixed
+clamp cannot know how long the next word is, so the word is measured and shrunk
+only if it needs it: everything stays at 85px, "YOUR LOOK" drops to 83px.
+
+Two traps in writing that fit: **`scrollWidth` is useless on an overflow-hidden
+flex row** (it reports the clipped width, so nothing ever looked too wide), and
+clearing an inline `font-size` deletes the size entirely if the clamp lives in
+the style attribute. The clamp belongs in the class so the inline value is free
+to be overwritten and cleared.
 
 **Back is a permanent control, disabled on the first chapter rather than
 hidden.** A button that appears and disappears makes the pair jump every time
