@@ -107,13 +107,11 @@ export default function BottomNav() {
     }
     const duration = animate ? DUR.base : 0;
 
-    gsap.to(marker, {
-      x: to.x + to.width / 2,
-      opacity: 1,
-      duration,
-      ease: EASE.emphasis,
-    });
-    gsap.to(block, { ...to, opacity: 1, duration, ease: EASE.emphasis });
+    // The selection springs into its new tab rather than easing to a stop, so
+    // the bar has the same character as everything the tabs lead to.
+    const ease = animate ? EASE.spring : EASE.emphasis;
+    gsap.to(marker, { x: to.x + to.width / 2, opacity: 1, duration, ease });
+    gsap.to(block, { ...to, opacity: 1, duration, ease });
   }, [pathname]);
 
   return (

@@ -548,6 +548,49 @@ Verified with synthetic touches: swipe left commits, a 25px swipe springs back
 to 0, a vertical drag leaves the page at x 0 and does not navigate, and swipe
 right reverses.
 
+### DONE: The whole app got a spring (2026-08-02)
+Reported that the transitions and the animations generally did not feel fun.
+Asked rather than guessed, and the answer was everything: the slide, the way
+content lands, taps, and the small stuff. Character chosen: **springy and
+playful**, with the leaving screen dropping back.
+
+**`EASE.spring` (`back.out(1.7)`) and `EASE.pop` (`back.out(3)`)** are the new
+vocabulary. Overshoot and settle is the difference between an app that moves and
+one that enjoys being used, and they are deliberately mild: a nudge past the
+target, not a cartoon.
+
+**The transition has depth now.** The leaver scales to 0.92, dims to 0.45 and
+travels only a THIRD of the distance while the new screen comes the whole way
+over it on a spring. **Two things travelling different distances is what the eye
+reads as depth**, and it costs nothing extra.
+
+**Only the snapshot scales.** Scaling the arriving screen too was built and
+measured, and it cost a frame or two per change: that is LIVE content, so every
+step re-rasterises real text, where the leaver is a dead snapshot that rasters
+once.
+
+**Counters must NOT spring.** `back` overshoots past its target, so an
+attendance percentage would visibly tick above the real number and come back.
+`countTo` keeps `expo.out` for exactly that reason.
+
+**Presses were 0.972, which is invisible.** That is why every control felt
+inert. Down is now 0.94 on a fast flat curve, and the release springs past 1 and
+settles: **the overshoot on the way back is the part that reads as physical.**
+Haptics fire on press too (Android only, as ever).
+
+**The blanket entrance deferral from the day before is reverted.** Holding the
+whole entrance until the slide finished fixed the jank and made every arrival
+feel dead, the screen gliding in and then sitting there before anything moved.
+**Only `revealRows`' ScrollTrigger creation waits now**, since that is the part
+that measures the document and costs the frames, while `revealIn` lands on time.
+
+**The cost, honestly.** At 4x CPU throttling the worst frame is 42.5ms with
+about one dropped frame per change, against 28.7ms and none for the old flat
+translate-only slide. That is the price of the springs and the depth, and it is
+a deliberate trade rather than an oversight. If it ever reads as stutter on a
+real device, the first thing to try is dropping the leaver's opacity tween,
+which is the only part still touching the paint path.
+
 ### DONE: The swipe was never the slow part (2026-08-01)
 Reported as laggy and buggy. **Traced rather than guessed, and the transform was
 innocent.** One tab change showed **56ms of forced reflow, 51ms of it inside

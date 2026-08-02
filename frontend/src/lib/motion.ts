@@ -7,6 +7,7 @@
 import { useLayoutEffect, useRef, type RefObject } from "react";
 import gsap from "gsap";
 import { ScrollTrigger } from "gsap/ScrollTrigger";
+import { haptic } from "./haptics";
 
 if (typeof window !== "undefined") gsap.registerPlugin(ScrollTrigger);
 
@@ -61,12 +62,23 @@ export const DUR = {
   slow: 0.62,
 } as const;
 
-/** Easing vocabulary. Out for entrances, inOut for moves, in for exits. */
+/**
+ * Easing vocabulary. Out for entrances, inOut for moves, in for exits, and the
+ * two springs for anything that should feel alive.
+ *
+ * The springs overshoot and settle, which is the difference between an app that
+ * moves and an app that feels like it enjoys being used. They are deliberately
+ * mild: `back.out(1.7)` is a nudge past the target, not a cartoon.
+ */
 export const EASE = {
   out: "power3.out",
   emphasis: "expo.out",
   inOut: "power2.inOut",
   in: "power2.in",
+  /** Arrivals: content settling into place. */
+  spring: "back.out(1.7)",
+  /** Controls: a quick pop, tighter and slightly cheekier. */
+  pop: "back.out(3)",
 } as const;
 
 export function prefersReducedMotion(): boolean {
@@ -90,31 +102,13 @@ export function useGsap(
     if (!self) return;
     const reduced = prefersReducedMotion();
 
-    // **Never build an entrance while a page is still sliding.**
-    //
-    // Setting up the reveals means GSAP and ScrollTrigger reading computed
-    // styles for every target, and a trace of one tab change measured 56ms of
-    // forced reflow with 51ms of it inside `_getComputedProperty`. That is
-    // three dropped frames on a desktop and far worse on a phone, landing
-    // exactly on top of the transform that is supposed to be gliding. It reads
-    // as a stuttering swipe, and the swipe was never the problem.
-    //
-    // Deferred until the transition has finished, the measuring happens on a
-    // still screen and the slide keeps the compositor to itself.
-    let ctx: gsap.Context | null = null;
-    let timer = 0;
-    const build = () => {
-      if (!scope.current) return;
-      ctx = gsap.context(() => fn({ self, reduced }), self);
-    };
-    const wait = Math.max(0, transitionEndsAt - performance.now());
-    if (wait > 0) timer = window.setTimeout(build, wait);
-    else build();
-
-    return () => {
-      if (timer) window.clearTimeout(timer);
-      ctx?.revert();
-    };
+    // Built immediately. Deferring the WHOLE entrance until the slide finished
+    // was tried and it made every arrival feel dead: the screen glided in and
+    // then sat there before anything moved. Only the ScrollTrigger creation
+    // inside `revealRows` waits now, because that is the part that measures the
+    // document and costs the frames.
+    const ctx = gsap.context(() => fn({ self, reduced }), self);
+    return () => ctx.revert();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, deps);
   return scope;
@@ -129,7 +123,7 @@ export function revealIn(
   reduced: boolean,
   opts: { selector?: string; y?: number; stagger?: number; delay?: number } = {},
 ): void {
-  const { selector = "[data-reveal]", y = 14, stagger = 0.055, delay = 0 } = opts;
+  const { selector = "[data-reveal]", y = 22, stagger = 0.07, delay = 0 } = opts;
   const targets = gsap.utils.toArray<HTMLElement>(scope.querySelectorAll(selector));
   if (targets.length === 0) return;
   if (reduced) {
@@ -142,8 +136,8 @@ export function revealIn(
     {
       opacity: 1,
       y: 0,
-      duration: DUR.base,
-      ease: EASE.out,
+      duration: DUR.slow,
+      ease: EASE.spring,
       stagger,
       delay,
       clearProps: "transform",
@@ -168,6 +162,9 @@ export function countTo(
   const obj = { n: 0 };
   gsap.to(obj, {
     n: value,
+    // Counters must NOT spring: `back` overshoots past the value, so a
+    // percentage would visibly tick above the real number and come back.
+    // Wrong in a way nobody would forgive on an attendance figure.
     duration: DUR.slow,
     ease: EASE.emphasis,
     onUpdate: () => {
@@ -184,16 +181,24 @@ export function countTo(
  */
 export function pressable(el: HTMLElement | null): () => void {
   if (!el || prefersReducedMotion()) return () => {};
-  const to = (scale: number) =>
-    gsap.to(el, { scale, duration: DUR.micro, ease: EASE.out, overwrite: "auto" });
-  const down = () => to(0.972);
-  const up = () => to(1);
-  el.addEventListener("pointerdown", down);
+  // Down is fast and flat, release springs past 1 and settles. A control that
+  // only shrinks feels like a picture of a button; the overshoot on the way
+  // back is the part that reads as physical. 0.972 was too small to see at all,
+  // which is why every tap in the app felt inert.
+  const down = () =>
+    gsap.to(el, { scale: 0.94, duration: 0.09, ease: EASE.in, overwrite: "auto" });
+  const up = () =>
+    gsap.to(el, { scale: 1, duration: 0.5, ease: EASE.pop, overwrite: "auto" });
+  const press = () => {
+    haptic("tick");
+    down();
+  };
+  el.addEventListener("pointerdown", press);
   el.addEventListener("pointerup", up);
   el.addEventListener("pointerleave", up);
   el.addEventListener("pointercancel", up);
   return () => {
-    el.removeEventListener("pointerdown", down);
+    el.removeEventListener("pointerdown", press);
     el.removeEventListener("pointerup", up);
     el.removeEventListener("pointerleave", up);
     el.removeEventListener("pointercancel", up);
@@ -250,19 +255,29 @@ export function revealRows(
     gsap.set(rows, { opacity: 1, y: 0 });
     return;
   }
-  rows.forEach((row) => {
-    gsap.fromTo(
-      row,
-      { opacity: 0, y: 16 },
-      {
-        opacity: 1,
-        y: 0,
-        duration: DUR.base,
-        ease: EASE.out,
-        scrollTrigger: { trigger: row, start: "top bottom-=40", once: true },
-      },
-    );
-  });
+  // Only THIS is deferred, not the whole entrance. Creating a ScrollTrigger per
+  // row measures the document, and a trace put 51ms of forced reflow inside
+  // GSAP's computed-style reads during a page change. Holding just the triggers
+  // keeps the frames clear while `revealIn` still lands on time, so the screen
+  // never looks dead while it arrives.
+  const build = () => {
+    rows.forEach((row) => {
+      gsap.fromTo(
+        row,
+        { opacity: 0, y: 20 },
+        {
+          opacity: 1,
+          y: 0,
+          duration: DUR.slow,
+          ease: EASE.spring,
+          scrollTrigger: { trigger: row, start: "top bottom-=40", once: true },
+        },
+      );
+    });
+  };
+  const wait = Math.max(0, transitionEndsAt - performance.now());
+  if (wait > 0) window.setTimeout(build, wait);
+  else build();
 }
 
 /**
@@ -311,16 +326,23 @@ export function captureOutgoing(el: HTMLElement | null, dir: number): void {
     `overflow:hidden;pointer-events:none;z-index:25;` +
     // `contain` walls the clone off: it is a dead snapshot, so the browser
     // never needs to reflow or repaint the live page on its account.
-    `transform:translateZ(0);will-change:transform;contain:layout paint;`;
+    `transform:translateZ(0);will-change:transform,opacity;contain:layout paint;`;
   document.body.appendChild(clone);
   outgoing = clone;
 }
 
 /**
- * Slide the snapshot off one side while the arriving screen comes in from the
- * other, on one tween each with identical timing, so the two read as a single
- * surface turning over. Translate only: no opacity, which keeps it on the
- * compositor and off the paint path.
+ * The screen you leave drops back; the screen you asked for slides over it.
+ *
+ * The flat version, both surfaces translating side by side at the same rate,
+ * was honest and completely without depth: two pictures sliding past a window.
+ * Here they are on different planes. The old screen scales back to 0.92, dims,
+ * and moves only a THIRD of the distance, so it reads as receding rather than
+ * leaving, while the new one comes the whole way over it on a spring.
+ *
+ * Parallax is the whole trick. Two things travelling different distances is
+ * what the eye reads as depth, and it costs nothing extra: still transforms,
+ * still on the compositor.
  */
 export function pageIn(el: HTMLElement | null): void {
   const dir = navDirection;
@@ -330,28 +352,43 @@ export function pageIn(el: HTMLElement | null): void {
 
   if (!el || dir === 0 || prefersReducedMotion()) {
     prev?.remove();
-    if (el) gsap.set(el, { x: 0, opacity: 1 });
+    if (el) gsap.set(el, { x: 0, opacity: 1, scale: 1 });
     return;
   }
 
   const width = el.getBoundingClientRect().width || window.innerWidth;
   const travel = width * dir;
-  // Claim the window. Entrances built during it would read computed styles on
-  // the very frames the slide needs, so `useGsap` holds off until this passes.
+  // Claim the window, so `revealRows` holds its ScrollTriggers until the
+  // movement is over.
   transitionEndsAt = performance.now() + DUR.slow * 1000;
 
   if (prev) {
+    prev.style.transformOrigin = "50% 42%";
     gsap.to(prev, {
-      x: -travel,
+      // A third of the distance, so it falls behind rather than keeping pace.
+      x: -travel * 0.32,
+      scale: 0.92,
+      opacity: 0.45,
       duration: DUR.slow,
       ease: EASE.emphasis,
       onComplete: () => prev.remove(),
     });
   }
+  // The arriving screen translates only. Scaling it too was tried and cost a
+  // frame or two per change at 4x throttle: it is LIVE content, so every step
+  // re-rasterises real text, where the leaver is a dead snapshot that rasters
+  // once. The depth reads from the parallax and the leaver's scale anyway.
   gsap.fromTo(
     el,
-    { x: travel, opacity: 1 },
-    { x: 0, duration: DUR.slow, ease: EASE.emphasis, overwrite: "auto" },
+    { x: travel },
+    {
+      x: 0,
+      // The spring is what makes the arrival feel like it landed rather than
+      // stopped. Mild enough that text never blurs on the overshoot.
+      duration: DUR.slow,
+      ease: EASE.spring,
+      overwrite: "auto",
+    },
   );
 }
 
