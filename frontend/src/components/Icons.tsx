@@ -132,6 +132,46 @@ export function IconDownload(p: IconProps) {
   );
 }
 
+/**
+ * The install steps. These three stand in for controls the student is about to
+ * go and find in their own browser chrome, so each is drawn as close to the
+ * real thing as this line set allows: recognising the button matters more here
+ * than house style does.
+ */
+
+/** iOS Safari's Share control: a box with an arrow leaving the top. */
+export function IconShare(p: IconProps) {
+  return (
+    <Svg {...p}>
+      <path d="M12 3.5v11" />
+      <path d="M8.4 7.1 12 3.5l3.6 3.6" />
+      <path d="M6.5 12.5v6a2 2 0 0 0 2 2h7a2 2 0 0 0 2-2v-6" />
+    </Svg>
+  );
+}
+
+/** Add to Home Screen: a plus inside a rounded tile. */
+export function IconAddSquare(p: IconProps) {
+  return (
+    <Svg {...p}>
+      <rect x="3.5" y="3.5" width="17" height="17" rx="4.5" />
+      <path d="M12 8.5v7" />
+      <path d="M8.5 12h7" />
+    </Svg>
+  );
+}
+
+/** The Android overflow menu, three dots in a column. */
+export function IconMenuDots(p: IconProps) {
+  return (
+    <Svg {...p}>
+      <path d="M12 5.4v.1" />
+      <path d="M12 11.95v.1" />
+      <path d="M12 18.5v.1" />
+    </Svg>
+  );
+}
+
 /** Simplified brand marks, drawn to match the rest of the set. */
 export function IconLinkedIn(p: IconProps) {
   return (

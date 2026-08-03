@@ -7,7 +7,8 @@ import BottomNav from "./BottomNav";
 import SideNav from "./SideNav";
 import PullToRefresh from "./PullToRefresh";
 import ProfileMark from "./ProfileMark";
-import InstallPrompt from "./InstallPrompt";
+import InstallGate, { useShouldOfferInstall } from "./InstallGate";
+import NotifyOnOpen from "./NotifyOnOpen";
 import { CREATOR } from "@/lib/creator";
 import { Skeleton } from "./ui";
 import { pageIn, prefersReducedMotion, revealWord } from "@/lib/motion";
@@ -49,6 +50,13 @@ export default function AppShell({
   useLayoutEffect(() => {
     revealWord(label.current, prefersReducedMotion());
   }, []);
+
+  // The install offer, for a student already signed in through a browser. The
+  // entry screen offers it first and more cheaply (see InstallGate), so by the
+  // time this fires it is either a returning user or someone who declined, and
+  // the snooze is shared between the two places.
+  const canOfferInstall = useShouldOfferInstall();
+  const [installDismissed, setInstallDismissed] = useState(false);
   function tapMasthead() {
     taps.current += 1;
     if (timer.current) window.clearTimeout(timer.current);
@@ -159,9 +167,12 @@ export default function AppShell({
           </main>
         </PullToRefresh>
         <BottomNav />
-        {/* Asks once the student is actually in and looking at their own data,
-            which is the only moment the offer means anything. */}
-        <InstallPrompt />
+        {/* Renders nothing: raises the "class starting soon" notification when
+            the app is opened or brought back to the foreground. */}
+        <NotifyOnOpen />
+        {canOfferInstall && !installDismissed && (
+          <InstallGate signedIn onDismiss={() => setInstallDismissed(true)} />
+        )}
       </div>
     </div>
   );

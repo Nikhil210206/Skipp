@@ -10,6 +10,7 @@ import { Button } from "@/components/ui";
 import { Marginalia, Rule, SectionHead, StickyAction } from "@/components/ui/editorial";
 import CreatorCredit from "@/components/CreatorCredit";
 import SkinPicker from "@/components/SkinPicker";
+import NotificationSetting from "@/components/NotificationSetting";
 import { IconChevronRight } from "@/components/Icons";
 
 const SKINS = THEMES.filter((t) => !t.structural);
@@ -103,7 +104,9 @@ export default function ProfilePage() {
         <div data-reveal className="flex items-baseline gap-9 pb-9">
           <Stat value={String(courses.length)} label="Courses" />
           <Stat value={String(credits)} label="Credits" />
-          <Stat value={student?.semester ?? "—"} label="Semester" />
+          {/* "n/a", not an em dash: section 8 bans them outright, including as
+              a stand-in for a missing value. */}
+          <Stat value={student?.semester ?? "n/a"} label="Semester" />
         </div>
 
         {/* Preferences */}
@@ -136,6 +139,8 @@ export default function ProfilePage() {
               </Button>
             </div>
           </div>
+
+          <NotificationSetting />
 
           <div className="pt-7">
             <p className="pb-3 text-callout text-text-3">Appearance</p>

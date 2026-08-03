@@ -27,6 +27,7 @@ import type {
 } from "@/types";
 import { AuthError, fetchSnapshot } from "@/lib/api";
 import { attendingOnly } from "@/lib/schedule";
+import { notifyAttendanceChanges } from "@/lib/notify";
 import {
   clearCredentials,
   clearSnapshot,
@@ -176,7 +177,13 @@ export function SessionProvider({ children }: { children: React.ReactNode }) {
   const installSnapshot = useCallback((snap: Snapshot) => {
     const id = snap.timetable.student.registrationNumber;
     if (id) {
-      setChanges(diffAttendance(snap.attendance, loadSeenAttendance(id)));
+      const diffed = diffAttendance(snap.attendance, loadSeenAttendance(id));
+      setChanges(diffed);
+      // The same diff, raised as a real notification rather than only as a line
+      // in the Reminders feed. Local, and raised here because this is the single
+      // door fresh data enters by, so it fires once per genuine change rather
+      // than once per glance at the app.
+      void notifyAttendanceChanges(diffed);
       saveSeenAttendance(id, snap.attendance);
     }
     setSnapshot(snap);

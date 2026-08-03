@@ -345,6 +345,86 @@ is deployment and true push notifications.
 Entries below are newest first. **When something breaks, read the relevant entry first**: most
 oddities here (login shell, empty calendar, 429s, duplicated course codes) are already diagnosed.
 
+### DONE: The install takeover, and real notifications (2026-08-03, latest)
+
+**The install prompt is a full screen takeover now**, `components/InstallGate.tsx`,
+replacing the dismissible sheet (`InstallPrompt.tsx` is deleted). A sheet is what
+you use to ask; this asks with the whole screen, because the installed app is a
+different product: no browser chrome eating a fifth of the display, an instant
+start from the local copy, and **on iOS it is the only context that can receive a
+notification at all**.
+
+**Placement is the part worth keeping.** It is offered to a SIGNED OUT visitor,
+ahead of the onboarding deck. On iOS an installed app gets its own storage
+container, so a student who plays the deck in Safari and only then installs does
+the whole thing twice and spends a second sign-in against the daily cap. Offering
+first means deck and sign-in happen once, inside the real app. It is still
+mounted in `AppShell` for someone already signed in through a browser, and only
+that path shows the "you will sign in again" caveat.
+
+**It still never blocks**, per the earlier entry: there is no way to observe that
+somebody made a shortcut, so a wall would trap anyone whose browser cannot
+install. The way past is quiet, not absent.
+
+Two layout bugs found by measuring, both invisible in a screenshot:
+- **The content ran 899px against an 844px iPhone**, putting "continue in
+  browser" at y=831 and off the bottom of anything shorter. The reading half
+  scrolls and **the actions are pinned**, so the escape is reachable at any
+  height. Verified on a 667px iPhone SE: link fully on screen, hittable, 44px.
+- **The signature rule measured `height: 0`.** It is a flex child in a column
+  that overflows, and a 1px box with no content has nothing to hold it open, so
+  flex shrank it away while its accent tick still floated in mid air. It needs
+  `shrink-0`. **Any hairline inside an overflowing flex column needs this.**
+
+**Notifications are local, raised by the app itself** (`lib/notify.ts`,
+`components/NotifyOnOpen.tsx`). No server, no push subscription, no stored
+schedule. The app asks for permission once, then raises a notification when it
+NOTICES something: a class within `CLASS_LEAD_MIN` (30) on open or foreground,
+and what the portal recorded, from `installSnapshot`, the single door fresh data
+enters by.
+
+**A full Web Push scheduler was built and then removed on request** (backend
+`core/push.py`, `/push/*` routes, an Upstash store, a per minute cron, VAPID).
+Do not rebuild it without being asked. It worked and was tested, but it is a
+real database of other students' class times, and the version people actually
+want, attendance announced the INSTANT it changes, is worse still: it needs a
+server polling the portal with every student's password, spending 24 to 48
+sign-ins each per day against a hard cap (`SI503`) and a CAPTCHA (`IN108`). That
+does not trade privacy for a feature, it locks students out of their own portal.
+
+**So these arrive when Skipp is opened, not while it is closed**, and the
+Profile copy says exactly that. The web cannot schedule a notification for later
+on device: Notification Triggers never shipped and Safari never had it. What
+this does buy is a notification that persists in the tray after a glance.
+
+Three traps, all found by testing rather than by reading:
+- **`navigator.serviceWorker.ready` never settles when no worker is
+  registered.** It waits for one to activate, so it neither resolves nor
+  rejects and a `try/catch` cannot save you: `await` on it hangs for ever. In
+  dev the worker is registered in production only, so this hung every time.
+  Use `getRegistration()`, which resolves either way. (It has to go through the
+  worker at all because **mobile browsers do not support the `new
+  Notification()` constructor**.)
+- **Do not mark a class "announced" before the notification actually showed.**
+  The first version recorded it up front, which permanently suppressed that
+  class whenever nothing was raised, the ordinary case with notifications off.
+  `notifyClassSoon` returns whether it showed, and only then is it recorded.
+- **Permission cannot be revoked from JavaScript**, so "off" cannot mean
+  revoking it. `skipp.notify` in localStorage is the real switch, and the only
+  honest one: it stops us raising them.
+
+Tags are per class per day, so opening the app five times in twenty minutes
+updates one tray entry instead of stacking five. iOS refuses notifications
+entirely until the app is installed, so the setting points at the install steps
+rather than showing a dead switch.
+
+Verified with **24 assertions against the real module** (jiti, stubbed
+`navigator`/`localStorage`/`Notification`, no browser and no portal sign-in):
+the window boundaries, the exact copy, the tags, silence while off, the
+attendance wording, and that a missing service worker returns false rather than
+hanging. Note Node 22 ships a read-only `navigator`, which has to be redefined
+with `Object.defineProperty` to stub.
+
 ### DONE: The sign-in budget, defended in code (2026-07-30, latest)
 **A CAPTCHA (`IN108`) was earned during UI work on this project, and it was the
 tooling that earned it.** `apiBase()` resolves to `localhost:8000` in dev, a
@@ -2521,8 +2601,9 @@ browsing session could fire 4-5 sign-ins toward the daily `SI503` cap. **Fixed 2
 
 ### NEXT STEP
 Everything in §7's roadmap is built, and both halves are deployed on Vercel. What remains:
-1. **True push notifications.** `lib/alerts.ts` is an in-app feed only; real push needs a server
-   and a push service. Post-deploy work.
+1. **Notifications are in-app only, by decision** (see the 2026-08-03 entry). The push scheduler
+   that would reach a closed phone was built and removed; rebuild it only if asked. What is
+   untested is a real notification on a real handset, which needs the installed PWA.
 2. **Discover page names, batch and academic year from the portal menu** instead of the constants
    hard-coded in `core/client.py`, so the app works for students in other batches and terms.
 3. **Interactive CAPTCHA solving** (show the HIP image, submit `hipcode` + `cdigest`). This moved

@@ -6,6 +6,7 @@ import LoginForm, { type SignInPhase } from "@/components/LoginForm";
 import Onboarding from "@/components/onboarding/Onboarding";
 import SyncSequence, { type Fact } from "@/components/onboarding/SyncSequence";
 import { markIntroSeen, useSeenIntro } from "@/lib/firstRun";
+import InstallGate, { useShouldOfferInstall } from "@/components/InstallGate";
 import CreatorCredit from "@/components/CreatorCredit";
 import Logo, { Wordmark } from "@/components/Logo";
 import Greeting from "@/components/Greeting";
@@ -26,6 +27,16 @@ export default function LoginPage() {
 
   const seenIntro = useSeenIntro();
   const [dismissed, setDismissed] = useState(false);
+
+  // The install offer comes BEFORE the opening deck, deliberately. On iOS an
+  // installed app gets its own storage container, so a student who plays
+  // through the onboarding in Safari and only then installs has to play through
+  // it a second time inside the real app. Offering first means the deck and the
+  // sign-in both happen once, in the place they are going to live.
+  const canOfferInstall = useShouldOfferInstall();
+  const [installDismissed, setInstallDismissed] = useState(false);
+  const showInstall = canOfferInstall && !installDismissed;
+
   const showIntro = !seenIntro && !dismissed;
 
   // While the sign-in sequence is playing we are authenticated but deliberately
@@ -40,10 +51,14 @@ export default function LoginPage() {
 
   const scope = useGsap(
     ({ self, reduced }) => {
-      if (restoring || isAuthed || showIntro) return;
+      if (restoring || isAuthed || showIntro || showInstall) return;
       playEntrance(self, reduced);
     },
-    [restoring, isAuthed, showIntro],
+    // `showInstall` is in here for the reason documented in CLAUDE.md: the form
+    // does not exist while the gate is up, so without it as a dependency this
+    // effect runs once against nothing, never runs again, and the sign-in
+    // screen stays permanently at its hidden CSS start state.
+    [restoring, isAuthed, showIntro, showInstall],
   );
 
   const finish = useCallback(() => router.replace("/dashboard"), [router]);
@@ -73,6 +88,13 @@ export default function LoginPage() {
         <Spinner label="Opening Skipp" />
       </main>
     );
+  }
+
+  // Ahead of the deck, but behind the authed redirect above: a student who is
+  // already signed in is on their way to the dashboard and gets the offer from
+  // inside the app instead, where the caveat about iOS storage applies.
+  if (showInstall) {
+    return <InstallGate onDismiss={() => setInstallDismissed(true)} />;
   }
 
   if (showIntro) {
