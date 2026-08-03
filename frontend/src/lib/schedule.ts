@@ -34,7 +34,54 @@ export function fmtTime(min: number): string {
   return `${String(h).padStart(2, "0")}:${String(m).padStart(2, "0")}`;
 }
 
-function periodToItem(p: ClassPeriod, optional: string[]): ScheduleItem {
+/**
+ * How one optional marking is identified.
+ *
+ * Keyed on the day order AND the lab-ness, not on the course code alone, and
+ * both halves fix a real bug:
+ *
+ * - **A course has separate Theory and Practical rows sharing one code.** Keyed
+ *   on the code, marking the theory of 21CSC302J optional silently marked its
+ *   lab too, and since the portal tracks those as two attendance rows, the
+ *   projection then ignored classes the student was still attending. The same
+ *   `::th` / `::lab` split the leave predictor already uses.
+ * - **A course sits on more than one day order.** Marking it from one day threw
+ *   it out of all of them, which is not what "I skip this Tuesday slot" means.
+ *
+ * The period number is deliberately NOT in the key: a lab occupying two
+ * consecutive periods is one class to a student, so marking it covers both.
+ */
+export function optionalKey(
+  dayOrder: number | null,
+  code: string,
+  isLab: boolean,
+): string {
+  return `${dayOrder ?? "?"}::${code}::${isLab ? "lab" : "th"}`;
+}
+
+/**
+ * Whether this class is marked optional.
+ *
+ * Also honours a bare course code, which is what earlier versions stored and
+ * meant "the whole course, everywhere". Those are expanded to explicit keys the
+ * first time one is unmarked, so nobody's existing settings are lost on
+ * upgrade.
+ */
+export function isMarkedOptional(
+  marks: string[],
+  dayOrder: number | null,
+  code: string,
+  isLab: boolean,
+): boolean {
+  if (marks.length === 0) return false;
+  return marks.includes(optionalKey(dayOrder, code, isLab)) || marks.includes(code);
+}
+
+function periodToItem(
+  p: ClassPeriod,
+  optional: string[],
+  dayOrder: number | null,
+): ScheduleItem {
   return {
     id: `${p.slot}-${p.hour}`,
     code: p.code,
@@ -48,7 +95,7 @@ function periodToItem(p: ClassPeriod, optional: string[]): ScheduleItem {
     faculty: p.faculty,
     isLab: p.isLab,
     isCustom: false,
-    isOptional: optional.includes(p.code),
+    isOptional: isMarkedOptional(optional, dayOrder, p.code, p.isLab),
     slot: p.slot,
   };
 }
@@ -80,7 +127,7 @@ export function daySchedule(
   dayOrder: number | null,
   optionalCodes: string[] = [],
 ): ScheduleItem[] {
-  const off = officialClasses.map((p) => periodToItem(p, optionalCodes));
+  const off = officialClasses.map((p) => periodToItem(p, optionalCodes, dayOrder));
   const cust =
     dayOrder == null
       ? []
@@ -275,6 +322,30 @@ export function attendingOnly(
   if (optionalCodes.length === 0) return dayOrders;
   return dayOrders.map((d) => ({
     ...d,
-    classes: d.classes.filter((c) => !optionalCodes.includes(c.code)),
+    // Matched per day order and per lab-ness, so dropping the theory on one day
+    // cannot quietly drop the lab, or the same course on every other day.
+    classes: d.classes.filter(
+      (c) => !isMarkedOptional(optionalCodes, d.dayOrder, c.code, c.isLab),
+    ),
   }));
+}
+
+/**
+ * Every optional key a course occupies across the whole grid.
+ *
+ * Used to expand a legacy bare code into explicit keys at the moment one of
+ * them is unmarked: the old value meant "everywhere", so everywhere has to be
+ * written down before one can be taken away.
+ */
+export function optionalKeysForCourse(
+  dayOrders: DayOrderSchedule[],
+  code: string,
+): string[] {
+  const keys = new Set<string>();
+  for (const d of dayOrders) {
+    for (const c of d.classes) {
+      if (c.code === code) keys.add(optionalKey(d.dayOrder, c.code, c.isLab));
+    }
+  }
+  return [...keys];
 }

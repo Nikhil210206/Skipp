@@ -347,7 +347,9 @@ export default function TimetablePage() {
                       live={isToday && c.startMin <= now && now < c.endMin}
                       next={c.id === nextId}
                       onRemove={removeCustomClass}
-                      onToggleOptional={toggleOptional}
+                      onToggleOptional={() =>
+                        toggleOptional(activeDO, c.code, c.isLab)
+                      }
                     />
                   </li>
                 );
@@ -403,7 +405,8 @@ function Block({
   live: boolean;
   next: boolean;
   onRemove: (id: string) => void;
-  onToggleOptional: (code: string) => void;
+  /** Already bound to this class, its day order and its theory/lab side. */
+  onToggleOptional: () => void;
 }) {
   const muted = item.isOptional;
   const minutes = item.endMin - item.startMin;
@@ -457,7 +460,7 @@ function Block({
 
         <button
           onClick={() =>
-            item.isCustom ? onRemove(item.id) : onToggleOptional(item.code)
+            item.isCustom ? onRemove(item.id) : onToggleOptional()
           }
           // 44px of height, with the extra taken as negative margin so the
           // row's rhythm is unchanged. It measured 84x18 before, which is a
@@ -465,7 +468,11 @@ function Block({
           // sets for itself.
           className="-my-3 mt-1 inline-flex min-h-11 items-center text-callout text-text-3/70 transition-colors hover:text-text-1"
         >
-          {item.isCustom ? "Remove" : muted ? "Make required" : "Make optional"}
+          {item.isCustom
+            ? "Remove"
+            : muted
+              ? "Make required here"
+              : "Make optional here"}
         </button>
       </div>
     </div>

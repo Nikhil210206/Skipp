@@ -26,7 +26,7 @@ import type {
   Timetable,
 } from "@/types";
 import { AuthError, fetchSnapshot } from "@/lib/api";
-import { attendingOnly } from "@/lib/schedule";
+import { attendingOnly, optionalKey, optionalKeysForCourse } from "@/lib/schedule";
 import { notifyAttendanceChanges } from "@/lib/notify";
 import {
   clearCredentials,
@@ -128,8 +128,11 @@ type SessionValue = {
   customClasses: CustomClass[];
   addCustomClass: (c: Omit<CustomClass, "id">) => void;
   removeCustomClass: (id: string) => void;
+  /** Optional markings, one per day order and per lab-ness (see optionalKey). */
   optionalCourses: string[];
-  toggleOptional: (code: string) => void;
+  /** Marks or unmarks ONE class: this course, on this day order, this side of
+   *  the theory/lab split. */
+  toggleOptional: (dayOrder: number | null, code: string, isLab: boolean) => void;
   /** Classes the portal recorded since the previous snapshot. */
   attendanceChanges: AttendanceChange[];
   displayName: string; // custom name if set, else official first name
@@ -353,10 +356,26 @@ export function SessionProvider({ children }: { children: React.ReactNode }) {
       },
       attendanceChanges,
       optionalCourses,
-      toggleOptional(code) {
-        const next = optionalCourses.includes(code)
-          ? optionalCourses.filter((c) => c !== code)
-          : [...optionalCourses, code];
+      toggleOptional(dayOrder, code, isLab) {
+        const key = optionalKey(dayOrder, code, isLab);
+        const grid = snapshot?.timetable.dayOrders ?? [];
+        let next: string[];
+
+        if (optionalCourses.includes(key)) {
+          next = optionalCourses.filter((c) => c !== key);
+        } else if (optionalCourses.includes(code)) {
+          // A legacy bare code meant "this course, everywhere". Unmarking one
+          // class of it has to write the rest down explicitly first, or the
+          // single removal would be swallowed by the catch-all still sitting
+          // in the list.
+          next = [
+            ...optionalCourses.filter((c) => c !== code),
+            ...optionalKeysForCourse(grid, code).filter((k) => k !== key),
+          ];
+        } else {
+          next = [...optionalCourses, key];
+        }
+
         setOptionalCourses(next);
         if (reg) saveOptionalCourses(reg, next);
       },

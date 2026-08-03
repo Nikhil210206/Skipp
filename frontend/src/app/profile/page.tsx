@@ -296,7 +296,8 @@ export default function ProfilePage() {
             <Marginalia>
               Updated {timeAgo(fetchedAt)}
               <br />
-              {customClasses.length} added, {optionalCourses.length} marked optional
+              {customClasses.length} added, {optionalCourses.length} class
+              {optionalCourses.length === 1 ? "" : "es"} marked optional
             </Marginalia>
             <Button
               variant="secondary"
