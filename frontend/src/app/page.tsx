@@ -138,9 +138,21 @@ export default function LoginPage() {
 
   return (
     <>
-      <main className="mx-auto flex min-h-full w-full max-w-md flex-1 flex-col font-display px-[var(--gutter)] pb-[max(28px,env(safe-area-inset-bottom))] pt-[max(48px,calc(env(safe-area-inset-top)+28px))] md:border-x md:border-line-soft">
-        <div ref={scope} className="flex flex-1 flex-col">
-          <div data-mark className="flex items-center gap-2 pt-2">
+      {/* On a phone this is one column, exactly as it always was. Past `lg` it
+          becomes a SPLIT: the cover on the left, the form on the right.
+          
+          This route predates the desktop pass that widened the authenticated
+          shell (AppShell.tsx), so on a laptop it was a 448px phone column
+          adrift in a 1400px+ window. Merely widening the column does not fix
+          that, it just makes a stretched phone: a login form reads badly at
+          full width, so the honest desktop treatment is to give the empty half
+          something to do. The cover already exists and wants the room. */}
+      <main className="mx-auto flex min-h-full w-full max-w-md flex-1 flex-col font-display px-[var(--gutter)] pb-[max(28px,env(safe-area-inset-bottom))] pt-[max(48px,calc(env(safe-area-inset-top)+28px))] md:border-x md:border-line-soft lg:max-w-6xl lg:px-12">
+        <div
+          ref={scope}
+          className="flex flex-1 flex-col lg:grid lg:min-h-0 lg:grid-cols-2 lg:items-center lg:gap-16"
+        >
+          <div data-mark className="flex items-center gap-2 pt-2 lg:col-span-2">
             <Logo size={22} className="text-text-1" />
             <Wordmark className="text-headline text-text-1" />
           </div>
@@ -152,7 +164,7 @@ export default function LoginPage() {
               It is also tappable: touch it and it hands over to the next
               language early. A greeting that answers you is worth more than a
               greeting that only performs. */}
-          <header className="flex flex-1 flex-col justify-center py-8">
+          <header className="flex flex-1 flex-col justify-center py-8 lg:py-0">
             <p
               data-enter
               className="text-label uppercase tracking-[0.22em] text-text-3"
@@ -173,8 +185,8 @@ export default function LoginPage() {
             </p>
           </header>
 
-          <div>
-            <div data-draw className="bleed relative mb-9 h-px bg-line">
+          <div className="lg:flex lg:flex-col lg:justify-center">
+            <div data-draw className="bleed relative mb-9 h-px bg-line lg:mx-0 lg:w-full lg:px-0">
               {/* Fills as the two fields are completed, in the same language as
                   every other measurement in the app: a rule that reaches its
                   mark. Width only, so it can never fight the entrance tween
@@ -197,7 +209,7 @@ export default function LoginPage() {
 
           <div
             data-enter
-            className="mt-10 flex items-baseline justify-between gap-4"
+            className="mt-10 flex items-baseline justify-between gap-4 lg:col-span-2 lg:mt-0 lg:pb-2"
           >
             <p className="text-callout text-text-3">Not affiliated with SRM.</p>
             <CreatorCredit />
