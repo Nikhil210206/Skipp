@@ -48,8 +48,39 @@ function idbPut(key: string, value: unknown): Promise<void> {
   );
 }
 
+/**
+ * Read the key. **Never creates one, and that separation is the whole point.**
+ *
+ * Decrypting used to go through `getOrCreateKey`, so any moment the key could
+ * not be read, the app minted a fresh one and wrote it straight over the old.
+ * The stored blob was then undecryptable for ever, the student was signed out,
+ * and signing back in spent a portal sign-in against the daily `SI503` cap.
+ * Closing the app and reopening it did exactly that, on a loop.
+ *
+ * A miss is retried before it is believed, because **WebKit can hand back an
+ * empty IndexedDB on the first open after a cold start**, which is precisely
+ * the moment this runs on iOS. Reading nothing once is not evidence that
+ * nothing is there.
+ */
+async function readKey(): Promise<CryptoKey | null> {
+  for (let attempt = 0; attempt < 3; attempt++) {
+    try {
+      const existing = await idbGet<CryptoKey>(KEY_ID);
+      if (existing) return existing;
+    } catch {
+      // The store itself was unreachable, which is just as retryable.
+    }
+    if (attempt < 2) {
+      await new Promise((r) => setTimeout(r, 80 * (attempt + 1)));
+    }
+  }
+  return null;
+}
+
+/** Read the key, or mint one. Only ever called when ENCRYPTING, where having
+ *  no key yet is the normal first-run case. */
 async function getOrCreateKey(): Promise<CryptoKey> {
-  const existing = await idbGet<CryptoKey>(KEY_ID);
+  const existing = await readKey();
   if (existing) return existing;
   const key = await crypto.subtle.generateKey(
     { name: "AES-GCM", length: 256 },
@@ -91,7 +122,10 @@ async function encryptJSON(value: unknown): Promise<string> {
 async function decryptJSON<T>(blob: string): Promise<T | null> {
   try {
     const [ivB64, ctB64] = blob.split(".");
-    const key = await getOrCreateKey();
+    // Read only. Creating a key here would overwrite the one that can actually
+    // read this blob, turning a temporary miss into permanent data loss.
+    const key = await readKey();
+    if (!key) return null;
     const pt = await crypto.subtle.decrypt(
       { name: "AES-GCM", iv: unb64(ivB64) },
       key,

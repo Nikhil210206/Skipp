@@ -110,7 +110,7 @@ portal's page names, batch and academic year from its own menu rather than the c
 hard-coded in `backend/core/client.py`, which is what currently ties the app to one batch
 and term.
 
-Roadmap and detailed reverse-engineering notes live in [`PLAN.md`](PLAN.md).
+Roadmap and detailed reverse-engineering notes live in [`PLAN.md`](docs/PLAN.md).
 
 ---
 

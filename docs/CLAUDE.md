@@ -99,7 +99,7 @@ Data flow, plain English:
 
 ```
 skipp/
-├── CLAUDE.md                 # this file
+├── docs/CLAUDE.md            # this file (root CLAUDE.md imports it)
 ├── frontend/                 # Next.js app
 │   ├── src/
 │   │   ├── app/              # App Router pages
