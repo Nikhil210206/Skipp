@@ -1,39 +1,53 @@
 "use client";
 
-import EntryChapter, { ACCENT, Advance, CREAM } from "./entry/EntryChapter";
-import { Wordmark } from "./Logo";
+import EntryChapter, { Advance } from "./entry/EntryChapter";
+import { ProfileFace } from "./ProfileMark";
 
 /**
  * The first thing a new student ever sees, after the launch.
  *
- * Its only job is to say hello and say what Skipp is. It asks for nothing: the
- * install offer is the screen after this one, and the sign in is three after,
- * so putting a decision here would make the very first impression a demand.
+ * Its only job is to WELCOME somebody. It shows no attendance figure, no marks
+ * and no timetable, because the onboarding chapters that follow are built
+ * entirely out of those: an earlier version put a 97.7% card here and it was
+ * the same picture as chapter one, two screens early and with none of the
+ * explanation. A welcome that previews the product is not a welcome, it is a
+ * worse version of the tour.
  *
- * **The room is warm, and it is the only warm one in the whole entry deck.**
- * Every onboarding chapter is cool (indigo, teal, green, navy, purple, black),
- * so opening here and moving to the install screen's deep ocean reads as
- * walking somewhere, which is the point of giving each screen a field at all.
+ * So the stage is PEOPLE. Every student gets a generated character from their
+ * registration number, drawn in `lib/mark.ts`, and a crowd of them says who
+ * this is for without a word of copy: other students, all a bit different, all
+ * already here. It is the same drawing the profile uses, so the very first
+ * thing anyone sees is something they will later recognise as their own.
  *
- * The stage is the app's own surfaces, scattered rather than fanned. Chapter
- * one of the deck fans three cards from a single stack; these sit apart at
- * different depths with the real one in front, so the two are the same family
- * without being the same picture.
+ * The room is warm, and the only warm one in the entry deck: every onboarding
+ * chapter is cool, so opening here and moving to the install screen's deep
+ * ocean reads as walking somewhere.
  */
 
 const FIELD = "#331206";
+
+/** Seeds picked so the crowd is visibly varied: different tops, eyes, mouths. */
+const CROWD = [
+  { seed: "RA2411003010021", size: 62, x: "1%", y: 8, rot: -8, dim: 0.5 },
+  { seed: "RA2411003010144", size: 94, x: "30%", y: 0, rot: 5, dim: 0.85 },
+  { seed: "RA2411003010307", size: 56, x: "76%", y: 34, rot: -4, dim: 0.45 },
+  { seed: "RA2411003011574", size: 124, x: "10%", y: 112, rot: -2, dim: 1 },
+  { seed: "RA2411003010492", size: 78, x: "64%", y: 134, rot: 9, dim: 0.7 },
+  { seed: "RA2411003010838", size: 58, x: "0%", y: 268, rot: 6, dim: 0.42 },
+  { seed: "RA2411003011002", size: 90, x: "34%", y: 274, rot: -6, dim: 0.62 },
+  { seed: "RA2411003010676", size: 62, x: "74%", y: 258, rot: 3, dim: 0.5 },
+];
 
 export default function Welcome({ onNext }: { onNext: () => void }) {
   return (
     <EntryChapter
       field={FIELD}
-      eyebrow="know before you bunk"
-      word="HELLO"
+      eyebrow="made for srm students"
+      word="WELCOME"
       actions={
         <div data-in className="flex items-center justify-between gap-4">
           <p className="min-w-0 flex-1 text-callout leading-relaxed opacity-70">
-            Your attendance, marks and timetable, read from your own SRM
-            account.
+            You are one sign in away from never opening the SRM portal again.
           </p>
           <Advance onClick={onNext} label="Continue" field={FIELD} />
         </div>
@@ -46,85 +60,34 @@ export default function Welcome({ onNext }: { onNext: () => void }) {
 
 /* -------------------------------------------------------------------------- */
 
+/** A crowd of the app's own generated students, scattered at varying depth. */
 function Stage() {
   return (
-    <div
-      className="flex h-full items-center justify-center px-[var(--gutter)]"
-      style={{ perspective: 1100 }}
-    >
-      <div
-        className="relative h-[330px] w-full max-w-[340px]"
-        style={{ transformStyle: "preserve-3d" }}
-      >
-        {/* The wordmark, set in the room's own cream, so the brand is stated
-            once and properly before anything is asked of anyone. */}
-        <p
-          data-in
-          className="absolute inset-x-0 top-0 text-center"
-          style={{ transform: "translate3d(0,0,90px)" }}
-        >
-          <Wordmark className="text-[2.6rem] font-bold" />
-        </p>
-
-        {/* A held figure, tilted back and to the left. */}
-        <div
-          data-in
-          className="absolute left-0 top-[86px] rounded-[22px] px-5 py-4"
-          style={{
-            background: "rgba(247,243,236,0.10)",
-            transform: "translate3d(0,0,10px) rotate(-7deg)",
-          }}
-        >
-          <p className="tnum text-title leading-none">41 / 60</p>
-          <p className="mt-1.5 text-callout opacity-60">on track for B plus</p>
-        </div>
-
-        {/* The one real surface, in front and barely turned: the whole product
-            in a single object, a figure and the line it must stay above. */}
-        <div
-          data-in
-          className="absolute inset-x-0 top-[150px] rounded-[26px] px-6 py-6"
-          style={{
-            background: CREAM,
-            color: FIELD,
-            transform: "translate3d(0,0,80px) rotate(-2deg)",
-            boxShadow: "0 40px 70px -28px rgba(0,0,0,0.7)",
-          }}
-        >
-          <p className="text-label uppercase tracking-[0.16em] opacity-50">
-            Term to date
-          </p>
-          <p
-            className="tnum mt-2 font-bold leading-[0.82]"
-            style={{ fontSize: "clamp(3rem,17vw,4.25rem)", letterSpacing: "-0.05em" }}
+    <div className="flex h-full items-center justify-center overflow-hidden px-[var(--gutter)]">
+      <div className="relative h-[372px] w-full max-w-[360px]">
+        {CROWD.map((p) => (
+          <span
+            key={p.seed}
+            data-in
+            className="absolute"
+            style={{
+              left: p.x,
+              top: p.y,
+              transform: `rotate(${p.rot}deg)`,
+              opacity: p.dim,
+            }}
           >
-            97.7<span className="text-title align-top opacity-40">%</span>
-          </p>
-
-          {/* The rule and its tick, the app's own device. The alpha sits on a
-              SIBLING track, never on this element: a child cannot be more
-              opaque than its parent, so a faded wrapper would drag the fill
-              down with it and the meter would read as full at every value. */}
-          <div className="relative mt-5 h-[4px] w-full">
-            <span
-              className="absolute inset-0 rounded-full"
-              style={{ background: FIELD, opacity: 0.18 }}
+            <ProfileFace
+              seed={p.seed}
+              size={p.size}
+              // Painted in the room's cream rather than the theme's accent: the
+              // field here is fixed, so a theme token would be the one thing on
+              // screen that did not belong to it.
+              tile="bg-[rgba(247,243,236,0.14)]"
+              cut={FIELD}
             />
-            <span
-              className="absolute inset-y-0 left-0 rounded-full"
-              style={{ width: "97.7%", background: FIELD }}
-            />
-            <span
-              className="absolute"
-              style={{ left: "75%", top: -7, width: 2, height: 18, background: ACCENT }}
-            />
-          </div>
-
-          <div className="mt-4 flex items-baseline justify-between gap-4">
-            <p className="text-callout opacity-60">Every subject clear</p>
-            <p className="tnum text-headline font-semibold">3 in hand</p>
-          </div>
-        </div>
+          </span>
+        ))}
       </div>
     </div>
   );

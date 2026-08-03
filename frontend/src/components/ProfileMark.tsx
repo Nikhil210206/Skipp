@@ -175,11 +175,39 @@ export default function ProfileMark({ seed }: { seed: string }) {
  * flags as a hydration error. This is the same SVG, unanimated, for exactly
  * that "already inside a link" situation.
  */
-export function ProfileFace({ seed }: { seed: string }) {
+export function ProfileFace({
+  seed,
+  size,
+  className = "size-9",
+  tile = "border border-accent/35 bg-accent/12 text-accent",
+  cut,
+}: {
+  seed: string;
+  /** Explicit pixel size. Needed for anything laid out at arbitrary sizes,
+   *  since Tailwind cannot generate a class from a runtime number. */
+  size?: number;
+  /** Size utility, used when `size` is not given. */
+  className?: string;
+  /** How the tile itself is painted. */
+  tile?: string;
+  /** The colour features are punched out in. Defaults to the page colour,
+   *  which is only right on a surface that IS the page. */
+  cut?: string;
+}) {
   const face = faceFor(seed);
+  const box = size ? { width: size, height: size } : undefined;
+  const sizing = size ? "" : className;
   return (
-    <span className="flex size-9 shrink-0 items-center justify-center overflow-hidden rounded-full border border-accent/35 bg-accent/12">
-      <svg viewBox={`0 0 ${FACE_BOX} ${FACE_BOX}`} aria-hidden className="size-9 text-accent">
+    <span
+      className={`flex shrink-0 items-center justify-center overflow-hidden rounded-full ${sizing} ${tile}`}
+      style={box}
+    >
+      <svg
+        viewBox={`0 0 ${FACE_BOX} ${FACE_BOX}`}
+        aria-hidden
+        className={sizing}
+        style={box}
+      >
         <path
           d="M2.5 25c0-5 4.2-8.4 9.5-8.4S21.5 20 21.5 25z"
           fill="currentColor"
@@ -191,8 +219,8 @@ export function ProfileFace({ seed }: { seed: string }) {
         <g transform={`rotate(${face.tilt} 12 11)`}>
           <circle cx="12" cy="9.6" r="5.9" fill="currentColor" />
           <Top variant={face.top} />
-          <Eyes variant={face.eyes} />
-          <Mouth variant={face.mouth} />
+          <Eyes variant={face.eyes} cut={cut} />
+          <Mouth variant={face.mouth} cut={cut} />
         </g>
       </svg>
     </span>
@@ -228,20 +256,20 @@ function Top({ variant }: { variant: 0 | 1 | 2 | 3 }) {
   return null;
 }
 
-function Eyes({ variant }: { variant: 0 | 1 | 2 }) {
+function Eyes({ variant, cut = CUT }: { variant: 0 | 1 | 2; cut?: string }) {
   if (variant === 1) {
     return (
       <>
         <path
           d="M8.7 9.6q1 -1.2 2 0"
-          stroke={CUT}
+          stroke={cut}
           strokeWidth="1.1"
           fill="none"
           strokeLinecap="round"
         />
         <path
           d="M13.3 9.6q1 -1.2 2 0"
-          stroke={CUT}
+          stroke={cut}
           strokeWidth="1.1"
           fill="none"
           strokeLinecap="round"
@@ -252,26 +280,26 @@ function Eyes({ variant }: { variant: 0 | 1 | 2 }) {
   const r = variant === 2 ? 1.35 : 1.05;
   return (
     <>
-      <circle cx="9.7" cy="9.2" r={r} fill={CUT} />
-      <circle cx="14.3" cy="9.2" r={r} fill={CUT} />
+      <circle cx="9.7" cy="9.2" r={r} fill={cut} />
+      <circle cx="14.3" cy="9.2" r={r} fill={cut} />
     </>
   );
 }
 
-function Mouth({ variant }: { variant: 0 | 1 | 2 | 3 }) {
+function Mouth({ variant, cut = CUT }: { variant: 0 | 1 | 2 | 3; cut?: string }) {
   if (variant === 1) {
     return (
-      <path d="M10.3 12.6h3.4" stroke={CUT} strokeWidth="1.1" strokeLinecap="round" fill="none" />
+      <path d="M10.3 12.6h3.4" stroke={cut} strokeWidth="1.1" strokeLinecap="round" fill="none" />
     );
   }
   if (variant === 2) {
-    return <ellipse cx="12" cy="12.7" rx="1.4" ry="1.15" fill={CUT} />;
+    return <ellipse cx="12" cy="12.7" rx="1.4" ry="1.15" fill={cut} />;
   }
   if (variant === 3) {
     return (
       <path
         d="M10.2 12.5q1.6 1.3 3.2 0"
-        stroke={CUT}
+        stroke={cut}
         strokeWidth="1.1"
         strokeLinecap="round"
         fill="none"
@@ -280,6 +308,6 @@ function Mouth({ variant }: { variant: 0 | 1 | 2 | 3 }) {
     );
   }
   return (
-    <path d="M9.9 12.2q2.1 2 4.2 0" stroke={CUT} strokeWidth="1.15" strokeLinecap="round" fill="none" />
+    <path d="M9.9 12.2q2.1 2 4.2 0" stroke={cut} strokeWidth="1.15" strokeLinecap="round" fill="none" />
   );
 }
