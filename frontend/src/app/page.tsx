@@ -5,8 +5,14 @@ import { useCallback, useEffect, useState } from "react";
 import LoginForm, { type SignInPhase } from "@/components/LoginForm";
 import Onboarding from "@/components/onboarding/Onboarding";
 import SyncSequence, { type Fact } from "@/components/onboarding/SyncSequence";
-import { markIntroSeen, useSeenIntro } from "@/lib/firstRun";
+import {
+  markIntroSeen,
+  markWelcomeSeen,
+  useSeenIntro,
+  useSeenWelcome,
+} from "@/lib/firstRun";
 import InstallGate, { useShouldOfferInstall } from "@/components/InstallGate";
+import Welcome from "@/components/Welcome";
 import CreatorCredit from "@/components/CreatorCredit";
 import Logo, { Wordmark } from "@/components/Logo";
 import Greeting from "@/components/Greeting";
@@ -28,14 +34,21 @@ export default function LoginPage() {
   const seenIntro = useSeenIntro();
   const [dismissed, setDismissed] = useState(false);
 
-  // The install offer comes BEFORE the opening deck, deliberately. On iOS an
-  // installed app gets its own storage container, so a student who plays
+  // The welcome comes first of all: it says what Skipp is and lets the student
+  // choose the installed app or the browser, so the install screen that may
+  // follow is answering a choice they made rather than making a demand.
+  const seenWelcome = useSeenWelcome();
+  const [welcomeDone, setWelcomeDone] = useState(false);
+  const showWelcome = !seenWelcome && !welcomeDone;
+
+  // The install offer then comes BEFORE the opening deck, deliberately. On iOS
+  // an installed app gets its own storage container, so a student who plays
   // through the onboarding in Safari and only then installs has to play through
   // it a second time inside the real app. Offering first means the deck and the
   // sign-in both happen once, in the place they are going to live.
   const canOfferInstall = useShouldOfferInstall();
   const [installDismissed, setInstallDismissed] = useState(false);
-  const showInstall = canOfferInstall && !installDismissed;
+  const showInstall = !showWelcome && canOfferInstall && !installDismissed;
 
   const showIntro = !seenIntro && !dismissed;
 
@@ -51,14 +64,15 @@ export default function LoginPage() {
 
   const scope = useGsap(
     ({ self, reduced }) => {
-      if (restoring || isAuthed || showIntro || showInstall) return;
+      if (restoring || isAuthed || showIntro || showInstall || showWelcome) return;
       playEntrance(self, reduced);
     },
-    // `showInstall` is in here for the reason documented in CLAUDE.md: the form
-    // does not exist while the gate is up, so without it as a dependency this
-    // effect runs once against nothing, never runs again, and the sign-in
-    // screen stays permanently at its hidden CSS start state.
-    [restoring, isAuthed, showIntro, showInstall],
+    // Every flag that can hide the form is a dependency, for the reason
+    // documented in CLAUDE.md: the form does not exist while any of these
+    // screens is up, so a missing one means this effect runs once against
+    // nothing, never runs again, and the sign-in screen stays permanently at
+    // its hidden CSS start state.
+    [restoring, isAuthed, showIntro, showInstall, showWelcome],
   );
 
   const finish = useCallback(() => router.replace("/dashboard"), [router]);
@@ -87,6 +101,20 @@ export default function LoginPage() {
       <main className="flex min-h-full flex-1 items-center justify-center">
         <Spinner label="Opening Skipp" />
       </main>
+    );
+  }
+
+  // First of all, and behind the authed redirect above: a returning student is
+  // on their way to the dashboard and has been greeted long ago. It asks for
+  // nothing, so there is only one way on.
+  if (showWelcome) {
+    return (
+      <Welcome
+        onNext={() => {
+          markWelcomeSeen();
+          setWelcomeDone(true);
+        }}
+      />
     );
   }
 

@@ -47,6 +47,51 @@ export function markIntroSeen() {
 /* -------------------------------------------------------------------------- */
 
 /**
+ * Whether this device has been greeted.
+ *
+ * The welcome comes before the install offer, because asking a stranger to put
+ * something on their home screen before telling them what it is reads as a
+ * demand rather than an invitation. It is also where the choice between the
+ * installed app and the browser is actually made.
+ */
+const WELCOME_KEY = "skipp.seen-welcome";
+
+let welcomeListeners: (() => void)[] = [];
+
+function subscribeWelcome(cb: () => void) {
+  welcomeListeners.push(cb);
+  return () => {
+    welcomeListeners = welcomeListeners.filter((l) => l !== cb);
+  };
+}
+
+function welcomeSnapshot(): boolean {
+  try {
+    return localStorage.getItem(WELCOME_KEY) === "1";
+  } catch {
+    return true;
+  }
+}
+
+// Claim "seen" on the server so a returning student never sees it flash past.
+const welcomeServerSnapshot = () => true;
+
+export function useSeenWelcome(): boolean {
+  return useSyncExternalStore(subscribeWelcome, welcomeSnapshot, welcomeServerSnapshot);
+}
+
+export function markWelcomeSeen() {
+  try {
+    localStorage.setItem(WELCOME_KEY, "1");
+  } catch {
+    // Private mode: they get greeted again next launch, which is survivable.
+  }
+  welcomeListeners.forEach((l) => l());
+}
+
+/* -------------------------------------------------------------------------- */
+
+/**
  * Whether the profile has ever been opened on this device.
  *
  * The profile holds the themes, the display name, the data controls and sign

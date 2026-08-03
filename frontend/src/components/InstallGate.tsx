@@ -1,26 +1,28 @@
 "use client";
 
 import { useEffect, useState, useSyncExternalStore } from "react";
-import Logo, { Wordmark } from "./Logo";
-import { Button } from "./ui";
-import { useLockScroll } from "./ui/Overlay";
+import EntryChapter, { ACCENT, CREAM } from "./entry/EntryChapter";
 import { IconAddSquare, IconCheck, IconMenuDots, IconShare } from "./Icons";
 
 /**
- * The way onto the home screen, as a full screen takeover.
+ * The way onto the home screen, as the second chapter of the entry deck.
  *
- * It was a dismissible bottom sheet, and a sheet is what you use to ASK. This
- * asks with the whole screen, because the installed app is a genuinely
- * different product: it starts from the copy already on the phone, it has no
- * browser chrome eating a fifth of a 6.7 inch display, and **on iOS it is the
- * only context that can receive a notification at all**. A student left in
- * Safari cannot be told a class is starting, however good the rest of it is.
+ * It was a bottom sheet, and a sheet is what you use to ASK quietly. This asks
+ * with the whole screen, because the installed app is a genuinely different
+ * product: it starts from the copy already on the phone, it has no browser
+ * chrome eating a fifth of a 6.7 inch display, and **on iOS it is the only
+ * context that can show a notification at all**.
+ *
+ * Built from the same furniture as the welcome before it and the onboarding
+ * chapters after it, so the whole way in reads as one publication. Its room is
+ * a deep ocean against the welcome's warm ember, so advancing feels like moving
+ * somewhere rather than reskinning the same screen.
  *
  * **It still never blocks.** There is no way to observe that somebody made a
  * shortcut, only whether this page is *running* standalone, so a hard wall
  * would trap anyone whose browser cannot install (some in-app browsers, Firefox
- * on iOS) with no route to their own attendance. The way past is deliberately
- * quiet rather than absent.
+ * on iOS) with no route to their own attendance. "Use in browser instead" is
+ * deliberately quiet rather than absent.
  *
  * The placement matters as much as the design. Shown to a SIGNED OUT visitor,
  * installing costs nothing: they install, then sign in once, inside the
@@ -29,6 +31,8 @@ import { IconAddSquare, IconCheck, IconMenuDots, IconShare } from "./Icons";
  * container and the session in Safari does not follow it. Hence `signedIn`,
  * which only adds the sentence that warns about it.
  */
+
+const FIELD = "#052A44";
 
 const KEY = "skipp.install-prompt";
 /** One dismissal is not forever, but it is not a nag on every launch either. */
@@ -75,6 +79,16 @@ function snoozed(): boolean {
   }
 }
 
+/** Stand the offer down for the usual snooze, from anywhere. */
+export function snoozeInstallOffer(): void {
+  try {
+    localStorage.setItem(KEY, String(Date.now()));
+  } catch {
+    /* private mode */
+  }
+  listeners.forEach((l) => l());
+}
+
 // Read through useSyncExternalStore rather than an effect: the answer depends on
 // facts the server cannot know, and a setState in an effect both flashes the
 // wrong frame and is rejected by the React compiler lint.
@@ -115,10 +129,6 @@ export default function InstallGate({
   const [native, setNative] = useState<BeforeInstallPrompt | null>(null);
   const ios = isIOS();
 
-  // The document behind is still a scrolling page, and iOS will happily bounce
-  // it into view under a fixed overlay. Same fix as the onboarding deck.
-  useLockScroll(true);
-
   useEffect(() => {
     const onPrompt = (e: Event) => {
       e.preventDefault();
@@ -129,12 +139,7 @@ export default function InstallGate({
   }, []);
 
   function dismiss() {
-    try {
-      localStorage.setItem(KEY, String(Date.now()));
-    } catch {
-      // Private mode: it asks again next launch, which is survivable.
-    }
-    listeners.forEach((l) => l());
+    snoozeInstallOffer();
     onDismiss();
   }
 
@@ -151,109 +156,89 @@ export default function InstallGate({
       ];
 
   return (
-    <div
-      className="fixed inset-0 z-50 flex flex-col bg-ink-0 font-display"
-      style={{ minHeight: "100dvh" }}
-      role="dialog"
-      aria-modal="true"
-      aria-label="Add Skipp to your home screen"
-    >
-      {/* The reading half scrolls; the actions below do not. Measured at 899px
-          of content against an 844px iPhone viewport, which put "continue in
-          browser" at y=831 and off the bottom of anything shorter. A way past
-          that has to be discovered by scrolling is not a way past, so the two
-          controls are pinned and only the text moves.
-
-          Top aligned, never centred: a centred column that overflows pushes its
-          own top out of reach, and the headline would go behind the status bar
-          with no way to scroll back up to it. */}
-      <div className="no-scrollbar mx-auto flex w-full max-w-md flex-1 flex-col overflow-y-auto px-[var(--gutter)] pt-[max(26px,calc(env(safe-area-inset-top)+16px))]">
-        <div className="flex items-center gap-2">
-          <Logo size={22} className="text-text-1" />
-          <Wordmark className="text-headline text-text-1" />
-        </div>
-
-        <p className="mt-8 text-label uppercase tracking-[0.22em] text-text-3">
-          the browser is the long way round
-        </p>
-
-        <h1 className="mt-4 text-display font-bold leading-[0.95] tracking-[-0.04em] text-text-1">
-          Put Skipp on your home screen.
-        </h1>
-
-        {/* The rule and its tick: the same device every screen in the app is
-            built on, so the way in already looks like the thing itself.
-
-            `shrink-0` is load bearing. This is a flex child in a column that
-            overflows on a short phone, and a 1px box with no content inside it
-            has nothing to hold it open, so flex shrank it to exactly 0 and the
-            rule vanished while its tick still floated in mid air. Measured, not
-            guessed: height came back 0 on a 667px viewport. */}
-        <div className="bleed relative mt-7 h-px shrink-0 bg-line">
-          <span
-            aria-hidden
-            className="absolute -top-[7px] h-[15px] w-[2px] bg-accent"
-            style={{ left: "75%" }}
-          />
-        </div>
-
-        <p className="mt-6 max-w-[30ch] text-body leading-relaxed text-text-2">
-          It opens full screen with no browser bar, starts instantly from the
-          copy already on this phone, and it is the only place a class reminder
-          can reach you.
-        </p>
-
-        <ol className="mt-7 flex flex-col">
-          {steps.map(({ Icon, text }, i) => (
-            <li
-              key={text}
-              className="flex items-center gap-4 border-t border-line-soft py-3.5 last:border-b"
+    <EntryChapter
+      field={FIELD}
+      eyebrow="the browser is the long way round"
+      word="ON HOME"
+      actions={
+        <div data-in className="flex flex-col gap-1">
+          {/* Chrome hands over a real install dialog. Safari has no equivalent,
+              which is the whole reason the steps above exist. */}
+          {native && (
+            <button
+              onClick={async () => {
+                await native.prompt();
+                await native.userChoice;
+                dismiss();
+              }}
+              className="inline-flex min-h-[52px] items-center justify-center rounded-full text-body font-semibold transition-transform duration-200 active:scale-[0.97]"
+              style={{ background: CREAM, color: FIELD }}
             >
-              <span className="tnum shrink-0 text-label uppercase text-text-3">
-                {String(i + 1).padStart(2, "0")}
-              </span>
-              <Icon size={19} className="shrink-0 text-accent" />
-              <span className="text-body leading-relaxed text-text-2">
-                {text}
-              </span>
-            </li>
-          ))}
-        </ol>
-
-        {signedIn && ios && (
-          <p className="mt-5 text-callout leading-relaxed text-text-3">
-            Signing in once more inside the installed app is normal: iOS keeps a
-            home screen app&rsquo;s data separate from Safari&rsquo;s.
-          </p>
-        )}
-
-        {/* So the last line never sits flush against the pinned actions. */}
-        <div aria-hidden className="h-6 shrink-0" />
-      </div>
-
-      <div className="mx-auto w-full max-w-md shrink-0 border-t border-line-soft px-[var(--gutter)] pb-[max(18px,env(safe-area-inset-bottom))] pt-3">
-        {/* Chrome hands over a real install dialog. Safari has no equivalent,
-            which is the whole reason the steps above exist. */}
-        {native && (
-          <Button
-            size="lg"
-            full
-            onClick={async () => {
-              await native.prompt();
-              await native.userChoice;
-              dismiss();
-            }}
+              Install Skipp
+            </button>
+          )}
+          <button
+            onClick={dismiss}
+            className="mx-auto inline-flex min-h-11 items-center px-3 text-callout opacity-60 transition-opacity hover:opacity-100"
           >
-            Install Skipp
-          </Button>
-        )}
-        <button
-          onClick={dismiss}
-          className="mx-auto mt-1 flex min-h-11 items-center px-3 text-callout text-text-3 transition-colors hover:text-text-2"
-        >
-          continue in browser
-        </button>
-      </div>
+            Use in browser instead
+          </button>
+        </div>
+      }
+    >
+      <Stage steps={steps} note={signedIn && ios} />
+    </EntryChapter>
+  );
+}
+
+/* -------------------------------------------------------------------------- */
+
+/**
+ * The stage: a numbered index of the taps to make.
+ *
+ * A list that is mostly rule, so it reads as instructions rather than as
+ * decoration, and unlike any other stage in the deck: the welcome is surfaces
+ * in depth, chapter one is a fanned stack, chapter three is a live meter.
+ */
+function Stage({
+  steps,
+  note,
+}: {
+  steps: { Icon: (p: { size?: number; className?: string }) => React.ReactNode; text: string }[];
+  note: boolean;
+}) {
+  return (
+    <div className="no-scrollbar flex h-full flex-col justify-center overflow-y-auto px-[var(--gutter)] pt-[max(56px,calc(env(safe-area-inset-top)+40px))]">
+      <p data-in className="max-w-[26ch] text-body leading-relaxed opacity-75">
+        It opens full screen with no browser bar, and starts instantly from the
+        copy already on this phone.
+      </p>
+
+      <ol className="mt-7 flex flex-col">
+        {steps.map(({ Icon, text }, i) => (
+          <li
+            key={text}
+            data-in
+            className="flex items-center gap-4 border-t py-4 last:border-b"
+            style={{ borderColor: "currentColor", borderTopWidth: 1, opacity: 0.999 }}
+          >
+            <span className="tnum text-label uppercase opacity-45">
+              {String(i + 1).padStart(2, "0")}
+            </span>
+            <span style={{ color: ACCENT }}>
+              <Icon size={19} />
+            </span>
+            <span className="min-w-0 flex-1 text-body leading-relaxed">{text}</span>
+          </li>
+        ))}
+      </ol>
+
+      {note && (
+        <p data-in className="mt-5 max-w-[30ch] text-callout leading-relaxed opacity-55">
+          Signing in once more inside the installed app is normal: iOS keeps a
+          home screen app&rsquo;s data separate from Safari&rsquo;s.
+        </p>
+      )}
     </div>
   );
 }
