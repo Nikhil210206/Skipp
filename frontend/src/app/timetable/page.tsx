@@ -73,8 +73,12 @@ export default function TimetablePage() {
   const controlDO = target ?? activeDO;
 
   const schedule = scheduleFor(dayOrders, activeDO);
+  // Theory periods stay separate here so two hours of one course read as two
+  // classes rather than one long bar. Labs stay whole: two periods of a lab is
+  // one session. Home merges both, on purpose (see mergeRuns).
   const classes = mergeRuns(
     daySchedule(schedule?.classes ?? [], customClasses, activeDO, optionalCourses),
+    { labsOnly: true },
   );
   const attending = classes.filter((c) => !c.isOptional);
   const isToday = activeDO === todayDO;
@@ -348,7 +352,7 @@ export default function TimetablePage() {
                       next={c.id === nextId}
                       onRemove={removeCustomClass}
                       onToggleOptional={() =>
-                        toggleOptional(activeDO, c.code, c.isLab)
+                        toggleOptional(activeDO, c.code, c.isLab, c.covers)
                       }
                     />
                   </li>

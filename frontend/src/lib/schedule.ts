@@ -24,6 +24,14 @@ export type ScheduleItem = {
   isCustom: boolean;
   isOptional: boolean;
   slot: string | null;
+  /**
+   * The start times of the real periods this row stands for.
+   *
+   * One entry for an ordinary period. A merged lab row carries every period in
+   * the run, so marking it optional marks the whole session rather than only
+   * the hour the row happens to begin at.
+   */
+  covers: number[];
 };
 
 /** Portal-style time from minutes: 490 -> "08:10", 800 -> "01:20" (no am/pm). */
@@ -48,15 +56,21 @@ export function fmtTime(min: number): string {
  * - **A course sits on more than one day order.** Marking it from one day threw
  *   it out of all of them, which is not what "I skip this Tuesday slot" means.
  *
- * The period number is deliberately NOT in the key: a lab occupying two
- * consecutive periods is one class to a student, so marking it covers both.
+ * The period is identified by its start time, because the Schedule now shows
+ * consecutive theory periods as separate rows and each has to toggle on its
+ * own. Marking the first hour of a course used to mark the second as well.
+ *
+ * A merged lab row still covers its whole run: the row carries every period it
+ * spans in `covers`, and toggling writes a key for each, so two periods of one
+ * lab remain a single decision.
  */
 export function optionalKey(
   dayOrder: number | null,
   code: string,
   isLab: boolean,
+  startMin: number,
 ): string {
-  return `${dayOrder ?? "?"}::${code}::${isLab ? "lab" : "th"}`;
+  return `${dayOrder ?? "?"}::${code}::${isLab ? "lab" : "th"}::${startMin}`;
 }
 
 /**
@@ -72,9 +86,17 @@ export function isMarkedOptional(
   dayOrder: number | null,
   code: string,
   isLab: boolean,
+  startMin: number,
 ): boolean {
   if (marks.length === 0) return false;
-  return marks.includes(optionalKey(dayOrder, code, isLab)) || marks.includes(code);
+  return (
+    marks.includes(optionalKey(dayOrder, code, isLab, startMin)) ||
+    // Written before periods were addressable: the whole course on this day
+    // order, both hours of it.
+    marks.includes(`${dayOrder ?? "?"}::${code}::${isLab ? "lab" : "th"}`) ||
+    // Older still: the whole course, everywhere.
+    marks.includes(code)
+  );
 }
 
 function periodToItem(
@@ -95,8 +117,9 @@ function periodToItem(
     faculty: p.faculty,
     isLab: p.isLab,
     isCustom: false,
-    isOptional: isMarkedOptional(optional, dayOrder, p.code, p.isLab),
+    isOptional: isMarkedOptional(optional, dayOrder, p.code, p.isLab, p.startMin),
     slot: p.slot,
+    covers: [p.startMin],
   };
 }
 
@@ -116,6 +139,7 @@ function customToItem(c: CustomClass): ScheduleItem {
     isCustom: true,
     isOptional: false,
     slot: null,
+    covers: [],
   };
 }
 
@@ -287,8 +311,22 @@ export function prettyDate(iso: string): string {
  * Labs run as two or three consecutive periods of the same course. The portal
  * lists each period separately; a student thinks of it as one class, so runs of
  * the same course are collapsed into a single entry spanning the whole block.
+ *
+ * **`labsOnly` splits consecutive THEORY periods back apart**, and the Schedule
+ * screen wants that: a 105 minute block of one course is really two class
+ * hours, and shown as a single bar it is genuinely unclear whether that is one
+ * class or two, which is worth knowing when the whole app is about counting
+ * attendance. A lab is left whole even then, because two periods of a lab are
+ * one session you sit through rather than two classes.
+ *
+ * Home deliberately does NOT pass it. Its hero is a countdown, and running that
+ * to the end of period one while period two sits below as a separate row is the
+ * exact bug that made a two period lab look duplicated there.
  */
-export function mergeRuns(items: ScheduleItem[]): ScheduleItem[] {
+export function mergeRuns(
+  items: ScheduleItem[],
+  opts: { labsOnly?: boolean } = {},
+): ScheduleItem[] {
   const out: ScheduleItem[] = [];
   for (const item of items) {
     const prev = out[out.length - 1];
@@ -297,9 +335,15 @@ export function mergeRuns(items: ScheduleItem[]): ScheduleItem[] {
       prev.code !== "" &&
       prev.code === item.code &&
       prev.isLab === item.isLab &&
-      item.startMin - prev.endMin <= 10;
+      item.startMin - prev.endMin <= 10 &&
+      (!opts.labsOnly || item.isLab);
     if (continues) {
-      out[out.length - 1] = { ...prev, end: item.end, endMin: item.endMin };
+      out[out.length - 1] = {
+        ...prev,
+        end: item.end,
+        endMin: item.endMin,
+        covers: [...prev.covers, ...item.covers],
+      };
     } else {
       out.push(item);
     }
@@ -325,7 +369,7 @@ export function attendingOnly(
     // Matched per day order and per lab-ness, so dropping the theory on one day
     // cannot quietly drop the lab, or the same course on every other day.
     classes: d.classes.filter(
-      (c) => !isMarkedOptional(optionalCodes, d.dayOrder, c.code, c.isLab),
+      (c) => !isMarkedOptional(optionalCodes, d.dayOrder, c.code, c.isLab, c.startMin),
     ),
   }));
 }
@@ -344,8 +388,25 @@ export function optionalKeysForCourse(
   const keys = new Set<string>();
   for (const d of dayOrders) {
     for (const c of d.classes) {
-      if (c.code === code) keys.add(optionalKey(d.dayOrder, c.code, c.isLab));
+      if (c.code === code) {
+        keys.add(optionalKey(d.dayOrder, c.code, c.isLab, c.startMin));
+      }
     }
   }
   return [...keys];
+}
+
+/** Every period key for one course on one day order, on one side of the
+ *  theory/lab split. Used to expand the older whole-day-order marking. */
+export function optionalKeysForDayOrder(
+  dayOrders: DayOrderSchedule[],
+  dayOrder: number | null,
+  code: string,
+  isLab: boolean,
+): string[] {
+  const day = dayOrders.find((d) => d.dayOrder === dayOrder);
+  if (!day) return [];
+  return day.classes
+    .filter((c) => c.code === code && c.isLab === isLab)
+    .map((c) => optionalKey(dayOrder, c.code, c.isLab, c.startMin));
 }

@@ -26,7 +26,12 @@ import type {
   Timetable,
 } from "@/types";
 import { AuthError, fetchSnapshot } from "@/lib/api";
-import { attendingOnly, optionalKey, optionalKeysForCourse } from "@/lib/schedule";
+import {
+  attendingOnly,
+  optionalKey,
+  optionalKeysForCourse,
+  optionalKeysForDayOrder,
+} from "@/lib/schedule";
 import { notifyAttendanceChanges } from "@/lib/notify";
 import {
   clearCredentials,
@@ -130,9 +135,14 @@ type SessionValue = {
   removeCustomClass: (id: string) => void;
   /** Optional markings, one per day order and per lab-ness (see optionalKey). */
   optionalCourses: string[];
-  /** Marks or unmarks ONE class: this course, on this day order, this side of
-   *  the theory/lab split. */
-  toggleOptional: (dayOrder: number | null, code: string, isLab: boolean) => void;
+  /** Marks or unmarks ONE row: this course, on this day order, this side of the
+   *  theory/lab split, for exactly the periods the row covers. */
+  toggleOptional: (
+    dayOrder: number | null,
+    code: string,
+    isLab: boolean,
+    covers: number[],
+  ) => void;
   /** Classes the portal recorded since the previous snapshot. */
   attendanceChanges: AttendanceChange[];
   displayName: string; // custom name if set, else official first name
@@ -356,13 +366,29 @@ export function SessionProvider({ children }: { children: React.ReactNode }) {
       },
       attendanceChanges,
       optionalCourses,
-      toggleOptional(dayOrder, code, isLab) {
-        const key = optionalKey(dayOrder, code, isLab);
+      toggleOptional(dayOrder, code, isLab, covers) {
         const grid = snapshot?.timetable.dayOrders ?? [];
+        // One key per real period the row stands for. An ordinary row is one
+        // period; a merged lab row is its whole run, so a lab stays a single
+        // decision while two theory hours are now independent.
+        const keys = covers.map((startMin) =>
+          optionalKey(dayOrder, code, isLab, startMin),
+        );
+        const dayKey = `${dayOrder ?? "?"}::${code}::${isLab ? "lab" : "th"}`;
         let next: string[];
 
-        if (optionalCourses.includes(key)) {
-          next = optionalCourses.filter((c) => c !== key);
+        if (keys.every((k) => optionalCourses.includes(k))) {
+          next = optionalCourses.filter((c) => !keys.includes(c));
+        } else if (optionalCourses.includes(dayKey)) {
+          // Written before periods were addressable, and it meant every hour of
+          // this course on this day. Spell the rest out before removing one, or
+          // the catch-all still in the list would swallow the removal.
+          next = [
+            ...optionalCourses.filter((c) => c !== dayKey),
+            ...optionalKeysForDayOrder(grid, dayOrder, code, isLab).filter(
+              (k) => !keys.includes(k),
+            ),
+          ];
         } else if (optionalCourses.includes(code)) {
           // A legacy bare code meant "this course, everywhere". Unmarking one
           // class of it has to write the rest down explicitly first, or the
@@ -370,10 +396,10 @@ export function SessionProvider({ children }: { children: React.ReactNode }) {
           // in the list.
           next = [
             ...optionalCourses.filter((c) => c !== code),
-            ...optionalKeysForCourse(grid, code).filter((k) => k !== key),
+            ...optionalKeysForCourse(grid, code).filter((k) => !keys.includes(k)),
           ];
         } else {
-          next = [...optionalCourses, key];
+          next = [...optionalCourses, ...keys.filter((k) => !optionalCourses.includes(k))];
         }
 
         setOptionalCourses(next);
