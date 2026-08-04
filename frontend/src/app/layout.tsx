@@ -11,6 +11,7 @@ import { THEME_INIT_SCRIPT } from "@/lib/themeScript";
 import PWARegister from "@/components/PWARegister";
 import Splash from "@/components/Splash";
 import { Analytics } from "@vercel/analytics/next";
+import { SpeedInsights } from "@vercel/speed-insights/next";
 
 const geistSans = Geist({
   variable: "--font-geist-sans",
@@ -86,6 +87,12 @@ export default function RootLayout({
         {/* Page views only. It sees route names, and the routes carry no
             student data: no id, no marks, nothing identifying in a path. */}
         <Analytics />
+        {/* Core Web Vitals from real devices. This is the honest answer to the
+            transition lag that was reported from a phone and could never be
+            reproduced here: INP is measured on the hardware people actually
+            hold, not on a throttled desktop. It reports timings and route
+            names, never anything about the student. */}
+        <SpeedInsights />
       </body>
     </html>
   );
