@@ -8,15 +8,29 @@ import { Button, Label, Segmented } from "@/components/ui";
 // Adds a class the portal does not know about, to one day order. Stored on
 // this device only.
 
-function toMin(hhmm: string): number | null {
+type Half = "AM" | "PM";
+
+/**
+ * Minutes since midnight from a clock reading plus the half of the day.
+ *
+ * **The hour is read as it is WRITTEN on a clock face, not as 24 hour time**,
+ * because that is how the whole app shows times: the portal prints a 2:20 PM
+ * class as "02:20" and Skipp mirrors it. Parsing that same string as 24 hour
+ * put every afternoon class the student typed at 2:20 in the MORNING, twelve
+ * hours early and sorted above their real day, which is what made custom
+ * classes land in the wrong place.
+ */
+function toMin(hhmm: string, half: Half): number | null {
   const m = /^(\d{1,2}):(\d{2})$/.exec(hhmm);
   if (!m) return null;
   const h = Number(m[1]);
   const min = Number(m[2]);
-  // The shape being right does not make the time real: "25:99" matches the
-  // pattern and would sort a class off the end of the day.
-  if (h > 23 || min > 59) return null;
-  return h * 60 + min;
+  // The shape being right does not make the time real: "13:70" matches the
+  // pattern, and on a clock face there is no hour 0 or 13.
+  if (h < 1 || h > 12 || min > 59) return null;
+  // 12 is the odd one: 12 AM is midnight (hour 0) and 12 PM is noon (hour 12).
+  const hour24 = half === "AM" ? (h === 12 ? 0 : h) : h === 12 ? 12 : h + 12;
+  return hour24 * 60 + min;
 }
 
 function autoAbbrev(title: string): string {
@@ -45,7 +59,9 @@ export default function CustomClassSheet({
   const [title, setTitle] = useState("");
   const [wasOpen, setWasOpen] = useState(open);
   const [start, setStart] = useState("09:00");
+  const [startHalf, setStartHalf] = useState<Half>("AM");
   const [end, setEnd] = useState("10:00");
+  const [endHalf, setEndHalf] = useState<Half>("AM");
   const [room, setRoom] = useState("");
   const [error, setError] = useState<string | null>(null);
 
@@ -63,16 +79,20 @@ export default function CustomClassSheet({
   function reset() {
     setTitle("");
     setStart("09:00");
+    setStartHalf("AM");
     setEnd("10:00");
+    setEndHalf("AM");
     setRoom("");
     setError(null);
   }
 
   function submit() {
-    const s = toMin(start);
-    const e = toMin(end);
+    const s = toMin(start, startHalf);
+    const e = toMin(end, endHalf);
     if (!title.trim()) return setError("Give the class a name.");
-    if (s == null || e == null) return setError("Enter valid times.");
+    if (s == null || e == null) {
+      return setError("Enter times as hours and minutes, like 02:20.");
+    }
     if (e <= s) return setError("The end time must be after the start.");
     onAdd({
       dayOrder: order,
@@ -122,15 +142,25 @@ export default function CustomClassSheet({
           placeholder="Makeup lab"
         />
 
+        {/* Typed exactly as the rest of the app prints a time, with the half of
+            the day stated rather than guessed. */}
         <div className="grid grid-cols-2 gap-3">
-          <TextField
+          <TimeField
             id="cc-start"
             label="Starts"
             value={start}
             onChange={setStart}
-            numeric
+            half={startHalf}
+            onHalfChange={setStartHalf}
           />
-          <TextField id="cc-end" label="Ends" value={end} onChange={setEnd} numeric />
+          <TimeField
+            id="cc-end"
+            label="Ends"
+            value={end}
+            onChange={setEnd}
+            half={endHalf}
+            onHalfChange={setEndHalf}
+          />
         </div>
 
         <TextField
@@ -153,6 +183,37 @@ export default function CustomClassSheet({
         </p>
       </div>
     </Sheet>
+  );
+}
+
+function TimeField({
+  id,
+  label,
+  value,
+  onChange,
+  half,
+  onHalfChange,
+}: {
+  id: string;
+  label: string;
+  value: string;
+  onChange: (v: string) => void;
+  half: Half;
+  onHalfChange: (h: Half) => void;
+}) {
+  return (
+    <div className="flex flex-col gap-2">
+      <TextField id={id} label={label} value={value} onChange={onChange} numeric />
+      <Segmented
+        label={`${label}, morning or afternoon`}
+        value={half}
+        onChange={onHalfChange}
+        options={[
+          { value: "AM" as Half, label: "AM" },
+          { value: "PM" as Half, label: "PM" },
+        ]}
+      />
+    </div>
   );
 }
 
