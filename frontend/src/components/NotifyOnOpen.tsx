@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useRef } from "react";
+import { useEffect } from "react";
 import { useSession } from "@/context/SessionContext";
 import {
   calendarDay,
@@ -29,9 +29,6 @@ import { notifyClassSoon } from "@/lib/notify";
 export default function NotifyOnOpen() {
   const { timetable, attendingDayOrders, customClasses, optionalCourses, isAuthed } =
     useSession();
-  // The last thing announced, so a foreground event a minute later does not
-  // re-raise the same class.
-  const announced = useRef<string | null>(null);
 
   useEffect(() => {
     if (!isAuthed || !timetable) return;
@@ -48,16 +45,11 @@ export default function NotifyOnOpen() {
         today.dayOrder,
         optionalCourses,
       );
-      const now = nowMinutes();
-      const next = classes.find((c) => c.startMin > now);
-      const key = next ? `${iso}-${next.id}` : null;
-      if (!key || key === announced.current) return;
-
-      // Recorded only once something was actually raised. Marking it up front
-      // would permanently suppress this class if nothing was shown, which is
-      // the ordinary case when notifications are off, or on the very first
-      // check before the service worker has registered.
-      if (await notifyClassSoon(classes, now, iso)) announced.current = key;
+      // "Have I already said this?" is answered inside notifyClassSoon, against
+      // a log in localStorage. It cannot live here: this component is remounted
+      // on every navigation, so anything held in a ref forgets instantly and
+      // announces the same class again on the next tab change.
+      await notifyClassSoon(classes, nowMinutes(), iso);
     };
 
     void check();

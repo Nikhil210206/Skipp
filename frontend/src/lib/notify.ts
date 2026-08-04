@@ -21,10 +21,73 @@
 // glance at the app, not an alarm clock.
 
 import type { AttendanceChange } from "./reminders";
-import type { ScheduleItem } from "./schedule";
+import { todayISO, type ScheduleItem } from "./schedule";
 
-/** How close a class has to be before it is worth a notification, in minutes. */
-export const CLASS_LEAD_MIN = 30;
+/**
+ * How long before a class to buzz, in minutes. Both fire, once each.
+ *
+ * The wider one is the plan-ahead nudge, the tighter one is the "leave now".
+ */
+export const LEADS = [30, 5] as const;
+
+/** The widest window, i.e. how early a class starts being worth mentioning. */
+export const CLASS_LEAD_MIN = Math.max(...LEADS);
+
+/* ----------------------------------------------------------- sent once only */
+
+/**
+ * What has already been announced today.
+ *
+ * **This has to outlive the component, and that was the whole bug.** It used to
+ * be a `useRef` in `NotifyOnOpen`, but every screen renders its own `AppShell`,
+ * so the component is torn down and rebuilt on EVERY navigation. The memory of
+ * having already told you went with it, and switching tabs five times told you
+ * five times. Bringing the app to the foreground did it again.
+ *
+ * Keyed per class per LEAD per day, so the 30 minute and the 5 minute warnings
+ * are separate one-time events and tomorrow starts clean. The log is stamped
+ * with the day so it prunes itself rather than growing for ever.
+ */
+const SENT_KEY = "skipp.notified";
+
+type SentLog = { day: string; ids: string[] };
+
+function loadSent(): SentLog {
+  const day = todayISO();
+  try {
+    const raw = localStorage.getItem(SENT_KEY);
+    const parsed = raw ? (JSON.parse(raw) as SentLog | null) : null;
+    if (parsed && parsed.day === day && Array.isArray(parsed.ids)) return parsed;
+  } catch {
+    /* unreadable, treat as nothing sent */
+  }
+  return { day, ids: [] };
+}
+
+function alreadySent(id: string): boolean {
+  return loadSent().ids.includes(id);
+}
+
+function markSent(id: string): void {
+  try {
+    const log = loadSent();
+    if (log.ids.includes(id)) return;
+    log.ids.push(id);
+    localStorage.setItem(SENT_KEY, JSON.stringify(log));
+  } catch {
+    // Private mode. The worst case is a repeat, which is what it was before.
+  }
+}
+
+/** FNV-1a, so an attendance signature stays short in storage. */
+function hash(input: string): string {
+  let h = 2166136261;
+  for (let i = 0; i < input.length; i++) {
+    h ^= input.charCodeAt(i);
+    h = Math.imul(h, 16777619);
+  }
+  return (h >>> 0).toString(36);
+}
 
 /**
  * Whether the student has asked for notifications.
@@ -129,13 +192,23 @@ async function show(
 /**
  * What the portal recorded since the last snapshot.
  *
- * Raised from `installSnapshot`, which is the single door fresh data enters
- * by, so it fires exactly once per genuine change.
+ * Raised from `installSnapshot`, the single door fresh data enters by. The
+ * signature guard is belt and braces on top of that: a refresh that re-reports
+ * the same marks, or a second install of an identical snapshot, says nothing a
+ * second time.
  */
 export async function notifyAttendanceChanges(
   changes: AttendanceChange[],
 ): Promise<boolean> {
   if (changes.length === 0) return false;
+
+  const id = `attn-${hash(
+    changes
+      .map((c) => `${c.title}:${c.held}:${c.present}:${c.percentage.toFixed(1)}`)
+      .sort()
+      .join("|"),
+  )}`;
+  if (alreadySent(id)) return false;
 
   const missed = changes.filter((c) => c.held - c.present > 0);
   const title =
@@ -147,20 +220,23 @@ export async function notifyAttendanceChanges(
       ? `${changes[0].held} class${changes[0].held === 1 ? "" : "es"} recorded, now at ${changes[0].percentage.toFixed(0)}%`
       : `${changes.length} subjects updated since you last looked`;
 
-  return show(title, { body, tag: "attendance-change", data: { url: "/attendance" } });
+  const shown = await show(title, {
+    body,
+    tag: "attendance-change",
+    data: { url: "/attendance" },
+  });
+  if (shown) markSent(id);
+  return shown;
 }
 
 /**
- * The next class, if it is close enough to matter.
- *
- * The tag is per class per day, so opening the app five times in twenty
- * minutes updates one notification in the tray rather than stacking five.
- * `renotify` is left off for the same reason.
+ * The next class, if it is close enough to matter. At most one notification
+ * per class per lead, per day.
  */
 export async function notifyClassSoon(
   todayClasses: ScheduleItem[],
   nowMin: number | null,
-  todayISO: string,
+  day: string,
 ): Promise<boolean> {
   if (nowMin === null) return false;
   const soon = todayClasses.find(
@@ -168,9 +244,23 @@ export async function notifyClassSoon(
   );
   if (!soon) return false;
 
-  return show(`${soon.title || soon.code} in ${soon.startMin - nowMin} min`, {
+  const mins = soon.startMin - nowMin;
+  // The TIGHTEST window that applies. Three minutes before a class is the five
+  // minute warning, not a late thirty minute one.
+  const lead = [...LEADS].sort((a, b) => a - b).find((l) => mins <= l);
+  if (lead === undefined) return false;
+
+  const id = `class-${day}-${soon.id}-${lead}`;
+  if (alreadySent(id)) return false;
+
+  const shown = await show(`${soon.title || soon.code} in ${mins} min`, {
     body: [`${soon.start} to ${soon.end}`, soon.room].filter(Boolean).join(" · "),
-    tag: `class-${todayISO}-${soon.id}`,
+    // Per lead, not per class: one shared tag would make the five minute
+    // warning silently REPLACE the thirty minute one instead of alerting, and
+    // the second reminder is the one people actually move for.
+    tag: id,
     data: { url: "/dashboard" },
   });
+  if (shown) markSent(id);
+  return shown;
 }

@@ -4,7 +4,7 @@ import { useEffect, useState } from "react";
 import { Button } from "@/components/ui";
 import {
   blockedUntilInstalled,
-  CLASS_LEAD_MIN,
+  LEADS,
   disableNotifications,
   enableNotifications,
   notificationPermission,
@@ -78,8 +78,8 @@ export default function NotificationSetting() {
       <div className="flex items-start justify-between gap-5">
         <div className="min-w-0 flex-1">
           <p className="text-body text-text-2">
-            A nudge when a class is within {CLASS_LEAD_MIN} minutes, and a note
-            when the portal has recorded attendance.
+            A nudge {LEADS.join(" and ")} minutes before each class, and a note
+            when the portal has recorded attendance. Once each, never repeated.
           </p>
           <p className="mt-2 text-callout leading-relaxed text-text-3">
             {state === "needs-install"
