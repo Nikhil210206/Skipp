@@ -490,20 +490,31 @@ export function playEntrance(
  * measurement." A single label is one word already, so there is nothing
  * character-splitting would buy here beyond repeating that cost forever.
  *
- * Reuses the `[data-word]` convention (and its CSS start state) `playEntrance`
- * already defines, so a caller that fails to run this still gets caught by
- * `revealStragglers()`.
+ * **The target must NOT carry `data-word`, and must not be hidden by CSS.** The
+ * masthead label is the only thing telling you which screen you are on, so it
+ * is CONTENT, and section 11's rule applies: never let visible content depend
+ * on an animation having run. Marking it `[data-word]` did exactly that, and on
+ * a real installed Android app the label never appeared: the corner sat empty
+ * and the tall safe-area header read as a blank box.
+ *
+ * So the start state is set HERE instead, from a layout effect, which lands
+ * before the browser paints and so cannot flash. If this never runs, for any
+ * reason at all, the label is simply visible and unanimated, which is the worst
+ * a decoration should ever cost.
  */
 export function revealWord(el: HTMLElement | null, reduced: boolean): void {
   if (!el) return;
-  // No `clearProps`, deliberately, matching `playEntrance`'s own `[data-word]`
-  // tween: the CSS start state hides this element via `transform`, not
-  // opacity, so clearing the inline transform on completion would hand it
-  // straight back to the rule that hides it. The inline transform has to stay
-  // set forever, at its resolved value, for the reveal to stick.
-  if (reduced) {
-    gsap.set(el, { yPercent: 0 });
-    return;
-  }
-  gsap.fromTo(el, { yPercent: 110 }, { yPercent: 0, duration: 0.5, ease: EASE.emphasis });
+  if (reduced) return; // already visible; nothing to undo
+  gsap.fromTo(
+    el,
+    { yPercent: 110 },
+    {
+      yPercent: 0,
+      duration: 0.5,
+      ease: EASE.emphasis,
+      // Cleared on completion: the element has no hiding rule to fall back to,
+      // so handing it back to plain CSS is safe and leaves nothing inline.
+      clearProps: "transform",
+    },
+  );
 }

@@ -124,8 +124,13 @@ export default function AppShell({
                     {CREATOR.prefix} {CREATOR.name}
                   </span>
                 ) : (
+                  // No `data-word` here, deliberately. That attribute is hidden
+                  // by CSS until GSAP reveals it, which made the only label
+                  // saying which screen you are on vanish entirely when the
+                  // reveal did not run. The animation now sets its own start
+                  // state, so the worst it can do is not play.
                   <span className="inline-block overflow-hidden pb-[0.06em] align-bottom">
-                    <span ref={label} data-word className="inline-block will-change-transform">
+                    <span ref={label} className="inline-block will-change-transform">
                       {section}
                     </span>
                   </span>
