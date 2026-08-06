@@ -121,7 +121,22 @@ export default function BottomNav() {
       aria-label="Primary"
       // SideNav takes over past `lg`, where there is a rail instead of a thumb
       // to reach the bottom of the screen with.
-      className="sticky bottom-0 z-30 bg-ink-0/90 backdrop-blur-2xl lg:hidden"
+      // Opaque, with NO backdrop-filter, and that is a bug fix rather than a
+      // taste change. A `backdrop-filter` element has to sample everything
+      // painted behind it, so it depends on the compositing structure of the
+      // page staying still. `captureOutgoing` appends a `position: fixed`
+      // composited clone to the body the instant a swipe commits and removes it
+      // when the transition ends, which changes the backdrop root twice per
+      // navigation. Chrome on Android drops the blurred layer while that
+      // happens, so the whole bar disappeared for the length of the swipe and
+      // came back on landing.
+      //
+      // Nothing is lost: the app is flat and hairline based, and glassmorphism
+      // was already considered and rejected here on the grounds that a near
+      // black app has no wallpaper worth revealing. Brutal, Clay and Terminal
+      // each paint their own opaque `[data-nav]` background anyway, so this
+      // only ever affected the default themes.
+      className="sticky bottom-0 z-30 bg-ink-0 lg:hidden"
     >
       <div className="rule" />
       <ul
