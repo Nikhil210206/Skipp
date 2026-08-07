@@ -2,14 +2,14 @@
 
 import { useMemo, useRef, useState } from "react";
 import { useSession } from "@/context/SessionContext";
-import { todayISO } from "@/lib/schedule";
+import { prettyDate, todayISO } from "@/lib/schedule";
 import { projectAttendance } from "@/lib/leavePredictor";
 import { predict } from "@/lib/predictor";
 import { countTo, revealIn, useGsap } from "@/lib/motion";
 import { Panel } from "@/components/ui/Overlay";
 import { Button, Chip, IconButton, Label, Segmented } from "@/components/ui";
 import { IconChevronLeft, IconChevronRight } from "@/components/Icons";
-import { SectionHead, TrackRule } from "@/components/ui/editorial";
+import { Amount, SectionHead, TrackRule } from "@/components/ui/editorial";
 
 const TARGET = 75;
 const MONTHS = [
@@ -254,7 +254,11 @@ function Forecast({
   projection: ReturnType<typeof projectAttendance>;
 }) {
   const after = projection.overallAfter;
-  const drop = projection.overallBefore - after;
+  // Signed, because the forecast now plays the term forward: attending the days
+  // between here and your leave can outweigh the days you take off, so a plan
+  // can genuinely leave you HIGHER than today. Saying "down -1.2" for that was
+  // a double negative that read like a bug.
+  const delta = after - projection.overallBefore;
   const totalA = projection.subjects.reduce((x, s) => x + s.attendedAfter, 0);
   const totalC = projection.subjects.reduce((x, s) => x + s.conductedAfter, 0);
   const rec = predict(totalA, totalC, TARGET);
@@ -263,35 +267,31 @@ function Forecast({
   useGsap(
     ({ reduced }) => {
       if (figure.current) {
-        countTo(
-          figure.current,
-          rec.isSafe ? rec.canSkip : rec.mustAttend,
-          reduced,
-          (n) => String(Math.round(n)),
-        );
+        countTo(figure.current, after, reduced, (n) => n.toFixed(1));
       }
     },
-    [rec.isSafe, rec.canSkip, rec.mustAttend],
+    [after],
   );
 
   return (
     <>
       <section data-reveal className="pb-9">
-        <Label>{rec.isSafe ? "Margin after this" : "Required after this"}</Label>
-        <div className="mt-4 flex items-baseline gap-3">
-          <span
-            className={`tnum optical text-poster ${
-              rec.isSafe ? "text-text-1" : "text-accent"
-            }`}
-          >
-            <span ref={figure}>{rec.isSafe ? rec.canSkip : rec.mustAttend}</span>
-          </span>
-          <span className="pb-2 text-headline text-text-3">
-            {rec.isSafe
-              ? `class${rec.canSkip === 1 ? "" : "es"} still in hand`
-              : `class${rec.mustAttend === 1 ? "" : "es"} in a row to recover`}
-          </span>
-        </div>
+        {/* The percentage is the hero. A count of classes in hand is the right
+            answer to "can I skip one more", but this screen answers "where does
+            this leave me", and a student thinks about that in per cent: it is
+            the number on the portal, on the attendance screen, and the one the
+            75% rule is written in. */}
+        <Label>
+          {projection.through
+            ? `Attendance on ${prettyDate(projection.through)}`
+            : "Attendance after this"}
+        </Label>
+        <Amount
+          size="poster"
+          className={`mt-4 ${after >= TARGET ? "text-text-1" : "text-accent"}`}
+          value={<span ref={figure}>{after.toFixed(1)}</span>}
+          unit="%"
+        />
 
         <TrackRule
           value={after}
@@ -302,13 +302,40 @@ function Forecast({
 
         <div className="mt-4 flex items-baseline justify-between gap-4">
           <span className="tnum text-callout text-text-3">
-            {projection.overallBefore.toFixed(1)}% to {after.toFixed(1)}% · down{" "}
-            {drop.toFixed(1)}
+            {projection.overallBefore.toFixed(1)}% to {after.toFixed(1)}%
+            {Math.abs(delta) >= 0.05
+              ? ` · ${delta > 0 ? "up" : "down"} ${Math.abs(delta).toFixed(1)}`
+              : " · no change"}
           </span>
           <Chip tone={after >= TARGET ? "safe" : "risk"}>
             {after >= TARGET ? "Still safe" : "Below target"}
           </Chip>
         </div>
+
+        {/* What the figure above is actually made of. The forecast plays the
+            term forward to the last date picked, so it has to say how many
+            classes that covers and how many of them are missed, otherwise the
+            percentage looks like it came from nowhere. */}
+        <p className="mt-4 text-body text-text-2">
+          {rec.isSafe
+            ? `${rec.canSkip} class${rec.canSkip === 1 ? "" : "es"} still in hand after that.`
+            : `Attend ${rec.mustAttend} in a row after that to clear ${TARGET}%.`}
+        </p>
+
+        <p className="mt-3 text-callout leading-relaxed text-text-3">
+          By{" "}
+          <span className="text-text-2">{prettyDate(projection.through ?? "")}</span>{" "}
+          <span className="tnum text-text-2">{projection.totalHeld}</span> more
+          {projection.totalHeld === 1 ? " class" : " classes"} will have been held.
+          You attend{" "}
+          <span className="tnum text-text-2">
+            {projection.totalHeld - projection.totalMissed}
+          </span>{" "}
+          of them across{" "}
+          <span className="tnum">{projection.attendedDays}</span> day
+          {projection.attendedDays === 1 ? "" : "s"} and miss{" "}
+          <span className="tnum text-accent">{projection.totalMissed}</span>.
+        </p>
       </section>
 
       <section>
@@ -318,6 +345,14 @@ function Forecast({
         <ul className="mt-2">
           {projection.subjects
             .filter((s) => s.conductedAfter > 0)
+            // Trouble first, then whatever this leave actually touches. A
+            // subject it never touches is context, not news, so it sinks.
+            .toSorted((a, b) => {
+              const risk = Number(a.pctAfter < TARGET) - Number(b.pctAfter < TARGET);
+              if (risk !== 0) return -risk;
+              if (a.missed !== b.missed) return b.missed - a.missed;
+              return a.pctAfter - b.pctAfter;
+            })
             .map((s, i) => {
               const safe = s.pctAfter >= TARGET;
               const r = predict(s.attendedAfter, s.conductedAfter, TARGET);
@@ -329,6 +364,14 @@ function Forecast({
                       <p className="truncate text-headline">{s.title}</p>
                       <p className="tnum mt-1.5 truncate text-callout text-text-3">
                         {s.attendedAfter}/{s.conductedAfter} · {s.pctAfter.toFixed(0)}%
+                        {s.missed > 0 ? (
+                          <>
+                            {" · "}
+                            <span className="text-accent">{s.missed} missed</span>
+                          </>
+                        ) : (
+                          " · not affected"
+                        )}
                       </p>
                     </div>
                     <div className="shrink-0 text-right">
