@@ -18,6 +18,7 @@ import Logo, { Wordmark } from "@/components/Logo";
 import Greeting from "@/components/Greeting";
 import { useSession } from "@/context/SessionContext";
 import { playEntrance, useGsap } from "@/lib/motion";
+import { claimIfNewDevice } from "@/lib/whatsNew";
 import { Spinner } from "@/components/ui";
 
 /**
@@ -61,6 +62,14 @@ export default function LoginPage() {
   useEffect(() => {
     if (isAuthed && phase === "idle") router.replace("/dashboard");
   }, [isAuthed, phase, router]);
+
+  // Date the device before anybody signs in. This is the only moment that can
+  // tell a student who already had Skipp from one arriving for the first time:
+  // a minute later they both have a saved session and look identical. See
+  // claimIfNewDevice.
+  useEffect(() => {
+    claimIfNewDevice();
+  }, []);
 
   const scope = useGsap(
     ({ self, reduced }) => {

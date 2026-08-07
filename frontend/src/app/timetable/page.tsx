@@ -24,6 +24,7 @@ import RollingNumber from "@/components/onboarding/RollingNumber";
 import { Button, IconButton, StateView } from "@/components/ui";
 import { IconDownload } from "@/components/Icons";
 import { Marginalia, SectionHead } from "@/components/ui/editorial";
+import { holidayName } from "@/lib/holidays";
 
 /**
  * SCHEDULE: the day drawn to scale.
@@ -328,8 +329,8 @@ export default function TimetablePage() {
         {holiday && activeDO === upcomingDO && (
           <div data-reveal className="pt-7">
             <Marginalia>
-              {holiday.event?.replace(/ - Holiday$/i, "") ?? "Holiday today."} Showing the
-              next working day.
+              {holiday.event ? holidayName(holiday.event) : "Holiday today."} Showing
+              the next working day.
             </Marginalia>
           </div>
         )}

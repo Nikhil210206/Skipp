@@ -21,6 +21,7 @@ import { countTo, revealIn, useGsap } from "@/lib/motion";
 import { IconChevronRight } from "@/components/Icons";
 import { SectionHead, TrackRule } from "@/components/ui/editorial";
 import { buildReminders } from "@/lib/reminders";
+import { holidayName } from "@/lib/holidays";
 
 /**
  * HOME: a cover, not a dashboard.
@@ -386,7 +387,7 @@ function buildCover(
     hero: first,
     thenLabel: `Rest of ${focus.weekday}`,
     note: holiday
-      ? `Today is ${holiday.event?.replace(/ - Holiday$/i, "") ?? "a holiday"}`
+      ? `Today is ${holiday.event ? holidayName(holiday.event) : "a holiday"}`
       : null,
   };
 }

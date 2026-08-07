@@ -345,7 +345,116 @@ is deployment and true push notifications.
 Entries below are newest first. **When something breaks, read the relevant entry first**: most
 oddities here (login shell, empty calendar, 429s, duplicated course codes) are already diagnosed.
 
-### DONE: The install takeover, and real notifications (2026-08-03, latest)
+### DONE: Holidays are visible on Calendar (2026-08-07, latest)
+
+Reported as "upcoming holidays needs to be added in the calendar page". A list
+was already there, at the very bottom, titled "Coming up". **The real fault was
+that the grid, which is the screen, could not show a holiday at all**: a holiday
+has no day order, so it rendered exactly like a Sunday. Nothing above the fold
+distinguished Independence Day from the weekend beside it.
+
+**One slot, three states.** The cell already reserves a line under the numeral
+for its day-order figure, and on a day off that line was empty. A working day
+shows its day order, a holiday shows a **dot**, a weekend shows nothing. The
+holiday's numeral also sits at `text-2`, between a working day and a weekend,
+because a holiday is not a dead square: it is the one empty day worth going
+looking for. Verified the dot lands on exactly the two August holidays and not
+on any Sunday, and survives Brutal, Clay and Terminal at a real 4px.
+
+**The list under the grid is scoped to the month on screen**, because that is
+the question the month rail has just been used to ask. A first pass listed the
+whole term there and was rejected: the section sits directly under a month you
+navigated to deliberately, so answering with December is answering a question
+nobody asked. The whole term lives behind **"See all days off"**, a sheet
+grouped under month headings (`components/HolidaysSheet.tsx`), chronological
+rather than ranked, because it is the thing you open when booking a train and a
+list sorted by anything but time is a list you have to search.
+
+**The section never disappears, not even in a month with nothing in it.** An
+empty month is exactly when a student wants to know where the next break is, so
+it names the next one and how far off it is. It also means the way through to
+the full term cannot vanish with the list, which is what made "hide it when
+empty" the wrong answer.
+
+**The list says how long the break is, which the grid cannot.** A holiday on a
+Wednesday is a day off; the same holiday on a Friday is three. `termHolidays`
+in `lib/holidays.ts` walks out to both ends of the run of dayOrder-less days
+around each one, so the count comes from the calendar rather than from guessing
+at weekdays, which also handles two holidays landing back to back. The sheet
+leads with the two numbers worth knowing: days off left, and how many of them
+are long weekends.
+
+**A run carries its dates, and that is the useful half.** "3 days off" does not
+tell you WHICH three, and a run does not have to start on the holiday: Vinayakar
+Chathurthi is a Monday, so the break really begins on the Saturday before it
+(`Sep 12 to 14`). The month is only repeated when the range crosses one
+(`Oct 31 to Nov 2`).
+
+**`holidayName()` also renames what the portal calls things.** It writes
+"Deepavali"; students say Diwali. The map is presentation only, keyed on the
+cleaned lowercased name, so the planner text stays untouched wherever it is
+parsed and a spelling can never affect which dates are days off. Home and
+Schedule were each stripping the " - Holiday" suffix with their own inline
+regex, so they now go through the same function: one name for one day, on every
+screen.
+
+**One row component, two views.** `components/HolidayRow.tsx` is shared by the
+month list and the sheet, because a row that says "4 days off" in one place and
+something else in the other is how two screens start disagreeing about one term.
+
+**The update announces itself once** (`components/WhatsNewSheet.tsx`,
+`lib/whatsNew.ts`), as a sheet rather than a takeover: it is a nice addition,
+not a thing standing between a student and their attendance.
+
+**It shows THEIR next long weekend, not a screenshot.** Somebody else's term is
+an advert; your own four day break is a reason to open the calendar. With no
+calendar from the portal it falls back to plain description rather than
+inventing one, which is a real case (attendance and marks can be gated).
+
+**Two things about it are load bearing:**
+
+- **A brand new student must never see it.** They have never seen a Skipp
+  without holidays, so "Skipp is updated" is an interruption during their first
+  run announcing a change they cannot perceive. There is no record of which
+  build a device last ran, so the proxy is **whether a saved session already
+  exists**, and `claimIfNewDevice()` has to run on the ENTRY screen, before the
+  password is submitted. A minute later a new student has credentials too and
+  the two are indistinguishable. Verified both ways: a wiped device silently
+  claims the flag and stays quiet through sign in, while a device with a saved
+  session gets the sheet on next launch and never again.
+- **It waits ~2.1s before rising.** The launch overlay is `z-100` and a Sheet is
+  `z-50`, so without the hold it slides up entirely behind the splash and is
+  simply THERE when the splash lifts. `riseAt` is at module scope for the usual
+  reason: **AppShell remounts on every navigation**, so a timer owned by the
+  component restarts on every tab tap and can be outrun indefinitely.
+
+**Never two overlays at once.** The install gate is a full screen takeover, so a
+sheet raised behind it would be dismissed unseen and marked as read. Whichever
+is not shown this launch is still waiting on the next.
+
+Three things that only showed up against the **real captured planner**, and
+would all have passed against invented data:
+- **Christmas read "24 days off".** It sits three weeks past the last working
+  day, so its run swallowed the whole tail of the term. A run only means
+  something if you have to come back from it: `resumes` checks that a working
+  day follows, and those holidays now read "after the term" instead.
+- **Ayutha Pooja and Vijaya Dasami are consecutive**, so both claimed the same
+  four days. Only the first holiday in a run gets to announce it (`runLead`).
+- **Independence Day 2026 is a Saturday.** A holiday that falls on a weekend is
+  a holiday you do not get, and saying so is more use than saying nothing.
+
+The run walk is clamped at today for a break still to come, so one already half
+spent is described by what is left of it; a break already gone is measured
+whole, since there is nothing left to clamp. Past holidays keep their place in
+the month list, dimmed and marked "gone", rather than being dropped: a month you
+have scrolled back to should still say what happened in it.
+
+Verified with **31 assertions against the real captured planner** (jiti, no
+browser and no portal sign-in), which is the only reason the three above were
+caught. Invented holidays land on convenient weekdays and never sit past the end
+of term.
+
+### DONE: The install takeover, and real notifications (2026-08-03)
 
 **The install prompt is a full screen takeover now**, `components/InstallGate.tsx`,
 replacing the dismissible sheet (`InstallPrompt.tsx` is deleted). A sheet is what
