@@ -77,11 +77,31 @@ async function readKey(): Promise<CryptoKey | null> {
   return null;
 }
 
-/** Read the key, or mint one. Only ever called when ENCRYPTING, where having
- *  no key yet is the normal first-run case. */
+/**
+ * Read the key, or mint one. Only ever called when ENCRYPTING, where having no
+ * key yet is the normal first-run case.
+ *
+ * **It refuses to mint over existing ciphertext, and that guard is the whole
+ * point.** Moving decryption to `readKey` closed half of this hole and left the
+ * other half open: `saveSnapshot` runs after every successful fetch, so a
+ * single transient read miss HERE minted a fresh key and wrote it over the only
+ * one that could open the credential blob. The blob was left untouched and
+ * perfectly intact, and permanently unreadable, so the next launch signed the
+ * student out and cost them a sign-in against the daily `SI503` cap. Observed
+ * exactly that way: `skipp.cred` unchanged at 101 bytes, a valid non-extractable
+ * AES-GCM key in the store, and `decrypt` throwing `OperationError`.
+ *
+ * If a blob exists and the key cannot be read, the honest conclusion is that
+ * the READ failed, not that this is a first run. Refusing means the snapshot
+ * simply is not cached this time, which costs nothing: the caller already
+ * treats persistence as best effort.
+ */
 async function getOrCreateKey(): Promise<CryptoKey> {
   const existing = await readKey();
   if (existing) return existing;
+  if (localStorage.getItem(BLOB_KEY) || localStorage.getItem(SNAP_KEY)) {
+    throw new Error("skipp: refusing to mint a key over existing ciphertext");
+  }
   const key = await crypto.subtle.generateKey(
     { name: "AES-GCM", length: 256 },
     false, // non-extractable, cannot be read back out
@@ -137,9 +157,19 @@ async function decryptJSON<T>(blob: string): Promise<T | null> {
   }
 }
 
-/** Encrypt + persist credentials for reload-survival. Best-effort. */
+/**
+ * Encrypt + persist credentials for reload-survival. Best-effort.
+ *
+ * The old blobs are dropped FIRST, and not merely for tidiness: a fresh sign-in
+ * is the one moment where replacing the key is legitimate, so clearing them is
+ * what releases the guard in `getOrCreateKey`. Without this, a device whose key
+ * really had been lost could never store a session again, because the very
+ * ciphertext it could no longer read would keep blocking the new key.
+ */
 export async function saveCredentials(creds: Credentials): Promise<void> {
   try {
+    localStorage.removeItem(BLOB_KEY);
+    localStorage.removeItem(SNAP_KEY);
     localStorage.setItem(BLOB_KEY, await encryptJSON(creds));
   } catch {
     // Crypto/IDB unavailable, so degrade to in-memory only (re-login on reload).

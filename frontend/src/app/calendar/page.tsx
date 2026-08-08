@@ -124,19 +124,29 @@ export default function CalendarPage() {
           <p className="text-label uppercase text-text-3">
             {sel ? fullWeekday(sel.weekday) : "Term"} · {shortDate(selected)}
           </p>
-          <h1 className="mt-3 text-title">
-            {sel?.dayOrder != null
-              ? `Day order ${sel.dayOrder}`
-              : sel?.isHoliday
-                ? "Holiday"
-                : "No classes"}
+          {/* On a holiday the NAME leads and "Holiday" becomes the supporting
+              line. "Holiday" is a category, and the dot in the grid has already
+              told you that much; WHICH holiday it is, is the thing you tapped
+              the square to find out. */}
+          <h1 className="mt-3 text-balance text-title">
+            {sel?.isHoliday && sel.event
+              ? holidayName(sel.event)
+              : sel?.dayOrder != null
+                ? `Day order ${sel.dayOrder}`
+                : sel?.isHoliday
+                  ? "Holiday"
+                  : "No classes"}
           </h1>
-          {sel?.event && (
-            <Marginalia>
-              {/* Through holidayName, so the day you tapped is named the same
-                  here as it is in the list underneath. */}
-              <span className="mt-3 block">{holidayName(sel.event)}</span>
-            </Marginalia>
+          {sel?.isHoliday && sel.event ? (
+            <p className="mt-2 text-callout uppercase tracking-[0.075em] text-accent">
+              Holiday
+            </p>
+          ) : (
+            sel?.event && (
+              <Marginalia>
+                <span className="mt-3 block">{holidayName(sel.event)}</span>
+              </Marginalia>
+            )
           )}
         </div>
 
@@ -201,7 +211,7 @@ export default function CalendarPage() {
                   className="relative flex h-[52px] flex-col items-center justify-center"
                 >
                   <span
-                    className={`tnum text-body transition-colors ${
+                    className={`tnum relative text-body transition-colors ${
                       isSel
                         ? "font-semibold text-accent"
                         : works
@@ -217,13 +227,14 @@ export default function CalendarPage() {
                     {d}
                   </span>
                   {/* One slot, three states: a working day shows its day order,
-                      a holiday shows a dot, a weekend shows nothing. Before
-                      this, a holiday was indistinguishable from a Sunday. */}
-                  <span className="tnum mt-1 flex h-2 items-center justify-center text-[9px] font-semibold leading-none text-text-3/70">
+                      a holiday shows an accent dot, an ordinary empty day shows
+                      nothing. Before this a holiday was indistinguishable from a
+                      Sunday, since neither carries a day order. */}
+                  <span className="tnum relative mt-1 flex h-2 items-center justify-center text-[9px] font-semibold leading-none text-text-3/70">
                     {works ? (
                       day!.dayOrder
                     ) : holiday ? (
-                      <span aria-hidden className="size-1 rounded-full bg-text-2" />
+                      <span aria-hidden className="size-1.5 rounded-full bg-accent" />
                     ) : null}
                   </span>
                   {isToday && (

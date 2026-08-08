@@ -13,7 +13,6 @@ import {
   mergeRuns,
   focusDay,
   nextWorkingDay,
-  nowMinutes,
   prettyDate,
   scheduleFor,
   todayISO,
@@ -21,10 +20,11 @@ import {
 } from "@/lib/schedule";
 import { EASE, prefersReducedMotion, revealIn, useGsap } from "@/lib/motion";
 import RollingNumber from "@/components/onboarding/RollingNumber";
-import { Button, IconButton, StateView } from "@/components/ui";
+import { Button, Chip, IconButton, StateView } from "@/components/ui";
 import { IconDownload } from "@/components/Icons";
 import { Marginalia, SectionHead } from "@/components/ui/editorial";
 import { holidayName } from "@/lib/holidays";
+import { useNowMinutes } from "@/lib/useNow";
 
 /**
  * SCHEDULE: the day drawn to scale.
@@ -83,7 +83,10 @@ export default function TimetablePage() {
   );
   const attending = classes.filter((c) => !c.isOptional);
   const isToday = activeDO === todayDO;
-  const now = nowMinutes();
+  // Live, not read once at mount. This was `nowMinutes()` in the render body,
+  // so "Now", "Next" and every countdown froze at whatever minute the screen
+  // happened to mount on and only corrected if something unrelated re-rendered.
+  const now = useNowMinutes();
   // The next class that has not started yet, marked only while looking at the
   // day it belongs to: "Next" on some other day order would be a lie.
   const lastEnd = classes.at(-1)?.endMin ?? 0;
@@ -351,6 +354,7 @@ export default function TimetablePage() {
                       item={c}
                       live={isToday && c.startMin <= now && now < c.endMin}
                       next={c.id === nextId}
+                      now={now}
                       onRemove={removeCustomClass}
                       onToggleOptional={() =>
                         toggleOptional(activeDO, c.code, c.isLab, c.covers)
@@ -384,6 +388,15 @@ export default function TimetablePage() {
   );
 }
 
+/** "23 min", "1h 05m". Whole minutes, because that is how the clock ticks. */
+function untilLabel(mins: number): string {
+  if (mins <= 0) return "now";
+  if (mins < 60) return `${mins} min`;
+  const h = Math.floor(mins / 60);
+  const m = mins % 60;
+  return m === 0 ? `${h}h` : `${h}h ${String(m).padStart(2, "0")}m`;
+}
+
 /** Empty time, drawn as empty space rather than described in words. */
 function Gap({ minutes }: { minutes: number }) {
   return (
@@ -403,12 +416,15 @@ function Block({
   item,
   live,
   next,
+  now,
   onRemove,
   onToggleOptional,
 }: {
   item: ScheduleItem;
   live: boolean;
   next: boolean;
+  /** Minutes since midnight, ticking, so a live class can count itself down. */
+  now: number;
   onRemove: (id: string) => void;
   /** Already bound to this class, its day order and its theory/lab side. */
   onToggleOptional: () => void;
@@ -420,29 +436,48 @@ function Block({
   return (
     <div
       data-surface
+      // Marked, because the broken spine is invisible under the three material
+      // themes: they hide `[data-spine]` entirely, since their cards already do
+      // the separating. Without this an optional class there reads only as a
+      // slightly faded card, which is not enough on its own.
+      data-optional={muted ? "" : undefined}
+      // 25%. Below the 30% that was once reported as unreadable, and deliberate:
+      // back then the fade carried the whole meaning, so it had to stay legible
+      // enough to study. Now the broken spine says "optional" before a word has
+      // been read, and the details are there to confirm rather than to decode.
       className={`relative flex gap-5 transition-opacity duration-200 ${
-        muted ? "opacity-30" : ""
+        muted ? "opacity-25" : ""
       }`}
       style={{ minHeight: Math.max(MIN_BLOCK, minutes * PX_PER_MIN) }}
     >
-      {/* The spine: solid for the length of the class */}
+      {/* The spine: solid for the length of the class, BROKEN while the class
+          is optional.
+          A box round the row was tried twice and neither worked. It only ever
+          enclosed the details column, leaving the times outside it, and §8 bans
+          filled blocks outright: content here is set as a page, not stacked in
+          containers. The timeline already owns a device for "this is your day",
+          so the honest way to say "you are not in this one" is to break it. It
+          needs a dashed BORDER rather than a background, because a 1px element
+          filled with colour has nothing to dash. */}
       <span
         data-spine
-        className={`absolute left-[52px] top-0 h-full w-px ${
-          live ? "bg-accent" : next ? "bg-text-1/70" : muted ? "bg-text-1/20" : "bg-text-1/35"
+        className={`absolute left-[52px] top-0 z-10 h-full ${
+          muted
+            ? "w-0 border-l border-dashed border-text-1/60"
+            : `w-px ${live ? "bg-accent" : next ? "bg-text-1/70" : "bg-text-1/35"}`
         }`}
       />
-      <div className="w-[46px] shrink-0 pt-0.5 text-right">
+      <div className="relative z-10 w-[46px] shrink-0 pt-0.5 text-right">
         <p className="tnum text-callout text-text-1">{item.start}</p>
         <p className="tnum mt-1 text-callout text-text-3">{fmtTime(item.endMin)}</p>
       </div>
 
-      <div className="min-w-0 flex-1 pb-6 pl-4">
+      <div className="relative z-10 min-w-0 flex-1 pb-6 pl-4">
         <div className="flex items-baseline justify-between gap-3">
           <h3 className="truncate text-headline">{item.title}</h3>
           <span className="tnum shrink-0 text-callout text-text-3">
             {live ? (
-              <span className="text-accent">Now</span>
+              <Chip tone="accent">Live now</Chip>
             ) : next ? (
               <span className="text-text-1">Next</span>
             ) : (
@@ -452,33 +487,65 @@ function Block({
         </div>
 
         <p className="mt-1.5 truncate text-callout text-text-3">
-          {[
-            item.abbrev,
-            muted ? "Optional" : null,
-            item.isLab && "Lab",
-            item.room,
-            faculty,
-          ]
+          {[item.abbrev, item.isLab && "Lab", item.room, faculty]
             .filter(Boolean)
             .join(" · ")}
         </p>
 
-        <button
-          onClick={() =>
-            item.isCustom ? onRemove(item.id) : onToggleOptional()
-          }
-          // 44px of height, with the extra taken as negative margin so the
-          // row's rhythm is unchanged. It measured 84x18 before, which is a
-          // fiddly target on a phone and under the 44px floor this project
-          // sets for itself.
-          className="-my-3 mt-1 inline-flex min-h-11 items-center text-callout text-text-3/70 transition-colors hover:text-text-1"
-        >
-          {item.isCustom
-            ? "Remove"
-            : muted
-              ? "Make required here"
-              : "Make optional here"}
-        </button>
+        {live && (
+          <p className="tnum mt-1.5 text-callout text-accent">
+            Ends in {untilLabel(item.endMin - now)}
+          </p>
+        )}
+
+        {item.isCustom ? (
+          <button
+            onClick={() => onRemove(item.id)}
+            // 44px of height, with the extra taken as negative margin so the
+            // row's rhythm is unchanged. It measured 84x18 before, which is a
+            // fiddly target on a phone and under the 44px floor this project
+            // sets for itself.
+            className="-my-3 mt-1 inline-flex min-h-11 items-center text-callout text-text-3/70 transition-colors hover:text-text-1"
+          >
+            Remove
+          </button>
+        ) : (
+          // One word and a box you tick. A switch needed a second word to say
+          // which way was which ("Attending" against "Optional"), and reading a
+          // label to work out what the control means is exactly what made the
+          // old "Make optional here" button confusing. A ticked box needs no
+          // opposite: unticked simply means not optional.
+          <button
+            type="button"
+            role="checkbox"
+            aria-checked={muted}
+            aria-label={`Mark ${item.title} optional`}
+            onClick={onToggleOptional}
+            className={`-my-2 mt-0.5 inline-flex min-h-11 items-center gap-2.5 py-2 pr-2 text-callout transition-colors ${
+              muted ? "text-text-2" : "text-text-3/70 hover:text-text-1"
+            }`}
+          >
+            <span
+              aria-hidden
+              className={`flex size-[15px] shrink-0 items-center justify-center rounded-[4px] border transition-colors ${
+                muted ? "border-accent bg-accent" : "border-line-strong"
+              }`}
+            >
+              {muted && (
+                <svg viewBox="0 0 10 8" className="w-[9px]" fill="none">
+                  <path
+                    d="M1 4.2 3.5 6.7 9 1.2"
+                    stroke="var(--color-accent-ink)"
+                    strokeWidth="1.8"
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                  />
+                </svg>
+              )}
+            </span>
+            Optional
+          </button>
+        )}
       </div>
     </div>
   );

@@ -833,3 +833,15 @@ body {
 [data-field] :focus-visible {
   outline: none;
 }
+
+/* An optional class, under the themes that replace the timeline with cards.
+   Ink and the skins break the spine beside the row to say it; these three hide
+   the spine, so the card's own edge carries it instead. Clay draws no border at
+   all normally, so it is given one here rather than restyled. */
+html[data-theme="brutal"] [data-optional],
+html[data-theme="terminal"] [data-optional] {
+  border-style: dashed;
+}
+html[data-theme="clay"] [data-optional] {
+  border: var(--border-w) dashed var(--color-line-strong);
+}

@@ -345,7 +345,125 @@ is deployment and true push notifications.
 Entries below are newest first. **When something breaks, read the relevant entry first**: most
 oddities here (login shell, empty calendar, 429s, duplicated course codes) are already diagnosed.
 
-### DONE: Holidays are visible on Calendar (2026-08-07, latest)
+### DONE: A key that overwrote itself, and the sign-out loop it caused (2026-08-08, latest)
+
+**The saved session was being destroyed by the app itself, and the symptom was
+a student signed out on launch for no visible reason.** Each recovery cost a
+real portal sign-in against the `SI503` daily cap, so the bug charged the
+student every time it fired.
+
+Diagnosed by measurement, not by reading: `skipp.cred` was intact and unchanged
+at 101 bytes, IndexedDB held a valid non-extractable AES-GCM key, and
+`crypto.subtle.decrypt` threw `OperationError`. Blob good, key good, pair
+broken, so a DIFFERENT key had been written over the right one.
+
+**`readKey()` closed half the hole and left the other half open.** Decryption
+was made read-only so a transient miss could not mint a replacement, and the
+comment on it says exactly that. But `getOrCreateKey()` still mints on a miss,
+and `encryptJSON` calls it, and **`saveSnapshot` runs after every successful
+fetch**. So one flaky IndexedDB read while caching a snapshot generated a fresh
+key, `idbPut` wrote it over the good one, and the credential blob encrypted with
+the old key became permanently unreadable. Nothing looked corrupt afterwards,
+which is why it read as random.
+
+**A key is now never minted over existing ciphertext.** If a blob is present and
+the key cannot be read, the honest conclusion is that the READ failed, not that
+this is a first run. Refusing costs nothing: the snapshot simply is not cached
+that time, and every caller already treats persistence as best effort.
+
+**`saveCredentials` clears both blobs first**, and that is what stops the guard
+becoming a trap: a fresh sign-in is the one moment where replacing the key is
+legitimate, and without the clear a device whose key really was lost could never
+store a session again, blocked by ciphertext it could no longer read.
+
+Verified with **6 assertions against the real module** (jiti, stubbed IndexedDB
+and localStorage, no browser): the round trip, that a forced read miss during
+`saveSnapshot` leaves the login intact and the blob byte-identical, that a clean
+device can still mint a key, and that an orphaned blob reads as signed out and
+can be signed into again. **The same test fails on the old code**, on exactly
+the one assertion, which is what proves the fix rather than the intention.
+
+**Two notes for anyone testing this by hand.** `indexedDB.deleteDatabase()` is
+asynchronous and blocks while a connection is open: firing it and moving on lands
+the delete AFTER the next key is minted and orphans the blob all over again, so
+await `onsuccess` and check `indexedDB.databases()`. And Node 22 exposes a
+read-only `crypto` global, so a test cannot assign `globalThis.crypto` (the same
+trap `navigator` already has in the notify tests); it is already webcrypto, so
+just use it.
+
+### DONE: Schedule reads live, and the calendar opens (2026-08-08, latest)
+
+**The clock was read once during render.** `nowMinutes()` sat in the component
+body, so "Now" and "Next" froze at whatever minute the screen happened to mount
+on and only corrected when something unrelated re-rendered: a class could sit
+marked live long after it had ended. `useNowMinutes()` (`lib/useNow.ts`) ticks
+**on the minute boundary**, not every 30s, because everything derived from it is
+quoted in whole minutes and a mid-minute wake-up only re-renders the tree to
+paint identical text. It lives in its own file so `lib/schedule.ts` stays a
+plain logic module that node test scripts can import.
+
+**The running class is marked in place and nowhere else**: a `LIVE NOW` chip, an
+accent spine, and "Ends in 30 min" counting down.
+
+**A sticky "next class" bar and a tinted panel behind the live row were both
+built and removed on request.** Do not rebuild either. The bar duplicated a row
+already on screen, and the tint was a second box competing with the dotted box
+that now means optional. Removing the tint also removed a theme collision it had
+needed a patch for: a rounded panel drawn behind a row reads as a misaligned
+second box the moment Brutal turns that row into a hard bordered card. **Any new
+decoration drawn behind a row will hit that same wall.**
+
+**The optional control is a CHECKBOX and one word.** It has now been through
+three shapes, and the failure of the first two is the useful part:
+- "Make optional here" was a text button naming its own OUTCOME, so the row
+  never said which state it was actually in. You had to read an instruction and
+  invert it.
+- A switch labelled "Attending" / "Optional" was rejected as confusing, and
+  fairly: a switch needs a second word to say which way is which, so it makes
+  you read a label to work out what the control means. **A ticked box needs no
+  opposite.** Unticked simply means not optional.
+
+**An optional class is dimmed to 25% and its SPINE BREAKS.** No box: two were
+built and both were rejected, and the reason is in section 8. A box round the
+row could only ever enclose the details column, leaving the times outside it, and
+filled blocks are banned outright here because content is set as a page rather
+than stacked in containers. The timeline already owns a device meaning "this is
+your day", so the honest way to say "you are not in this one" is to break it
+rather than to draw a container beside it.
+
+The dash needs a **border**, not a background: a 1px element filled with colour
+has nothing to dash.
+
+**25%, and only the spine makes that safe.** 30% was once reported as unreadable
+and was rightly raised, but the fade was carrying the whole meaning then and had
+to stay legible enough to study. Now the spine says it first, so the details are
+there to confirm rather than to decode, and the type is free to go further back
+than it ever could before.
+
+**The three material themes hide `[data-spine]`**, since their cards already do
+the separating, so an optional class there would read as nothing more than a
+faintly faded card. `[data-optional]` marks the row and each of them dashes its
+own card edge instead. Clay draws no border at all normally, so it is given one
+rather than restyled. **Any device built on the spine needs this same pass.**
+
+**A day sheet on the Calendar was built and removed on request** (it listed the
+day's classes, the free gaps and a styled empty state). Tapping a date does what
+it always did: writes the day out above the grid. Do not rebuild it.
+
+**On a holiday the NAME leads and "Holiday" is the supporting line.** The
+category is already obvious from the coloured square; which holiday it is, is
+what you tapped to find out.
+
+**A holiday is marked with an accent dot** in the slot where a working day
+carries its day order. One slot, three states: a day order, a dot, or nothing.
+A tinted square behind the whole numeral was tried as a louder alternative and
+removed on request; the dot is the version that stays.
+
+Verified against a real account: all five day orders, mid-class, before the first
+class, after the last, a holiday selected and unselected, 320 and 430 wide, and
+the five themes.
+
+### DONE: Holidays are visible on Calendar (2026-08-07)
 
 Reported as "upcoming holidays needs to be added in the calendar page". A list
 was already there, at the very bottom, titled "Coming up". **The real fault was
