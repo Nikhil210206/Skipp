@@ -345,7 +345,59 @@ is deployment and true push notifications.
 Entries below are newest first. **When something breaks, read the relevant entry first**: most
 oddities here (login shell, empty calendar, 429s, duplicated course codes) are already diagnosed.
 
-### DONE: The entry deck's black bands, and the greeting under the numeral (2026-08-09, latest)
+### DONE: A time field that could not be filled in on a phone (2026-08-09, latest)
+
+Reported as a validation error that would not go away. The error was the
+symptom. **The field was impossible to complete on an iPhone.**
+
+`TimeField` asked for `HH:MM` in one box and set `inputMode="numeric"` to raise
+the digits keypad. **That keypad has no colon key**, and `toMin` accepted
+nothing else, so on iOS there was no sequence of taps that produced a valid
+time. The student in the screenshot was stuck at "9" because the next character
+they needed did not exist on their keyboard.
+
+This is the second swing at the same field and the first one caused this one:
+the note above records the time inputs once "opened the alphabet", and the fix
+was `inputMode="numeric"`, which traded the alphabet for a pad with no
+punctuation. **The lesson is that `inputMode` decides which characters a phone
+can produce, so it has to be chosen against the format being asked for.**
+
+**The hour and the minute are separate boxes now**, so there is no separator to
+type and no format to get wrong, and `toMin` takes two strings and parses no
+punctuation at all. The AM/PM control is unchanged.
+
+Four things the rebuild needed:
+
+- **The error is cleared by any edit.** It was only ever set in `submit()` and
+  never unset, so it sat under the form contradicting the field being fixed.
+  Every field reports through one `edit()` wrapper, which is what makes that
+  impossible to forget on a new field.
+- **The caret advances when the hour cannot grow.** Two digits is always whole,
+  and so is a single 2 to 9, since the hours run 1 to 12 and only a leading 1 or
+  0 can begin a longer one. Without the second case, "2 o'clock" left the caret
+  in a field it had already finished with.
+- **The blur padding has to read the ELEMENT, not the prop.** The hour blurs
+  itself by moving the caret on from inside its own `onChange`, before React has
+  re-rendered, so the `value` in that closure is still the pre-keystroke one and
+  "2" silently never settled to "02". Measured: it stayed "2" until the handler
+  read `e.currentTarget.value`.
+- **44px in both directions.** The inputs came out 44 wide but 22 tall. The
+  height is padding pulled back out as negative margin, so the target clears the
+  floor and the box keeps the 65px it had, the same trick the Schedule row uses.
+
+Verified end to end against the real account: typed with digits only, "2" then
+"20" then "3" then "10" lands a class at 02:20 to 03:10 PM between Discrete
+Mathematics and Machine Learning, and the test class was removed afterwards.
+Seven invalid cases (hour 13, hour 0, minute 70, empty hour, end before start,
+end equal to start, no title) are each refused with their own wording and none
+of them saves anything. Checked at 320 and 384 and in Brutal.
+
+**Noticed and NOT fixed:** in Brutal a placeholder is nearly indistinguishable
+from a real value, so the empty Class name field reads as though it already says
+"Makeup lab". That is `placeholder:text-text-3` against Brutal's cream, it
+affects every field in the app, and it wants a decision rather than a patch here.
+
+### DONE: The entry deck's black bands, and the greeting under the numeral (2026-08-09)
 
 Two reports from real phones, both invisible on a desktop.
 
