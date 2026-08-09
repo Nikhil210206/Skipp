@@ -345,7 +345,62 @@ is deployment and true push notifications.
 Entries below are newest first. **When something breaks, read the relevant entry first**: most
 oddities here (login shell, empty calendar, 429s, duplicated course codes) are already diagnosed.
 
-### DONE: The welcome crowd is alive, and the face generator was half broken (2026-08-09, latest)
+### DONE: The entry deck's black bands, and the greeting under the numeral (2026-08-09, latest)
+
+Two reports from real phones, both invisible on a desktop.
+
+**The entry deck sat inside two black bands on an iPhone.** Reported as "not in
+full screen". The deck is `fixed inset-0` and paints its own field, so the
+instinct is that the overlay is coming up short. It is not, and no amount of
+covering the viewport would have helped: **the bands are not the viewport.**
+
+Safari's own chrome owns the status bar and the toolbar, and tints them from
+`theme-color` and from the page CANVAS. The canvas is not the overlay. It is
+`body`, because `globals.css` paints `--color-ink-0` there and `html` carries no
+background of its own, so the canvas stayed the app's near black while the deck
+was warm brown.
+
+`EntryChapter` had only ever set the meta. `Onboarding` had the meta AND
+`documentElement`, but **not `body`, which is the one that actually supplies the
+canvas here**, so it was half fixed in one place and not at all in the other.
+Both now paint all three, and both hand them back on the way out. Verified: on
+the welcome, meta, `html` and `body` all read `#331206`, then `#1B0B3B` on the
+next chapter, and after leaving the deck both inline styles are gone, `body` is
+back to `#08080a` and the meta to the theme's own bar colour.
+
+**This does not remove Safari's toolbar**, which nothing on the page can do. It
+makes every surface the page controls the chapter's colour. The genuinely full
+screen version is the installed PWA, which is what the install chapter is for.
+
+**The greeting ran across the day-order numeral.** Reported from an S24 Ultra as
+the layout overlapping. The numeral is an `absolute right-0` sibling of the
+content column, and the greeting had no right bound at all, so it ran underneath
+and, being later in the DOM, painted on top of it.
+
+**It was the common case, not a long-name edge case.** Measured at 384px: six of
+eight ordinary first names collided, by up to 82px, including the tester's own
+by 59px. It had gone unnoticed because the numeral is `text-ink-2`, nearly
+invisible on Ink, so on most themes the collision reads as slightly fuzzy text
+rather than as a fault.
+
+The greeting now reserves the numeral's column, and only while the numeral is on
+screen, since a holiday has no day order and the line should get its width back.
+Three things the fix needed that the first pass did not have:
+
+- **`break-words`**, or a name too long for the reserved line overflows straight
+  back into the numeral. Measured: `Venkateswaran` still hit it by 19px until
+  this went on. It only ever engages at about 13 characters.
+- **The numeral steps down to `8rem` below 360px.** At `11rem` it is 176px tall
+  and about a third of the width of a 320px column, which left so little beside
+  it that `break-words` split the GREETING itself into "Afterno / on,". Shrinking
+  the reserve without shrinking the numeral just moves the problem.
+- The reserve steps with it (`5.25rem`, then `7.5rem` past 360px).
+
+Verified at 320, 384 and 1280: every name from 5 to 16 characters clears the
+numeral, the verb never breaks mid-word, one line on desktop and two on a phone,
+and no horizontal overflow anywhere.
+
+### DONE: The welcome crowd is alive, and the face generator was half broken (2026-08-09)
 
 Reported as the welcome screen being dull. It was not decoration missing, it
 was three things, and the third turned out to be a real bug in shipped code.

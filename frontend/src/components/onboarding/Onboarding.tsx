@@ -117,8 +117,12 @@ export default function Onboarding({ onDone }: { onDone: () => void }) {
       overwrite: "auto",
     });
     // The document gets the same colour, in case the overlay ever comes up
-    // short of the viewport.
-    gsap.to(document.documentElement, {
+    // short of the viewport. **`body` as well as `documentElement`**, because
+    // the page canvas, which is what Safari's chrome samples for the bands
+    // above and below the page, comes from `body` here: `globals.css` paints
+    // `--color-ink-0` there and `html` has no background of its own, so
+    // painting the root alone left the canvas the app's near black.
+    gsap.to([document.documentElement, document.body], {
       backgroundColor: field,
       duration: prefersReducedMotion() ? 0 : 0.85,
       ease: "power2.out",
@@ -139,8 +143,9 @@ export default function Onboarding({ onDone }: { onDone: () => void }) {
   // Handed back on the way out, or the app inherits the last chapter's colour.
   useLayoutEffect(
     () => () => {
-      gsap.killTweensOf(document.documentElement);
+      gsap.killTweensOf([document.documentElement, document.body]);
       document.documentElement.style.removeProperty("background-color");
+      document.body.style.removeProperty("background-color");
       // Re-applying the theme is what restores the status bar, since that is
       // the only place that knows each theme's bar colour.
       const stored = document.documentElement.dataset.theme as Theme | undefined;

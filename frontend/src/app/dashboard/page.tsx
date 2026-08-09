@@ -119,7 +119,10 @@ export default function DashboardPage() {
               aria-hidden
               className="pointer-events-none absolute right-0 -top-2 select-none text-right"
             >
-              <span className="block text-[11rem] font-bold leading-[0.78] tracking-[-0.06em] text-ink-2">
+              {/* Steps down below 360px. At 11rem the numeral is 176px tall and
+                  about a third of the width of a 320px column, which leaves the
+                  greeting beside it too narrow to set even one word of. */}
+              <span className="block text-[8rem] font-bold leading-[0.78] tracking-[-0.06em] text-ink-2 min-[360px]:text-[11rem]">
                 {focus.dayOrder}
               </span>
               {/* The numeral is the day order, so it says so. Unlabelled it would
@@ -132,8 +135,25 @@ export default function DashboardPage() {
 
           <div className="relative">
             {/* Set as a line of type, not as a caption. It is the only thing on
-                the screen addressed to a person rather than about a schedule. */}
-            <h1 data-reveal className="text-hero">
+                the screen addressed to a person rather than about a schedule.
+
+                **The right padding is what keeps it off the day-order numeral.**
+                That numeral is an absolutely positioned sibling pinned to the
+                right of this same band, so this line has to be told where to
+                stop or it simply runs underneath and paints on top of it.
+                Measured on a 384px Android at the greeting's own size, six of
+                eight ordinary first names collided, by up to 82px, so this was
+                the common case and not a long-name edge case. Reserved only
+                while the numeral is actually on screen: a holiday has no day
+                order, and then the line should have the full width back. */}
+            <h1
+              data-reveal
+              className={`text-hero ${
+                focus?.dayOrder != null
+                  ? "break-words pr-[5.25rem] min-[360px]:pr-[7.5rem]"
+                  : ""
+              }`}
+            >
               <span className="text-text-2">{greeting()}, </span>
               {displayName}
             </h1>

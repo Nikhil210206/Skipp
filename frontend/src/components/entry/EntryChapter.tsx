@@ -51,16 +51,37 @@ export default function EntryChapter({
   // under a fixed overlay, which shows as a band of the app's own colour.
   useLockScroll(true);
 
-  // In a standalone PWA iOS paints the chrome around the web view from
-  // `theme-color`, not from the page, so without this the band around a warm
-  // screen keeps showing the app's near black. Restored by re-applying the
-  // theme, the only place that knows each theme's bar colour.
+  /**
+   * The bands above and below the page have to be painted separately, because
+   * this overlay can never reach them however tall it is.
+   *
+   * In a standalone PWA iOS paints the area around the web view from
+   * `theme-color`. In a browser it is worse: Safari's own chrome owns the status
+   * bar and the toolbar outright, and tints them from `theme-color` and from the
+   * page CANVAS. The canvas is not this overlay, it is `body`, which
+   * `globals.css` paints `--color-ink-0` while `html` carries no background of
+   * its own. So a warm deck sat inside two bands of the app's near black, which
+   * is what read as "not full screen".
+   *
+   * Hence all three: the meta, and the two elements the canvas can come from.
+   * `Onboarding` already painted `documentElement` for the same reason and this
+   * is the half of it the entry chapters never had.
+   */
   useLayoutEffect(() => {
+    const root = document.documentElement;
+    const prevRoot = root.style.backgroundColor;
+    const prevBody = document.body.style.backgroundColor;
     document
       .querySelector('meta[name="theme-color"]')
       ?.setAttribute("content", field);
+    root.style.backgroundColor = field;
+    document.body.style.backgroundColor = field;
     return () => {
-      const stored = document.documentElement.dataset.theme as Theme | undefined;
+      root.style.backgroundColor = prevRoot;
+      document.body.style.backgroundColor = prevBody;
+      // Re-applying the theme is what restores the bar, since that is the only
+      // place that knows each theme's own colour.
+      const stored = root.dataset.theme as Theme | undefined;
       if (stored) setTheme(stored);
     };
   }, [field]);
