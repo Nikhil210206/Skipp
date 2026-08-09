@@ -208,7 +208,11 @@ export default function CalendarPage() {
                         : ""
                   }`}
                   data-day
-                  className="relative flex h-[52px] flex-col items-center justify-center"
+                  // Taller past `lg`. Once the grid fills a laptop window each
+                  // cell is ~150px wide, and at the phone's 52px height that is
+                  // a 3:1 letterbox rather than a day. Height only, so the
+                  // phone grid is untouched.
+                  className="relative flex h-[52px] flex-col items-center justify-center lg:h-[84px]"
                 >
                   <span
                     className={`tnum relative text-body transition-colors ${

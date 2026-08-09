@@ -156,7 +156,7 @@ export default function LoginPage() {
           that, it just makes a stretched phone: a login form reads badly at
           full width, so the honest desktop treatment is to give the empty half
           something to do. The cover already exists and wants the room. */}
-      <main className="mx-auto flex min-h-full w-full max-w-md flex-1 flex-col font-display px-[var(--gutter)] pb-[max(28px,env(safe-area-inset-bottom))] pt-[max(48px,calc(env(safe-area-inset-top)+28px))] md:border-x md:border-line-soft lg:max-w-6xl lg:px-12">
+      <main className="mx-auto flex min-h-full w-full max-w-md flex-1 flex-col font-display px-[var(--gutter)] pb-[max(28px,env(safe-area-inset-bottom))] pt-[max(48px,calc(env(safe-area-inset-top)+28px))] md:border-x md:border-line-soft lg:max-w-none lg:px-12 xl:px-20">
         <div
           ref={scope}
           className="flex flex-1 flex-col lg:grid lg:min-h-0 lg:grid-cols-2 lg:items-center lg:gap-16"
@@ -185,7 +185,7 @@ export default function LoginPage() {
                 below it. Its box is a fixed height whatever the script, so the
                 gaps do not breathe as the languages turn. */}
             <div data-enter className="mt-5">
-              <Greeting className="text-accent optical font-bold tracking-[-0.05em] [font-size:clamp(3.25rem,19vw,5.25rem)]" />
+              <Greeting className="text-accent optical font-bold tracking-[-0.05em] [font-size:clamp(3.25rem,19vw,5.25rem)] lg:[font-size:7rem]" />
             </div>
 
             <p data-enter className="mt-7 max-w-[24ch] text-body leading-relaxed text-text-2">

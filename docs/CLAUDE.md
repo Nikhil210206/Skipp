@@ -345,6 +345,43 @@ is deployment and true push notifications.
 Entries below are newest first. **When something breaks, read the relevant entry first**: most
 oddities here (login shell, empty calendar, 429s, duplicated course codes) are already diagnosed.
 
+### DONE: Desktop fills the window (2026-08-09, latest)
+
+Reported as a lot of blank space down both sides on a laptop, the sign in screen
+included. The content column was capped (`lg:max-w-5xl` in `AppShell`,
+`lg:max-w-6xl` on the entry screen), so a 1440 window put ~200px of dead page on
+each side of everything.
+
+**The caps are gone past `lg`, replaced by a gutter** (`lg:px-10 xl:px-16`, and
+`lg:px-12 xl:px-20` on the entry screen). **The masthead and the restore frame
+had to move with it**: the masthead carried the same cap, and if the two columns
+disagree the section label stops lining up with the content under it and the
+skeleton sits in a different column from the screen that replaces it, so the
+page jumps on arrival.
+
+**This deliberately reverses the reasoning recorded when the desktop layout was
+first built**, which capped the column on the grounds that stretching phone
+composed content reads as the page zoomed rather than as more app. That is still
+true of some of it, and the request was made twice with the caps in place. If it
+is ever revisited, the alternative is a real two column composition per screen,
+not a narrower cap: **a stash of exactly that exists** and was rejected.
+
+**Nothing below `lg` changed.** Every edit is behind a breakpoint prefix, and the
+phone was re-measured afterwards at 390: column still full width, calendar cells
+still 52px, no overflow.
+
+Two things needed a second pass once the width was free:
+
+- **Calendar cells became a 3:1 letterbox.** At full width each is ~150px across
+  while still 52px tall. They get `lg:h-[84px]`, height only, so the phone grid
+  is untouched.
+- **The entry greeting was lost in the wider column** and is `7rem` past `lg`.
+  Sized by MEASUREMENT, not taste: all nine scripts render stacked in one grid
+  cell, so one sample gives the widest of them, and at 7rem that is 506px in a
+  613px column. A first attempt read 613 against 607 and looked like an overflow;
+  it was the wrapper being measured rather than the words. **Measure
+  `box.children`, not every span in the header.**
+
 ### DONE: A key that overwrote itself, and the sign-out loop it caused (2026-08-08, latest)
 
 **The saved session was being destroyed by the app itself, and the symptom was

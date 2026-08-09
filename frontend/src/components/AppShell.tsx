@@ -114,7 +114,7 @@ export default function AppShell({
               would also cover the profile mark and stop it being tappable. */}
           <header className="sticky top-0 z-20 shrink-0 pt-[env(safe-area-inset-top)]">
             <ScrollEdge />
-            <div className="relative flex h-14 items-center justify-between px-[var(--gutter)] lg:mx-auto lg:max-w-5xl">
+            <div className="relative flex h-14 items-center justify-between px-[var(--gutter)] lg:px-10 xl:px-16">
               <button
                 onClick={tapMasthead}
                 aria-label="Skipp"
@@ -169,7 +169,7 @@ export default function AppShell({
             // sized to a phone column on purpose, and stretching that column
             // across a 1440px window would not read as "more app", it would
             // read as the same page zoomed past its own scale.
-            className="relative z-[2] flex flex-1 flex-col bg-ink-0 px-[var(--gutter)] pb-10 lg:mx-auto lg:w-full lg:max-w-5xl"
+            className="relative z-[2] flex flex-1 flex-col bg-ink-0 px-[var(--gutter)] pb-10 lg:px-10 xl:px-16"
           >
             {children}
           </main>
@@ -263,11 +263,11 @@ function RestoringFrame() {
         aria-label="Loading your data"
       >
         <div className="pt-[env(safe-area-inset-top)]">
-          <div className="flex h-14 items-center px-[var(--gutter)] lg:mx-auto lg:max-w-5xl">
+          <div className="flex h-14 items-center px-[var(--gutter)] lg:px-10 xl:px-16">
             <Skeleton className="h-3 w-16" />
           </div>
         </div>
-        <div className="flex flex-1 flex-col gap-4 px-[var(--gutter)] pt-6 lg:mx-auto lg:w-full lg:max-w-5xl">
+        <div className="flex flex-1 flex-col gap-4 px-[var(--gutter)] pt-6 lg:px-10 xl:px-16">
           <Skeleton className="h-4 w-28" />
           <Skeleton className="h-20 w-3/4" />
           <Skeleton className="mt-6 h-px w-full" />
