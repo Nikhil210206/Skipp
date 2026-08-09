@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useRef, useState } from "react";
 import type { CustomClass } from "@/types";
 import { Sheet } from "@/components/ui/Overlay";
 import { Button, Label, Segmented } from "@/components/ui";
@@ -19,14 +19,19 @@ type Half = "AM" | "PM";
  * put every afternoon class the student typed at 2:20 in the MORNING, twelve
  * hours early and sorted above their real day, which is what made custom
  * classes land in the wrong place.
+ *
+ * The hour and the minute arrive as separate fields, so there is no format to
+ * get wrong and nothing here has to parse a separator. **That is not a tidiness
+ * choice, it is the only version that can be typed on a phone**: these fields
+ * raise the digits-only keypad, which on iOS has no colon key at all, so the
+ * single `HH:MM` box this replaced was literally impossible to complete on an
+ * iPhone. The shape still has to be checked, because on a clock face there is
+ * no hour 0 or 13 and no minute 70.
  */
-function toMin(hhmm: string, half: Half): number | null {
-  const m = /^(\d{1,2}):(\d{2})$/.exec(hhmm);
-  if (!m) return null;
-  const h = Number(m[1]);
-  const min = Number(m[2]);
-  // The shape being right does not make the time real: "13:70" matches the
-  // pattern, and on a clock face there is no hour 0 or 13.
+function toMin(hh: string, mm: string, half: Half): number | null {
+  if (!/^\d{1,2}$/.test(hh) || !/^\d{1,2}$/.test(mm)) return null;
+  const h = Number(hh);
+  const min = Number(mm);
   if (h < 1 || h > 12 || min > 59) return null;
   // 12 is the odd one: 12 AM is midnight (hour 0) and 12 PM is noon (hour 12).
   const hour24 = half === "AM" ? (h === 12 ? 0 : h) : h === 12 ? 12 : h + 12;
@@ -58,9 +63,11 @@ export default function CustomClassSheet({
   const [order, setOrder] = useState(dayOrder);
   const [title, setTitle] = useState("");
   const [wasOpen, setWasOpen] = useState(open);
-  const [start, setStart] = useState("09:00");
+  const [startH, setStartH] = useState("09");
+  const [startM, setStartM] = useState("00");
   const [startHalf, setStartHalf] = useState<Half>("AM");
-  const [end, setEnd] = useState("10:00");
+  const [endH, setEndH] = useState("10");
+  const [endM, setEndM] = useState("00");
   const [endHalf, setEndHalf] = useState<Half>("AM");
   const [room, setRoom] = useState("");
   const [error, setError] = useState<string | null>(null);
@@ -76,22 +83,38 @@ export default function CustomClassSheet({
     }
   }
 
+  /**
+   * Every field reports through this, so **touching anything clears the error**.
+   * Without it the complaint was only ever set on submit and never unset, so it
+   * sat under the form contradicting the field the student was in the middle of
+   * fixing: typing the first digit of a corrected time still read "enter times
+   * as hours and minutes".
+   */
+  function edit<T>(set: (v: T) => void) {
+    return (v: T) => {
+      set(v);
+      setError(null);
+    };
+  }
+
   function reset() {
     setTitle("");
-    setStart("09:00");
+    setStartH("09");
+    setStartM("00");
     setStartHalf("AM");
-    setEnd("10:00");
+    setEndH("10");
+    setEndM("00");
     setEndHalf("AM");
     setRoom("");
     setError(null);
   }
 
   function submit() {
-    const s = toMin(start, startHalf);
-    const e = toMin(end, endHalf);
+    const s = toMin(startH, startM, startHalf);
+    const e = toMin(endH, endM, endHalf);
     if (!title.trim()) return setError("Give the class a name.");
     if (s == null || e == null) {
-      return setError("Enter times as hours and minutes, like 02:20.");
+      return setError("Check the times. Hours are 1 to 12, minutes 0 to 59.");
     }
     if (e <= s) return setError("The end time must be after the start.");
     onAdd({
@@ -125,7 +148,7 @@ export default function CustomClassSheet({
             <Segmented
               label="Day order"
               value={order}
-              onChange={setOrder}
+              onChange={edit(setOrder)}
               options={dayOrders.map((d) => ({
                 value: d,
                 label: <span className="tnum">{d}</span>,
@@ -138,28 +161,32 @@ export default function CustomClassSheet({
           id="cc-title"
           label="Class name"
           value={title}
-          onChange={setTitle}
+          onChange={edit(setTitle)}
           placeholder="Makeup lab"
         />
 
-        {/* Typed exactly as the rest of the app prints a time, with the half of
-            the day stated rather than guessed. */}
+        {/* Hour and minute are their own boxes, with the half of the day stated
+            rather than guessed. */}
         <div className="grid grid-cols-2 gap-3">
           <TimeField
             id="cc-start"
             label="Starts"
-            value={start}
-            onChange={setStart}
+            hour={startH}
+            minute={startM}
+            onHour={edit(setStartH)}
+            onMinute={edit(setStartM)}
             half={startHalf}
-            onHalfChange={setStartHalf}
+            onHalfChange={edit(setStartHalf)}
           />
           <TimeField
             id="cc-end"
             label="Ends"
-            value={end}
-            onChange={setEnd}
+            hour={endH}
+            minute={endM}
+            onHour={edit(setEndH)}
+            onMinute={edit(setEndM)}
             half={endHalf}
-            onHalfChange={setEndHalf}
+            onHalfChange={edit(setEndHalf)}
           />
         </div>
 
@@ -167,7 +194,7 @@ export default function CustomClassSheet({
           id="cc-room"
           label="Room"
           value={room}
-          onChange={setRoom}
+          onChange={edit(setRoom)}
           placeholder="Optional"
         />
 
@@ -189,21 +216,71 @@ export default function CustomClassSheet({
 function TimeField({
   id,
   label,
-  value,
-  onChange,
+  hour,
+  minute,
+  onHour,
+  onMinute,
   half,
   onHalfChange,
 }: {
   id: string;
   label: string;
-  value: string;
-  onChange: (v: string) => void;
+  hour: string;
+  minute: string;
+  onHour: (v: string) => void;
+  onMinute: (v: string) => void;
   half: Half;
   onHalfChange: (h: Half) => void;
 }) {
+  const hourRef = useRef<HTMLInputElement>(null);
+  const minuteRef = useRef<HTMLInputElement>(null);
+
   return (
     <div className="flex flex-col gap-2">
-      <TextField id={id} label={label} value={value} onChange={onChange} numeric />
+      <div
+        // The whole box is a target, not just the two small boxes inside it. A
+        // field that only answers on the pixels its text occupies is the fault
+        // the Net ID field already had once.
+        onPointerDown={(e) => {
+          if (!(e.target as HTMLElement).closest("input")) {
+            e.preventDefault();
+            hourRef.current?.focus();
+          }
+        }}
+        className="rounded-control border border-line bg-ink-0 px-3 py-3 transition-colors focus-within:border-text-3"
+      >
+        <span className="block text-label uppercase text-text-3">{label}</span>
+        <div className="mt-1.5 flex items-baseline">
+          <TimePart
+            id={`${id}-h`}
+            inputRef={hourRef}
+            label={`${label}, hour`}
+            value={hour}
+            onChange={(v) => {
+              onHour(v);
+              // The caret goes on by itself as soon as the hour cannot grow any
+              // further. Two digits is always whole, and so is a single 2 to 9,
+              // because the hours run 1 to 12 and only a leading 1 or 0 can
+              // start a longer one. Without that second case, typing the very
+              // common "2 o'clock" left the caret sitting in a field it had
+              // already finished with.
+              if (v.length === 2 || (v.length === 1 && v >= "2")) {
+                minuteRef.current?.focus();
+              }
+            }}
+          />
+          <span aria-hidden className="px-1 text-headline text-text-3">
+            :
+          </span>
+          <TimePart
+            id={`${id}-m`}
+            inputRef={minuteRef}
+            label={`${label}, minute`}
+            value={minute}
+            onChange={onMinute}
+          />
+        </div>
+      </div>
       <Segmented
         label={`${label}, morning or afternoon`}
         value={half}
@@ -217,21 +294,68 @@ function TimeField({
   );
 }
 
+/**
+ * One half of a clock reading. Digits only, two at most, and it selects itself
+ * on focus so a correction is one tap and one keystroke rather than a backspace
+ * hunt.
+ */
+function TimePart({
+  id,
+  label,
+  value,
+  onChange,
+  inputRef,
+}: {
+  id: string;
+  label: string;
+  value: string;
+  onChange: (v: string) => void;
+  inputRef: React.RefObject<HTMLInputElement | null>;
+}) {
+  return (
+    <input
+      id={id}
+      ref={inputRef}
+      value={value}
+      aria-label={label}
+      inputMode="numeric"
+      autoComplete="off"
+      maxLength={2}
+      // Stripped rather than validated: the keypad offers digits, but a paste
+      // or a hardware keyboard can still put anything in here.
+      onChange={(e) => onChange(e.target.value.replace(/\D/g, "").slice(0, 2))}
+      onFocus={(e) => e.currentTarget.select()}
+      // Written back the way the rest of the app prints a time, so a field left
+      // reading "9" settles to "09" rather than staying half typed.
+      //
+      // **Read off the element, not off `value`.** The hour blurs itself by
+      // moving the caret on from inside its own `onChange`, which happens
+      // before React has re-rendered, so the prop in this closure is still the
+      // value from BEFORE the keystroke and the padding silently never ran.
+      onBlur={(e) => {
+        const v = e.currentTarget.value;
+        if (v.length === 1) onChange(`0${v}`);
+      }}
+      // 44px in both directions. The height is padding pulled straight back out
+      // as negative margin, so the target clears the floor while the box keeps
+      // exactly the height it had, the same trick the Schedule row uses.
+      className="tnum -my-[11px] w-11 min-w-0 bg-transparent py-[11px] text-center text-headline text-text-1 outline-none"
+    />
+  );
+}
+
 function TextField({
   id,
   label,
   value,
   onChange,
   placeholder,
-  numeric = false,
 }: {
   id: string;
   label: string;
   value: string;
   onChange: (v: string) => void;
   placeholder?: string;
-  /** A time field: bring up digits, not the alphabet. */
-  numeric?: boolean;
 }) {
   return (
     <div className="rounded-control border border-line bg-ink-0 px-4 py-3 transition-colors focus-within:border-text-3">
@@ -241,7 +365,6 @@ function TextField({
       <input
         id={id}
         value={value}
-        inputMode={numeric ? "numeric" : undefined}
         autoComplete="off"
         onChange={(e) => onChange(e.target.value)}
         placeholder={placeholder}
