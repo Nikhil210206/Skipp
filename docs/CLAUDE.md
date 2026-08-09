@@ -345,7 +345,100 @@ is deployment and true push notifications.
 Entries below are newest first. **When something breaks, read the relevant entry first**: most
 oddities here (login shell, empty calendar, 429s, duplicated course codes) are already diagnosed.
 
-### DONE: Desktop fills the window (2026-08-09, latest)
+### DONE: The welcome crowd is alive, and the face generator was half broken (2026-08-09, latest)
+
+Reported as the welcome screen being dull. It was not decoration missing, it
+was three things, and the third turned out to be a real bug in shipped code.
+
+**The crowd was frozen.** Eight generated faces at fixed rotations. The face
+system's signature everywhere else is that it REACTS (`ProfileMark` blinks and
+ducks on press), so eight motionless copies of that drawing read as wallpaper.
+**It also had no entrance of its own**: the faces carried `data-in`, so
+`EntryChapter` faded all eight up on the same uniform blur wave it gives a
+paragraph of text. And it was **the only screen in the deck with nothing to
+touch**, where chapter three skips a class and chapter four picks a theme.
+
+Now it gathers, breathes, blinks and answers. `Welcome.tsx` owns all of it in
+one `gsap.context`, reverted on unmount.
+
+**The structure is what keeps it safe, not remembering the rule.** Three systems
+write to each face, so each gets its own element:
+
+    [data-face]   the drift only:      x, y, rotation
+      [data-pop]  entrance and press:  scale, opacity, and the resting blur
+
+Neither carries `data-in`, so the deck's generic entrance cannot touch the
+crowd. Base rotation is set with `gsap.set`, never inline.
+
+- **The gather** springs each face from `scale 0.55` on `EASE.pop`, staggered
+  `from: "center"`. Measured: the middle pair lands at 349ms and the rest follow
+  in symmetric pairs at 482, 616 and 766ms, every face overshooting to 1.113 and
+  settling at exactly 1 and its own resting opacity.
+- **The breath** is one yoyo per face, seeded from `hashSeed(seed)` and seeked
+  with `drift.totalTime(phase * period * 2)` so the crowd never pulses as one.
+  Near faces travel further and slower than distant ones, which is the parallax:
+  measured y travel ranges from +/-2.1px on the furthest to +/-5.5px on the
+  nearest, with all eight at distinct positions at any instant.
+- **The blink is a timeline, and that is load bearing.** A recursive
+  `gsap.delayedCall` is created inside a later callback, which is OUTSIDE the
+  context's collection window, so `ctx.revert()` would not kill it and it would
+  blink detached nodes for ever after the screen unmounted, which it does the
+  moment Continue is pressed. Verified: after advancing, none of the 16 watched
+  elements moved across 8 seconds, longer than the slowest 6.1s gap.
+- **A press restarts that same timeline rather than tweening the eyes.** A
+  second tween on `scaleY` with `overwrite: "auto"` would kill the loop and that
+  face would never blink again. One owner per property, the standing trap.
+
+**The resting opacity is written inline AS WELL AS by the tween**, and that is a
+net rather than a duplicate. The entrance is a `fromTo` from 0, so a context
+reverted mid-flight hands the element back to whatever was inline before it:
+with this that is a visible face, without it the crowd is gone for good.
+
+**Blur is the fourth depth cue and has to stay sub-pixel.** A first pass ran to
+1.5px and the distant faces stopped being faces: they are also the smallest, so
+the same blur eats far more of a 54px drawing than of a 124px one. It rests on
+the inner span, never animated, so it rasterises once while the parent drifts on
+the compositor. **Cost, measured at 4x CPU throttle against a static control on
+the same page: median 16.7ms and p95 17.6ms in BOTH runs.** The animation is
+free; the rare spike is ambient and present with the crowd frozen too.
+
+**Then the console said `rotate(undefined 12 11)`, sixteen times, and that was
+not new.** `faceFor` used SIGNED shifts (`h >> 2`) on a value `hashSeed` returns
+as a uint32. A signed shift converts back to int32 first, so any hash with its
+top bit set came out negative, and **a negative `%` stays negative in JavaScript
+and indexes off the FRONT of the list**. Measured over 2000 registration
+numbers:
+
+| | broken | fixed |
+| --- | --- | --- |
+| tilt `undefined` (invalid SVG attribute) | 39.5% | 0 |
+| no top | 58% | 25% |
+| perfectly level head | 49% | 17% |
+| distinct rendered characters | 488 | 566 |
+
+So most students were bald and half were level, when the comment on `tilt` says
+in as many words that a level head looks lifeless. Every shift is `>>>` now.
+**This changes the character an existing registration number draws, once**: a
+fair price, since the face is generated rather than chosen, nothing about it is
+stored, and the property that matters, one number to one character, is untouched.
+The crowd's eight seeds were re-checked against the fixed generator and are
+better than before: all four tops, all three eye types, all four mouths, eight
+distinct characters out of eight.
+
+Also: the two accent faces are the only colour, `Advance` finally fires a haptic
+(the welcome and the install offer were the two dead-feeling screens in a deck
+where every other control answers), and `ProfileFace` now carries `data-head`
+and `data-eyes` so a caller can drive it. `SideNav`, the other consumer, drives
+nothing and renders exactly as before.
+
+**A note on verifying anything on this screen.** The headless Chrome behind the
+DevTools MCP reports `prefers-reduced-motion: reduce`, so every measurement
+above needed `matchMedia` patched through an `initScript`. Unlike the entrance
+system on the app screens, this deck has NO CSS start state (`globals.css` hides
+`[data-reveal]`, `[data-word]` and `[data-draw]`, never `[data-in]`), so the
+patch alone is enough here and no CSS has to be injected.
+
+### DONE: Desktop fills the window (2026-08-09)
 
 Reported as a lot of blank space down both sides on a laptop, the sign in screen
 included. The content column was capped (`lg:max-w-5xl` in `AppShell`,

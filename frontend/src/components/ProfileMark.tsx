@@ -172,8 +172,12 @@ export default function ProfileMark({ seed }: { seed: string }) {
  * a full interactive control in its own right, and `SideNav` already puts its
  * own `<Link>` around a profile row (mark plus name), so wrapping `ProfileMark`
  * in that would nest an anchor inside an anchor, invalid HTML that React 19
- * flags as a hydration error. This is the same SVG, unanimated, for exactly
- * that "already inside a link" situation.
+ * flags as a hydration error. This is the same SVG, driving nothing of its own,
+ * for exactly that "already inside a link" situation.
+ *
+ * It carries `data-head` and `data-eyes` so a caller that wants the character to
+ * move can drive it. `SideNav` does not and renders exactly as before; the
+ * welcome screen's crowd does.
  */
 export function ProfileFace({
   seed,
@@ -216,10 +220,19 @@ export function ProfileFace({
         {face.collar && (
           <path d="M12 16.6l-2.1 3.1h4.2z" fill="currentColor" opacity={0.9} />
         )}
-        <g transform={`rotate(${face.tilt} 12 11)`}>
+        <g data-head transform={`rotate(${face.tilt} 12 11)`}>
           <circle cx="12" cy="9.6" r="5.9" fill="currentColor" />
           <Top variant={face.top} />
-          <Eyes variant={face.eyes} cut={cut} />
+          {/* Marked so a caller can blink it. Unanimated here, but the welcome
+              screen's crowd drives these directly, and the squash has to happen
+              about the eyes' own centre: without `fill-box` an SVG group scales
+              about the viewBox origin and they fly off the face. */}
+          <g
+            data-eyes
+            style={{ transformOrigin: "center", transformBox: "fill-box" }}
+          >
+            <Eyes variant={face.eyes} cut={cut} />
+          </g>
           <Mouth variant={face.mouth} cut={cut} />
         </g>
       </svg>

@@ -197,8 +197,8 @@ export default function InstallGate({
  * The stage: a numbered index of the taps to make.
  *
  * A list that is mostly rule, so it reads as instructions rather than as
- * decoration, and unlike any other stage in the deck: the welcome is surfaces
- * in depth, chapter one is a fanned stack, chapter three is a live meter.
+ * decoration, and unlike any other stage in the deck: the welcome is a living
+ * crowd, chapter one is a fanned stack, chapter three is a live meter.
  */
 function Stage({
   steps,

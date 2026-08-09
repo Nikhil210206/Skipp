@@ -3,6 +3,7 @@
 import { useLayoutEffect, useRef } from "react";
 import gsap from "gsap";
 import Logo from "@/components/Logo";
+import { haptic } from "@/lib/haptics";
 import { prefersReducedMotion } from "@/lib/motion";
 import { setTheme, type Theme } from "@/lib/theme";
 import { useLockScroll } from "@/components/ui/Overlay";
@@ -177,7 +178,13 @@ export function Advance({
 }) {
   return (
     <button
-      onClick={onClick}
+      onClick={() => {
+        // The onboarding chapters answer under the thumb and these two did not,
+        // which made the welcome and the install offer the dead-feeling pair at
+        // the front of the same deck.
+        haptic("tick");
+        onClick();
+      }}
       aria-label={label}
       className="grid size-[62px] shrink-0 place-items-center rounded-full transition-transform duration-200 active:scale-90"
       style={{ background: ink, color: field }}
