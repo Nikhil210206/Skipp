@@ -446,35 +446,44 @@ export function playEntrance(
   const rest = scope.querySelectorAll("[data-enter]");
 
   if (reduced) {
-    gsap.set([...mark, ...words, ...rest], { opacity: 1, y: 0, yPercent: 0 });
-    gsap.set(rules, { scaleX: 1, opacity: 1 });
+    const settled = [...mark, ...words, ...rest];
+    if (settled.length) gsap.set(settled, { opacity: 1, y: 0, yPercent: 0 });
+    if (rules.length) gsap.set(rules, { scaleX: 1, opacity: 1 });
     return null;
   }
 
+  // Each part is optional: not every entry screen uses every marker, and the
+  // sign in uses only some of them. `fromTo` on an empty selection warns to the
+  // console on every visit rather than doing nothing quietly.
   const tl = gsap.timeline({ delay: opts.delay ?? 0 });
-  tl.fromTo(
-    mark,
-    { opacity: 0, y: 8 },
-    { opacity: 1, y: 0, duration: DUR.base, ease: EASE.out },
-  )
-    .fromTo(
-      words,
-      { yPercent: 110 },
-      { yPercent: 0, duration: 0.72, ease: EASE.emphasis, stagger: 0.045 },
-      0.08,
-    )
-    .fromTo(
-      rules,
-      { scaleX: 0, opacity: 1 },
-      { scaleX: 1, duration: 0.7, ease: EASE.emphasis, transformOrigin: "left center" },
-      0.34,
-    )
-    .fromTo(
-      rest,
-      { opacity: 0, y: 14 },
-      { opacity: 1, y: 0, duration: DUR.base, ease: EASE.out, stagger: 0.07 },
-      0.44,
-    );
+  const part = (
+    targets: NodeListOf<Element>,
+    from: gsap.TweenVars,
+    to: gsap.TweenVars,
+    at: number,
+  ) => {
+    if (targets.length) tl.fromTo(targets, from, to, at);
+  };
+
+  part(mark, { opacity: 0, y: 8 }, { opacity: 1, y: 0, duration: DUR.base, ease: EASE.out }, 0);
+  part(
+    words,
+    { yPercent: 110 },
+    { yPercent: 0, duration: 0.72, ease: EASE.emphasis, stagger: 0.045 },
+    0.08,
+  );
+  part(
+    rules,
+    { scaleX: 0, opacity: 1 },
+    { scaleX: 1, duration: 0.7, ease: EASE.emphasis, transformOrigin: "left center" },
+    0.34,
+  );
+  part(
+    rest,
+    { opacity: 0, y: 14 },
+    { opacity: 1, y: 0, duration: DUR.base, ease: EASE.out, stagger: 0.07 },
+    0.44,
+  );
   return tl;
 }
 

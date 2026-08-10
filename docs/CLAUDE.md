@@ -470,6 +470,65 @@ the 232px a 320 wide phone has, and the overflow pushed the advance 2px off the
 screen. Verified after at 320, 375 and 390: nothing off screen, no control under
 44px, no doodle clipped, every word still fits.
 
+### DONE: The page is written on, not printed (2026-08-10)
+
+Reported as the deck not looking live, and it was not a matter of taste: **the
+pad had no content entrance at all.** The turn animated, the welcome crowd moved,
+and everything else simply appeared. `entry/handwriting.ts` is the answer, and a
+sheet now arrives the way a page gets filled: objects are stuck down, the writing
+goes on line by line, and the marks that annotate it are drawn last, because you
+underline a heading after you have written it.
+
+**Markers on the kit, never per screen code.** Every sheet is composed from the
+same paper kit, so the kit carries them and a new page is animated the moment it
+is built out of `Sticky`, `Ink` and `Underline`:
+
+| marker | what happens |
+| --- | --- |
+| `data-paper` | stuck on the page: drops in and settles |
+| `data-tilt` | the drift and press layer inside it |
+| `data-write` | writing, wiped on left to right (every `Ink`) |
+| `data-stroke` | an SVG path, drawn from one end |
+| `data-headline` | the chapter word, its own slower stroke |
+
+**`Sticky` is three elements now, and that is the whole discipline.** The outer
+is the entrance's (`opacity`, `y`), the middle is the drift's (`rotation`) and
+the press's (`scale`), and the note keeps its own inline tilt. Collapsing any two
+puts three owners on one transform, which is the trap this file records more
+often than any other.
+
+**A wipe, not a fade, and the inset is negative top and bottom.** `inset(-30%
+100% -30% -2%)` to `inset(-30% -2% -30% -2%)`: clipping at exactly 0 shaves
+ascenders and descenders off a hand face with long tails.
+
+**The idle drift deliberately breaks the no-looping rule**, on the same terms
+that made the sign in greeting worth breaking it for: sub-degree, slow, and it
+rotates the NOTE rather than the line, so nothing being read ever moves. Each is
+seeded and **seeked into its cycle** with `totalTime`, or a page of them breathes
+in unison and reads as a page wobble.
+
+**The press is delegated from the sheet root** rather than wired per component,
+and writes **scale only**: the drift owns rotation on that exact element, and a
+press that also wrote rotation would kill the loop and leave that note dead.
+
+**It starts as the new sheet mounts, 46% through the turn**, so the writing is
+already under way when the turning sheet lifts off it. Waiting for the turn to
+finish is the mistake this project already made once and reverted: an arrival
+that glides in and then sits there before anything moves reads as dead.
+
+Measured at 4x CPU throttle: chapter turns median 16.7ms, worst 22.9 to 29.5ms,
+**zero frames over 32ms**, which is unchanged from before the entrance existed.
+The two cross-component turns still cost one frame each (66.8 and 48.7ms), and
+that is the arriving screen MOUNTING, not the entrance. Verified with reduced
+motion ON that all eight sheets are fully visible with nothing unrevealed, that
+8 of 8 strokes draw and finish at zero, and that after leaving the deck no
+drifting node is still being mutated.
+
+**`gsap.set` and `fromTo` warn on an empty selection**, so both this module and
+`playEntrance` guard every part. Not every sheet uses every marker, and the sign
+in uses only some, so the console was filling with "GSAP target not found" on
+screens that were working perfectly.
+
 ### DONE: A time field that could not be filled in on a phone (2026-08-09)
 
 Reported as a validation error that would not go away. The error was the

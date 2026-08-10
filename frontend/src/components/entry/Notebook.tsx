@@ -5,6 +5,7 @@ import gsap from "gsap";
 import { haptic } from "@/lib/haptics";
 import { prefersReducedMotion } from "@/lib/motion";
 import { useLockScroll } from "@/components/ui/Overlay";
+import { driftPaper, playSheet, pressPaper } from "./handwriting";
 
 /**
  * THE NOTEBOOK.
@@ -129,6 +130,35 @@ export default function Notebook({
   }, [word]);
 
   /**
+   * Write the sheet on, every time the page changes.
+   *
+   * Keyed on `page` rather than run once: the three screens that make up the
+   * pad are separate components, but the six chapters are ONE component whose
+   * contents swap, so a mount-only entrance would play for chapter one and
+   * never again.
+   *
+   * It deliberately starts as the new sheet mounts, which is 46% through the
+   * turn, so the writing is already under way when the turning sheet lifts off
+   * it. The alternative, waiting for the turn to finish, is the mistake this
+   * project already made once and reverted: an arrival that glides in and then
+   * sits there before anything moves reads as dead.
+   */
+  useLayoutEffect(() => {
+    const el = sheet.current;
+    if (!el) return;
+    let release = () => {};
+    const ctx = gsap.context(() => {
+      playSheet(el);
+      driftPaper(el);
+      release = pressPaper(el);
+    }, el);
+    return () => {
+      release();
+      ctx.revert();
+    };
+  }, [page]);
+
+  /**
    * Turn the sheet, then change the page.
    *
    * The clone is what turns, and it is appended to `document.body` rather than
@@ -251,6 +281,7 @@ export default function Notebook({
         >
           <div
             ref={heading}
+            data-headline
             // Steps up on a laptop, where the sheet is three times as wide and
             // a phone sized word reads as a caption in the corner of it. The
             // fit below still owns the ceiling, so a long word simply comes
@@ -503,6 +534,7 @@ function PenArrow({
     >
       {/* The ring, drawn as one stroke that starts and finishes past itself. */}
       <path
+        data-stroke
         d="M34 6.5 C 47 9, 51.5 19, 50 29 C 48.4 40, 39 48.5, 26 48.5
            C 14 48.5, 4.5 41, 4 30 C 3.5 18.5, 13 6.5, 27.5 5.6
            C 33 5.3, 38 6.4, 41 8.2"
@@ -513,6 +545,7 @@ function PenArrow({
       />
       {tick ? (
         <path
+          data-stroke
           d="M17 27.5 L 24.5 35.5 L 38 19"
           stroke={ink}
           strokeWidth="3"
@@ -523,6 +556,7 @@ function PenArrow({
         <>
           {/* The shaft rides up a touch, the way a hand draws it. */}
           <path
+            data-stroke
             d="M16 28.4 C 23 27.8, 30 27.2, 36.5 26.6"
             stroke={ink}
             strokeWidth={ringed ? 3 : 2.4}
@@ -530,6 +564,7 @@ function PenArrow({
             opacity={ringed ? 1 : 0.75}
           />
           <path
+            data-stroke
             d="M30.5 20.8 L 37.5 26.5 L 31.5 33"
             stroke={ink}
             strokeWidth={ringed ? 3 : 2.4}

@@ -63,6 +63,7 @@ export function Underline({ className = "" }: { className?: string }) {
       className={`absolute -bottom-1 left-0 h-2.5 w-full ${className}`}
     >
       <path
+        data-stroke
         d="M3 7 C 48 3, 96 9, 150 5 S 190 6, 197 4"
         fill="none"
         stroke={INK}
@@ -71,6 +72,7 @@ export function Underline({ className = "" }: { className?: string }) {
         opacity="0.85"
       />
       <path
+        data-stroke
         d="M10 10 C 60 7, 110 11, 178 8"
         fill="none"
         stroke={INK}
@@ -95,6 +97,7 @@ export function Tape({
   return (
     <span
       aria-hidden
+      data-paper
       className={`absolute block ${className}`}
       style={{
         width,
@@ -128,18 +131,28 @@ export function Sticky({
 }) {
   const fill =
     tone === "mint" ? "#DCEFE2" : tone === "paper" ? "#FBF7EC" : LILAC;
+  // Three elements, and each one is a single system's to write. The outer is
+  // the entrance's (opacity, y), the middle is the drift's (rotation) and the
+  // press's (scale), and the note itself keeps its own inline tilt. Collapsing
+  // any two of these puts two owners on one transform, which is the trap this
+  // codebase keeps rediscovering.
   return (
-    <div
-      className={`relative rounded-[10px] px-4 py-3 ${className}`}
-      style={{
-        background: fill,
-        transform: `rotate(${rotate}deg)`,
-        // A note lifts off the page at one corner, so the shadow is not even.
-        boxShadow: "0 10px 18px -12px rgba(46,16,101,0.45), 0 1px 0 rgba(255,255,255,0.6) inset",
-        border: `1px solid ${LILAC_EDGE}`,
-      }}
-    >
-      {children}
+    <div data-paper className={className}>
+      <div data-tilt>
+        <div
+          className="relative rounded-[10px] px-4 py-3"
+          style={{
+            background: fill,
+            transform: `rotate(${rotate}deg)`,
+            // A note lifts off the page at one corner, so the shadow is uneven.
+            boxShadow:
+              "0 10px 18px -12px rgba(46,16,101,0.45), 0 1px 0 rgba(255,255,255,0.6) inset",
+            border: `1px solid ${LILAC_EDGE}`,
+          }}
+        >
+          {children}
+        </div>
+      </div>
     </div>
   );
 }
@@ -189,6 +202,7 @@ export function Arrow({
       }}
     >
       <path
+        data-stroke
         d="M6 4 C 30 2, 52 14, 48 40"
         fill="none"
         stroke={colour}
@@ -197,6 +211,7 @@ export function Arrow({
         opacity="0.55"
       />
       <path
+        data-stroke
         d="M40 30 L48 42 L56 31"
         fill="none"
         stroke={colour}
@@ -311,6 +326,7 @@ export function Ink({
 }) {
   return (
     <Tag
+      data-write
       className={`${size} ${className}`}
       style={{
         fontFamily: "var(--font-hand)",
