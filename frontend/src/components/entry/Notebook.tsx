@@ -49,6 +49,7 @@ export default function Notebook({
   onSkip,
   word,
   ink = INK,
+  actionLabel,
   last = false,
 }: {
   /** 1 based, for the number in the corner. */
@@ -56,8 +57,13 @@ export default function Notebook({
   total: number;
   /** The enormous word along the bottom of the sheet. */
   word: string;
-  /** The pen this page is written in. The word takes it too. */
+  /** The pen this page is written in. The word and the controls take it too. */
   ink?: string;
+  /**
+   * Give the way on a name, and it is written out instead of drawn as the
+   * round arrow. For a sheet whose action is not simply "the next page".
+   */
+  actionLabel?: string;
   children: React.ReactNode;
   onNext: () => void;
   onBack?: () => void;
@@ -216,7 +222,7 @@ export default function Notebook({
         {onSkip && (
           <button
             onClick={onSkip}
-            className="absolute right-[var(--gutter)] top-[max(16px,env(safe-area-inset-top))] z-30 -mr-2 inline-flex min-h-11 items-center px-2 text-callout opacity-60 transition-opacity hover:opacity-100"
+            className="absolute right-[var(--gutter)] top-[max(16px,env(safe-area-inset-top))] z-30 -mr-2 inline-flex min-h-11 min-w-11 items-center justify-center px-2 text-callout opacity-60 transition-opacity hover:opacity-100"
           >
             Skip
           </button>
@@ -262,33 +268,54 @@ export default function Notebook({
         </div>
 
         <div
-          className="relative z-20 mt-1 flex shrink-0 items-center gap-3 pb-[max(16px,env(safe-area-inset-bottom))] pt-1"
+          className="relative z-20 mt-1 shrink-0 pb-[max(16px,env(safe-area-inset-bottom))] pt-1"
           style={{ paddingLeft: TEXT_X - EDGE, paddingRight: "var(--gutter)" }}
         >
-          <span className="tnum text-label tabular-nums opacity-40">
-            {String(page).padStart(2, "0")}
-          </span>
-          <Rail page={page} total={total} />
-          <span className="ml-auto flex shrink-0 items-center gap-2.5">
-            {onBack && page > 1 && (
-              <button
-                onClick={() => turn(-1, onBack)}
-                aria-label="Back"
-                className="grid size-[44px] place-items-center rounded-full border transition-transform duration-200 active:scale-90"
-                style={{ borderColor: "rgba(46,16,101,0.22)" }}
-              >
-                <Arrow back />
-              </button>
-            )}
+          {/* A sheet that names its own way on gets a written control instead
+              of the round one. The install offer is the case: an arrow there
+              read as "next slide" on a page whose whole point is that you might
+              leave and come back, so it says what it does. */}
+          {actionLabel && (
             <button
               onClick={() => turn(1, onNext)}
-              aria-label={last ? "Sign in" : "Next"}
-              className="grid size-[52px] place-items-center rounded-full transition-transform duration-200 active:scale-90"
-              style={{ background: INK, color: PAPER }}
+              className="mb-2.5 mt-4 inline-flex min-h-12 w-full items-center justify-center rounded-full px-6 transition-transform duration-200 active:scale-[0.97]"
+              style={{ background: ink, color: PAPER }}
             >
-              {last ? <Tick /> : <Arrow />}
+              <span
+                style={{ fontFamily: "var(--font-hand)", fontWeight: 700 }}
+                className="text-[1.2rem]"
+              >
+                {actionLabel}
+              </span>
             </button>
-          </span>
+          )}
+
+          <div className="flex items-center gap-3">
+            <span className="tnum text-label tabular-nums opacity-40">
+              {String(page).padStart(2, "0")}
+            </span>
+            <Rail page={page} total={total} ink={ink} />
+            <span className="ml-auto flex shrink-0 items-center gap-2">
+              {onBack && page > 1 && (
+                <button
+                  onClick={() => turn(-1, onBack)}
+                  aria-label="Back"
+                  className="grid size-[44px] place-items-center transition-transform duration-200 active:scale-90"
+                >
+                  <PenArrow ink={ink} back />
+                </button>
+              )}
+              {!actionLabel && (
+                <button
+                  onClick={() => turn(1, onNext)}
+                  aria-label={last ? "Sign in" : "Next"}
+                  className="grid size-[54px] place-items-center transition-transform duration-200 active:scale-90"
+                >
+                  <PenArrow ink={ink} tick={last} ringed />
+                </button>
+              )}
+            </span>
+          </div>
         </div>
       </div>
 
@@ -412,18 +439,26 @@ const COIL_FRONT =
     </svg>`,
   );
 
-/** How far through the pad you are. */
-function Rail({ page, total }: { page: number; total: number }) {
+/**
+ * How far through the pad you are, in the page's own pen.
+ *
+ * **`min-w-0 flex-1`, so the rungs give way rather than the row.** Sized to its
+ * own content, an eight rung rail plus the number and both controls measured
+ * 261px against the 232px a 320 wide phone has, and the overflow pushed the
+ * advance 2px off the screen edge. A progress rail is the one thing here that
+ * can afford to lose a pixel per rung.
+ */
+function Rail({ page, total, ink }: { page: number; total: number; ink: string }) {
   return (
-    <span className="flex items-center gap-1.5" aria-hidden>
+    <span className="flex min-w-0 flex-1 items-center gap-1.5" aria-hidden>
       {Array.from({ length: total }, (_, k) => (
         <span
           key={k}
           className="block h-[2px] rounded-full transition-all duration-500 ease-out"
           style={{
             width: k === page - 1 ? 20 : 7,
-            background: INK,
-            opacity: k === page - 1 ? 0.85 : 0.2,
+            background: k === page - 1 ? ink : INK,
+            opacity: k === page - 1 ? 0.9 : 0.2,
           }}
         />
       ))}
@@ -431,28 +466,80 @@ function Rail({ page, total }: { page: number; total: number }) {
   );
 }
 
-function Arrow({ back = false }: { back?: boolean }) {
+/**
+ * The way on, drawn rather than rendered.
+ *
+ * A filled disc with a geometric chevron was reported as not suiting the pad,
+ * and it did not: it was the one object on a page of handwriting that looked
+ * like a piece of app furniture, and it was the same deep purple on every
+ * sheet, so it clashed with the teal and the green.
+ *
+ * So it is **circled in the page's own pen**, the way you would ring the thing
+ * to do next in a notebook. The ring is a single path with unequal curves and a
+ * deliberate overshoot at the join, because a true circle reads as a border.
+ * Nothing is filled, which is what keeps it ink rather than a button, and the
+ * whole mark takes `ink` so every sheet's control matches its writing.
+ */
+function PenArrow({
+  ink,
+  back = false,
+  tick = false,
+  ringed = false,
+}: {
+  ink: string;
+  back?: boolean;
+  tick?: boolean;
+  ringed?: boolean;
+}) {
+  const size = ringed ? 54 : 44;
   return (
-    <svg width="19" height="19" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.3" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
-      {back ? (
-        <>
-          <path d="M19 12H5" />
-          <path d="M11 18l-6-6 6-6" />
-        </>
+    <svg
+      width={size}
+      height={size}
+      viewBox="0 0 54 54"
+      fill="none"
+      aria-hidden
+      style={{ transform: back ? "scaleX(-1)" : undefined }}
+    >
+      {/* The ring, drawn as one stroke that starts and finishes past itself. */}
+      <path
+        d="M34 6.5 C 47 9, 51.5 19, 50 29 C 48.4 40, 39 48.5, 26 48.5
+           C 14 48.5, 4.5 41, 4 30 C 3.5 18.5, 13 6.5, 27.5 5.6
+           C 33 5.3, 38 6.4, 41 8.2"
+        stroke={ink}
+        strokeWidth={ringed ? 2.4 : 1.9}
+        strokeLinecap="round"
+        opacity={ringed ? 0.9 : 0.42}
+      />
+      {tick ? (
+        <path
+          d="M17 27.5 L 24.5 35.5 L 38 19"
+          stroke={ink}
+          strokeWidth="3"
+          strokeLinecap="round"
+          strokeLinejoin="round"
+        />
       ) : (
         <>
-          <path d="M5 12h14" />
-          <path d="M13 6l6 6-6 6" />
+          {/* The shaft rides up a touch, the way a hand draws it. */}
+          <path
+            d="M16 28.4 C 23 27.8, 30 27.2, 36.5 26.6"
+            stroke={ink}
+            strokeWidth={ringed ? 3 : 2.4}
+            strokeLinecap="round"
+            opacity={ringed ? 1 : 0.75}
+          />
+          <path
+            d="M30.5 20.8 L 37.5 26.5 L 31.5 33"
+            stroke={ink}
+            strokeWidth={ringed ? 3 : 2.4}
+            strokeLinecap="round"
+            strokeLinejoin="round"
+            fill="none"
+            opacity={ringed ? 1 : 0.75}
+          />
         </>
       )}
-    </svg>
-  );
-}
-
-function Tick() {
-  return (
-    <svg width="19" height="19" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.3" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
-      <path d="M20 6L9 17l-5-5" />
     </svg>
   );
 }

@@ -2,7 +2,7 @@
 
 import { useEffect, useState, useSyncExternalStore } from "react";
 import Notebook from "./entry/Notebook";
-import { Ink, Sticky, Star, Tape, Underline } from "./entry/paper";
+import { Ink, Sticky, Star, Tape } from "./entry/paper";
 import { INKS } from "./entry/inks";
 import { markInstallOffered, useDeckPages } from "./entry/pages";
 import { IconAddSquare, IconCheck, IconMenuDots, IconShare } from "./Icons";
@@ -173,6 +173,11 @@ export default function InstallGate({
       total={pages.total}
       word="ON HOME"
       ink={INK}
+      // No round arrow on this sheet. An arrow means "the next page", and this
+      // page is not asking you to read on, it is asking you to leave, install,
+      // and come back. The way past is therefore named: carrying on without
+      // installing is a choice, so it says which choice it is.
+      actionLabel="Use in browser instead"
       onNext={dismiss}
       onSkip={dismiss}
     >
@@ -230,34 +235,28 @@ export default function InstallGate({
           )}
         </ol>
 
-        <div className="shrink-0 pb-2 pt-3">
-          {/* Chrome hands over a real install dialog. Safari has no equivalent,
-              which is the whole reason the steps above exist. */}
-          {native && (
+        {/* Chrome hands over a real install dialog, so on Android there is a
+            genuine action to offer. Safari has no equivalent, which is the
+            whole reason the written steps above exist, and on iOS this sheet
+            correctly has no button of its own: the only way on is the named
+            one in the footer. */}
+        {native && (
+          <div className="shrink-0 pb-1 pt-4">
             <button
               onClick={async () => {
                 await native.prompt();
                 await native.userChoice;
                 dismiss();
               }}
-              className="inline-flex min-h-[48px] items-center justify-center rounded-full px-7 transition-transform duration-200 active:scale-[0.97]"
+              className="inline-flex min-h-12 items-center justify-center rounded-full px-7 transition-transform duration-200 active:scale-[0.97]"
               style={{ background: INK, color: "#F6F1E4" }}
             >
               <Ink tool="marker" colour="#F6F1E4" size="text-[1.15rem]">
                 Install Skipp
               </Ink>
             </button>
-          )}
-          <button
-            onClick={dismiss}
-            className="relative ml-1 inline-flex min-h-11 items-center px-2"
-          >
-            <Ink tool="pencil" colour={INK} size="text-[1.05rem]">
-              Use in browser instead
-            </Ink>
-            <Underline className="-bottom-0 left-2 w-[calc(100%-1rem)] opacity-50" />
-          </button>
-        </div>
+          </div>
+        )}
       </div>
     </Notebook>
   );

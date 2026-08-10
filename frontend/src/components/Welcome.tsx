@@ -58,6 +58,13 @@ import { DUR, EASE, prefersReducedMotion } from "@/lib/motion";
 const INK = INKS.welcome;
 const PLAIN_TILE = "bg-[rgba(46,16,101,0.09)] text-[#2E1065]";
 const ACCENT_TILE = "bg-[rgba(46,16,101,0.88)] text-[#EFE7FA]";
+/**
+ * The accent tile as it actually paints, which is the ink at 88% composited
+ * over the paper: rgb(70, 43, 116). Written out rather than reused as an alpha
+ * because the features are cut INSIDE the head, where the tile behind them is
+ * already flattened, and stacking a second 88% there would only grey them.
+ */
+const ACCENT_CUT = "#462B74";
 
 type Person = {
   seed: string;
@@ -323,9 +330,15 @@ function Stage() {
                 seed={p.seed}
                 size={p.size}
                 tile={p.accent ? ACCENT_TILE : PLAIN_TILE}
-                // Features punched out in the room colour, so they hold at the
-                // small sizes where a thin stroke would vanish.
-                cut={PAPER}
+                // Features punched out in WHATEVER IS BEHIND THE HEAD, so they
+                // hold at the small sizes where a thin stroke would vanish.
+                //
+                // That is the paper on a plain tile, where the head is drawn
+                // dark. On an accent tile the head is pale and the tile behind
+                // it is dark, so cutting in paper put pale on pale and the two
+                // accent faces arrived with almost no features at all: reported
+                // from a real phone as the crowd's biggest faces being blank.
+                cut={p.accent ? ACCENT_CUT : PAPER}
               />
             </span>
           </span>

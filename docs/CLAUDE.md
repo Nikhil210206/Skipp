@@ -435,6 +435,41 @@ frame on the first capture after a page changes, and the frame it serves is
 missing the chapter word and sometimes the whole footer. Take a second shot
 before believing anything is absent: it cost a false bug report here twice.
 
+**Then it was opened on a real iPhone, and five things only a phone shows up.**
+
+- **Two of the crowd arrived with no features.** Every face cut its eyes and
+  mouth in the PAPER colour, which is right on a plain tile, where the head is
+  drawn dark. The two accent faces have a pale head on a dark tile, so paper on
+  pale was invisible. **Features are cut in whatever is behind the head**, which
+  is the tile on those two: the ink at 88% over cream, written out as `#462B74`
+  because the cut sits inside an already flattened fill.
+- **The advance was the one object that did not belong.** A filled disc with a
+  geometric chevron, in the same deep purple on all eight sheets, so it clashed
+  with the teal and the green as well as reading as app furniture on a page of
+  handwriting. It is **circled in the page's own pen** now, `PenArrow`, one
+  stroke with unequal curves that overshoots at the join, nothing filled. The
+  rail's live rung takes the page ink too.
+- **The install sheet has no arrow at all.** An arrow means "the next page", and
+  that sheet is not asking you to read on, it is asking you to leave and install.
+  `Notebook` takes an `actionLabel`, and when a sheet names its own way on the
+  round control is replaced by a written button: here, "Use in browser instead".
+  Chrome's real install dialog stays in the page. **On iOS this sheet correctly
+  has no button of its own**, so the named one is the only way past.
+- **The doodles pointed at nothing**, which is the worst of both worlds: an
+  instruction's weight with none of its content. `Arrow` takes `rotate` and
+  `colour`, and each one is aimed at the control on its sheet ("Skip a class",
+  the advance) in that page's ink. **A rotated box is bigger than the element**,
+  so a negative offset that looked fine unrotated hung 17px into the sheet's
+  `overflow-hidden` and lost its tip.
+- **The sign off was set at the same size as ordinary writing** while sitting on
+  the emptiest sheet, so it read as small rather than as calm. 2.5rem to 3.3rem.
+
+One thing the fixes exposed: **`min-w-0 flex-1` on the rail**. Sized to its own
+content, eight rungs plus the number and both controls measured 261px against
+the 232px a 320 wide phone has, and the overflow pushed the advance 2px off the
+screen. Verified after at 320, 375 and 390: nothing off screen, no control under
+44px, no doodle clipped, every word still fits.
+
 ### DONE: A time field that could not be filled in on a phone (2026-08-09)
 
 Reported as a validation error that would not go away. The error was the

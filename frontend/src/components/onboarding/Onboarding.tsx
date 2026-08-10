@@ -245,7 +245,13 @@ function Hello() {
             </div>
           </div>
         ))}
-        <Doodle className="-right-1 bottom-6 h-12 w-14" flip />
+        {/* This sheet's only control is the advance, so that is what it aims
+            at. In the page's own pen: a purple doodle on a blue page was the
+            one mark not written by the same hand as the rest of it. */}
+        {/* Kept fully inside the box. Rotating grows the bounding rect, so a
+            negative offset that looks fine unrotated hung 17px into the sheet's
+            `overflow-hidden` and had its tip cut off at 667. */}
+        <Doodle className="bottom-3 right-3 h-12 w-14" rotate={22} colour={INK} />
       </div>
     </div>
   );
@@ -468,7 +474,10 @@ function TheLine({
             )}
           </div>
         </Sticky>
-        <Doodle className="-right-2 -bottom-11 h-12 w-14" flip />
+        {/* Aimed at "Skip a class", which is the one thing on this sheet worth
+            pressing. It used to hang off the card's bottom right corner
+            pointing into blank paper, which is why it read as clutter. */}
+        <Doodle className="-bottom-12 left-6 h-12 w-14" rotate={198} colour={INK} />
       </div>
     </div>
   );
@@ -765,11 +774,14 @@ function Ready({ picked }: { picked: Theme | null }) {
           </Ink>
         </Mark>
       </p>
+      {/* The sign off carries the page, so it is set to carry it. At 2.5rem it
+          was the same size as the writing on every other sheet while sitting in
+          the emptiest one, and read as small rather than as calm. */}
       <Ink
         tool="marker"
         colour={INKS.ready}
-        size="text-[2.5rem]"
-        className="mt-4 block max-w-[13ch]"
+        size="text-[3.3rem]"
+        className="mt-4 block max-w-[11ch] leading-[1.02]"
       >
         Your Net ID. Nothing else.
       </Ink>
@@ -777,8 +789,8 @@ function Ready({ picked }: { picked: Theme | null }) {
         as="p"
         tool="pen"
         colour={INKS.ready}
-        size="text-[1.15rem]"
-        className="mt-5 max-w-[28ch]"
+        size="text-[1.3rem]"
+        className="mt-6 max-w-[26ch]"
       >
         It goes to the SRM portal to sign you in and nowhere else. No account,
         no server, nothing kept.
@@ -794,7 +806,9 @@ function Ready({ picked }: { picked: Theme | null }) {
           {name} is on. Change it any time in your profile.
         </Ink>
       )}
-      <Doodle className="right-3 bottom-4 h-14 w-16" />
+      {/* Aimed down into the corner where the tick sits, since on the last
+          sheet the control is the point of the page. */}
+      <Doodle className="bottom-3 right-3 h-14 w-16" rotate={22} colour={INKS.ready} />
     </div>
   );
 }

@@ -164,21 +164,34 @@ export function Mark({ children }: { children: React.ReactNode }) {
 export function Arrow({
   className = "",
   flip = false,
+  rotate = 0,
+  colour = INK,
 }: {
   className?: string;
   flip?: boolean;
+  /**
+   * Degrees, so the mark can be aimed at the thing it is about.
+   * A doodle that points at nothing is the worst of both worlds: it carries
+   * the weight of an instruction and delivers none, which is exactly how these
+   * were reported from a real phone.
+   */
+  rotate?: number;
+  /** The pen. Defaults to the pad's ink; pass the page's so it is one hand. */
+  colour?: string;
 }) {
   return (
     <svg
       aria-hidden
       viewBox="0 0 60 48"
       className={`absolute ${className}`}
-      style={{ transform: flip ? "scaleX(-1)" : undefined }}
+      style={{
+        transform: `${flip ? "scaleX(-1) " : ""}${rotate ? `rotate(${rotate}deg)` : ""}`.trim() || undefined,
+      }}
     >
       <path
         d="M6 4 C 30 2, 52 14, 48 40"
         fill="none"
-        stroke={INK}
+        stroke={colour}
         strokeWidth="2.2"
         strokeLinecap="round"
         opacity="0.55"
@@ -186,7 +199,7 @@ export function Arrow({
       <path
         d="M40 30 L48 42 L56 31"
         fill="none"
-        stroke={INK}
+        stroke={colour}
         strokeWidth="2.2"
         strokeLinecap="round"
         strokeLinejoin="round"
