@@ -2,7 +2,10 @@
 
 import { useCallback, useLayoutEffect, useRef } from "react";
 import gsap from "gsap";
-import EntryChapter, { Advance } from "./entry/EntryChapter";
+import Notebook, { PAPER } from "./entry/Notebook";
+import { Ink, Star } from "./entry/paper";
+import { INKS } from "./entry/inks";
+import { useDeckPages } from "./entry/pages";
 import { ProfileFace } from "./ProfileMark";
 import { haptic } from "@/lib/haptics";
 import { hashSeed } from "@/lib/mark";
@@ -42,7 +45,7 @@ import { DUR, EASE, prefersReducedMotion } from "@/lib/motion";
  * reason.
  */
 
-const FIELD = "#331206";
+
 
 /**
  * The tiles. Most of the crowd is painted in the room's own cream: the field
@@ -52,8 +55,9 @@ const FIELD = "#331206";
  * deck's `ACCENT`, written out because Tailwind cannot build a class from a
  * runtime constant.
  */
-const CREAM_TILE = "bg-[rgba(247,243,236,0.14)]";
-const ACCENT_TILE = "bg-[rgba(242,102,28,0.2)] text-[#F2661C]";
+const INK = INKS.welcome;
+const PLAIN_TILE = "bg-[rgba(46,16,101,0.09)] text-[#2E1065]";
+const ACCENT_TILE = "bg-[rgba(46,16,101,0.88)] text-[#EFE7FA]";
 
 type Person = {
   seed: string;
@@ -103,22 +107,32 @@ type Part = {
 };
 
 export default function Welcome({ onNext }: { onNext: () => void }) {
+  const pages = useDeckPages();
   return (
-    <EntryChapter
-      field={FIELD}
-      eyebrow="made for srm students"
-      word="WELCOME"
-      actions={
-        <div data-in className="flex items-center justify-between gap-4">
-          <p className="min-w-0 flex-1 text-callout leading-relaxed opacity-70">
-            You are one sign in away from never opening the SRM portal again.
-          </p>
-          <Advance onClick={onNext} label="Continue" field={FIELD} />
+    <Notebook page={pages.welcome} total={pages.total} word="WELCOME" ink={INK} onNext={onNext}>
+      {/* Two bands, and neither is allowed to leave a hole: the crowd takes
+          whatever the writing does not, so the page is full at any height
+          rather than parking a block in the middle of a lot of cream. */}
+      <div className="flex h-full flex-col">
+        <div className="relative min-h-0 flex-1">
+          <Stage />
+          <Star className="right-[4%] top-[6%]" size={15} />
+          <Star className="right-[13%] top-[13%]" size={9} />
         </div>
-      }
-    >
-      <Stage />
-    </EntryChapter>
+
+        {/* One colour, three tools: the aside is pencil because it is an
+            afterthought, the word is marker because it is the point, and the
+            line under it is biro. */}
+        <div className="shrink-0 pb-2">
+          <Ink as="p" tool="pencil" colour={INK} size="text-[1.05rem]" className="tracking-wide">
+            made for srm students
+          </Ink>
+          <Ink as="p" tool="pen" colour={INK} size="text-[1.15rem]" className="mt-3 max-w-[26ch]">
+            You are one sign in away from never opening the SRM portal again.
+          </Ink>
+        </div>
+      </div>
+    </Notebook>
   );
 }
 
@@ -258,9 +272,17 @@ function Stage() {
   return (
     <div
       ref={stage}
-      className="flex h-full items-center justify-center overflow-hidden px-[var(--gutter)]"
+      className="flex h-full items-center justify-center overflow-hidden py-2"
     >
-      <div className="relative h-[372px] w-full max-w-[360px]">
+      {/* **The composition keeps its aspect, and must NOT take `h-full`.**
+          Positions here are a share of the box, and the crowd was arranged in
+          one 360 by 372. Stretched to the page's height it measured 302 by 532:
+          the faces spread apart vertically and closed up sideways until two of
+          the eight sat behind their neighbours and read as missing. */}
+      <div
+        className="relative"
+        style={{ width: "min(100%, 330px)", aspectRatio: "360 / 372" }}
+      >
         {CROWD.map((p, i) => (
           <span
             key={p.seed}
@@ -271,7 +293,7 @@ function Stage() {
             onPointerCancel={() => settle(i)}
             onPointerLeave={() => settle(i)}
             className="absolute"
-            style={{ left: p.x, top: p.y }}
+            style={{ left: p.x, top: `${(p.y / 372) * 100}%` }}
           >
             {/* The split is what keeps one system per property: the outer span
                 is the drift's (x, y, rotation), this one is the entrance's and
@@ -300,10 +322,10 @@ function Stage() {
               <ProfileFace
                 seed={p.seed}
                 size={p.size}
-                tile={p.accent ? ACCENT_TILE : CREAM_TILE}
+                tile={p.accent ? ACCENT_TILE : PLAIN_TILE}
                 // Features punched out in the room colour, so they hold at the
                 // small sizes where a thin stroke would vanish.
-                cut={FIELD}
+                cut={PAPER}
               />
             </span>
           </span>

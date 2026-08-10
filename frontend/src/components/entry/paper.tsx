@@ -214,3 +214,99 @@ export function Star({ className = "", size = 18 }: { className?: string; size?:
     </svg>
   );
 }
+
+/* ------------------------------------------------------------------ inks */
+
+/**
+ * The instruments.
+ *
+ * A page written entirely in one pen is a page nobody wrote. Real notes are
+ * mixed: the heading goes down in marker, the aside in pencil because you were
+ * thinking, the label in biro because that was what was to hand. Giving each
+ * page ONE colour and several tools is what makes it read as somebody's
+ * notebook rather than as a stylesheet.
+ *
+ * The textures are genuine, not just weights. **Pencil is grain punched out of
+ * the letterform** with `background-clip: text`: specks in the paper's own
+ * colour eat into the stroke, which is what graphite on tooth actually looks
+ * like. Marker bleeds a hair past its edge. Biro is thin and slightly starved,
+ * the way a cheap pen goes.
+ */
+export type Tool = "marker" | "pencil" | "pen" | "fine";
+
+/** Graphite tooth: paper-coloured specks that punch holes in the stroke. */
+const GRAIN =
+  "data:image/svg+xml;utf8," +
+  encodeURIComponent(
+    `<svg xmlns="http://www.w3.org/2000/svg" width="42" height="42">
+      <filter id="g">
+        <feTurbulence type="fractalNoise" baseFrequency="0.9" numOctaves="4" stitchTiles="stitch"/>
+        <feColorMatrix type="matrix"
+          values="0 0 0 0 0.965  0 0 0 0 0.945  0 0 0 0 0.894  0 0 0 -1.5 1.05"/>
+      </filter>
+      <rect width="42" height="42" filter="url(#g)"/>
+    </svg>`,
+  );
+
+export function inkStyle(tool: Tool, colour: string): React.CSSProperties {
+  if (tool === "pencil") {
+    return {
+      // The colour sits under the grain, and the specks are paper, so they read
+      // as the sheet showing through the stroke rather than as dust on it.
+      backgroundImage: `url("${GRAIN}"), linear-gradient(${colour}, ${colour})`,
+      backgroundClip: "text",
+      WebkitBackgroundClip: "text",
+      color: "transparent",
+      // Graphite never quite reaches the darkness of ink.
+      opacity: 0.92,
+    };
+  }
+  if (tool === "marker") {
+    return {
+      color: colour,
+      // A hair of bleed past the edge, the way a felt tip sinks into paper.
+      textShadow: `0 0 0.6px ${colour}, 0 0 2.5px ${colour}22`,
+    };
+  }
+  if (tool === "pen") {
+    return { color: colour, opacity: 0.88 };
+  }
+  return { color: colour };
+}
+
+/**
+ * Something written on the page, in a named hand and a named tool.
+ *
+ * **Numbers never get this.** `Caveat` has no tabular figures, so an attendance
+ * percentage set in it jitters as it counts and a fraction like 41 / 60 stops
+ * lining up. Figures stay in the app's own face.
+ */
+export function Ink({
+  children,
+  tool = "pen",
+  colour,
+  size = "text-body",
+  className = "",
+  as: Tag = "span",
+}: {
+  children: React.ReactNode;
+  tool?: Tool;
+  colour: string;
+  size?: string;
+  className?: string;
+  as?: "span" | "p" | "h1" | "h2";
+}) {
+  return (
+    <Tag
+      className={`${size} ${className}`}
+      style={{
+        fontFamily: "var(--font-hand)",
+        fontWeight: tool === "marker" ? 700 : tool === "fine" ? 500 : 600,
+        lineHeight: 1.25,
+        ...inkStyle(tool, colour),
+      }}
+    >
+      {children}
+    </Tag>
+  );
+}

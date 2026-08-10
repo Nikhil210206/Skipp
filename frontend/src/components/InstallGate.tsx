@@ -1,7 +1,10 @@
 "use client";
 
 import { useEffect, useState, useSyncExternalStore } from "react";
-import EntryChapter, { ACCENT, CREAM } from "./entry/EntryChapter";
+import Notebook from "./entry/Notebook";
+import { Ink, Sticky, Star, Tape, Underline } from "./entry/paper";
+import { INKS } from "./entry/inks";
+import { markInstallOffered, useDeckPages } from "./entry/pages";
 import { IconAddSquare, IconCheck, IconMenuDots, IconShare } from "./Icons";
 
 /**
@@ -32,7 +35,7 @@ import { IconAddSquare, IconCheck, IconMenuDots, IconShare } from "./Icons";
  * which only adds the sentence that warns about it.
  */
 
-const FIELD = "#052A44";
+const INK = INKS.install;
 
 const KEY = "skipp.install-prompt";
 /** One dismissal is not forever, but it is not a nag on every launch either. */
@@ -128,6 +131,15 @@ export default function InstallGate({
 }) {
   const [native, setNative] = useState<BeforeInstallPrompt | null>(null);
   const ios = isIOS();
+  const pages = useDeckPages();
+  const note = signedIn && ios;
+
+  // This sheet is now part of the pad, and stays part of it once turned, or
+  // dismissing the offer shortens the notebook under the reader. Only from the
+  // entry deck: the copy shown inside the signed in app is not a sheet at all.
+  useEffect(() => {
+    if (!signedIn) markInstallOffered();
+  }, [signedIn]);
 
   useEffect(() => {
     const onPrompt = (e: Event) => {
@@ -156,12 +168,69 @@ export default function InstallGate({
       ];
 
   return (
-    <EntryChapter
-      field={FIELD}
-      eyebrow="the browser is the long way round"
+    <Notebook
+      page={pages.install ?? 2}
+      total={pages.total}
       word="ON HOME"
-      actions={
-        <div data-in className="flex flex-col gap-1">
+      ink={INK}
+      onNext={dismiss}
+      onSkip={dismiss}
+    >
+      <div className="flex h-full flex-col">
+        {/* Taped on rather than written: this page is an offer stuck into the
+            pad, not part of the argument the rest of it is making. */}
+        <div className="relative shrink-0 self-start">
+          <Tape className="-left-3 -top-4 z-10" rotate={-9} width={72} />
+          <Tape className="-right-4 -top-2 z-10" rotate={6} width={56} />
+          <Sticky rotate={-1.5} tone="paper" className="px-5 py-4">
+            <Ink tool="marker" colour={INK} size="text-[1.5rem]">
+              Get Skipp on
+              <br />
+              your Home Screen
+            </Ink>
+          </Sticky>
+        </div>
+        <Star className="right-2 top-2" size={14} />
+
+        {/* The steps float in whatever the heading and the sign off leave,
+            rather than stacking under the heading and leaving half the sheet
+            blank. Auto margins on the outer items rather than `justify-center`
+            on the list: once free space goes negative a flex container treats
+            them as zero, so on a short phone the list top aligns and scrolls
+            instead of pushing its own first step out of reach. */}
+        <ol className="no-scrollbar mt-7 flex min-h-0 flex-1 flex-col overflow-y-auto [&>*:first-child]:mt-auto [&>*:last-child]:mb-auto">
+          {steps.map(({ Icon, text }, i) => (
+            <li
+              key={text}
+              className="flex items-center gap-4 border-b py-4"
+              style={{ borderColor: `${INK}22` }}
+            >
+              {/* The number is written, the icon is stamped. */}
+              <Ink tool="pencil" colour={INK} size="text-[1.1rem]" className="w-6 shrink-0">
+                {String(i + 1).padStart(2, "0")}
+              </Ink>
+              <span
+                className="grid size-10 shrink-0 place-items-center rounded-xl"
+                style={{ background: `${INK}18`, color: INK }}
+              >
+                <Icon size={18} />
+              </span>
+              <Ink tool="pen" colour={INK} size="text-[1.1rem]" className="min-w-0 flex-1">
+                {text}
+              </Ink>
+            </li>
+          ))}
+          {note && (
+            <li className="pt-4">
+              <Ink tool="pencil" colour={INK} size="text-[1rem]" className="max-w-[30ch]">
+                Signing in once more inside the installed app is normal: iOS keeps
+                a home screen app&rsquo;s data separate from Safari&rsquo;s.
+              </Ink>
+            </li>
+          )}
+        </ol>
+
+        <div className="shrink-0 pb-2 pt-3">
           {/* Chrome hands over a real install dialog. Safari has no equivalent,
               which is the whole reason the steps above exist. */}
           {native && (
@@ -171,74 +240,25 @@ export default function InstallGate({
                 await native.userChoice;
                 dismiss();
               }}
-              className="inline-flex min-h-[52px] items-center justify-center rounded-full text-body font-semibold transition-transform duration-200 active:scale-[0.97]"
-              style={{ background: CREAM, color: FIELD }}
+              className="inline-flex min-h-[48px] items-center justify-center rounded-full px-7 transition-transform duration-200 active:scale-[0.97]"
+              style={{ background: INK, color: "#F6F1E4" }}
             >
-              Install Skipp
+              <Ink tool="marker" colour="#F6F1E4" size="text-[1.15rem]">
+                Install Skipp
+              </Ink>
             </button>
           )}
           <button
             onClick={dismiss}
-            className="mx-auto inline-flex min-h-11 items-center px-3 text-callout opacity-60 transition-opacity hover:opacity-100"
+            className="relative ml-1 inline-flex min-h-11 items-center px-2"
           >
-            Use in browser instead
+            <Ink tool="pencil" colour={INK} size="text-[1.05rem]">
+              Use in browser instead
+            </Ink>
+            <Underline className="-bottom-0 left-2 w-[calc(100%-1rem)] opacity-50" />
           </button>
         </div>
-      }
-    >
-      <Stage steps={steps} note={signedIn && ios} />
-    </EntryChapter>
-  );
-}
-
-/* -------------------------------------------------------------------------- */
-
-/**
- * The stage: a numbered index of the taps to make.
- *
- * A list that is mostly rule, so it reads as instructions rather than as
- * decoration, and unlike any other stage in the deck: the welcome is a living
- * crowd, chapter one is a fanned stack, chapter three is a live meter.
- */
-function Stage({
-  steps,
-  note,
-}: {
-  steps: { Icon: (p: { size?: number; className?: string }) => React.ReactNode; text: string }[];
-  note: boolean;
-}) {
-  return (
-    <div className="no-scrollbar flex h-full flex-col justify-center overflow-y-auto px-[var(--gutter)] pt-[max(56px,calc(env(safe-area-inset-top)+40px))]">
-      <p data-in className="max-w-[26ch] text-body leading-relaxed opacity-75">
-        It opens full screen with no browser bar, and starts instantly from the
-        copy already on this phone.
-      </p>
-
-      <ol className="mt-7 flex flex-col">
-        {steps.map(({ Icon, text }, i) => (
-          <li
-            key={text}
-            data-in
-            className="flex items-center gap-4 border-t py-4 last:border-b"
-            style={{ borderColor: "currentColor", borderTopWidth: 1, opacity: 0.999 }}
-          >
-            <span className="tnum text-label uppercase opacity-45">
-              {String(i + 1).padStart(2, "0")}
-            </span>
-            <span style={{ color: ACCENT }}>
-              <Icon size={19} />
-            </span>
-            <span className="min-w-0 flex-1 text-body leading-relaxed">{text}</span>
-          </li>
-        ))}
-      </ol>
-
-      {note && (
-        <p data-in className="mt-5 max-w-[30ch] text-callout leading-relaxed opacity-55">
-          Signing in once more inside the installed app is normal: iOS keeps a
-          home screen app&rsquo;s data separate from Safari&rsquo;s.
-        </p>
-      )}
-    </div>
+      </div>
+    </Notebook>
   );
 }

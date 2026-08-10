@@ -345,7 +345,97 @@ is deployment and true push notifications.
 Entries below are newest first. **When something breaks, read the relevant entry first**: most
 oddities here (login shell, empty calendar, 429s, duplicated course codes) are already diagnosed.
 
-### DONE: A time field that could not be filled in on a phone (2026-08-09, latest)
+### DONE: The way in is a spiral notebook (2026-08-10, latest)
+
+The whole entry deck is one spiral bound pad now: cream stock, faint rules, a
+wire down the left edge, and sheets you turn. `components/entry/Notebook.tsx` is
+the shell, `entry/paper.tsx` the kit it is written with, `entry/inks.ts` the pens
+and `entry/pages.ts` the page count. `Welcome`, `InstallGate` and the six
+onboarding chapters are all sheets in the same pad.
+
+**Two earlier attempts were rejected and both failures are the useful part.** A
+premium orb and glass deck was built and reverted wholesale on request. Then a
+first notebook was rejected in detail: "the spiral is missing, only the holes are
+there", plus blank space and weak animation. **The spiral was the real one.**
+
+**The sheet is INSET from the screen, and that is the whole trick.** The first
+pad drew the paper edge to edge and put the coils on top of it, which gives a
+column of punched holes and no wire: a ring needs somewhere to go BEHIND the
+paper and come back, and if the paper fills the screen there is no behind. So the
+desk shows down the left, the sheet starts after it, and each ring is drawn in
+two halves, one tiled layer under the sheet and one over it, with the punched
+hole between them. Nothing else makes it read as bound rather than as
+perforated.
+
+**The page turn animates a CLONE appended to `document.body`**, hinged on the
+wire, and swaps the page at 46% while the sheet is edge on. Same reasoning as the
+tab transition already recorded here: React only ever has one page mounted and
+these are separate components, so a sheet animated inside the tree is torn out
+mid rotation the moment its owner unmounts.
+
+**One pen per page, and the tool is part of the writing.** `inkStyle()` gives
+marker, pencil, pen and fine; pencil is a grain image knocked through
+`background-clip: text`, which is why it looks drawn rather than faded. Caveat is
+loaded as `--font-hand`. **Numbers never take it**: it has no tabular figures, so
+the attendance figure and the page number stay in Geist.
+
+**The enormous chapter word survived the move onto paper.** It was dropped in the
+rebuild and reported missing ("those bigggg words at the bottom"), which settled
+that it is the deck's identity and not decoration: it sits at the foot of every
+sheet, in that page's own ink, at 4.2rem stepping to 7.5rem on a laptop.
+
+**It is fitted by measurement, and both halves of that were wrong at first:**
+
+- **Measure the heading's OWN content box**, never the parent's `clientWidth`,
+  which includes the page margins and hands the word about 70px it does not
+  have. Every word measured as fitting and none was ever shrunk.
+- **Measure again after `document.fonts.ready`.** A layout effect runs while
+  Caveat is still a fallback face, and the fallback is narrower, so a word that
+  will overflow is judged to fit. At 320 that was four of the eight sheets.
+  After both: WELCOME, ON HOME, THE LINE and YOUR LOOK come down to 56 to 62px
+  and the short ones keep the full size.
+
+**The pad was shrinking under the reader.** The install offer is conditional, so
+the pad is eight sheets on a phone and seven on a laptop, and `useDeckPages()`
+asked the offer's own hook. But turning past that sheet SNOOZES the offer, which
+switches the hook off, so the deck ran 01, 02, then back to 02 and signed off on
+07 having just been an eight page pad, losing a rung off the rail on the way. The
+answer latches when the sheet actually mounts, in a module scope store, for the
+usual reason: the three screens mount at different moments, so a memory held by
+any one of them just captures the answer after the dismissal. **It latches on
+the sheet being shown, not on the first answer**, because the first client render
+is the hydration one and the server always says no.
+
+**Two faces were missing from the welcome crowd**, and they were not missing:
+the crowd is composed at 360x372 and placed in percentages, and the box was
+302x532, so it stretched vertically and squeezed horizontally until neighbours
+buried each other. The box carries `aspect-ratio: 360 / 372` now. Measured after:
+eight faces, worst overlap 8%.
+
+**Blank sheets, and the rule that fixed them.** THE LINE had 298px of dead paper
+at its foot and the install steps had about 450. Content floats on **`my-auto`,
+never `justify-center`**: a flex container treats auto margins as ZERO once free
+space goes negative, so tall content top aligns and scrolls, where centring
+pushes its own head under the Skip control. That is the exact trap the theme
+chapter hit before, and this is the escape from it rather than a rule against
+centring.
+
+**Six colour discs cannot fit one row at 320** without going under the 44px touch
+floor, so the last one was cut off the sheet edge. Wrapping fixed the clipping
+and left one disc under a row of five, which reads as the overflow it is. They
+are a 3x2 rack at every width: **making the two rows EQUAL is what turns a wrap
+into a composition.**
+
+Verified at 320, 390, 430 and 1280: every word fits with the hand loaded, no
+sheet overflows in either direction, the numbers run 01 to 08 on a phone and 01
+to 07 on a laptop with the rail matching, and the console is clean.
+
+**A note for anyone screenshotting this deck.** The DevTools MCP serves a stale
+frame on the first capture after a page changes, and the frame it serves is
+missing the chapter word and sometimes the whole footer. Take a second shot
+before believing anything is absent: it cost a false bug report here twice.
+
+### DONE: A time field that could not be filled in on a phone (2026-08-09)
 
 Reported as a validation error that would not go away. The error was the
 symptom. **The field was impossible to complete on an iPhone.**
