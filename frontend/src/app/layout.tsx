@@ -1,6 +1,7 @@
 import type { Metadata, Viewport } from "next";
 import {
   Bricolage_Grotesque,
+  Caveat,
   Geist,
   Geist_Mono,
   Space_Grotesk,
@@ -29,6 +30,21 @@ const signature = Space_Grotesk({
   variable: "--font-signature-src",
   subsets: ["latin"],
   weight: ["400", "500"],
+});
+
+/**
+ * The hand on the page. Headings, margin notes and doodled labels in the entry
+ * notebook, and nothing else.
+ *
+ * **Deliberately never used for a number or for body copy.** A handwriting face
+ * has no tabular figures, so an attendance percentage set in it would jitter as
+ * it counts up, and long copy in it is measurably harder to read on a phone.
+ * The notebook is a surface; what is written on it stays legible.
+ */
+const hand = Caveat({
+  variable: "--font-hand-src",
+  subsets: ["latin"],
+  weight: ["500", "600", "700"],
 });
 
 // The entry screens only: sign-in and onboarding. Those screens are the pitch
@@ -72,7 +88,7 @@ export default function RootLayout({
     <html
       lang="en"
       suppressHydrationWarning
-      className={`${geistSans.variable} ${geistMono.variable} ${signature.variable} ${display.variable} h-full antialiased`}
+      className={`${geistSans.variable} ${geistMono.variable} ${signature.variable} ${display.variable} ${hand.variable} h-full antialiased`}
     >
       <head>
         {/* Applies the saved theme before paint so there is no flash. */}
