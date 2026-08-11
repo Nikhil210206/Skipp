@@ -13,13 +13,25 @@ import { driftPaper, playSheet, pressPaper } from "./handwriting";
  * The way in is one spiral bound pad: cream stock, faint rules, a wire down the
  * left edge, and sheets you turn.
  *
- * **The sheet is INSET from the screen, and that is the whole trick.** A first
- * attempt drew the paper edge to edge and put the coils on top of it, which
- * gave a column of punched holes and no wire: a ring needs somewhere to go
- * behind the paper and come back, and if the paper fills the screen there is no
- * behind. So the desk shows down the left, the sheet starts after it, and each
- * ring is drawn in two halves, one under the sheet and one over it. That, and
- * nothing else, is what makes it read as bound rather than as perforated.
+ * **On a phone the sheet is INSET from the screen, and that is the whole
+ * trick.** A first attempt drew the paper edge to edge and put the coils on top
+ * of it, which gave a column of punched holes and no wire: a ring needs
+ * somewhere to go behind the paper and come back, and if the paper fills the
+ * screen there is no behind. So the desk shows down the left, the sheet starts
+ * after it, and each ring is drawn in two halves, one under the sheet and one
+ * over it. That, and nothing else, is what makes it read as bound rather than
+ * as perforated.
+ *
+ * **Past `lg` the pad is OPEN, and that is a different object.** A single sheet
+ * stretched to a laptop is not a bigger notebook, it is the same notebook
+ * zoomed: the writing clusters in the left quarter, an index rule runs five
+ * times past its own text, a sticky note becomes a 1400px banner, and the page
+ * number ends up a full screen away from the arrow that turns the page. So the
+ * wire moves to the MIDDLE and the pad becomes a spread. The left page takes
+ * the chapter's contents, the right page takes the enormous word and the
+ * controls, and each is a proper measure by construction rather than by a cap.
+ *
+ * Nothing below `lg` changed: every edit here is behind the breakpoint.
  */
 
 /** Cream stock. Warm enough to read as paper, not as a beige rectangle. */
@@ -29,7 +41,7 @@ export const INK = "#2E1065";
 /** The desk the pad is lying on, visible only in the strip down the left. */
 const DESK = "#E4DACB";
 
-/** Where the sheet's left edge is. The wire wraps around this line. */
+/** Where the sheet's left edge is on a phone. The wire wraps around this line. */
 const EDGE = 22;
 /** Centre of the punched holes, measured from the screen's left edge. */
 const HOLE_X = 40;
@@ -41,6 +53,38 @@ const PITCH = 30;
 /** How long a page turn takes. */
 const TURN = 0.66;
 
+/**
+ * The spread, past `lg`. Distances from the spine and from the outer edges.
+ *
+ * **The pitch is wider than the shut pad's and the bars are steep, and both
+ * numbers are load bearing.** A first pass reused the 30px pitch with a bar
+ * that rose only 14px across the gutter: nearly flat bars stacked that close
+ * merge into one striped band and the binding reads as a zip fastener. A coil
+ * crossing an open pad climbs roughly one full turn per turn, so the rise is
+ * most of the pitch, and that is what separates the bars into a helix.
+ */
+const SPREAD_HOLE = 21;
+const SPREAD_PITCH = 34;
+const SPREAD_RISE = 22;
+const SPREAD_TILE = SPREAD_HOLE * 2 + 22;
+/** The outer margin of each page, and the inner one that clears the wire. */
+const PAGE_OUT = 72;
+const PAGE_IN = 84;
+
+/** Everything past this width is a spread. Matches Tailwind's `lg`. */
+const SPREAD_QUERY = "(min-width: 1024px)";
+const isSpread = () => window.matchMedia(SPREAD_QUERY).matches;
+
+/**
+ * The feint, shared by the page and by the clone that turns.
+ *
+ * It has to be a string rather than a component, because the turning page is a
+ * `cloneNode` appended to the body: it takes the paper with it, so the paper
+ * has to be something that can be written onto an element.
+ */
+const FEINT =
+  "repeating-linear-gradient(to bottom, transparent 0 33px, rgba(46,16,101,0.05) 33px 34px)";
+
 export default function Notebook({
   page,
   total,
@@ -51,6 +95,7 @@ export default function Notebook({
   word,
   ink = INK,
   actionLabel,
+  mark,
   last = false,
 }: {
   /** 1 based, for the number in the corner. */
@@ -65,6 +110,16 @@ export default function Notebook({
    * round arrow. For a sheet whose action is not simply "the next page".
    */
   actionLabel?: string;
+  /**
+   * One object for the right page of the spread, positioned absolutely.
+   *
+   * A title page in a real pad is where the stationery ends up, because it is
+   * the page with room on it. It is passed in rather than drawn here for two
+   * reasons: no two chapters should be held down the same way, and this shell
+   * must not import the paper kit, which imports it back. That cycle has
+   * already taken this deck to the error boundary once.
+   */
+  mark?: React.ReactNode;
   children: React.ReactNode;
   onNext: () => void;
   onBack?: () => void;
@@ -73,6 +128,8 @@ export default function Notebook({
   last?: boolean;
 }) {
   const sheet = useRef<HTMLDivElement>(null);
+  const pageL = useRef<HTMLDivElement>(null);
+  const pageR = useRef<HTMLDivElement>(null);
   const heading = useRef<HTMLDivElement>(null);
   const turning = useRef(false);
 
@@ -95,7 +152,7 @@ export default function Notebook({
    * should get the full display size rather than being cut down to whatever the
    * longest one can bear.
    *
-   * Two things it has to get right, both found by measuring at 320:
+   * Three things it has to get right, the first two found by measuring at 320:
    *
    * - **Measured against the heading's own content box**, never the parent's
    *   `clientWidth`, which includes the page's left and right margins and so
@@ -103,6 +160,12 @@ export default function Notebook({
    * - **Measured again once the hand has loaded.** A layout effect runs while
    *   Caveat is still a fallback face, and the fallback is narrower, so a word
    *   that will overflow measures as fitting and is never shrunk at all.
+   * - **The words are measured, not the box.** On the spread each word is its
+   *   own line, so the width to beat is the LONGEST of them, not their sum; on
+   *   a phone they share one line, so it is the sum. `scrollWidth` cannot tell
+   *   the two apart and is useless inside `overflow-hidden` anyway, which is
+   *   the trap the entry chapters already recorded: it reports the clipped
+   *   width, so nothing ever measures as too wide.
    */
   useLayoutEffect(() => {
     const h = heading.current;
@@ -114,8 +177,14 @@ export default function Notebook({
       // className precisely so this line cannot delete it.
       h.style.fontSize = "";
       const avail = h.clientWidth;
-      const natural = h.scrollWidth;
-      if (natural > avail && avail > 0) {
+      const parts = [...h.querySelectorAll("span")].map(
+        (s) => s.getBoundingClientRect().width,
+      );
+      if (!parts.length || avail <= 0) return;
+      const natural = isSpread()
+        ? Math.max(...parts)
+        : parts.reduce((a, w) => a + w, 0);
+      if (natural > avail) {
         const base = parseFloat(getComputedStyle(h).fontSize);
         h.style.fontSize = `${Math.floor(base * (avail / natural))}px`;
       }
@@ -166,6 +235,14 @@ export default function Notebook({
    * separate components, so a sheet animated inside the tree is torn out mid
    * rotation the moment its owner unmounts. Out on the body it finishes its
    * turn while the next page mounts underneath it.
+   *
+   * **On the spread only ONE page turns, which is what a page turn is.** Going
+   * on, the right page lifts and falls to the left across the spine; going
+   * back, the left page comes the other way. The page that stays put swaps its
+   * contents underneath, and that is not a compromise: the sheet's entrance
+   * writes the new page on line by line, so what you see beside the turning
+   * leaf is the next page being written, which is the effect this deck is
+   * built on everywhere else.
    */
   const turn = useCallback((dir: 1 | -1, then: () => void) => {
     const el = sheet.current;
@@ -175,22 +252,46 @@ export default function Notebook({
       return;
     }
     if (turning.current) return;
+
+    // The leaf that moves: one page of the spread, or the whole pad on a phone,
+    // where there is only ever one page to turn.
+    const spread = isSpread();
+    const leaf = spread ? (dir === 1 ? pageR.current : pageL.current) : el;
+    if (!leaf) {
+      then();
+      return;
+    }
     turning.current = true;
 
-    const box = el.getBoundingClientRect();
+    const box = leaf.getBoundingClientRect();
     const stage = document.createElement("div");
     stage.style.cssText =
       "position:fixed;inset:0;z-index:60;pointer-events:none;perspective:1500px";
-    const clone = el.cloneNode(true) as HTMLElement;
+    const clone = leaf.cloneNode(true) as HTMLElement;
     clone.style.position = "fixed";
     clone.style.left = `${box.left}px`;
     clone.style.top = `${box.top}px`;
     clone.style.width = `${box.width}px`;
     clone.style.height = `${box.height}px`;
     clone.style.margin = "0";
-    // Hinged on the wire, so the sheet swings about the binding and not about
-    // its own middle.
-    clone.style.transformOrigin = dir === 1 ? `${EDGE}px center` : `${box.width - 8}px center`;
+    // A page carries no paper of its own: the pad under it does. The clone is
+    // off on the body with nothing beneath it, so it has to bring the stock and
+    // the feint with it or it turns over as a pane of glass.
+    if (spread) {
+      clone.style.background = `${FEINT}, ${PAPER}`;
+      clone.style.backgroundPositionY = "14px";
+      clone.style.overflow = "hidden";
+    }
+    // Hinged on the wire, so the leaf swings about the binding and never about
+    // its own middle: on the spread that is the spine, which is the page's
+    // inner edge and therefore a different edge for each direction.
+    clone.style.transformOrigin = spread
+      ? dir === 1
+        ? "0 center"
+        : "100% center"
+      : dir === 1
+        ? `${EDGE}px center`
+        : `${box.width - 8}px center`;
     stage.appendChild(clone);
     document.body.appendChild(stage);
 
@@ -235,72 +336,126 @@ export default function Notebook({
       className="fixed inset-0 z-50 overflow-hidden"
       style={{ background: DESK, minHeight: "100dvh", perspective: "1500px" }}
     >
-      {/* The sheet. Inset from the left so the wire has an edge to wrap. */}
+      {/* The pad. Inset from the left on a phone so the wire has an edge to
+          wrap; edge to edge past `lg`, where the wire runs down the middle and
+          the two halves are facing pages. */}
       <div
         ref={sheet}
-        className="absolute inset-y-0 right-0 flex flex-col"
+        className="absolute inset-y-0 left-[22px] right-0 flex flex-col lg:left-0 lg:grid lg:grid-cols-2"
         style={{
-          left: EDGE,
           background: PAPER,
           color: INK,
           transformStyle: "preserve-3d",
           boxShadow: "-1px 0 0 rgba(46,16,101,0.10), 3px 0 14px -6px rgba(46,16,101,0.18)",
+          // One value, two pages: the top margin that keeps the first thing on
+          // a sheet clear of the notch and of the Skip control, and the two
+          // margins the spread's pages are set to.
+          ["--page-top" as string]: "max(58px, calc(env(safe-area-inset-top) + 44px))",
+          ["--page-out" as string]: `${PAGE_OUT}px`,
+          ["--page-in" as string]: `${PAGE_IN}px`,
         }}
       >
-        <Rules />
+        {/* On a phone one feint runs the height of the pad. On the spread each
+            page rules itself, because a page is what turns, and a leaf cloned
+            off a pad that owns the paper turns over blank. */}
+        <div className="lg:hidden">
+          <Rules margin={TEXT_X - EDGE - 16} />
+        </div>
 
         {onSkip && (
           <button
             onClick={onSkip}
-            className="absolute right-[var(--gutter)] top-[max(16px,env(safe-area-inset-top))] z-30 -mr-2 inline-flex min-h-11 min-w-11 items-center justify-center px-2 text-callout opacity-60 transition-opacity hover:opacity-100"
+            className="absolute right-[var(--gutter)] top-[max(16px,env(safe-area-inset-top))] z-30 -mr-2 inline-flex min-h-11 min-w-11 items-center justify-center px-2 text-callout opacity-60 transition-opacity hover:opacity-100 lg:right-[var(--page-out)] lg:mr-0"
           >
             Skip
           </button>
         )}
 
-        {/* A page has a top margin. Without one the content starts flush at
-            the sheet's edge, which clipped the first thing on it and put every
-            page under the Skip control. */}
+        {/* THE LEFT PAGE: whatever this chapter is made of.
+
+            **The children stay DIRECT children of this box**, with only the
+            zero-height feint before them. Every chapter is written as a
+            `h-full` column, and `height: 100%` needs a parent with a definite
+            height: wrapping them in an intermediate div gave them an auto
+            height parent instead and collapsed the lot. This box has a definite
+            height in both layouts, as a flex child on a phone and a stretched
+            grid item on the spread, so it is the one they have to sit in. */}
         <div
-          className="relative z-10 min-h-0 flex-1 overflow-hidden"
-          style={{
-            paddingLeft: TEXT_X - EDGE,
-            paddingRight: "var(--gutter)",
-            paddingTop: "max(58px, calc(env(safe-area-inset-top) + 44px))",
-          }}
+          ref={pageL}
+          // `md:max-w` is the tablet band's answer to the same complaint the
+          // spread answers past `lg`: between about 768 and 1023 the pad is one
+          // page a thousand pixels wide, and without a measure an index rule
+          // runs five times past its own text again. A wide page with a column
+          // of writing and a wide right margin is what a real one looks like.
+          className="relative z-10 min-h-0 flex-1 overflow-hidden pl-[44px] pr-[var(--gutter)] pt-[var(--page-top)] md:max-w-[38rem] lg:col-start-1 lg:max-w-none lg:pl-[var(--page-out)] lg:pr-[var(--page-in)]"
         >
+          <div className="hidden lg:block">
+            <Rules margin={PAGE_OUT - 18} />
+          </div>
           {children}
         </div>
 
-        {/* The enormous word. It is the deck's oldest device and the thing
-            that makes a sheet feel like a chapter rather than a slide, so it
-            survived the move onto paper: same position, written by hand. */}
+        {/* THE RIGHT PAGE: the enormous word and the controls. On a phone these
+            are simply the foot of the one sheet, which is why the wrapper is
+            inert until `lg` gives it a column of its own. */}
         <div
-          className="relative z-20 shrink-0 overflow-hidden"
-          style={{ paddingLeft: TEXT_X - EDGE, paddingRight: "var(--gutter)" }}
+          ref={pageR}
+          // Capped with the page above it on a tablet, so the page number and
+          // the arrow that turns the sheet stay within reach of each other
+          // instead of sitting at opposite ends of a thousand pixels.
+          className="relative z-20 shrink-0 md:max-w-[38rem] lg:col-start-2 lg:flex lg:min-h-0 lg:max-w-none lg:flex-col lg:overflow-hidden lg:pt-[var(--page-top)]"
         >
-          <div
-            ref={heading}
-            data-headline
-            // Steps up on a laptop, where the sheet is three times as wide and
-            // a phone sized word reads as a caption in the corner of it. The
-            // fit below still owns the ceiling, so a long word simply comes
-            // back down rather than running off the page.
-            className="whitespace-nowrap text-[4.2rem] leading-[0.92] lg:text-[7.5rem]"
-            style={{
-              fontFamily: "var(--font-hand)",
-              fontWeight: 700,
-              color: ink,
-              textShadow: `0 0 0.6px ${ink}`,
-            }}
-          >
-            {word}
+          <div className="hidden lg:block">
+            <Rules margin={PAGE_IN - 18} />
           </div>
-        </div>
+          {mark && (
+            <div className="pointer-events-none absolute inset-0 z-20 hidden lg:block">
+              {mark}
+            </div>
+          )}
+
+          {/* The enormous word. It is the deck's oldest device and the thing
+              that makes a sheet feel like a chapter rather than a slide, so it
+              survived the move onto paper: same position, written by hand.
+
+              On the spread it floats on `my-auto` rather than being pinned to
+              the foot: a page whose only object sits along its bottom edge is a
+              page with a screen of nothing above it, which is the fault this
+              whole layout exists to fix. Auto margins and not `justify-center`,
+              for the reason recorded twice already in this deck: a flex
+              container treats them as zero once free space goes negative, so a
+              word too tall for the page top aligns instead of pushing its own
+              head off it. */}
+          <div
+            className="relative z-20 shrink-0 overflow-hidden pl-[44px] pr-[var(--gutter)] lg:my-auto lg:pl-[var(--page-in)] lg:pr-[var(--page-out)]"
+          >
+            <div
+              ref={heading}
+              data-headline
+              // One line on a phone, one word per line on the spread, where the
+              // word is the right page's whole reason to exist and a single
+              // line of it reads as a caption along the foot. The fit above
+              // owns the ceiling either way, so a long word comes back down
+              // rather than running off the page.
+              className="whitespace-nowrap text-[4.2rem] leading-[0.92] md:text-[5.4rem] lg:whitespace-normal lg:text-[10rem] lg:leading-[0.82]"
+              style={{
+                fontFamily: "var(--font-hand)",
+                fontWeight: 700,
+                color: ink,
+                textShadow: `0 0 0.6px ${ink}`,
+              }}
+            >
+              {word.split(" ").map((part, i) => (
+                <span key={i} className="whitespace-pre lg:block lg:w-fit">
+                  {i > 0 ? " " : ""}
+                  {part}
+                </span>
+              ))}
+            </div>
+          </div>
 
         <div
-          className="relative z-20 mt-1 shrink-0 pb-[max(16px,env(safe-area-inset-bottom))] pt-1"
-          style={{ paddingLeft: TEXT_X - EDGE, paddingRight: "var(--gutter)" }}
+          className="relative z-20 mt-1 shrink-0 pb-[max(16px,env(safe-area-inset-bottom))] pl-[44px] pr-[var(--gutter)] pt-1 lg:pb-[max(30px,env(safe-area-inset-bottom))] lg:pl-[var(--page-in)] lg:pr-[var(--page-out)]"
         >
           {/* A sheet that names its own way on gets a written control instead
               of the round one. The install offer is the case: an arrow there
@@ -348,10 +503,13 @@ export default function Notebook({
             </span>
           </div>
         </div>
+        </div>
       </div>
 
-      {/* The wire, drawn last so its front halves lie over the sheet. */}
+      {/* The binding, drawn last so its front halves lie over the paper. Which
+          one depends entirely on whether the pad is shut or open. */}
       <Wire />
+      <Spine />
     </div>
   );
 }
@@ -359,30 +517,26 @@ export default function Notebook({
 /* -------------------------------------------------------------------------- */
 
 /**
- * The feint, and the margin rule beside the holes.
+ * The feint, and the margin rule where the writing starts.
  *
  * Faint on purpose. Real ruled paper is darker, but real ruled paper also has
  * handwriting on it rather than 13px type, and a rule crossing an x-height at
  * full strength is the quickest way to make a page unreadable.
+ *
+ * The margin's position is passed in because the spread's two pages start their
+ * writing at different distances from their own left edges: the left page is
+ * measured from the outside of the pad, the right page from the spine.
  */
-function Rules() {
+function Rules({ margin }: { margin: number }) {
   return (
     <div aria-hidden className="pointer-events-none absolute inset-0 overflow-hidden">
       <div
         className="absolute inset-0"
-        style={{
-          backgroundImage:
-            "repeating-linear-gradient(to bottom, transparent 0 33px, rgba(46,16,101,0.05) 33px 34px)",
-          backgroundPositionY: "14px",
-        }}
+        style={{ backgroundImage: FEINT, backgroundPositionY: "14px" }}
       />
       <div
         className="absolute inset-y-0"
-        style={{
-          left: TEXT_X - EDGE - 16,
-          width: 1,
-          background: "rgba(196,74,96,0.22)",
-        }}
+        style={{ left: margin, width: 1, background: "rgba(196,74,96,0.22)" }}
       />
     </div>
   );
@@ -398,7 +552,10 @@ function Rules() {
  */
 function Wire() {
   return (
-    <div aria-hidden className="pointer-events-none absolute inset-0 overflow-hidden">
+    <div
+      aria-hidden
+      className="pointer-events-none absolute inset-0 overflow-hidden lg:hidden"
+    >
       {/* Behind: the half of each ring that disappears under the sheet. It is
           painted first and the sheet covers most of it, leaving the bit that
           shows on the desk. */}
@@ -419,6 +576,65 @@ function Wire() {
           backgroundImage: `url("${COIL_FRONT}")`,
           backgroundRepeat: "repeat-y",
           backgroundSize: `${HOLE_X + 30}px ${PITCH}px`,
+        }}
+      />
+    </div>
+  );
+}
+
+/**
+ * The binding of an OPEN pad, which is a different drawing entirely.
+ *
+ * Lying flat and open, you do not see rings looping around an edge: you see the
+ * coil crossing the gutter as a row of diagonal bars, each rising from a hole
+ * punched in the left page to the next hole in the right page. So the tile is
+ * one bar and two holes, and the bar's ends are covered by the holes, which is
+ * how a wire that passes THROUGH the paper has to be drawn.
+ *
+ * The crease matters as much as the wire. Two pages of a bound pad curve down
+ * into the spine, so each carries a gradient darkening toward the middle. Take
+ * that away and the spread reads as two rectangles that happen to be adjacent.
+ */
+function Spine() {
+  return (
+    <div
+      aria-hidden
+      className="pointer-events-none absolute inset-0 z-30 hidden overflow-hidden lg:block"
+    >
+      {/* The crease: the paper turning away on both sides of the middle. It has
+          to be deep enough for the wire to sit IN something, or the coil is a
+          row of bars lying on a flat sheet. */}
+      <div
+        className="absolute inset-y-0 left-1/2 -translate-x-1/2"
+        style={{
+          width: 104,
+          background:
+            "linear-gradient(to right, rgba(46,16,101,0) 0%, rgba(46,16,101,0.035) 32%, rgba(46,16,101,0.09) 46%, rgba(46,16,101,0.14) 50%, rgba(46,16,101,0.09) 54%, rgba(46,16,101,0.035) 68%, rgba(46,16,101,0) 100%)",
+        }}
+      />
+      {/* The outer edges of the block of paper underneath, which is what says
+          this is a pad lying open rather than one flat sheet. */}
+      <div
+        className="absolute inset-y-0 left-0 w-3"
+        style={{
+          background:
+            "linear-gradient(to right, rgba(46,16,101,0.13), rgba(46,16,101,0))",
+        }}
+      />
+      <div
+        className="absolute inset-y-0 right-0 w-3"
+        style={{
+          background:
+            "linear-gradient(to left, rgba(46,16,101,0.13), rgba(46,16,101,0))",
+        }}
+      />
+      <div
+        className="absolute inset-y-0 left-1/2 -translate-x-1/2"
+        style={{
+          width: SPREAD_TILE,
+          backgroundImage: `url("${COIL_OPEN}")`,
+          backgroundRepeat: "repeat-y",
+          backgroundSize: `${SPREAD_TILE}px ${SPREAD_PITCH}px`,
         }}
       />
     </div>
@@ -469,6 +685,47 @@ const COIL_FRONT =
             stroke-width="1.1" stroke-linecap="round" opacity="0.75"/>
     </svg>`,
   );
+
+/**
+ * One bar of the open pad's coil, with the hole at each end it dives into.
+ *
+ * Drawn in the order a real one is stacked: the shadow the bar throws on the
+ * paper, then the bar, then its lit edge, then the two punched holes OVER the
+ * bar's ends. Putting the holes last is the whole of it, because a wire whose
+ * tip stops short of a hole is a wire lying on the page.
+ */
+const COIL_OPEN = (() => {
+  const cx = SPREAD_TILE / 2;
+  const lx = cx - SPREAD_HOLE;
+  const rx = cx + SPREAD_HOLE;
+  /** The bar's low end (left page) and high end (right page). */
+  const ly = SPREAD_PITCH - 7;
+  const ry = ly - SPREAD_RISE;
+  return (
+    "data:image/svg+xml;utf8," +
+    encodeURIComponent(
+      `<svg xmlns="http://www.w3.org/2000/svg" width="${SPREAD_TILE}" height="${SPREAD_PITCH}">
+      <defs>
+        <linearGradient id="o" x1="0" y1="1" x2="1" y2="0">
+          <stop offset="0" stop-color="#3B3346"/>
+          <stop offset="0.5" stop-color="#726781"/>
+          <stop offset="1" stop-color="#B0A6BE"/>
+        </linearGradient>
+      </defs>
+      <path d="M${lx} ${ly + 2.6} L ${rx} ${ry + 2.6}" fill="none" stroke="#2E1065"
+            stroke-opacity="0.15" stroke-width="5" stroke-linecap="round"/>
+      <path d="M${lx} ${ly} L ${rx} ${ry}" fill="none" stroke="url(%23o)"
+            stroke-width="4.2" stroke-linecap="round"/>
+      <path d="M${lx + 4} ${ly - 1.6} L ${rx - 4} ${ry - 1.6}" fill="none"
+            stroke="#EFEBF4" stroke-width="1" stroke-linecap="round" opacity="0.55"/>
+      <ellipse cx="${lx}" cy="${ly - 1}" rx="4.6" ry="4" fill="#2E1065" opacity="0.28"/>
+      <ellipse cx="${lx}" cy="${ly + 0.4}" rx="4.6" ry="4" fill="#FBF6E9" opacity="0.95"/>
+      <ellipse cx="${rx}" cy="${ry - 1}" rx="4.6" ry="4" fill="#2E1065" opacity="0.28"/>
+      <ellipse cx="${rx}" cy="${ry + 0.4}" rx="4.6" ry="4" fill="#FBF6E9" opacity="0.95"/>
+    </svg>`,
+    )
+  );
+})();
 
 /**
  * How far through the pad you are, in the page's own pen.

@@ -2,7 +2,7 @@
 
 import { useEffect, useState, useSyncExternalStore } from "react";
 import Notebook from "./entry/Notebook";
-import { Ink, Sticky, Star, Tape } from "./entry/paper";
+import { Ink, Staple, Sticky, Star, Tape } from "./entry/paper";
 import { INKS } from "./entry/inks";
 import { markInstallOffered, useDeckPages } from "./entry/pages";
 import { IconAddSquare, IconCheck, IconMenuDots, IconShare } from "./Icons";
@@ -180,6 +180,7 @@ export default function InstallGate({
       actionLabel="Use in browser instead"
       onNext={dismiss}
       onSkip={dismiss}
+      mark={<Staple className="right-[16%] top-[11%]" rotate={-34} size={48} />}
     >
       <div className="flex h-full flex-col">
         {/* Taped on rather than written: this page is an offer stuck into the
@@ -187,7 +188,7 @@ export default function InstallGate({
         <div className="relative shrink-0 self-start">
           <Tape className="-left-3 -top-4 z-10" rotate={-9} width={72} />
           <Tape className="-right-4 -top-2 z-10" rotate={6} width={56} />
-          <Sticky rotate={-1.5} tone="paper" className="px-5 py-4">
+          <Sticky rotate={-1.5} tone="paper" pad="px-5 py-4">
             <Ink tool="marker" colour={INK} size="text-[1.5rem]">
               Get Skipp on
               <br />
@@ -203,7 +204,10 @@ export default function InstallGate({
             on the list: once free space goes negative a flex container treats
             them as zero, so on a short phone the list top aligns and scrolls
             instead of pushing its own first step out of reach. */}
-        <ol className="no-scrollbar mt-7 flex min-h-0 flex-1 flex-col overflow-y-auto [&>*:first-child]:mt-auto [&>*:last-child]:mb-auto">
+        <ol className="no-scrollbar relative mt-7 flex min-h-0 flex-1 flex-col overflow-y-auto lg:max-w-[30rem] [&>*:first-child]:mt-auto [&>*:last-child]:mb-auto">
+          {/* Three numbered steps read as a torn out instruction sheet, so
+              they get stapled in rather than taped like the heading above. */}
+          <Staple className="-left-2 top-0 z-10" rotate={-44} size={34} />
           {steps.map(({ Icon, text }, i) => (
             <li
               key={text}

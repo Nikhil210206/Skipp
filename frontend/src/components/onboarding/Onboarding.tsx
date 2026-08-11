@@ -10,10 +10,14 @@ import { CREATOR, creatorLinks } from "@/lib/creator";
 import { IconInstagram, IconLinkedIn } from "@/components/Icons";
 import Notebook, { PAPER } from "@/components/entry/Notebook";
 import {
+  Clip,
   Ink,
   Mark,
+  Pin,
+  Staple,
   Sticky,
   Star,
+  Tack,
   Tape,
   Underline,
   Arrow as Doodle,
@@ -73,6 +77,24 @@ const LOOKS = THEMES.filter((t) => t.structural);
 const COLOURS = THEMES.filter((t) => !t.structural).slice(0, 6);
 const SKIN_TOTAL = THEMES.filter((t) => !t.structural).length;
 
+/**
+ * What is holding each chapter's title page down, on the spread.
+ *
+ * A different piece per chapter, for the same reason the contents never repeat:
+ * a clip on every one of them would be furniture. They sit near the outer top
+ * corner because that is where stationery actually ends up on a page, and they
+ * are the only objects on the right page besides the word, so anything busier
+ * would be competing with it.
+ */
+const MARKS: Record<Id, React.ReactNode> = {
+  hello: <Clip className="right-[13%] top-[9%]" rotate={13} size={78} />,
+  does: <Staple className="right-[16%] top-[11%]" rotate={-38} size={48} />,
+  line: <Tack className="right-[15%] top-[10%]" colour={INKS.line} size={40} />,
+  look: <Pin className="right-[11%] top-[11%]" rotate={-17} size={116} />,
+  who: <Clip className="right-[15%] top-[10%]" rotate={-9} size={72} />,
+  ready: <Tack className="right-[14%] top-[11%]" colour={INKS.ready} size={40} />,
+};
+
 export default function Onboarding({ onDone }: { onDone: () => void }) {
   const [c, setC] = useState(0);
   const [skipped, setSkipped] = useState(0);
@@ -127,6 +149,7 @@ export default function Onboarding({ onDone }: { onDone: () => void }) {
       total={pages.total}
       word={CHAPTERS[c].word}
       ink={INKS[ch]}
+      mark={MARKS[ch]}
       onNext={advance}
       onBack={() => go(c - 1)}
       onSkip={finish}
@@ -203,14 +226,16 @@ function Hello() {
       {/* Centred in whatever the writing leaves, not pinned to the top. Three
           notes stacked from the top of a tall page put a third of the sheet in
           use and left the rest blank. */}
-      <div className="relative flex min-h-0 flex-1 flex-col justify-center gap-4">
+      <div className="relative flex min-h-0 flex-1 flex-col justify-center gap-4 lg:gap-7">
         {cards.map((k, idx) => (
           <div
             key={k.t}
             // Capped, not full width. A note stuck on a page is a note sized
             // object whatever the window is; stretched to a laptop's width the
-            // three of them became slabs lying across each other.
-            className="relative w-full max-w-[19rem]"
+            // three of them became slabs lying across each other. The spread's
+            // page is wider than a phone and the cap goes up with it, or the
+            // notes cluster in one corner of paper they should be filling.
+            className="relative w-full max-w-[19rem] lg:max-w-[25rem]"
             style={{
               transform: `translate(${k.x}px, ${k.y}px) rotate(${k.rot}deg)`,
             }}
@@ -222,6 +247,11 @@ function Hello() {
               rotate={idx % 2 ? 6 : -7}
               width={idx === 1 ? 54 : 64}
             />
+            {/* One of the three is clipped rather than taped, so the stack
+                reads as three things put down at three different moments. */}
+            {idx === 2 && (
+              <Clip className="-top-5 right-[22%] z-20" rotate={9} size={54} />
+            )}
             <div
               className="rounded-[12px] px-5 py-4"
               style={{
@@ -250,8 +280,17 @@ function Hello() {
             one mark not written by the same hand as the rest of it. */}
         {/* Kept fully inside the box. Rotating grows the bounding rect, so a
             negative offset that looks fine unrotated hung 17px into the sheet's
-            `overflow-hidden` and had its tip cut off at 667. */}
-        <Doodle className="bottom-3 right-3 h-12 w-14" rotate={22} colour={INK} />
+            `overflow-hidden` and had its tip cut off at 667.
+
+            Gone on the spread, because the control it aims at is on the other
+            page: an arrow pointing across the gutter at nothing is the exact
+            fault this doodle was rewritten to fix. The title page's own mark
+            takes its place there. */}
+        <Doodle
+          className="bottom-3 right-3 h-12 w-14 lg:hidden"
+          rotate={22}
+          colour={INK}
+        />
       </div>
     </div>
   );
@@ -281,7 +320,11 @@ function Does() {
       {/* Spread down the sheet rather than stacked at the top. Four rows
           pinned to the top of a tall page used a third of it and left the rest
           blank, which is the fault this whole pass is about. */}
-      <div className="mt-5 flex min-h-0 flex-1 flex-col justify-evenly pb-4">
+      <div className="relative mt-5 flex min-h-0 flex-1 flex-col justify-evenly pb-4">
+        {/* An index of four things is a list somebody stapled in. It sits over
+            the first rule's left end, which is the corner a staple goes
+            through, rather than floating beside it. */}
+        <Staple className="-left-2 top-1 z-10" rotate={-42} size={34} />
         {rows.map(([n, t, d]) => (
           <div
             key={n}
@@ -376,9 +419,15 @@ function TheLine({
           negative, so on a short phone this settles back to the top instead of
           pushing its own head under the Skip control, which is exactly the trap
           the theme chapter hit. */}
-      <div className="relative my-auto shrink-0">
+      {/* Capped on the spread. A sticky note is a note sized object at every
+          width: run out to a full page it stops being one, and the tick at 75%
+          ends up a thousand pixels from the figure it is judging. */}
+      <div className="relative my-auto shrink-0 lg:max-w-[30rem]">
         <Tape className="left-9 -top-3 z-10" rotate={-6} width={66} />
-        <Sticky tone="mint" rotate={-1} className="px-5 py-5">
+        {/* Taped at one corner and tacked at the other, because a note held
+            twice the same way is a note nobody actually put up. */}
+        <Tack className="-right-1 -top-2 z-10" colour={INK} size={30} />
+        <Sticky tone="mint" rotate={-1} pad="px-5 py-5">
           <div className="flex items-end gap-4">
             {/* Tabular figures, never the hand: this one counts. */}
             <span
@@ -502,7 +551,7 @@ function TheLine({
 function ThemePreview() {
   return (
     <div
-      className="rounded-card border border-line p-4"
+      className="relative rounded-card border border-line p-4"
       style={{
         background: "var(--color-ink-1)",
         color: "var(--color-text-1)",
@@ -568,9 +617,12 @@ function Look({
     // reach, which is how the first card once slid under Skip and could not be
     // scrolled back to. Auto margins are treated as ZERO once free space goes
     // negative, so tall content simply top aligns and scrolls.
-    <div className="no-scrollbar flex h-full flex-col overflow-y-auto pb-2">
+    <div className="no-scrollbar flex h-full flex-col overflow-y-auto pb-2 lg:max-w-[30rem]">
       <div className="my-auto flex flex-col gap-5">
-        <div>
+        {/* The preview is a torn out screenshot of the app, so it is clipped
+            to the page rather than written on it. */}
+        <div className="relative">
+          <Clip className="-top-5 right-8 z-10" rotate={-7} size={50} />
           <ThemePreview />
         </div>
 
@@ -682,10 +734,21 @@ function Look({
 function Who() {
   const links = creatorLinks();
   return (
-    <div className="flex h-full flex-col justify-center gap-6">
+    <div className="flex h-full flex-col justify-center gap-6 lg:max-w-[31rem]">
       <div className="relative">
         <Tape className="left-7 -top-3 z-10" rotate={-8} width={74} />
         <Tape className="right-9 -top-2 z-10" rotate={6} width={52} />
+        {/* Pinned through the bottom corner as well as taped at the top, the
+            way a card you actually wanted to keep ends up. The pin is closed
+            and the shaft breaks where the paper is, so it reads as through it
+            rather than on it.
+
+            It STRADDLES the card's bottom edge rather than sitting inside it,
+            for the same reason the tape does: half on the card and half on the
+            page is what pins one to the other. It is also the only way the
+            steel reads at all here, since a pin drawn wholly on a dark brown
+            card is metal on brown with its own shadow invisible under it. */}
+        <Pin className="-bottom-7 right-7 z-20" rotate={-24} size={92} />
         <div
           className="rounded-[14px] p-5"
           style={{
@@ -766,7 +829,10 @@ function Who() {
 function Ready({ picked }: { picked: Theme | null }) {
   const name = picked ? THEMES.find((t) => t.id === picked)?.name : null;
   return (
-    <div className="flex h-full flex-col justify-center px-[var(--gutter)]">
+    // No gutter of its own. The page already sets the margin every other
+    // chapter writes to, so this one started 22px further in than all of them
+    // and read as a stray indent down the whole deck.
+    <div className="flex h-full flex-col justify-center">
       <p className="self-start">
         <Mark>
           <Ink tool="pencil" colour={INKS.ready} size="text-[1.05rem]">
@@ -807,8 +873,14 @@ function Ready({ picked }: { picked: Theme | null }) {
         </Ink>
       )}
       {/* Aimed down into the corner where the tick sits, since on the last
-          sheet the control is the point of the page. */}
-      <Doodle className="bottom-3 right-3 h-14 w-16" rotate={22} colour={INKS.ready} />
+          sheet the control is the point of the page. Gone on the spread, where
+          the tick is on the other page and the arrow would cross the gutter to
+          point at empty paper. */}
+      <Doodle
+        className="bottom-3 right-3 h-14 w-16 lg:hidden"
+        rotate={22}
+        colour={INKS.ready}
+      />
     </div>
   );
 }

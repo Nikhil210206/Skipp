@@ -345,7 +345,128 @@ is deployment and true push notifications.
 Entries below are newest first. **When something breaks, read the relevant entry first**: most
 oddities here (login shell, empty calendar, 429s, duplicated course codes) are already diagnosed.
 
-### DONE: The way in is a spiral notebook (2026-08-10, latest)
+### DONE: On a laptop the pad is OPEN, and the tape is actually stuck (2026-08-11, latest)
+
+Two reports: the entry deck was not properly aligned on desktop, and the tape
+was not stuck down. Both were real and neither was a matter of taste.
+
+**The pad was one sheet stretched to the window, and a stretched sheet is not a
+bigger notebook, it is the same notebook zoomed.** Measured at 1440: the writing
+sat in the left quarter of a 1418px page, THE LOT's index rules ran 1352px under
+250px of text, the mint attendance note became a 1400px banner with its 75% tick
+a thousand pixels from the figure it judges, the theme pills put a name and its
+swatches 1300px apart, and the page number sat at the far left with the arrow
+that turns the page at the far right.
+
+**So past `lg` the wire moves to the MIDDLE and the pad is a spread.** The left
+page takes the chapter's contents, the right page takes the enormous word and
+the controls, and each is a proper measure by construction rather than by a cap.
+This is deliberately not the capped column that was rejected twice before (see
+the 2026-08-09 entry): the spread still fills the window edge to edge.
+
+**Only ONE page turns, which is what a page turn is.** Going on, the right page
+lifts and falls left across the spine; going back, the left page comes the other
+way, so the hinge is the page's inner edge and a different edge per direction.
+The page that stays put swaps underneath, and that is not a compromise: the
+sheet's entrance writes the new page on line by line, so what you see beside the
+turning leaf is the next page being written.
+
+**A cloned page has to bring the paper with it.** The pad owns the stock and the
+feint, not the pages, so the first spread turn flipped a pane of glass. The
+clone gets `background` and the feint written onto it, and each page now rules
+itself rather than sharing one feint down the pad.
+
+**The chapter word is one word per line on the spread**, which is what lets it
+be 160px instead of 90px and what gives the right page a reason to exist. The
+fit therefore measures the LONGEST word there and the SUM of them on a phone;
+`scrollWidth` cannot tell those apart and is useless inside `overflow-hidden`
+anyway, which this deck already knew.
+
+**Do not wrap `children` in an intermediate div.** Every chapter is written as a
+`h-full` column and `height: 100%` needs a parent with a definite height. The
+page box has one in both layouts (a flex child on a phone, a stretched grid item
+on the spread); a wrapper between them has an auto height and collapses the lot.
+
+**The 768 to 1023 band needed its own answer** and would have been missed: it is
+still one page, a thousand pixels wide, with the same rules running past the
+same text. It gets a `md:max-w` measure on both halves, so a wide page reads as
+a column of writing with a wide right margin.
+
+**The tape: it is torn at the ENDS and straight along the SIDES.** The old clip
+path did exactly the opposite, ragged along the length and guillotined at the
+ends, which is the silhouette of a torn strip of paper and of nothing else. Tape
+comes off a roll, so its long edges are the width of the roll and the only rough
+edges are the two you made tearing it off. It is also **translucent** now, at an
+alpha you can see the card through, because every strip here straddles a note
+and an opaque one reads as a sticker cut to length.
+
+**And the real bug behind "not stuck": `Sticky` applied its `className` to the
+outer positioning wrapper.** That is the element a sibling `Tape` is measured
+against, so a caller passing `px-5 py-5` meaning "roomier note" instead inset the
+card 20px inside its own box, and the tape at `-top-3` ended up about 32px clear
+of the card it was holding down, touching nothing. It hit the attendance sheet
+and the install offer. Padding is a `pad` prop now, and `className` positions.
+
+**Four pieces of stationery, and metal is metal.** `Clip`, `Pin` (a closed safety
+pin), `Tack` and `Staple` in `entry/paper.tsx`. Everything else in the kit takes
+the chapter's ink because a person wrote it; a paper clip was already on the
+desk, so it stays steel on every sheet. The tack is the exception, because its
+head is plastic, which is why it is the piece that can sit anywhere.
+
+Three things the drawings needed, all found by rendering them at 3x rather than
+squinting at a screenshot:
+
+- **The staple's legs are its whole silhouette.** Drawn as a crown alone it is a
+  short grey bar, indistinguishable at size from a dash of pencil.
+- **The pin's shaft BREAKS where the paper is**, and the two punctures sit on the
+  shaft's own line. Set even slightly off it they read as two marks beside a pin
+  rather than as the holes it went through, and an unbroken shaft is a pin lying
+  on the page.
+- **The tack's barrel has to be clearly longer than the dome is wide**, or the
+  whole thing is a balloon on a string.
+
+**None of them carries `data-stroke`.** That marker draws a path on as though it
+were being written, and a stapled corner arriving stroke by stroke looks like a
+doodle of a staple. They take `data-paper`, so they drop onto the page and
+settle, which is how they got there.
+
+**The right page gets ONE object, passed in by the caller.** `Notebook` takes a
+`mark`, rather than drawing stationery itself, for two reasons: no two chapters
+should be held down the same way, and the shell must not import the paper kit,
+which imports it back. That cycle has taken this deck to the error boundary once
+already.
+
+**Two doodles are hidden past `lg`** (chapter one's and the sign off's): they aim
+at the advance, which is now on the other page, and an arrow crossing the gutter
+to point at empty paper is exactly the fault they were last rewritten to fix.
+The one on the attendance sheet stays at every width, because it aims at "Skip a
+class", which does not move. The sign off also lost a stray `px-[var(--gutter)]`
+that had it indented 22px past every other chapter.
+
+**The spine is a different drawing from the shut pad's.** Open and flat you see
+the coil crossing the gutter as diagonal bars, each rising from a hole in the
+left page to the next hole in the right, with the holes drawn OVER the bar's
+ends: a wire whose tip stops short of a hole is a wire lying on the page. A
+first pass reused the shut pad's 30px pitch with a bar rising 14px across the
+gutter, and nearly flat bars stacked that close merge into one striped band, so
+the binding read as a zip fastener. Pitch 34, rise 22, and a crease deep enough
+that the wire sits in something.
+
+Verified at 320, 390, 900, 1024, 1280 and 1440. On the phone the words still
+come down to 56 to 62px at 320 exactly as before, no sheet spills in either
+direction, no tap target is under 44px, and the deck numbers 01 to 07. On the
+spread every word fits its page, nothing crosses the spine, there is no
+horizontal overflow, and with reduced motion forced OFF all 5 paper objects, 4
+written lines, 8 strokes and the chapter word finish visible.
+
+**A note for anyone measuring the turn here.** The Browser MCP throttles rAF
+between JS calls, so a 0.66s timeline can take several seconds of wall clock and
+a stuck `turning` flag plus a leftover clone looks exactly like a broken
+animation. It is not: give it one tool call per click and it clears. It also
+serves a stale frame after the viewport changes, and re-applying the same
+`resize_window` is what fixes it.
+
+### DONE: The way in is a spiral notebook (2026-08-10)
 
 The whole entry deck is one spiral bound pad now: cream stock, faint rules, a
 wire down the left edge, and sheets you turn. `components/entry/Notebook.tsx` is

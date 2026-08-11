@@ -3,7 +3,7 @@
 import { useCallback, useLayoutEffect, useRef } from "react";
 import gsap from "gsap";
 import Notebook, { PAPER } from "./entry/Notebook";
-import { Ink, Star } from "./entry/paper";
+import { Clip, Ink, Star } from "./entry/paper";
 import { INKS } from "./entry/inks";
 import { useDeckPages } from "./entry/pages";
 import { ProfileFace } from "./ProfileMark";
@@ -116,7 +116,15 @@ type Part = {
 export default function Welcome({ onNext }: { onNext: () => void }) {
   const pages = useDeckPages();
   return (
-    <Notebook page={pages.welcome} total={pages.total} word="WELCOME" ink={INK} onNext={onNext}>
+    <Notebook
+      page={pages.welcome}
+      total={pages.total}
+      word="WELCOME"
+      ink={INK}
+      onNext={onNext}
+      // The first page of a pad is the one with the clip still on it.
+      mark={<Clip className="right-[13%] top-[9%]" rotate={-11} size={80} />}
+    >
       {/* Two bands, and neither is allowed to leave a hole: the crowd takes
           whatever the writing does not, so the page is full at any height
           rather than parking a block in the middle of a lot of cream. */}
@@ -287,8 +295,8 @@ function Stage() {
           the faces spread apart vertically and closed up sideways until two of
           the eight sat behind their neighbours and read as missing. */}
       <div
-        className="relative"
-        style={{ width: "min(100%, 330px)", aspectRatio: "360 / 372" }}
+        className="relative w-[min(100%,330px)] lg:w-[min(100%,430px)]"
+        style={{ aspectRatio: "360 / 372" }}
       >
         {CROWD.map((p, i) => (
           <span
