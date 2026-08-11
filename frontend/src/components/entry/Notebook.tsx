@@ -268,42 +268,145 @@ export default function Notebook({
     stage.style.cssText =
       "position:fixed;inset:0;z-index:60;pointer-events:none;perspective:1500px";
     const clone = leaf.cloneNode(true) as HTMLElement;
-    clone.style.position = "fixed";
-    clone.style.left = `${box.left}px`;
-    clone.style.top = `${box.top}px`;
-    clone.style.width = `${box.width}px`;
-    clone.style.height = `${box.height}px`;
     clone.style.margin = "0";
-    // A page carries no paper of its own: the pad under it does. The clone is
-    // off on the body with nothing beneath it, so it has to bring the stock and
-    // the feint with it or it turns over as a pane of glass.
+
+    /** What actually gets the rotation. On the spread it is a two faced leaf. */
+    let spinner = clone;
+    /** The shading that ramps as the leaf turns, and the shadow it throws. */
+    const shades: HTMLElement[] = [];
+    let cast: HTMLElement | null = null;
+
     if (spread) {
-      clone.style.background = `${FEINT}, ${PAPER}`;
-      clone.style.backgroundPositionY = "14px";
-      clone.style.overflow = "hidden";
+      /**
+       * **The clone has to be handed the pad's own custom properties.**
+       *
+       * `--page-top`, `--page-out` and `--page-in` are declared inline on the
+       * pad, and the clone is appended to `document.body`, outside it, so they
+       * do not inherit. Every `p*-[var(--page-*)]` on the page then computes to
+       * ZERO: measured 0px against the real 84px and 58px, so the enormous word
+       * jumped to the spine on the first frame of every turn. That jump is most
+       * of what was reported as the flip not happening.
+       */
+      const pad = getComputedStyle(el);
+      for (const v of ["--page-top", "--page-out", "--page-in"]) {
+        clone.style.setProperty(v, pad.getPropertyValue(v));
+      }
+
+      /**
+       * **A leaf has two faces, and without the second one you read the old
+       * page backwards.** Rotated past 90 degrees a single element shows its
+       * own content mirrored, so half of every turn was the chapter word in
+       * reverse. Front and back are separate elements, each with its backface
+       * hidden, so exactly one of them is ever facing you: the page you are
+       * turning until it goes edge on, then the blank reverse of it.
+       */
+      spinner = document.createElement("div");
+      spinner.style.cssText =
+        `position:fixed;left:${box.left}px;top:${box.top}px;` +
+        `width:${box.width}px;height:${box.height}px;transform-style:preserve-3d`;
+
+      // Set property by property rather than through `cssText`, which would be
+      // a round trip through serialization with the custom properties above
+      // riding on it.
+      const face = (node: HTMLElement) => {
+        node.style.position = "absolute";
+        node.style.inset = "0";
+        node.style.width = "100%";
+        node.style.height = "100%";
+        node.style.overflow = "hidden";
+        node.style.backfaceVisibility = "hidden";
+        // A page carries no paper of its own: the pad under it does. Out on the
+        // body with nothing beneath it, a leaf has to bring the stock and the
+        // feint with it or it turns over as a pane of glass.
+        node.style.background = `${FEINT}, ${PAPER}`;
+        node.style.backgroundPositionY = "14px";
+      };
+      face(clone);
+
+      const back = document.createElement("div");
+      face(back);
+      back.style.transform = "rotateY(180deg)";
+
+      /**
+       * The light. A page turning away from the room darkens from its free edge
+       * back toward the binding, and its reverse comes into the light as it
+       * lands. This is the difference between a page turning and a rectangle
+       * sliding: with flat cream on flat cream there is no depth cue at all,
+       * which is exactly how it read.
+       */
+      const toFree = dir === 1 ? "to right" : "to left";
+      const toHinge = dir === 1 ? "to left" : "to right";
+      for (const [face, aim] of [
+        [clone, toFree],
+        [back, toHinge],
+      ] as const) {
+        const sh = document.createElement("div");
+        sh.style.cssText =
+          `position:absolute;inset:0;opacity:0;` +
+          `background:linear-gradient(${aim}, rgba(46,16,101,0) 0%, rgba(46,16,101,0.10) 45%, rgba(46,16,101,0.42) 100%)`;
+        face.appendChild(sh);
+        shades.push(sh);
+      }
+
+      spinner.append(clone, back);
+
+      /**
+       * **The page the leaf came from is hidden while the leaf stands in for
+       * it.** The leaf swings about the spine, so it uncovers the real page
+       * beneath from the outer edge inward, and that page still holds the old
+       * contents until the swap: the chapter word was visible twice at once,
+       * once on the leaf and once ghosting out from under it. Hidden, what is
+       * uncovered is blank paper, which is what the next page actually is until
+       * it gets written on. Restored at the swap, which is the frame the leaf
+       * goes edge on and stops covering anything.
+       */
+      leaf.style.visibility = "hidden";
+
+      // The shadow the leaf throws on the page it is coming over. Anchored to
+      // the spine and spreading outward, so the turn is legible even in the
+      // corner of the eye.
+      cast = document.createElement("div");
+      const spine = dir === 1 ? box.left : box.right;
+      cast.style.cssText =
+        `position:fixed;top:0;height:100%;opacity:0;` +
+        (dir === 1
+          ? `left:0;width:${spine}px;background:linear-gradient(to left, rgba(46,16,101,0.28), rgba(46,16,101,0) 55%)`
+          : `left:${spine}px;right:0;background:linear-gradient(to right, rgba(46,16,101,0.28), rgba(46,16,101,0) 55%)`);
+      stage.appendChild(cast);
+    } else {
+      clone.style.position = "fixed";
+      clone.style.left = `${box.left}px`;
+      clone.style.top = `${box.top}px`;
+      clone.style.width = `${box.width}px`;
+      clone.style.height = `${box.height}px`;
     }
+
     // Hinged on the wire, so the leaf swings about the binding and never about
     // its own middle: on the spread that is the spine, which is the page's
     // inner edge and therefore a different edge for each direction.
-    clone.style.transformOrigin = spread
+    spinner.style.transformOrigin = spread
       ? dir === 1
         ? "0 center"
         : "100% center"
       : dir === 1
         ? `${EDGE}px center`
         : `${box.width - 8}px center`;
-    stage.appendChild(clone);
+    stage.appendChild(spinner);
     document.body.appendChild(stage);
 
     let swapped = false;
     const tl = gsap.timeline({
       onComplete: () => {
         stage.remove();
+        // A net, not a duplicate: the page is normally shown again at the swap,
+        // but a timeline that is killed before it gets there would otherwise
+        // leave half the spread invisible for good.
+        leaf.style.removeProperty("visibility");
         turning.current = false;
       },
     });
 
-    tl.to(clone, {
+    tl.to(spinner, {
       rotateY: dir === 1 ? -172 : 172,
       duration: TURN,
       ease: "power2.inOut",
@@ -312,6 +415,7 @@ export default function Notebook({
         // page is visible through the turning one.
         if (!swapped && this.progress() > 0.46) {
           swapped = true;
+          leaf.style.removeProperty("visibility");
           then();
         }
       },
@@ -319,7 +423,7 @@ export default function Notebook({
     // The lift. A sheet rises off the pad before it falls, and the shadow
     // travelling with it is most of what sells the third dimension.
     tl.to(
-      clone,
+      spinner,
       {
         boxShadow: "26px 24px 54px -20px rgba(46,16,101,0.5)",
         duration: TURN * 0.45,
@@ -329,6 +433,26 @@ export default function Notebook({
       },
       0,
     );
+    if (shades.length) {
+      // The face turning away darkens all the way to edge on; the reverse
+      // arrives dark and settles as it lands flat.
+      tl.to(shades[0], { opacity: 1, duration: TURN * 0.5, ease: "power1.in" }, 0);
+      tl.fromTo(
+        shades[1],
+        { opacity: 1 },
+        { opacity: 0.18, duration: TURN * 0.5, ease: "power1.out" },
+        TURN * 0.5,
+      );
+    }
+    if (cast) {
+      tl.fromTo(
+        cast,
+        { opacity: 0 },
+        { opacity: 1, duration: TURN * 0.55, ease: "power1.out" },
+        TURN * 0.2,
+      );
+      tl.to(cast, { opacity: 0, duration: TURN * 0.25, ease: "power1.in" }, TURN * 0.75);
+    }
   }, []);
 
   return (

@@ -459,12 +459,59 @@ spread every word fits its page, nothing crosses the spine, there is no
 horizontal overflow, and with reduced motion forced OFF all 5 paper objects, 4
 written lines, 8 strokes and the chapter word finish visible.
 
-**A note for anyone measuring the turn here.** The Browser MCP throttles rAF
-between JS calls, so a 0.66s timeline can take several seconds of wall clock and
-a stuck `turning` flag plus a leftover clone looks exactly like a broken
-animation. It is not: give it one tool call per click and it clears. It also
-serves a stale frame after the viewport changes, and re-applying the same
-`resize_window` is what fixes it.
+### DONE: The spread's page turn, which was not reading as one (2026-08-11)
+
+Reported straight after the spread landed: the page flip does not come on
+desktop. It was running. It did not LOOK like anything, and three separate
+faults stacked up to make that true.
+
+**The leaf lost every page margin on its first frame.** `--page-top`,
+`--page-out` and `--page-in` are declared inline on the pad, and the turning
+leaf is a `cloneNode` appended to `document.body`, OUTSIDE the element that
+declares them, so they do not inherit. Every `p*-[var(--page-*)]` on the cloned
+page then computed to zero: measured 0px against the real 84px and 58px. The
+enormous chapter word jumped to the spine the instant you pressed the arrow,
+which reads as breakage rather than as motion. The clone is handed the pad's own
+computed values now. **Any cloned subtree carries its classes but not the custom
+properties they resolve against.**
+
+**A leaf had one face, so half of every turn was the word backwards.** Rotated
+past 90 degrees a single element shows its own content mirrored. It is two
+elements now, a front and a blank back at `rotateY(180deg)`, each with
+`backface-visibility: hidden`, so exactly one is ever facing you: the page you
+are turning until it goes edge on, then the reverse of it.
+
+**And it had no shading at all.** Flat cream rotating over flat cream has no
+depth cue, so it read as a rectangle sliding rather than a page lifting. Each
+face carries a gradient that ramps with the rotation, darkening from the free
+edge back toward the binding, and the leaf throws a cast shadow across the page
+it is coming over. **On a phone this never came up because the clone is the
+whole sheet and covers everything; on the spread the leaf is one page moving
+across another in the same colour, which is a completely different problem.**
+
+**The page the leaf came from is hidden while the leaf stands in for it.** It
+swings about the spine, so it uncovers the real page from the outer edge inward,
+and that page still holds the old contents until the swap: the chapter word was
+on screen twice at once, once on the leaf and once ghosting out from under it.
+Hidden, what gets uncovered is blank paper, which is what the next page actually
+is until it is written on. Restored at the swap, and again in `onComplete` as a
+net, since a timeline killed before the swap would otherwise leave half the
+spread invisible for good.
+
+**Honest limit on this one:** the construction was verified by building the
+identical DOM by hand and holding it at 58 degrees (margins measured back at
+84px and 58px, one face visible, no doubled word), but **the motion itself was
+never run here**. See the note below: this pane serves zero animation frames, so
+the timing and the cleanup are reasoned rather than measured, and this is the
+entry to re-read first if the turn misbehaves on a real machine.
+
+**A note for anyone measuring the turn here.** The Browser MCP pane runs
+**`requestAnimationFrame` zero times** while it is hidden, measured: 0 frames in
+2.3 seconds. GSAP is driven by rAF, so nothing animates at all, a `turning` flag
+stays set and a leftover clone sits in the body for ever, which looks exactly
+like a broken animation and is not. Build the frame you want statically and
+screenshot that instead. The pane also serves a stale frame after the viewport
+changes, and re-applying the same `resize_window` is what fixes it.
 
 ### DONE: The way in is a spiral notebook (2026-08-10)
 
