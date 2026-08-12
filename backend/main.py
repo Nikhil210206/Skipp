@@ -240,7 +240,7 @@ def timetable(req: LoginRequest, request: Request) -> Timetable:
     session = _login_or_4xx(req)
     try:
         tt = parse_timetable(session.fetch_page(PAGE_TIMETABLE))
-        log.info("student: %s", tt.student.name)
+        log.info("student: %s (section %s)", tt.student.name, tt.student.section)
         _enrich_with_day_orders(session, tt)
         return tt
     except PageEmptyError as e:
@@ -265,7 +265,7 @@ def refresh(req: LoginRequest, request: Request) -> Snapshot:
     session = _login_or_4xx(req)
     try:
         tt = parse_timetable(session.fetch_page(PAGE_TIMETABLE))
-        log.info("student: %s", tt.student.name)
+        log.info("student: %s (section %s)", tt.student.name, tt.student.section)
         _enrich_with_day_orders(session, tt)
 
         att, att_status, att_msg = _try_section(
