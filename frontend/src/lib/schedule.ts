@@ -227,8 +227,18 @@ export type FocusDay = {
  * The day to feature on Home: today if it's a working day whose classes aren't
  * all over yet, otherwise the next upcoming working day (matches the reference
  * app's "DAY ORDER N • UPCOMING").
+ *
+ * `attendingDayOrders` (optional courses already removed) decides whether
+ * today is "over", not `tt.dayOrders`: an optional class running late in the
+ * raw grid must not keep today "featured" once the classes actually shown
+ * have all finished, or the cover falls through to quoting the day's first
+ * class as though it were still ahead.
  */
-export function focusDay(tt: Timetable, now = new Date()): FocusDay | null {
+export function focusDay(
+  tt: Timetable,
+  attendingDayOrders: DayOrderSchedule[],
+  now = new Date(),
+): FocusDay | null {
   const cal = tt.calendar;
   if (cal.length === 0) return null;
   const iso = todayISO(now);
@@ -236,7 +246,7 @@ export function focusDay(tt: Timetable, now = new Date()): FocusDay | null {
   const nowMin = nowMinutes(now);
 
   if (today?.dayOrder != null) {
-    const sched = scheduleFor(tt.dayOrders, today.dayOrder);
+    const sched = scheduleFor(attendingDayOrders, today.dayOrder);
     const lastEnd = sched?.classes.at(-1)?.endMin ?? 0;
     if (nowMin < lastEnd) {
       return { ...pick(today), label: "TODAY" };

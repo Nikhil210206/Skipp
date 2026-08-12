@@ -56,7 +56,7 @@ export default function TimetablePage() {
   // The SAME function Home features its day with, so the two screens can never
   // disagree. It rolls on to the next working day once today's classes are
   // over, which is why Home showed tomorrow while this screen sat on today.
-  const focus = timetable ? focusDay(timetable) : null;
+  const focus = timetable ? focusDay(timetable, attendingDayOrders) : null;
   const upcoming =
     focus && focus.label === "UPCOMING" ? focus : todayDO == null ? nextWorkingDay(cal) : null;
   const upcomingDO = upcoming?.dayOrder ?? null;

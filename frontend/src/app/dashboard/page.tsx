@@ -48,7 +48,7 @@ export default function DashboardPage() {
   } = useSession();
 
   const holiday = timetable ? holidayToday(timetable.calendar) : null;
-  const focus = timetable ? focusDay(timetable) : null;
+  const focus = timetable ? focusDay(timetable, attendingDayOrders) : null;
   // The filtered grid, so optional courses never reach the day's class list.
   const schedule = scheduleFor(attendingDayOrders, focus?.dayOrder ?? null);
   // Merged FIRST. A lab is two or three consecutive periods of one course, and
