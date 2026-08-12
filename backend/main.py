@@ -52,6 +52,12 @@ from services.schedule import build_day_orders
 from services.timetable import parse_timetable
 from services.unified_timetable import parse_unified_timetable
 
+
+# The root logger defaults to WARNING with no attached handler, so an INFO
+# call is silently dropped rather than reaching stdout. Every existing log
+# call in this codebase is a `warning`, which is why that went unnoticed
+# until an `info` call (the sign-in log below) needed to actually show up.
+logging.basicConfig(level=logging.INFO)
 log = logging.getLogger("skipp.api")
 
 # Attendance and marks both render on the attendance page; marks appears once
