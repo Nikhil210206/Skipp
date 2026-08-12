@@ -2,9 +2,12 @@
 
 Routes: /health, POST /timetable, POST /attendance. Marks lands later.
 
-Security (non-negotiable): credentials are never written to disk, a database,
-or logs. They live in memory for the duration of one request only, on the
-`LoginRequest` model, and the authenticated session is closed before we return.
+Security (non-negotiable): the password is never written to disk, a database,
+or a log. It lives in memory for the duration of one request only, on the
+`LoginRequest` model, and the authenticated session is closed before we
+return. The net id alone is logged to stdout on a successful sign-in (see
+`_login_or_4xx`), which the platform surfaces as ephemeral runtime logs and
+never persists to a database.
 """
 from fastapi import FastAPI, HTTPException, Request
 from fastapi.middleware.cors import CORSMiddleware
@@ -194,9 +197,14 @@ def _fail(status: int, code: str, message: str) -> HTTPException:
 
 
 def _login_or_4xx(req: LoginRequest):
-    """Authenticate, mapping login failures to clean HTTP errors."""
+    """Authenticate, mapping login failures to clean HTTP errors.
+
+    Logs the net id (never the password) on a successful sign-in only, to
+    stdout, so it shows up in the platform's runtime log stream and nowhere
+    more permanent: not a database, not a file on disk.
+    """
     try:
-        return login(req.username, req.password)
+        session = login(req.username, req.password)
     except UserNotFound as e:
         raise _fail(404, "user_not_found", str(e)) from e
     except InvalidCredentials as e:
@@ -209,6 +217,8 @@ def _login_or_4xx(req: LoginRequest):
         raise _fail(502, "portal", str(e)) from e
     # TimeBudgetExceeded is deliberately NOT caught here: the app-level handler
     # turns it into a 504 wherever it is raised, login or page fetch alike.
+    log.info("signed in: %s", req.username)
+    return session
 
 
 @app.post("/timetable", response_model=Timetable)
