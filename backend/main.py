@@ -5,9 +5,10 @@ Routes: /health, POST /timetable, POST /attendance. Marks lands later.
 Security (non-negotiable): the password is never written to disk, a database,
 or a log. It lives in memory for the duration of one request only, on the
 `LoginRequest` model, and the authenticated session is closed before we
-return. The net id alone is logged to stdout on a successful sign-in (see
-`_login_or_4xx`), which the platform surfaces as ephemeral runtime logs and
-never persists to a database.
+return. The net id (on a successful sign-in, see `_login_or_4xx`) and the
+student's name (once the timetable page parses, in `/timetable` and
+`/refresh`) are logged to stdout, which the platform surfaces as ephemeral
+runtime logs and never persists to a database.
 """
 from fastapi import FastAPI, HTTPException, Request
 from fastapi.middleware.cors import CORSMiddleware
@@ -239,6 +240,7 @@ def timetable(req: LoginRequest, request: Request) -> Timetable:
     session = _login_or_4xx(req)
     try:
         tt = parse_timetable(session.fetch_page(PAGE_TIMETABLE))
+        log.info("student: %s", tt.student.name)
         _enrich_with_day_orders(session, tt)
         return tt
     except PageEmptyError as e:
@@ -263,6 +265,7 @@ def refresh(req: LoginRequest, request: Request) -> Snapshot:
     session = _login_or_4xx(req)
     try:
         tt = parse_timetable(session.fetch_page(PAGE_TIMETABLE))
+        log.info("student: %s", tt.student.name)
         _enrich_with_day_orders(session, tt)
 
         att, att_status, att_msg = _try_section(
