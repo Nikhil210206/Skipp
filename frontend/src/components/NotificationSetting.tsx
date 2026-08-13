@@ -88,7 +88,7 @@ export default function NotificationSetting() {
                 ? "Blocked in your browser settings. Allow notifications for Skipp there, then reload."
                 : state === "unsupported"
                   ? "This browser cannot show notifications."
-                  : "These appear when you open Skipp, and stay in your notification tray afterwards. Nothing of yours is stored on our servers, so nothing can watch the portal while the app is closed."}
+                  : "These appear when you open Skipp, and stay in your notification tray afterwards. Nothing of yours is stored on my server, so nothing can watch the portal while the app is closed."}
           </p>
         </div>
 

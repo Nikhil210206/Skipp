@@ -151,8 +151,12 @@ export default function BottomNav() {
           aria-hidden
           className="pointer-events-none absolute left-0 top-0 z-0 opacity-0"
         />
+        {/* Marked, so a theme can drive it: Stone gives each tab one of its
+            four colours and repaints this as it travels, which is what makes
+            the selection read as arriving somewhere rather than just moving. */}
         <span
           ref={dot}
+          data-nav-dot
           aria-hidden
           className="pointer-events-none absolute left-0 top-2 -ml-[3px] size-1.5 rounded-full bg-accent opacity-0"
         />

@@ -113,6 +113,7 @@ export function IconButton({
       onClick={onClick}
       disabled={disabled}
       aria-label={label}
+      data-icon-btn
       className={`flex size-11 shrink-0 items-center justify-center rounded-full transition-colors duration-150 ease-out disabled:opacity-25 ${
         variant === "secondary"
           ? "border border-line bg-ink-1 text-text-1 hover:border-line-strong hover:bg-ink-2"
@@ -140,6 +141,7 @@ export function Segmented<T extends string | number>({
     <div
       role="tablist"
       aria-label={label}
+      data-segmented
       className="flex gap-1 rounded-full border border-line-soft bg-ink-1 p-1.5"
     >
       {options.map((o) => {
@@ -149,6 +151,7 @@ export function Segmented<T extends string | number>({
             key={String(o.value)}
             role="tab"
             aria-selected={active}
+            data-segment
             onClick={() => onChange(o.value)}
             className={`relative min-h-[38px] flex-1 rounded-full text-callout font-semibold tracking-[-0.01em] transition-colors duration-150 ease-out ${
               active
@@ -181,6 +184,7 @@ export function Chip({
   }[tone];
   return (
     <span
+      data-chip
       className={`inline-flex items-center rounded-full border px-2.5 py-1 text-label uppercase ${tones}`}
     >
       {children}

@@ -19,6 +19,7 @@ export type Theme =
   | "brutal"
   | "clay"
   | "terminal"
+  | "stone"
   | "rose"
   | "ember"
   | "gold"
@@ -65,6 +66,17 @@ export const THEMES: ThemeInfo[] = [
     note: "Monospace, phosphor, drawn boxes",
     bar: "#040705",
     swatch: ["#040705", "#17251b", "#3ef08c"],
+    structural: true,
+  },
+  {
+    id: "stone",
+    name: "Stone",
+    note: "Lit plaster, sharp planes",
+    // The wall itself, so the phone's status bar matches the page. This was
+    // left at a pale grey from an abandoned daylight version of the theme,
+    // which would have flashed a light bar over a dark app on every launch.
+    bar: "#32322e",
+    swatch: ["#32322e", "#3b3c37", "#ffc21f"],
     structural: true,
   },
   {

@@ -231,7 +231,7 @@ export default function TimetablePage() {
       <AppShell section="Schedule">
         <StateView
           title="Timetable unavailable"
-          message="We could not load your day-order grid. Pull down to try again."
+          message="Your day-order grid did not load. Pull down to try again."
         />
       </AppShell>
     );

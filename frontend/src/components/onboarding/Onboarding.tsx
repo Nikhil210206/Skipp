@@ -617,8 +617,13 @@ function Look({
     // reach, which is how the first card once slid under Skip and could not be
     // scrolled back to. Auto margins are treated as ZERO once free space goes
     // negative, so tall content simply top aligns and scrolls.
-    <div className="no-scrollbar flex h-full flex-col overflow-y-auto pb-2 lg:max-w-[30rem]">
-      <div className="my-auto flex flex-col gap-5">
+    // Spacing here is measured, not chosen. Four full looks is 44px more than
+    // three, and this chapter had already been trimmed to fit the shortest
+    // phone exactly, so it went 29px over the moment Stone was added. The
+    // 29px comes back out of gaps and margins only: every pill stays on the
+    // 44px touch floor, and no content was dropped to make room.
+    <div className="no-scrollbar flex h-full flex-col overflow-y-auto pb-1 lg:max-w-[30rem]">
+      <div className="my-auto flex flex-col gap-3">
         {/* The preview is a torn out screenshot of the app, so it is clipped
             to the page rather than written on it. */}
         <div className="relative">
@@ -630,7 +635,7 @@ function Look({
           <Ink as="p" tool="pencil" colour={INKS.look} size="text-[1.05rem]">
             full looks, rebuilds the UI
           </Ink>
-          <div className="mt-2 flex flex-col gap-1.5">
+          <div className="mt-1 flex flex-col gap-1">
             {LOOKS.map((t) => {
               const on = picked === t.id;
               return (
@@ -683,7 +688,7 @@ function Look({
               is. Six cannot fit one row at 320 without going under the 44px
               touch floor, so two rows are forced: making them EQUAL is what
               turns the wrap into a composition. */}
-          <div data-in className="mt-3 grid w-fit grid-cols-3 gap-3">
+          <div data-in className="mt-2 grid w-fit grid-cols-3 gap-2.5">
             {COLOURS.map((t) => {
               const on = picked === t.id;
               return (

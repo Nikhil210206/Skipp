@@ -210,6 +210,7 @@ export function Sheet({
       />
       <div
         ref={panel}
+        data-sheet
         className="absolute inset-x-0 bottom-0 mx-auto flex max-h-[88vh] w-full max-w-md flex-col rounded-t-sheet border-t border-line bg-ink-1 shadow-float"
       >
         <div

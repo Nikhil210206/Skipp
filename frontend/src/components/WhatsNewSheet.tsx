@@ -1,6 +1,5 @@
 "use client";
 
-import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { Sheet } from "@/components/ui/Overlay";
 import { Button } from "@/components/ui";
@@ -14,26 +13,8 @@ import {
   isLongBreak,
   termHolidays,
 } from "@/lib/holidays";
-import { markHolidaysUpdateSeen } from "@/lib/whatsNew";
+import { markNoticeSeen, NOTICE, useNoticeHold } from "@/lib/whatsNew";
 
-/**
- * How long to hold before rising.
- *
- * The launch overlay runs about 1.8s at `z-100`, and this sheet lives at
- * `z-50`, so without the wait it slides up entirely behind the splash and is
- * simply THERE when the splash lifts. Arriving a beat after the screen settles
- * is also the better order: you see your own dashboard first, then the notice.
- */
-const HOLD_MS = 2100;
-
-/**
- * When the hold expires, held at module scope on purpose.
- *
- * AppShell remounts on every navigation, so a timer owned by this component
- * would restart each time a tab was tapped and could be outrun indefinitely.
- * Measured once from the first mount of the session instead.
- */
-let riseAt: number | null = null;
 
 /**
  * Shown once, to students who already had Skipp before the calendar learned
@@ -49,22 +30,14 @@ export default function WhatsNewSheet({ open }: { open: boolean }) {
   const { timetable } = useSession();
   const today = todayISO();
 
-  const [held, setHeld] = useState(false);
-  useEffect(() => {
-    if (!open) return;
-    riseAt ??= Date.now() + HOLD_MS;
-    // Always through a timer, never a synchronous setState: the compiler lint
-    // rejects setting state during an effect, and 0ms behaves identically.
-    const t = setTimeout(() => setHeld(true), Math.max(0, riseAt - Date.now()));
-    return () => clearTimeout(t);
-  }, [open]);
+  const held = useNoticeHold(open);
 
   const holidays = timetable ? termHolidays(timetable.calendar, today) : [];
   // The best thing we can show them: a real long weekend still to come, or
   // failing that simply the next day off.
   const feature = holidays.find(isLongBreak) ?? holidays.find((h) => !h.past);
 
-  const close = () => markHolidaysUpdateSeen();
+  const close = () => markNoticeSeen(NOTICE.holidays);
 
   return (
     <Sheet

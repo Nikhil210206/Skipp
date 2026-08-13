@@ -10,11 +10,12 @@ import ProfileMark from "./ProfileMark";
 import InstallGate, { useShouldOfferInstall } from "./InstallGate";
 import NotifyOnOpen from "./NotifyOnOpen";
 import WhatsNewSheet from "./WhatsNewSheet";
+import NewThemeSheet from "./NewThemeSheet";
 import { CREATOR } from "@/lib/creator";
 import { Skeleton } from "./ui";
 import { pageIn, prefersReducedMotion, revealWord } from "@/lib/motion";
 import { useSwipeNav } from "@/lib/useSwipeNav";
-import { useSeenHolidaysUpdate } from "@/lib/whatsNew";
+import { NOTICE, useSeenNotice } from "@/lib/whatsNew";
 
 /**
  * The frame: auth guard, a thin masthead, pull to refresh, tab bar.
@@ -59,7 +60,11 @@ export default function AppShell({
   // the snooze is shared between the two places.
   const canOfferInstall = useShouldOfferInstall();
   const [installDismissed, setInstallDismissed] = useState(false);
-  const seenHolidaysUpdate = useSeenHolidaysUpdate();
+  const seenHolidays = useSeenNotice(NOTICE.holidays);
+  const seenTheme = useSeenNotice(NOTICE.stone);
+  /** The install gate is a takeover, so nothing else may rise underneath it. */
+  const gateUp = canOfferInstall && !installDismissed;
+  const showTheme = !seenTheme && !gateUp;
   function tapMasthead() {
     taps.current += 1;
     if (timer.current) window.clearTimeout(timer.current);
@@ -181,12 +186,14 @@ export default function AppShell({
         {canOfferInstall && !installDismissed && (
           <InstallGate signedIn onDismiss={() => setInstallDismissed(true)} />
         )}
-        {/* One at a time. The install gate is a full screen takeover, so a
-            sheet raised behind it would be dismissed unseen and marked as read.
-            Whatever is not shown this launch is still waiting on the next. */}
-        <WhatsNewSheet
-          open={!seenHolidaysUpdate && !(canOfferInstall && !installDismissed)}
-        />
+        {/* ONE AT A TIME, and in a stated order. The install gate is a full
+            screen takeover, so a sheet raised behind it would be dismissed
+            unseen and marked as read. Between the two notices the newest wins,
+            because a student who has neither should hear the current news
+            first. Whatever is not shown this launch is still waiting on the
+            next. */}
+        <NewThemeSheet open={showTheme} />
+        <WhatsNewSheet open={!seenHolidays && !showTheme && !gateUp} />
       </div>
     </div>
   );

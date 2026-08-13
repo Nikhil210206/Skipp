@@ -212,7 +212,7 @@ export default function LoginPage() {
               className="mt-5 text-callout leading-relaxed text-text-3"
             >
               Your Net ID and password go to the SRM portal to sign in. They are
-              never stored on our servers.
+              never stored on my server.
             </p>
           </div>
 

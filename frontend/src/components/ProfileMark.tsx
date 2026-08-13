@@ -113,10 +113,12 @@ export default function ProfileMark({ seed }: { seed: string }) {
       <span
         ref={ring}
         aria-hidden
+        data-mark-ring
         className="pointer-events-none absolute size-9 rounded-full border border-accent/70 opacity-0"
       />
       <span
         ref={tile}
+        data-mark-tile
         className="flex size-9 items-center justify-center overflow-hidden rounded-full border border-accent/35 bg-accent/12"
       >
         <svg

@@ -42,7 +42,7 @@ function explain(code: FailureCode, message: string): Failure {
       return {
         title: "The portal is being slow",
         advice:
-          "SRM did not answer in time, so we stopped rather than leave your session hanging. Try again in a moment.",
+          "SRM did not answer in time, so Skipp stopped rather than leave your session hanging. Try again in a moment.",
       };
     case "unreachable":
       return {

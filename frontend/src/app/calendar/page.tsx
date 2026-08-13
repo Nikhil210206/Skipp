@@ -61,7 +61,7 @@ export default function CalendarPage() {
       <AppShell section="Calendar">
         <StateView
           title="Calendar unavailable"
-          message="We could not load the academic planner. Pull down to try again."
+          message="The academic planner did not load. Pull down to try again."
         />
       </AppShell>
     );
@@ -208,6 +208,11 @@ export default function CalendarPage() {
                         : ""
                   }`}
                   data-day
+                  // The day order as a marker as well as a numeral, so a theme
+                  // can colour it. Stone gives each day order one of its
+                  // four, which makes a day order recognisable here and on
+                  // Schedule without reading the figure.
+                  data-do={day?.dayOrder ?? undefined}
                   // Taller past `lg`. Once the grid fills a laptop window each
                   // cell is ~150px wide, and at the phone's 52px height that is
                   // a 3:1 letterbox rather than a day. Height only, so the

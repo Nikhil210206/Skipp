@@ -508,6 +508,132 @@ html[data-theme="clay"] {
   --shadow-float: 0 18px 40px -16px rgb(70 60 160 / 0.36), inset 0 -4px 8px rgb(255 255 255 / 0.8);
 }
 
+/* STONE. Troweled dark plaster, sharp planes, four colours.
+
+   Built from a reference photograph of a dark microcement wall: charcoal skim
+   coat, broad trowel patches, fine scratches, lit from the upper left.
+
+   THE THING THAT MAKES IT STONE IS RANGE, NOT LIGHTNESS. A first dark version
+   was rejected as "not stone" and the diagnosis was wrong: it was blamed on
+   darkness, and a daylight grey version was built in response. The reference
+   settles it. That wall is dark AND unmistakably stone because its texture
+   spans roughly #232322 to #6e6e68, something like fifty levels of internal
+   contrast, where the first attempt varied by about six. So the base is dark
+   again, and the mottling is what got rebuilt.
+
+   NO TIE HOLES AND NO FORMWORK SEAMS. Those belong to board-formed concrete,
+   which is a different material from a troweled render, and the reference has
+   neither. They are gone, and the four coloured plugs that used to sit in them
+   went with them: colour now lives only in the bars, the tab indicator, the
+   day orders and the launch, which is sharper than scattering dots across a
+   wall where they would read as dirt.
+
+   Four ideas carry it:
+     1. THE WALL IS LIT. One fixed raking light, bright at the top left and
+        falling into shadow at the bottom right. It never moves: a light that
+        swings on scroll repaints every frame.
+     2. CONTENT FLOATS ON SHARP PLANES, and they are SMOOTH where the wall is
+        rough. That material difference is what separates them, which is why a
+        plane can sit close to the wall in tone and still read as lifted.
+     3. TYPE IS RAZOR FLAT. Not one text-shadow anywhere.
+     4. THE FOUR COLOURS ARE PRECISE BARS, never dots, never squares, and
+        never a 2x2 pinwheel, which is Microsoft's actual trademark.
+
+   Colour still marks trouble rather than health, so the four are identity only
+   and a healthy subject stays neutral.
+
+   NO FONT SWAP. A Segoe-alike shipped here first and it moved the numbers:
+   measured against Ink on identical markup, one figure went 33.4px wide and 73
+   tall to 29.8 wide and 76.5 tall, dragging the title, meta and meter down a
+   pixel. Terminal can swap the face because mono is uniform by definition;
+   this app is columns of percentages that have to line up. A theme may change
+   the material, it does not get to move the figures. */
+html[data-theme="stone"] {
+  color-scheme: dark;
+
+  /* The four. On charcoal all four carry as ink as well as fill, so unlike the
+     daylight version there is no second set: red measures 3.6:1 and the rest
+     4.6:1 or better against the wall. */
+  --ms-red: #ff5f33;
+  --ms-green: #9ad628;
+  --ms-blue: #2ab8ff;
+  --ms-yellow: #ffc21f;
+
+  /* The colour of the screen you are on, set below from the current tab.
+     Home keeps plaster dust, which is what makes it the centre. */
+  --ms-screen: #e6e6df;
+
+  /* Charcoal render. ink-0 is the wall; everything above it is a smooth plane
+     lifted off the wall toward the light. */
+  --color-ink-0: #32322e;
+  --color-ink-1: #3b3c37;
+  --color-ink-2: #44453f;
+  --color-ink-3: #4e4f48;
+  --color-line: #4a4b45;
+  --color-line-soft: #3a3b36;
+  --color-line-strong: #6a6b63;
+
+  --color-text-1: #f2f1ec;
+  --color-text-2: #c6c6bd;
+  --color-text-3: #9b9c93;
+
+  /* The gold in the reference room, and the one action per screen. */
+  --color-accent: #ffc21f;
+  --color-accent-ink: #1a1400;
+
+  /* `watch` is burnt orange because the accent took the yellow it used to sit
+     on. The standing rule is that the state moves, never the rule: three
+     separate rungs, yellow action, orange warning, red danger. */
+  --color-safe: #a4dc3d;
+  --color-watch: #ff8f2b;
+  --color-risk: #ff6a5c;
+
+  /* Sharp. Not Brutal's zero and nowhere near Clay's 26px: a cast edge with
+     the arris knocked off it. */
+  --radius-control: 2px;
+  --radius-card: 2px;
+  --radius-sheet: 4px;
+  --border-w: 1px;
+  --shadow-lift:
+    0 1px 2px rgb(0 0 0 / 0.4),
+    0 14px 28px -16px rgb(0 0 0 / 0.85);
+  --shadow-float:
+    0 2px 8px rgb(0 0 0 / 0.45),
+    0 30px 56px -26px rgb(0 0 0 / 0.9);
+
+  /* Extreme scale contrast: the one poster figure gets much bigger and the
+     labels get tracked much wider, so a screen is one enormous number and a
+     few precise marks on bare plaster.
+
+     THE LABEL IS NOT MADE SMALLER, only tracked out. Shrinking 11px uppercase
+     to 10px to look precise costs legibility for nothing; tracking buys the
+     same look for free. */
+  --text-poster: clamp(4.25rem, 26vw, 11rem);
+  --text-poster--letter-spacing: -0.06em;
+  --text-label--letter-spacing: 0.145em;
+
+  /* THE WALL IS THE PHOTOGRAPH, not an imitation of it.
+
+     This was drawn procedurally four times, with layered gradients and
+     feTurbulence noise, and it never matched the reference. It could not:
+     procedural noise is not a photograph, and every round of tuning was
+     really a request to accept an approximation. `scripts/make-wall.mjs`
+     prepares the real image instead, and that script is where the technique
+     lives (lighting flattened out with a high pass, tone matched to the
+     photograph by measurement, mirror tiled so the repeat has no seam).
+
+     Two layers only now: a raking light over the texture. The light is a
+     gradient rather than part of the image ON PURPOSE, because the photograph
+     was lit from one side and baking that in would repeat the bright patch
+     down a long page. Flattened texture plus one CSS light means a single
+     fixed light of any length.
+
+     The texture is 820px and 183KB, and only a student running this theme
+     ever downloads it. */
+  --wall-image: url("/textures/wall.webp");
+  --wall-size: 820px 820px;
+}
+
 /* ------------------------------------------------------------
    STRUCTURE PER THEME
 
@@ -714,6 +840,342 @@ html[data-theme="clay"] [data-day] {
 html[data-theme="clay"] [data-day]:has([aria-current]),
 html[data-theme="clay"] [data-day].is-today {
   background: var(--color-ink-2);
+}
+
+/* STONE: a lit plaster wall, and content on smooth planes above it.
+
+   The wall goes on every surface that paints the page colour. The raking light
+   is part of --wall-image and sized to the element, so it stretches down a long
+   screen as one continuous light rather than tiling. Nothing here is
+   `background-attachment: fixed` and nothing uses `filter` or
+   `backdrop-filter`, which is what keeps a seven layer surface free: it
+   rasterises once and is never touched again during a scroll. */
+html[data-theme="stone"] body,
+html[data-theme="stone"] .bg-ink-0 {
+  background-color: var(--color-ink-0);
+  background-image: var(--wall-image);
+  background-size: var(--wall-size);
+  /* ONE SHARED ORIGIN. `main` is capped at `max-w-md` and centred, so past
+     448px the body shows down both sides, and each element was tiling the
+     plaster from its OWN top left: the pattern restarted at the column edge,
+     which is the seam that was reported. Centring the x phase makes body and
+     main agree, because main is centred inside body and the two boxes share a
+     centre line.
+
+     `background-attachment: fixed` was tried first and CANNOT work here.
+     `pageIn` leaves an inline transform on `main`, and a transformed element
+     becomes the containing block for its own fixed background, so the fixed
+     attachment silently degrades to scroll on the one element that needed it.
+     Same family as the transformed-ancestor trap that forced the overlays to
+     be portalled, and it measured as no fix at all. */
+  background-position: center top;
+}
+
+/* `main` starts below the masthead, so its vertical phase would differ from
+   the body's by exactly that offset. Pull it back up. */
+html[data-theme="stone"] main.bg-ink-0 {
+  background-position: center calc(-3.5rem - env(safe-area-inset-top));
+}
+
+/* THE LIGHT IS ONE FIXED LAYER OVER THE WHOLE PAGE, not a gradient that every
+   element paints for itself.
+
+   It used to live inside `--wall-image` at `100% 100%`, which resolves against
+   whichever element is painting: the body lit the full document height while
+   main lit its own box, so the two disagreed at the column edge even once the
+   texture lined up. One room, one light. It sits above the content because a
+   raking light falls on the objects in the room too, and it is inert so it can
+   never take a tap. */
+html[data-theme="stone"] body::after {
+  content: "";
+  position: fixed;
+  inset: 0;
+  z-index: 40;
+  pointer-events: none;
+  background: linear-gradient(
+    155deg,
+    rgb(255 255 255 / 0.07) 0%,
+    rgb(255 255 255 / 0.025) 24%,
+    rgb(0 0 0 / 0) 50%,
+    rgb(0 0 0 / 0.1) 80%,
+    rgb(0 0 0 / 0.18) 100%
+  );
+}
+
+
+/* Each tab owns one of the four, and the screen you are on supplies the colour
+   for every identity mark on it: the bar beside a section label, the tab
+   indicator, the travelling dot.
+
+   Keyed off the current link rather than the route, because CSS cannot see a
+   pathname. `:has()` on the body reads whichever nav is mounted, so one rule
+   covers the bottom bar on a phone and the side rail past `lg`. Home keeps the
+   plaster default, which is what makes it the centre: five tabs, four colours,
+   and the odd one out is the quiet one rather than an invented fifth hue. */
+html[data-theme="stone"] body:has(a[href="/marks"][aria-current="page"]) {
+  --ms-screen: var(--ms-blue);
+}
+html[data-theme="stone"] body:has(a[href="/attendance"][aria-current="page"]) {
+  --ms-screen: var(--ms-green);
+}
+html[data-theme="stone"] body:has(a[href="/timetable"][aria-current="page"]) {
+  --ms-screen: var(--ms-yellow);
+}
+html[data-theme="stone"] body:has(a[href="/calendar"][aria-current="page"]) {
+  --ms-screen: var(--ms-red);
+}
+
+/* CONTENT FLOATS ON SMOOTH PLANES.
+
+   THE SEPARATION IS MATERIAL, NOT TONE. The plane is smooth where the wall is
+   troweled, and it carries a lit top edge and a real shadow, so it reads as
+   lifted even though it sits only a few steps off the wall in colour. Trying
+   to separate them by brightness alone would have meant pale cards on charcoal
+   plaster, which reads as paper taped to a wall rather than as a surface.
+
+   This reverses the earlier no-cards version of this theme on request, which
+   also means Stone now hits the collisions every card theme hits, and takes
+   the same documented answers: the connecting rules and the timeline spine are
+   hidden because a plane's own edge already separates, and a full bleed child
+   has its negative margins taken back so it cannot escape the plane. */
+html[data-theme="stone"] [data-surface] {
+  background:
+    linear-gradient(180deg, rgb(255 255 255 / 0.05), rgb(255 255 255 / 0) 40%),
+    var(--color-ink-1);
+  border: var(--border-w) solid rgb(255 255 255 / 0.08);
+  border-radius: var(--radius-card);
+  box-shadow: var(--shadow-lift);
+  padding: 14px 16px;
+  margin-bottom: 10px;
+}
+html[data-theme="stone"] [data-surface] .bleed {
+  margin-left: 0;
+  margin-right: 0;
+}
+html[data-theme="stone"] [data-rule],
+html[data-theme="stone"] [data-spine] {
+  display: none;
+}
+/* An optional class, now that the spine that used to say so is hidden. Same
+   pass every card theme needs: the plane's own edge carries it instead. */
+html[data-theme="stone"] [data-optional] {
+  border-style: dashed;
+}
+
+/* THE FOUR COLOURS ARE PRECISE BARS. A 3px rule set against the label, in the
+   screen's own colour. Deliberately not a square, and never a group of four. */
+html[data-theme="stone"] [data-band] {
+  color: var(--color-text-2);
+}
+html[data-theme="stone"] [data-band]::before {
+  content: "";
+  display: inline-block;
+  width: 4px;
+  height: 1.05em;
+  margin-right: 0.7em;
+  vertical-align: -0.12em;
+  background: var(--ms-screen);
+}
+
+/* Hairlines stay hairlines: crisp, one pixel, no groove and no glow. The rule
+   beside a section label is an unmarked span, so it is reached as the band's
+   sibling rather than left to drift a different colour from everything else. */
+html[data-theme="stone"] .rule,
+html[data-theme="stone"] [data-band] + span {
+  background: rgb(255 255 255 / 0.14);
+}
+
+/* A measurement, cut into the plane. THE HEIGHT IS NOT TOUCHED: the threshold
+   tick is positioned `-top-[3px] h-2` against a 2px bar, so a taller bar
+   leaves the tick hanging above it instead of crossing it, and the column of
+   aligned ticks down the page is what lets a short subject be seen without
+   reading a number. A 5px version was built and reverted for exactly that. */
+html[data-theme="stone"] [data-meter] {
+  background: rgb(0 0 0 / 0.45);
+}
+
+/* SQUARE, AND LIT. The controls are slabs cut from the same stone as the wall,
+   and they are told apart by EDGES rather than by silhouette: a bright line
+   along the top where the raking light catches, a dark line along the base
+   where it falls away, and a real shadow beneath.
+
+   A CHAMFER WAS TRIED HERE AND FAILED, and the reason is worth keeping. One
+   corner clipped at 12px on a 404px button is 3% of its edge: too small to
+   register as intent, asymmetric enough to read as a rendering fault. "Looks
+   like a bug and some error in ui" was exactly right. Detail has to be either
+   bold enough to be obviously deliberate or absent; a subtle asymmetry is the
+   worst of both. Do not reintroduce it.
+
+   This also drops `clip-path` entirely, which removes two problems with it:
+   the focus ring is no longer clipped away (the global outline works again, so
+   Stone needs no override), and nothing needs `filter: drop-shadow` to get a
+   shadow past a clip.
+
+   Square everywhere is not Brutal. Brutal is 2px black rules and hard offset
+   shadows on cream; this is a soft real shadow and a lit edge on charcoal. */
+html[data-theme="stone"] [data-btn],
+html[data-theme="stone"] [data-icon-btn],
+html[data-theme="stone"] [data-segmented],
+html[data-theme="stone"] [data-segment],
+html[data-theme="stone"] [data-chip],
+html[data-theme="stone"] [data-field],
+html[data-theme="stone"] [data-mark-tile],
+html[data-theme="stone"] [data-mark-ring],
+html[data-theme="stone"] [data-sheet],
+html[data-theme="stone"] [role="checkbox"] > span[aria-hidden] {
+  border-radius: 0;
+}
+
+/* A raised slab. The two inset lines are the whole trick: they read as the
+   thickness of the object, so a plain rectangle becomes something with an
+   edge. Pressing removes the lit edge and sinks the shadow inward, which is
+   what "pushed flush into the wall" looks like.
+
+   Shadow only, never transform: `pressable()` already owns this element's
+   transform, and two systems writing one property is the standing trap. */
+html[data-theme="stone"] [data-btn] {
+  box-shadow:
+    inset 0 1px 0 rgb(255 255 255 / 0.16),
+    inset 0 -1px 0 rgb(0 0 0 / 0.4),
+    0 1px 2px rgb(0 0 0 / 0.5),
+    0 8px 16px -8px rgb(0 0 0 / 0.65);
+}
+html[data-theme="stone"] [data-btn]:active {
+  box-shadow: inset 0 2px 4px rgb(0 0 0 / 0.5);
+}
+
+/* BRASS. The one action per screen is a metal fitting on a plaster wall, lit
+   hard along its top edge and falling to a dark base, the way the lamps and
+   the chair legs do in the reference photograph. The top edge is brighter than
+   any other control's, because polished metal catches far more than stone. */
+html[data-theme="stone"] [data-btn].bg-accent {
+  background-image: linear-gradient(
+    180deg,
+    rgb(255 255 255 / 0.34) 0%,
+    rgb(255 255 255 / 0.08) 38%,
+    rgb(0 0 0 / 0.04) 70%,
+    rgb(0 0 0 / 0.16) 100%
+  );
+  box-shadow:
+    inset 0 1px 0 rgb(255 255 255 / 0.5),
+    inset 0 -1px 0 rgb(0 0 0 / 0.32),
+    0 1px 2px rgb(0 0 0 / 0.5),
+    0 8px 16px -8px rgb(0 0 0 / 0.65);
+}
+
+html[data-theme="stone"] [data-icon-btn] {
+  box-shadow:
+    inset 0 1px 0 rgb(255 255 255 / 0.1),
+    0 1px 2px rgb(0 0 0 / 0.45);
+}
+
+/* Anything you put something INTO is cut into the wall rather than standing on
+   it, and a recess is dark at the top because the light comes from above. That
+   one inversion is what separates a hole from a slab. */
+html[data-theme="stone"] [data-field],
+html[data-theme="stone"] [data-segmented] {
+  background: rgb(0 0 0 / 0.2);
+  border-color: rgb(255 255 255 / 0.07);
+  box-shadow:
+    inset 0 2px 3px rgb(0 0 0 / 0.4),
+    inset 0 -1px 0 rgb(255 255 255 / 0.06);
+}
+/* The selected segment is lifted back out of the recess. */
+html[data-theme="stone"] [data-segment][aria-selected="true"] {
+  background: var(--color-ink-2);
+  border-color: rgb(255 255 255 / 0.1);
+  box-shadow:
+    inset 0 1px 0 rgb(255 255 255 / 0.14),
+    0 1px 2px rgb(0 0 0 / 0.45);
+}
+
+/* A sheet is a slab sliding up over the wall. No shadow: it is large and GSAP
+   animates its transform on open and close, and the scrim behind it already
+   separates it from the page. */
+html[data-theme="stone"] [data-sheet] {
+  box-shadow: inset 0 1px 0 rgb(255 255 255 / 0.12);
+  border-top-color: rgb(255 255 255 / 0.16);
+}
+
+/* The nav is a plane the width of the screen, and the selection is a bar
+   across the top of the tab rather than a fill: an inset shadow on the pill
+   draws it without a second element and without touching layout. */
+html[data-theme="stone"] [data-nav] {
+  border-top: var(--border-w) solid rgb(255 255 255 / 0.1);
+}
+html[data-theme="stone"] [data-nav-pill] {
+  border-radius: 0;
+  background: rgb(255 255 255 / 0.05);
+  box-shadow: inset 0 4px 0 var(--ms-screen);
+}
+html[data-theme="stone"] [data-nav-dot] {
+  background: var(--ms-screen);
+}
+html[data-theme="stone"] a[aria-current="page"] {
+  color: var(--ms-screen);
+}
+
+/* Day orders are a colour each, so day order 3 is recognisable across the
+   Schedule picker and the Calendar grid without reading the numeral. Five is
+   left as plaster: four colours, five day orders, and the odd one out is
+   quieter rather than invented. */
+html[data-theme="stone"] [data-do="1"] {
+  --do: var(--ms-red);
+}
+html[data-theme="stone"] [data-do="2"] {
+  --do: var(--ms-green);
+}
+html[data-theme="stone"] [data-do="3"] {
+  --do: var(--ms-blue);
+}
+html[data-theme="stone"] [data-do="4"] {
+  --do: var(--ms-yellow);
+}
+html[data-theme="stone"] [data-do="5"] {
+  --do: var(--color-text-2);
+}
+/* The Schedule picker: the numeral is the first span in the button. Every one
+   is coloured and the unselected ones are held back, so the hue still
+   identifies the day while the selected one is unmistakable.
+
+   `:not([data-day])` IS LOAD BEARING. A Calendar cell carries `data-do` too,
+   and its first span is the DATE, so without this the whole month grid had its
+   dates recoloured by day order and dimmed to 45% as well. Caught on a real
+   account: 4 was red, 5 green, 6 blue, exactly like the picker.
+   `data-do` is shared by two very different elements; anything addressing it
+   has to say which one it means. */
+html[data-theme="stone"] [data-do]:not([data-day]) > span:first-of-type {
+  color: var(--do);
+  opacity: 0.62;
+}
+html[data-theme="stone"]
+  [data-do]:not([data-day])[aria-pressed="true"]
+  > span:first-of-type {
+  opacity: 1;
+}
+/* The Calendar grid: the small figure under the date. */
+html[data-theme="stone"] [data-day][data-do] > span:nth-of-type(2) {
+  color: var(--do);
+  opacity: 1;
+}
+html[data-theme="stone"] [data-do-marker] {
+  height: 3px;
+  background: var(--color-text-1);
+}
+
+/* The launch: the four colours arrive on the wall as the wordmark rises. No
+   grouped 2x2 anywhere in this theme, here least of all. */
+html[data-theme="stone"] [data-mark-group] > div > span:nth-child(2) [data-letter] {
+  color: var(--ms-red);
+}
+html[data-theme="stone"] [data-mark-group] > div > span:nth-child(3) [data-letter] {
+  color: var(--ms-green);
+}
+html[data-theme="stone"] [data-mark-group] > div > span:nth-child(4) [data-letter] {
+  color: var(--ms-blue);
+}
+html[data-theme="stone"] [data-mark-group] > div > span:nth-child(5) [data-letter] {
+  color: var(--ms-yellow);
 }
 
 html {

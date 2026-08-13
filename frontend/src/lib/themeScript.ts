@@ -2,10 +2,12 @@
 
 export const THEME_STORAGE_KEY = "skipp.theme";
 
-/** The two values that existed before themes were named. */
+/** Renames. A saved preference must survive one, or the student silently gets
+ *  Ink back on their next launch. */
 export const LEGACY_THEMES: Record<string, string> = {
   dark: "ink",
   light: "paper",
+  concrete: "stone",
 };
 
 const VALID = [
@@ -17,6 +19,7 @@ const VALID = [
   "brutal",
   "clay",
   "terminal",
+  "stone",
   "rose",
   "ember",
   "gold",
@@ -39,6 +42,7 @@ const BARS: Record<string, string> = {
   brutal: "#fdf6e3",
   clay: "#eceefa",
   terminal: "#040705",
+  stone: "#32322e",
   rose: "#0c0709",
   ember: "#0b0705",
   gold: "#0a0904",

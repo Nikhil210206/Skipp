@@ -310,7 +310,7 @@ export default function ProfilePage() {
         </section>
 
         <p data-reveal className="pt-2 text-callout leading-relaxed text-text-3">
-          Not affiliated with SRM. Your data is never stored on our servers. It lives
+          Not affiliated with SRM. Your data is never stored on my server. It lives
           on this device and is cleared when you sign out.
         </p>
 

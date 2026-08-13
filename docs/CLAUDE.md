@@ -345,7 +345,394 @@ is deployment and true push notifications.
 Entries below are newest first. **When something breaks, read the relevant entry first**: most
 oddities here (login shell, empty calendar, 429s, duplicated course codes) are already diagnosed.
 
-### DONE: On a laptop the pad is OPEN, and the tape is actually stuck (2026-08-11, latest)
+### DONE: The Stone announcement, and notices became keyed (2026-08-14)
+
+`components/NewThemeSheet.tsx`, plus `lib/whatsNew.ts` generalised from one
+hardcoded flag to a keyed store (`NOTICE.holidays`, `NOTICE.stone`). The
+alternative was a second copy of the same subtle rules, and the new-device claim
+is exactly the part that is easy to get wrong, so it exists once.
+
+**IT APPLIES THE THEME LIVE rather than describing it.** "Try now" switches
+immediately, so the app repaints behind the open sheet and the sheet itself
+changes with it: you judge a look by looking at it. The skins picker already
+works this way. The footer then becomes "Keep it" and an **Undo** that restores
+whatever they were on, because an announcement that changes something and
+offers no way back is a trap.
+
+**The previous theme is STATE, not a ref.** It decides what the footer renders,
+and the React compiler lint rejects reading a ref during render, correctly: a
+ref change would not repaint the buttons. The setter is functional
+(`setPrevious((p) => p ?? theme)`) so a second press cannot overwrite the
+original with "stone" and strip the way back.
+
+**The attendance line only appears when it is TRUE for them**, keyed on
+`attendanceState === "gated"`, which the app already knows. Once the portal
+publishes, the line stops appearing on its own rather than going stale. Same
+principle as the holidays notice showing their real long weekend rather than an
+example.
+
+**The preview is the material, not a picture of it**: the swatch paints
+`/textures/wall.webp`, the actual file the theme ships.
+
+**Order is stated, and one at a time.** The install gate is a full screen
+takeover, so nothing may rise underneath it. Between the two notices the newest
+wins, because a student who has neither should hear the current news first;
+whatever is not shown this launch waits for the next.
+
+**The launch hold is now shared** (`useNoticeHold`). It was duplicated logic
+with a module-scope `riseAt`, and sharing it across notices is correct rather
+than merely convenient: it is one fact, when the launch is over, not one per
+sheet.
+
+Verified end to end on the real account: the sheet rises on Ink after the hold,
+"Try now" switches theme and status bar to Stone with the sheet repainting in
+place, the footer becomes Keep it / Undo, Undo restores Ink and its bar, and the
+notice is marked seen only on close, never on Try.
+
+### DONE: Stone, the fourth full look (was Concrete) (2026-08-13)
+
+Troweled dark plaster with four colours on it, built from a reference
+photograph of a charcoal microcement wall. `THEMES` gains `concrete`,
+`structural: true`, and it is the fourth tile on Profile.
+
+**IT TOOK THREE MATERIALS TO GET THERE, and the wrong turn is the useful
+part.** A first dark version was rejected as "not stone". That was diagnosed as
+a darkness problem, on the reasoning that at `#16171a` there are only about
+twenty levels of grey between the wall and black, so texture has nowhere to
+live. A full daylight grey version was built on that basis. **The diagnosis was
+wrong, and the reference photograph settled it:** that wall is dark AND
+unmistakably stone, because its texture spans roughly `#232322` to `#6e6e68`.
+**Range is what makes stone, not lightness.** The first attempt varied by about
+six levels; this one varies by fifty. The base went back to dark and the
+mottling is what actually got rebuilt.
+
+**No tie holes and no formwork seams.** Those belong to board-formed concrete,
+which is a different material from a troweled render, and the reference has
+neither. The four coloured plugs that used to sit in the bores went with them:
+colour now lives only in the bars, the tab indicator, the day orders and the
+launch, which is sharper than scattering dots across a wall where they read as
+dirt.
+
+**THE TEXTURE IS THREE SCALES**: broad patches, a medium mottle and a
+per-pixel grain. A single fine noise was built first and reads as television
+static, because a plastered wall varies at trowel size as well as at grain
+size. Every mottle is drawn as flat black or flat white with the turbulence
+used as an **alpha mask** (`feColorMatrix` zeroing the colour channels and
+driving alpha from luminance, with an offset that keeps only the extremes). An
+opaque grey noise can only wash a dark wall toward mid grey, which is exactly
+how the first version lost its range; this darkens and lightens independently,
+so the surface runs from near black to plaster highlight without the base
+moving.
+
+**THE WALL IS THE PHOTOGRAPH. Do not draw it again.**
+
+It was drawn procedurally four times, with layered CSS gradients and
+feTurbulence noise: a subtle version, a "fog" version, a high contrast
+`type='turbulence'` version that read as camouflage, and a daylight grey one.
+Every round was rejected, and the last exchange is the one that matters: "bruh
+i am getting mad. i want that exact wall. u r a world class designer, why are u
+not putting the exact wall i showed u".
+
+**The mistake was never a noise parameter. It was answering a photograph with
+an imitation.** Procedural noise cannot become a specific photograph, so every
+round was really asking for an approximation to be accepted. The fix was to use
+the image: `scripts/make-wall.mjs` prepares it and `public/textures/wall.webp`
+is the result, 820px and 100KB, downloaded only by a student actually running
+this theme.
+
+Three things in that script are load bearing:
+- **The lighting is flattened out with a high pass** (the crop minus a heavily
+  blurred copy of itself). The photograph is lit from one side, and tiling a
+  baked-in gradient makes the repeat obvious as regular blocks of light and
+  shade. The theme's own raking-light gradient supplies the light instead,
+  which is what lets one fixed light run down a page of any height.
+- **`sharp` does not compose chained `.linear()` calls**, a second replaces the
+  first. Two stacked corrections gave a tile at mean 91.6 instead of the
+  intended 58, which is why the tone is now measured and mapped in one pass.
+- **The tile is darker and calmer than the crop's raw statistics** (mean 52 and
+  stdev 20, against the crop's 81.5 and 40.7). Matching the numbers exactly was
+  tried and looked like bright grey grunge: the wall in the photograph only
+  reads as dark because it sits beside a pale chair and a lit floor, and the
+  high pass strips the large calm dark passages and leaves only grain.
+
+**The lesson: when the user supplies a reference image, use the image.** Do not
+reimplement it and then ask whether the imitation is close enough.
+
+**Licensing:** the source is a Shutterstock asset. Shipping it needs a licence
+that covers redistribution inside an application. Flagged to the user.
+
+**Four ideas carry the look:**
+1. **The wall is lit.** One fixed raking light, bright at the top left, falling
+   into shadow at the bottom right. It never moves: a light that swings on
+   scroll repaints every frame, which is the one thing these notes say costs
+   frames on a phone.
+2. **Content floats on smooth planes**, and the separation is MATERIAL, not
+   tone: the plane is smooth where the wall is troweled, with a lit top edge
+   and a real shadow. That is why a plane can sit within a few steps of the
+   wall in colour and still read as lifted. Separating by brightness alone
+   would have meant pale cards on charcoal, which reads as paper taped to a
+   wall. **This reverses the theme's own earlier no-cards decision**, on
+   request, so Stone now hits every collision the card themes hit and takes
+   the same documented answers: `[data-rule]` and `[data-spine]` hidden, the
+   `.bleed` negative margins taken back inside a plane, and **`[data-optional]`
+   dashed**, since the spine that used to say so is gone.
+3. **Type is razor flat. Not one `text-shadow` anywhere.** An earlier version
+   had the type standing off the wall with a cast shadow, and that is what made
+   it read as dated rather than sharp.
+4. **The four colours are precise bars**, never dots and never squares.
+
+**Named Stone, renamed from Concrete (2026-08-13).** The id changed too, so
+`LEGACY_THEMES` gains `concrete: "stone"`. That map is the reason a rename is
+safe at all: without it every student already on the theme silently gets Ink
+back on their next launch, because `normalizeTheme` falls through on an
+unrecognised value. Verified with the old value still in localStorage: stored
+`concrete`, applied `stone`, status bar `#32322e`.
+
+**A stale registry entry was caught doing that rename.** `bar` and `swatch` in
+`THEMES` were still the pale greys of an abandoned daylight version of this
+theme, so the phone's status bar and the Profile tile advertised a light theme
+for a dark app, and the bar would have flashed pale on every launch. **`bar`
+has to be the wall's own colour**; nothing enforces that, so it has to be
+checked whenever a palette moves.
+
+**The four were lifted for a dark surface.** Microsoft tunes those colours for
+white, and on charcoal plaster they sat dull:
+
+| | as published | on the wall |
+| --- | --- | --- |
+| red | `#f25022` | `#ff5f33` |
+| green | `#7fba00` | `#9ad628` |
+| blue | `#00a4ef` | `#2ab8ff` |
+| yellow | `#ffb900` | `#ffc21f` |
+
+Hue is held in every case; only value and saturation move. The states were
+pushed the same way, so a verdict stays at least as legible as an identity
+mark, and `text-2` and `text-3` each went up one step because a mottled wall
+eats low contrast type in a way a flat one does not.
+
+**Colour needs AREA, not just saturation.** Raising the hues alone was not
+enough: the marks carrying them are tiny. The section bar went 3px to 4px and
+0.95em to 1.05em, the tab indicator 3px to 4px, and an unselected day order
+came up from 0.45 to 0.62 while the Calendar's 9px figure went to full opacity.
+A 9px numeral at 45% has almost no colour left to read.
+
+**THE WALL HAS ONE ORIGIN AND ONE LIGHT, and both halves of that were bugs.**
+
+Reported as "why can i see a seperation in the bg in the sides". `main` is
+capped at `max-w-md` and centred, so past 448px the body shows down both sides,
+and body and main were each tiling the plaster from their OWN top left. The
+pattern restarted at the column edge, and again across main's top edge under
+the masthead. **Invisible on a phone**, where the cap is wider than the screen
+and no strip exists, which is why every mock and every phone screenshot missed
+it.
+
+Two separate causes, and fixing only the first would not have worked:
+
+1. **Tile phase.** `background-position: center top` on every surface that
+   paints the page colour. Centring the x phase makes body and main agree,
+   because main is centred inside body and the two boxes share a centre line.
+   `main` additionally pulls its vertical phase up by the masthead's height
+   (`calc(-3.5rem - env(safe-area-inset-top))`), since it starts below it.
+2. **The raking light.** It used to live inside `--wall-image` at
+   `100% 100%`, which resolves against whichever element is painting it: the
+   body lit the whole document height while main lit its own box, so the two
+   disagreed at the column edge even once the texture lined up. It is now a
+   single `position: fixed` layer on `body::after`, above the content and
+   inert. One room, one light.
+
+**`background-attachment: fixed` was tried first and cannot work here.**
+`pageIn` leaves an inline transform on `main`, and **a transformed element
+becomes the containing block for its own fixed background**, so the fixed
+attachment silently degrades to scroll on the one element that needed it.
+Measured as no improvement at all. This is the same family as the
+transformed-ancestor trap that forced the overlays to be portalled, and it is
+worth remembering that it applies to backgrounds as well as to
+`position: fixed` children. It would also have been dead on iOS Safari, which
+treats fixed attachment as scroll regardless.
+
+Verified by sampling pixels across the boundary against open wall as a control,
+because plaster is noisy and eyeballing proves nothing: left edge 12.19, right
+edge 11.34, open wall 11.49. Before the fix the same measurement read 16.8
+against a baseline of 11.3.
+
+**The sticky action was left ALONE, deliberately, after four attempts.** It
+paints `bg-ink-0`, which in this theme means the wall from ITS OWN origin part
+way down the page, so the plaster phase does not match the wall behind it.
+
+**That mismatch is the least bad option available, and the constraint is
+real: a sticky element cannot be aligned.** Its background is painted relative
+to its own box, and once it sticks it stays visually put while the wall behind
+it scrolls, so any static alignment drifts the moment you scroll. Perfect
+alignment is impossible here, not merely fiddly.
+
+What was tried, and why each was worse:
+- **Translucent black at 0.84 and again at 0.97**, so the wall would show
+  through darkened. The notification copy behind read straight through and
+  collided with Sign out. Anything opaque enough to hide content is opaque
+  enough to hide the texture, so you cannot have both.
+- **Opaque near-black.** Came back as "a black shadow round the sign out
+  button", correctly: the wall averages about 52 in value and the band sat at
+  12.
+- **Opaque at the wall base tone.** No bleed and no shadow, but a smooth patch
+  on a grainy wall.
+
+The verdict was that the ORIGINAL was less noticeable than any of them, and it
+is: a grain phase offset is subtler than grain against no grain. **Do not
+"fix" this again without a new idea.** A phase difference in noise is close to
+invisible; every attempt to remove it traded it for something louder.
+
+**CONTROLS ARE SQUARE, AND TOLD APART BY EDGES rather than by silhouette:** a
+bright line along the top where the raking light catches, a dark line along the
+base where it falls away, and a real shadow beneath. Those two inset lines read
+as the thickness of the object, which is what turns a plain rectangle into
+something with an edge. Pressing removes the lit edge and sinks the shadow
+inward.
+
+**A CHAMFER WAS BUILT HERE FIRST AND FAILED. Do not reintroduce it.** One
+corner clipped at 12px on a 404px button is 3% of its edge: too small to
+register as intent, asymmetric enough to read as a rendering fault. The verdict
+was "looks like a bug and some error in ui. its not even that visible", and
+that is exactly right. **Detail has to be either bold enough to be obviously
+deliberate or absent; a subtle asymmetry is the worst of both.** The deeper
+mistake was reaching for a novelty silhouette when this theme's identity is
+material and light.
+
+Dropping `clip-path` removed two problems that came with it. **It clips the
+focus ring away**: the global indicator is `outline: 2px` at
+`outline-offset: 3px`, painted outside the border box, so every clipped
+control had an invisible keyboard focus ring and needed an inset replacement.
+And a `box-shadow` is clipped too, so the raised plates had needed
+`filter: drop-shadow` just to have a shadow at all. Square needs neither.
+
+**Square here is not Brutal.** Brutal is 2px black rules and hard offset
+shadows on cream; this is a soft real shadow and a lit edge on charcoal.
+
+**Half the controls were pills, and that is what made the theme look half
+finished.** `Button` follows `--radius-control`, but `IconButton`,
+`Segmented` and `Chip` hardcode `rounded-full` straight from Tailwind. They
+carry markers now (`data-icon-btn`, `data-segmented`, `data-segment`,
+`data-chip`, plus `data-sheet`, `data-mark-tile`, `data-mark-ring`) so the
+shape is set in the theme and Ink, Brutal, Clay and Terminal keep their pills.
+The optional checkbox needed no marker:
+`[role="checkbox"] > span[aria-hidden]` already identifies it.
+
+**Anything you put something INTO is cut into the wall**, and a recess is dark
+at the TOP because the light comes from above. That one inversion is what
+separates a hole from a slab, and it is what fields and the segmented track
+use.
+
+**The accent button is brass**, lit harder along its top edge than any stone
+control because polished metal catches far more, falling to a dark base. It is
+a lighting model, not decoration.
+
+**The Profile display-name input was deliberately left alone.** It is an
+underlined inline control rather than a boxed field, so there is no box to
+treat, and boxing it would make an editable line look like a form.
+
+**A disabled primary button is `opacity: 0.35`**, which on this wall looks
+like a washed out gold rectangle and was twice mistaken for a rendering bug
+during review. It is the `disabled:opacity-35` in `Button`, doing its job.
+
+**`--ms-screen` is the device worth reusing.** Each tab owns one of the four and
+the current screen supplies the colour for every identity mark on it: the bar
+beside a section label, the tab indicator, the travelling dot. Keyed off
+`body:has(a[href="..."][aria-current="page"])` rather than off a route, because
+CSS cannot see a pathname, and that one selector covers the bottom bar and the
+side rail without either knowing about it. Home keeps plaster dust, which is
+what makes it the centre: five tabs, four colours, and the odd one out is the
+quiet one rather than an invented fifth hue.
+
+**NO FONT SWAP, and that is a correction.** A Segoe-alike (Open Sans, behind
+real Segoe UI for Windows) shipped here first and it MOVED THE NUMBERS.
+Measured against Ink on identical markup: the same figure went 33.4px wide and
+73 tall to 29.8 wide and 76.5 tall, which dragged the title, the meta line and
+the meter down a pixel and changed where a right-aligned numeral sat. That was
+the reported "text doesn't fit and align properly". Terminal can swap the face
+because mono is uniform by definition; this app is columns of percentages that
+have to line up. **A theme may change the material, it does not get to move the
+figures.** After the revert, the only thing that differs from Ink on the same
+markup is the section label's colour bar.
+
+**The meter height is not touched, and that was also a revert.** It was raised
+to 5px to read as a groove, which broke the screen's whole device: the
+threshold tick is positioned `-top-[3px] h-2` against a 2px bar, so a taller
+bar left the tick hanging above it instead of crossing it, and the column of
+aligned ticks down the page is what lets a short subject be seen without
+reading a number.
+
+**Extreme scale contrast** comes from overriding `--text-poster` and
+`--text-label--letter-spacing` inside the theme block, which works because
+Tailwind v4 utilities resolve those custom properties at use time. **The label
+is not made smaller, only tracked out**: shrinking 11px uppercase to 10px to
+look precise costs legibility for nothing.
+
+**Measured, on a 3555px page scrolled ~2700px:** median 16.7ms, p95 17.6ms,
+worst 17.7ms, **zero frames over 32**, identical to Ink on the same page, and
+the one-time raster is within noise of Ink's. Nothing is
+`background-attachment: fixed`, there is no `filter` and no `backdrop-filter`,
+so the wall rasterises once and is never touched again during a scroll.
+**Honest limit: measured on a desktop at 1x, not on a handset.**
+
+**Adding a fourth look cost the onboarding theme chapter 29px**, which it did
+not have: that chapter had already been trimmed to fit the shortest phone
+exactly, so a fourth 44px pill put it over. The 29px came back out of gaps and
+margins only, never off a touch target. Verified after: **scrollHeight equals
+clientHeight at 375x667**, all four pills at 44px, no name truncated, no
+horizontal overflow. A 568px-tall viewport still scrolls, and did before this
+too, so that is not a regression.
+
+**Two markers were added to components**, so the theme stays in CSS:
+`data-nav-dot` on the travelling dot in `BottomNav`, and `data-do` on the
+Calendar day cell, which already rendered its day order as text but carried
+nothing a theme could address.
+
+**The four are deliberately never a 2x2 pinwheel, anywhere.** That arrangement
+is Microsoft's actual trademark and this app has its own mark. Same four
+colours, different arrangement: a bar beside a label, a tab indicator, one
+letter each across the launch wordmark. Do not "complete" it into a quad.
+
+**Verified live against the real account (2026-08-13), on ONE sign-in.** The
+backend log shows exactly one `POST /refresh` for the whole sweep of six
+screens, no 429, no `IN108`, no `SI503`. That is the pattern to copy: sign in
+once, then move between tabs by clicking the nav (client side), and let the
+encrypted snapshot serve everything. `STALE_MS` is an hour, so even a full page
+reload rehydrates from cache and costs nothing.
+
+**One real bug was found by doing it, and it was invisible in every mock.**
+`data-do` is carried by TWO different elements: the Schedule day-order picker
+button, and a Calendar day cell. The rule colouring the picker's numeral,
+`[data-do] > span:first-of-type`, therefore also hit the Calendar, whose first
+span is the DATE. The whole month grid had its dates recoloured by day order
+and dimmed to 45%: 4 red, 5 green, 6 blue, 7 yellow. Fixed with
+`:not([data-day])` on both picker rules. **Anything addressing `data-do` has to
+say which of the two it means.**
+
+Also confirmed live: the four colours per tab (Marks blue, Attendance green,
+Schedule yellow, Calendar red, Home and Profile the neutral plaster default),
+the day-order colours in both the picker and the grid, cards, the dashed
+optional class, no horizontal overflow anywhere, and no tap target under 44px.
+
+**Attendance and Marks could not be judged**: both are genuinely empty on the
+portal this term ("Not published yet" / "No marks yet"), so their poster
+figures never rendered. **The Marks poster is still unverified** and it is the
+one most likely to overflow, being a stacked fraction under a `--text-poster`
+raised to 26vw. Check it when marks publish.
+
+**Two false alarms worth recording, because both wasted time.** A capture taken
+mid page transition shows two screens composited at once (the outgoing snapshot
+sits at `z-index: 1`), which reads as catastrophic overlap; and `fullPage`
+screenshots mangle sticky elements. Settle for ~2.5s and screenshot the
+VIEWPORT. Separately, sampling a screenshot at guessed coordinates "showed" the
+wall through an opaque button; measuring the element's real box gave 2176
+samples of a single colour. Measure the box, then sample.
+
+**A measurement trap worth keeping.** The poster figure is a `display: block`
+span carrying `.optical`, whose negative margin makes its own bounding rect
+WIDER than the column. Measuring that rect reports an overflow that does not
+exist. Measure the text with a `Range`, not the element.
+
+
+### DONE: On a laptop the pad is OPEN, and the tape is actually stuck (2026-08-11)
 
 Two reports: the entry deck was not properly aligned on desktop, and the tape
 was not stuck down. Both were real and neither was a matter of taste.
@@ -1665,7 +2052,8 @@ segmented meters that read as characters, and `> ` prompts on buttons.
 
 **Fifteen skins now, one per hue** (Ink, Slate, Mono, Paper, Sand plus Rose,
 Ember, Gold, Fern, Teal, Azure, Indigo, Violet, and the light Bloom and
-Meadow). Eighteen themes in total with the three full looks.
+Meadow). Nineteen themes in total with the four full looks (Stone was added
+2026-08-13, see the entry at the top of this section).
 
 **Each hue tints the whole ink ramp**, not just the accent, the way Slate
 already did. A set of skins differing by one small dot would have been the same
@@ -1678,7 +2066,8 @@ state moves, never the rule**: Gold darkens `watch`, Fern turns `safe` toward
 teal, Rose and Ember push `risk` clear of the accent. Checked mechanically that
 no theme has `accent` equal to `risk`.
 
-**Only the three looks are tiles on Profile.** Fifteen colours listed there took
+**Only the full looks are tiles on Profile** (three then, four now).
+Fifteen colours listed there took
 over the page for a choice most people make once. The fourth tile opens
 `components/SkinPicker.tsx`: a strip of discs you flick sideways, snapping to
 centre, **applying whatever reaches the middle straight away** so the app
