@@ -183,6 +183,15 @@ html[data-theme="mono"] {
   --color-watch: #a3a3a3;
   --color-risk: #ff4d4d;
 }
+/* A day off has to be the LOUDEST date in the calendar grid, and this is the
+   one theme that cannot say so in colour: Mono is greyscale by choice, and its
+   `safe` (#d4d4d4) is dimmer than a working day's pure white, so the holiday
+   would recede behind every ordinary Tuesday. It keeps the semibold it already
+   carries and takes the brightest ink instead, which is the same statement made
+   with weight rather than hue. The dot underneath still marks it. */
+html[data-theme="mono"] [data-holiday] {
+  color: var(--color-text-1);
+}
 
 /* SAND. Warm paper, easier than white in daylight. */
 html[data-theme="sand"] {

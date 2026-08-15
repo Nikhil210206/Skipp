@@ -220,30 +220,53 @@ export default function CalendarPage() {
                   className="relative flex h-[52px] flex-col items-center justify-center lg:h-[84px]"
                 >
                   <span
+                    // Marked so a theme that cannot say this in colour can say
+                    // it another way. Mono is the case: it is monochrome on
+                    // purpose, and its `safe` is a grey DIMMER than a working
+                    // day's pure white, which would put the inversion below
+                    // straight back. See globals.css.
+                    data-holiday={holiday && !works ? "" : undefined}
                     className={`tnum relative text-body transition-colors ${
                       isSel
                         ? "font-semibold text-accent"
                         : works
                           ? "text-text-1"
                           : holiday
-                            ? // Brighter than a weekend, dimmer than a working
-                              // day. A holiday is not a dead square: it is the
-                              // one kind of empty day worth going looking for.
-                              "text-text-2"
+                            ? // THE DAY OFF IS THE ONLY COLOURED DATE IN THE
+                              // GRID. It used to be `text-2`, which is dimmer
+                              // than a working day's `text-1`, so the one square
+                              // you scan a month for receded while every
+                              // ordinary Tuesday stood in front of it. Reported
+                              // as holidays being hard to see, and that
+                              // inversion was the cause: the 6px dot was
+                              // carrying the whole signal on its own.
+                              //
+                              // `safe` rather than the accent, because the
+                              // accent already means two things on this grid
+                              // (the selected date, and today's underline) and a
+                              // third would make all three meaningless. Green
+                              // also says "free" without a word of explanation,
+                              // and every theme already defines and tunes it.
+                              "font-semibold text-safe"
                             : "text-text-3/45"
                     }`}
                   >
                     {d}
                   </span>
                   {/* One slot, three states: a working day shows its day order,
-                      a holiday shows an accent dot, an ordinary empty day shows
-                      nothing. Before this a holiday was indistinguishable from a
-                      Sunday, since neither carries a day order. */}
+                      a holiday shows a dot, an ordinary empty day shows nothing.
+                      Before this a holiday was indistinguishable from a Sunday,
+                      since neither carries a day order.
+
+                      The dot stays, in the same green, and is deliberately not
+                      the only signal: colour alone would leave a student who
+                      cannot separate the hues with nothing, and the aria-label
+                      says "holiday" for the same reason. */}
                   <span className="tnum relative mt-1 flex h-2 items-center justify-center text-[9px] font-semibold leading-none text-text-3/70">
                     {works ? (
                       day!.dayOrder
                     ) : holiday ? (
-                      <span aria-hidden className="size-1.5 rounded-full bg-accent" />
+                      <span aria-hidden className="size-2 rounded-full bg-safe" />
                     ) : null}
                   </span>
                   {isToday && (

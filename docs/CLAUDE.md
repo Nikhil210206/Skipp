@@ -345,6 +345,49 @@ is deployment and true push notifications.
 Entries below are newest first. **When something breaks, read the relevant entry first**: most
 oddities here (login shell, empty calendar, 429s, duplicated course codes) are already diagnosed.
 
+### DONE: A day off is the loudest date in the grid (2026-08-15)
+
+Reported as holidays being hard to spot quickly, blamed on the dot being small.
+The dot was a symptom. **The holiday numeral was `text-2`, which is DIMMER than
+a working day's `text-1`**, so the one square you scan a month for receded while
+every ordinary Tuesday stood in front of it. The ranking was upside down and the
+6px dot was carrying the entire signal alone.
+
+A holiday numeral is now **`text-safe` and semibold**, and the dot goes to 8px in
+the same green. Calendar grid only: the list underneath already says everything
+in words and needs no colour.
+
+**Green rather than the accent, and that is forced rather than chosen.** The
+accent already means two things on this grid, the selected date and today's
+underline, so a third use would have made all three mean nothing. `safe` is
+defined and already hue-tuned by every one of the nineteen themes, and green
+says "free" with no explanation. **Selected still wins over holiday**, so a
+selected holiday is an accent numeral over a green dot and is still marked.
+
+**MONO NEEDED ITS OWN ANSWER, and it is the reason to check every theme.** Mono
+is greyscale on purpose: its `safe` is `#d4d4d4` against a working day's pure
+white `#ffffff`, so the green fix would have reinstated the exact inversion it
+was written to remove, in that one theme. The numeral carries `data-holiday` so
+the theme can speak, and Mono says it with weight instead of hue: semibold at
+full `text-1`. **A state colour is not automatically brighter than body text;
+check the theme where colour is deliberately absent.**
+
+**Colour is never the only signal.** The dot stays and the `aria-label` still
+says "holiday", so nothing depends on separating two hues.
+
+Verified by screenshot in Ink, Stone, Mono and Paper, on a temporary `/dev-cal`
+route carrying the real cell markup (since removed): green reads clearly on both
+the dark and the light ramp, and Mono reads by weight.
+
+**A tooling trap that cost real time, and it is the same one already recorded
+for the Stone work.** `getComputedStyle` on EXISTING elements in the Browser MCP
+pane returns stale values, because the pane runs no rAF and defers style recalc
+while hidden. A sweep of all nineteen themes confidently reported every theme
+identical and white, contradicting a screenshot taken minutes earlier; a
+freshly inserted element measured correctly in the same instant, which is what
+gave it away. **Screenshot, or reload first. Do not trust a computed style read
+after changing a theme in place.**
+
 ### DONE: Students can write back (2026-08-14)
 
 `components/FeedbackSheet.tsx`, `lib/feedback.ts`, `lib/api.ts`'s `sendFeedback`,
