@@ -46,7 +46,7 @@ type BeforeInstallPrompt = Event & {
   userChoice: Promise<{ outcome: "accepted" | "dismissed" }>;
 };
 
-function isStandalone(): boolean {
+export function isStandalone(): boolean {
   return (
     window.matchMedia("(display-mode: standalone)").matches ||
     // iOS predates the standard and still reports it here.

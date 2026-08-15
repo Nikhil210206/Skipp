@@ -1,6 +1,7 @@
 """Skipp backend: FastAPI scraper for the SRM academia portal.
 
-Routes: /health, POST /timetable, POST /attendance. Marks lands later.
+Routes: /health, POST /refresh (the one the app uses), plus the single-section
+/timetable, /attendance and /marks, and POST /feedback.
 
 Security (non-negotiable): the password is never written to disk, a database,
 or a log. It lives in memory for the duration of one request only, on the
@@ -9,6 +10,10 @@ return. The net id (on a successful sign-in, see `_login_or_4xx`) and the
 student's name (once the timetable page parses, in `/timetable` and
 `/refresh`) are logged to stdout, which the platform surfaces as ephemeral
 runtime logs and never persists to a database.
+
+`/feedback` is the one route that carries no credentials at all: it neither
+signs in nor touches the portal, it forwards a message the student wrote to a
+webhook and keeps nothing.
 """
 from fastapi import FastAPI, HTTPException, Request
 from fastapi.middleware.cors import CORSMiddleware
@@ -26,6 +31,11 @@ from core.client import (
     PAGE_TIMETABLE,
     PAGE_UNIFIED_TIMETABLE,
 )
+from core.feedback import (
+    FeedbackDeliveryFailed,
+    FeedbackNotConfigured,
+    deliver as deliver_feedback,
+)
 from core.session import (
     AppSessionError,
     CaptchaRequired,
@@ -41,6 +51,7 @@ from core.session import (
 from datetime import datetime, timezone
 
 from models.attendance import Attendance
+from models.feedback import FeedbackRequest
 from models.marks import Marks
 from models.schedule import CalendarDay
 from models.snapshot import Snapshot
@@ -134,6 +145,11 @@ def health() -> dict:
 _RATE: dict[str, list[float]] = {}
 _PER_IP_PER_HOUR = 20
 _PER_ACCOUNT_PER_HOUR = 10
+#: Feedback spends no sign-in, so it is not rationed against anyone's portal
+#: cap. It is still a route that puts a stranger's text in front of a person,
+#: so it gets a ceiling of its own: enough for somebody with several things to
+#: say, far short of a script filling the channel.
+_FEEDBACK_PER_IP_PER_HOUR = 8
 _WINDOW = 3600.0
 
 
@@ -166,12 +182,35 @@ def _rate_check(request: Request, username: str) -> None:
             )
         hits.append(now)
         _RATE[key] = hits
+    _prune(now)
 
-    # Unbounded growth would be its own denial of service on a long lived
-    # instance, so drop keys nobody is using.
+
+def _prune(now: float) -> None:
+    """Drop keys nobody is using.
+
+    Unbounded growth would be its own denial of service on a long lived
+    instance. Called by every limiter, not just the sign-in one, so a route
+    that is never signed into cannot fill the table on its own.
+    """
     if len(_RATE) > 2048:
         for k in [k for k, v in _RATE.items() if not v or now - v[-1] > _WINDOW]:
             _RATE.pop(k, None)
+
+
+def _feedback_rate_check(request: Request) -> None:
+    """Refuse when one caller is filling the feedback channel."""
+    now = time.monotonic()
+    key = f"fb:{_client_ip(request)}"
+    hits = [t for t in _RATE.get(key, []) if now - t < _WINDOW]
+    if len(hits) >= _FEEDBACK_PER_IP_PER_HOUR:
+        raise _fail(
+            429,
+            "too_many",
+            "That is a lot of feedback for one hour. Send the rest later.",
+        )
+    hits.append(now)
+    _RATE[key] = hits
+    _prune(now)
 
 
 @app.exception_handler(TimeBudgetExceeded)
@@ -382,6 +421,38 @@ def marks(req: LoginRequest, request: Request) -> Marks:
         raise HTTPException(status_code=502, detail=str(e)) from e
     finally:
         session.close()
+
+
+@app.post("/feedback")
+def feedback(req: FeedbackRequest, request: Request) -> dict:
+    """Forward one piece of student feedback. No portal, no sign-in, no store.
+
+    Deliberately not silent on failure. Every other route here can afford to
+    degrade (a gated section returns a status and the app carries on), but a
+    feedback box that accepts a message and drops it is worse than no feedback
+    box, because the student believes they have been heard.
+    """
+    _feedback_rate_check(request)
+    try:
+        deliver_feedback(req, request.headers.get("user-agent"))
+    except FeedbackNotConfigured as e:
+        log.warning("feedback received but no webhook is configured")
+        raise _fail(
+            503,
+            "feedback_off",
+            "Feedback isn't switched on right now. Try again later.",
+        ) from e
+    except FeedbackDeliveryFailed as e:
+        log.warning("feedback delivery failed: %s", e)
+        raise _fail(
+            502,
+            "feedback_failed",
+            "Couldn't send that just now. Try again in a bit.",
+        ) from e
+    # Never the message itself, and never who sent it: the channel is the
+    # record, the log is not a second copy of it.
+    log.info("feedback delivered: %s, %s stars", req.kind, req.rating)
+    return {"ok": True}
 
 
 _GATED_MSG = (

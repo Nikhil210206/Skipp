@@ -16,6 +16,8 @@ import { Skeleton } from "./ui";
 import { pageIn, prefersReducedMotion, revealWord } from "@/lib/motion";
 import { useSwipeNav } from "@/lib/useSwipeNav";
 import { NOTICE, useSeenNotice } from "@/lib/whatsNew";
+import { ensureFeedbackSchedule, useFeedbackDue } from "@/lib/feedback";
+import { FeedbackPrompt } from "./FeedbackSheet";
 
 /**
  * The frame: auth guard, a thin masthead, pull to refresh, tab bar.
@@ -62,9 +64,17 @@ export default function AppShell({
   const [installDismissed, setInstallDismissed] = useState(false);
   const seenHolidays = useSeenNotice(NOTICE.holidays);
   const seenTheme = useSeenNotice(NOTICE.stone);
+  const feedbackDue = useFeedbackDue();
+  // A device that reached a signed-in screen without passing the entry screen
+  // (a deep link, a restored tab) has no schedule yet. Seeding it here treats
+  // them as new, which is the cautious way round.
+  useEffect(() => {
+    ensureFeedbackSchedule();
+  }, []);
   /** The install gate is a takeover, so nothing else may rise underneath it. */
   const gateUp = canOfferInstall && !installDismissed;
   const showTheme = !seenTheme && !gateUp;
+  const showHolidays = !seenHolidays && !showTheme && !gateUp;
   function tapMasthead() {
     taps.current += 1;
     if (timer.current) window.clearTimeout(timer.current);
@@ -191,9 +201,17 @@ export default function AppShell({
             unseen and marked as read. Between the two notices the newest wins,
             because a student who has neither should hear the current news
             first. Whatever is not shown this launch is still waiting on the
-            next. */}
+            next.
+
+            The feedback prompt is LAST of all, and deliberately so: every
+            other sheet here is telling them something, and this one is asking
+            them for something. Being asked for an opinion in the same breath
+            as being handed news reads as a survey, and it would also be asking
+            what they think of a change they had not seen yet. Its date is not
+            consumed when it loses, so it simply comes round next launch. */}
         <NewThemeSheet open={showTheme} />
-        <WhatsNewSheet open={!seenHolidays && !showTheme && !gateUp} />
+        <WhatsNewSheet open={showHolidays} />
+        <FeedbackPrompt open={feedbackDue && !showTheme && !showHolidays && !gateUp} />
       </div>
     </div>
   );

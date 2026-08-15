@@ -124,3 +124,56 @@ async function post<T>(path: string, creds: Credentials): Promise<T> {
 /** One login gives timetable, attendance and marks: the only fetch there is. */
 export const fetchSnapshot = (c: Credentials) => post<Snapshot>("/refresh", c);
 
+// ---- Feedback ----------------------------------------------------------
+
+/** What a piece of feedback is about. */
+export type FeedbackKind = "bug" | "idea" | "other";
+
+/**
+ * One thing a student wanted to say.
+ *
+ * The identity half is filled in by the app from the snapshot it already
+ * holds, never typed, and the sheet tells them so before they send. Mirrors
+ * `backend/models/feedback.py`.
+ */
+export type Feedback = {
+  rating: number;
+  kind: FeedbackKind;
+  message: string;
+  name?: string | null;
+  section?: string | null;
+  registrationNumber?: string | null;
+  program?: string | null;
+  semester?: string | null;
+  theme?: string | null;
+  installed?: boolean;
+};
+
+/**
+ * Send it. Resolves on delivery and throws otherwise, deliberately: the whole
+ * promise of a feedback box is that somebody sees it, so a failure has to
+ * reach the person who just typed something rather than being swallowed.
+ *
+ * This is the one call in the app that carries no credentials.
+ */
+export async function sendFeedback(body: Feedback): Promise<void> {
+  const base = apiBase();
+  let res: Response;
+  try {
+    res = await fetch(`${base}/feedback`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(body),
+    });
+  } catch {
+    throw new PortalError("Can't reach Skipp. Check your connection.", "unreachable");
+  }
+  if (res.ok) return;
+
+  const parsed = await res.json().catch(() => undefined);
+  const raw = parsed?.detail;
+  const detail: string | undefined =
+    typeof raw === "string" ? raw : (raw?.message as string | undefined);
+  throw new PortalError(detail ?? `Couldn't send that (${res.status}).`, "portal");
+}
+

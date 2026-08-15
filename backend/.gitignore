@@ -10,3 +10,7 @@ __pycache__/
 captures/
 .vercel
 .env*
+
+# Local testing only
+local_hook.py
+feedback.log

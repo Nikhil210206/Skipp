@@ -161,6 +161,43 @@ export function IconAddSquare(p: IconProps) {
   );
 }
 
+/**
+ * A five pointed star, hollow or solid.
+ *
+ * The one icon in the set that fills, because a rating is read by how far the
+ * solid ones get along the row rather than by counting outlines. It draws its
+ * own `svg` rather than going through `Svg`, which hardcodes `fill="none"`,
+ * and it keeps the stroke in both states so a filled star and an empty one are
+ * exactly the same size and the row cannot shift as you slide across it.
+ */
+export function IconStar({ size = 20, className, filled = false }: IconProps & { filled?: boolean }) {
+  return (
+    <svg
+      width={size}
+      height={size}
+      viewBox="0 0 24 24"
+      fill={filled ? "currentColor" : "none"}
+      stroke="currentColor"
+      strokeWidth={1.6}
+      strokeLinecap="round"
+      strokeLinejoin="round"
+      className={className}
+      aria-hidden="true"
+    >
+      <path d="M12 3.6l2.6 5.28 5.83.85-4.22 4.11.997 5.81L12 16.91l-5.21 2.74.996-5.81-4.22-4.11 5.83-.85z" />
+    </svg>
+  );
+}
+
+/** A speech mark, for the one place a student writes something back. */
+export function IconSpeech(p: IconProps) {
+  return (
+    <Svg {...p}>
+      <path d="M20.5 12.4a7.6 7.6 0 0 1-7.6 7.6H8.2L4 22.5v-4.4A7.6 7.6 0 0 1 3.5 12v-.4a7.6 7.6 0 0 1 7.6-7.6h1.8a7.6 7.6 0 0 1 7.6 7.6z" />
+    </Svg>
+  );
+}
+
 /** The Android overflow menu, three dots in a column. */
 export function IconMenuDots(p: IconProps) {
   return (

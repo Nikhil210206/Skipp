@@ -19,6 +19,7 @@ import Greeting from "@/components/Greeting";
 import { useSession } from "@/context/SessionContext";
 import { playEntrance, useGsap } from "@/lib/motion";
 import { claimIfNewDevice } from "@/lib/whatsNew";
+import { seedFeedbackSchedule } from "@/lib/feedback";
 import { Spinner } from "@/components/ui";
 
 /**
@@ -66,9 +67,12 @@ export default function LoginPage() {
   // Date the device before anybody signs in. This is the only moment that can
   // tell a student who already had Skipp from one arriving for the first time:
   // a minute later they both have a saved session and look identical. See
-  // claimIfNewDevice.
+  // claimIfNewDevice, and seedFeedbackSchedule, which reads the same signal for
+  // the opposite purpose: notices are claimed for a new device, while the
+  // feedback prompt is held back for one and due at once for a returning one.
   useEffect(() => {
     claimIfNewDevice();
+    seedFeedbackSchedule();
   }, []);
 
   const scope = useGsap(

@@ -345,6 +345,120 @@ is deployment and true push notifications.
 Entries below are newest first. **When something breaks, read the relevant entry first**: most
 oddities here (login shell, empty calendar, 429s, duplicated course codes) are already diagnosed.
 
+### DONE: Students can write back (2026-08-14)
+
+`components/FeedbackSheet.tsx`, `lib/feedback.ts`, `lib/api.ts`'s `sendFeedback`,
+and on the backend `POST /feedback` with `models/feedback.py` and
+`core/feedback.py`. Five stars, three chips (Bug / Idea / Other) and a box.
+
+**REQUIRES `SKIPP_FEEDBACK_WEBHOOK` ON THE BACKEND, SET FOR PRODUCTION.** It is
+a Discord webhook URL. Unset, the route answers a typed `503 feedback_off` and
+the sheet says so, which is deliberate: **a feedback box that accepts a message
+and drops it is worse than no feedback box**, because the student believes they
+have been heard. Note the trap this project has already been bitten by once: a
+Vercel env var is set per environment, and setting it for Development and
+Preview is not setting it for Production.
+
+**Discord rather than a table, and that is what keeps section 3 intact.** The
+backend still has no database. Feedback is forwarded and then forgotten by this
+process; the record lives in a channel, which is somewhere a person reads rather
+than somewhere student data accumulates.
+
+**IT IS THE ONE ROUTE THAT CARRIES NO PASSWORD.** It never signs in and never
+touches the portal, so it cannot spend anybody's `SI503` daily cap. It gets its
+own limiter (`_feedback_rate_check`, 8/hour per IP) with its own key prefix, so
+it can neither eat the sign-in allowance nor be rationed by it. Verified: eight
+sends leave no `acct:` or `ip:` bucket behind.
+
+**The identity is filled in, never typed**, from the snapshot the app already
+holds: name, section, registration number, program, semester, plus theme and
+whether they are installed. **And the sheet says so above the send button.**
+This is the only thing in Skipp that leaves the device attached to a person, so
+it has to be stated rather than discovered.
+
+**Send the PORTAL name, never `displayName`.** Caught by actually sending one:
+the first live message arrived as **`From: there`**. A display name is a
+nickname somebody picked for their own greeting, it identifies nobody, and
+`SessionContext` falls back to the literal string `"there"`. Null is honest, and
+the backend answers it with "not identified".
+
+**`allowed_mentions: {"parse": []}` is load bearing.** A webhook carries the
+permission by default, so without it an `@everyone` typed into the box by a
+stranger would be honoured.
+
+**A rating alone is sendable; only the rating is required.** The whole point is
+the lowest possible friction, and a one tap answer from many students is worth
+more than a paragraph from three. The description therefore has to survive an
+empty message, since **Discord rejects an embed with an empty description**.
+
+**Colour maps to the app's own state colours** (red 1 to 2, amber 3, green 4 to
+5), so a bad review is recognisable in the channel before it is read.
+
+**The prompt schedule is one date in localStorage, and every path pushes it
+forward.** `skipp.feedback.due`, read through `useSyncExternalStore` like the
+other first run flags.
+
+- **A returning device is due IMMEDIATELY, a new one waits a week.**
+  `seedFeedbackSchedule()` runs beside `claimIfNewDevice()` on the entry screen,
+  and for the same reason: a saved session is the only thing separating a
+  student who already had Skipp from one arriving for the first time, and a
+  minute later both have one. The two read that signal for OPPOSITE purposes,
+  which is worth noticing: notices are claimed as seen for a new device, while
+  the feedback prompt is held back for one and due at once for a returning one.
+  That is what makes the whole existing user base get asked on this push.
+- **An unseeded device is never due.** The failure mode of this feature has to
+  be a prompt that does not appear, not one that ambushes a first launch.
+  `ensureFeedbackSchedule()` in `AppShell` is the net for a device that reached
+  a signed in screen without passing the entry screen, and it treats them as
+  new.
+- **Both seeders are idempotent**, so neither can reset a snooze already earned.
+- Dismissing counts as an answer: coming back tomorrow because they said nothing
+  today is how a prompt becomes a nuisance.
+
+**The prompt is LAST in `AppShell`'s one-at-a-time order**, behind the install
+gate and both notices. Every other sheet there is telling them something and
+this one is asking them for something, and being asked for an opinion in the
+same breath as being handed news reads as a survey. It would also be asking what
+they think of a change they had not seen yet. Its date is not consumed when it
+loses, so it simply comes round next launch.
+
+**The prompt latches during RENDER, not from an effect.** Sending calls
+`snoozeFeedback()`, which moves the date, which makes `open` false again: fed
+through directly the sheet would be torn away in the same frame Send was pressed
+and nobody would ever see the thank-you. `useEffect` + `setState` is rejected by
+the compiler lint (it was written that way first and caught), so it uses the
+same derived-state shape as `usePresence` in `ui/Overlay.tsx`.
+
+**The stars keep `hover` and `value` separate**, and `shown = hover || value` is
+what lets the row preview a rating under the finger and still fall back to the
+committed one. Each is a 44px target, so the row is 220px and needs no spacing
+of its own. **Rating down works**, which is the case a naive implementation gets
+wrong: verified 4 then 2 leaves exactly two filled.
+
+**The textarea carries `data-field`**, because anything you put something into is
+cut into the wall in Stone rather than standing on it. The marker goes on the
+BOX, and here the textarea is the box. **Honest limit: the square corners and the
+inset recess were both confirmed applying, but the recess BACKGROUND measured as
+`ink-2` rather than the theme's `rgb(0 0 0 / 0.2)` and the cause was not pinned
+down.** Rule enumeration through the dev server's injected CSS came back empty
+for an element that demonstrably matches, so the measurement itself is suspect.
+Worth one look on a production build; it is legible either way.
+
+**Verified.** 34 assertions against the real route with a local stand-in webhook
+(no Discord, no portal): the unset webhook, the payload shape, mentions
+disabled, empty message, both colour ends, five refused inputs, a failing
+webhook, the limiter, and that no sign-in bucket is touched. 11 more against the
+real `lib/feedback.ts` (jiti, stubbed localStorage): returning vs new device,
+idempotency, the snooze, and that private mode throws nothing. Then the whole
+loop end to end in a browser against a local backend, which is what caught the
+`From: there` bug.
+
+**Not verified: the sheet on the signed-in Profile screen.** It was checked
+through a temporary `/dev-feedback` route (since removed) because reaching
+Profile means signing in, and this project's notes are emphatic that reloading
+the authed dev app spends real portal sign-ins. The row is built to the same
+shape as the skins door directly above it.
+
 ### DONE: The Stone announcement, and notices became keyed (2026-08-14)
 
 `components/NewThemeSheet.tsx`, plus `lib/whatsNew.ts` generalised from one

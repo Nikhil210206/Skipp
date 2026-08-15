@@ -11,7 +11,8 @@ import { Marginalia, Rule, SectionHead, StickyAction } from "@/components/ui/edi
 import CreatorCredit from "@/components/CreatorCredit";
 import SkinPicker from "@/components/SkinPicker";
 import NotificationSetting from "@/components/NotificationSetting";
-import { IconChevronRight } from "@/components/Icons";
+import FeedbackSheet from "@/components/FeedbackSheet";
+import { IconChevronRight, IconSpeech } from "@/components/Icons";
 
 const SKINS = THEMES.filter((t) => !t.structural);
 const SKIN_COUNT = SKINS.length;
@@ -42,6 +43,7 @@ export default function ProfilePage() {
   const [seededFrom, setSeededFrom] = useState(displayName);
   const [saved, setSaved] = useState(false);
   const [picking, setPicking] = useState(false);
+  const [saying, setSaying] = useState(false);
   /** The skin in use, or null while one of the full looks is on. */
   const skin = SKINS.find((t) => t.id === theme) ?? null;
   // Your colour leads the fan, with a spread of others behind it.
@@ -309,6 +311,31 @@ export default function ProfilePage() {
           </div>
         </section>
 
+        {/* Feedback.
+            Its own section rather than a line under Preferences: it is not a
+            setting, it is the one thing on this screen that talks back. Built
+            to the same shape as the skins door above, because it does the same
+            job, a full width row that opens something. */}
+        <section className="pb-10">
+          <SectionHead>Feedback</SectionHead>
+          <button
+            onClick={() => setSaying(true)}
+            aria-haspopup="dialog"
+            className="group mt-5 flex w-full items-center gap-3.5 rounded-control border border-line px-3.5 py-3.5 text-left transition-colors hover:border-line-strong"
+          >
+            <IconSpeech size={22} className="shrink-0 text-accent" />
+            <span className="min-w-0 flex-1">
+              <span className="block truncate text-body text-text-1">
+                Tell me something
+              </span>
+              <span className="block truncate text-callout text-text-3">
+                Rate it, report a bug, ask for a feature
+              </span>
+            </span>
+            <IconChevronRight size={18} className="shrink-0 text-text-3" />
+          </button>
+        </section>
+
         <p data-reveal className="pt-2 text-callout leading-relaxed text-text-3">
           Not affiliated with SRM. Your data is never stored on my server. It lives
           on this device and is cleared when you sign out.
@@ -332,6 +359,7 @@ export default function ProfilePage() {
         </StickyAction>
       </div>
       <SkinPicker open={picking} onClose={() => setPicking(false)} />
+      <FeedbackSheet open={saying} onClose={() => setSaying(false)} />
     </AppShell>
   );
 }
