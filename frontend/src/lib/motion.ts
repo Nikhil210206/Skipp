@@ -57,12 +57,19 @@ if (typeof window !== "undefined") {
 /**
  * How long a page change takes.
  *
- * 0.46 was tried, on the theory that a shorter transition gives a hitch less
- * time to be noticed, and it measured WORSE: the same work compressed into
- * fewer frames drops more of them. The cost here is the arriving screen
- * mounting and animating, not the length of the tween.
+ * **0.62 was right for the old structure and is wrong for this one.** A shorter
+ * transition was tried at 0.46 and measured worse, because the arriving screen
+ * was rebuilding the entire chrome (masthead, tab bar, pull to refresh, three
+ * sheets) on the same frames, and compressing that fixed lump of work into
+ * fewer frames simply drops more of them. The length was buying the mount
+ * somewhere to hide.
+ *
+ * The shell is a layout now and mounts once, so there is no lump left to hide
+ * and the duration is free to be what it should always have been. 0.3 is about
+ * what iOS spends pushing a view, and it is the difference between an app that
+ * responds and one you wait for.
  */
-const PAGE = 0.62;
+const PAGE = 0.3;
 
 /** Durations, in seconds (GSAP's unit). */
 export const DUR = {
@@ -125,16 +132,26 @@ export function useGsap(
 }
 
 /**
- * The app's standard entrance: content rises, fades and comes into focus,
- * staggered in the order it appears. Elements opt in with `data-reveal`.
+ * The app's standard entrance: content rises and fades in, staggered in the
+ * order it appears. Elements opt in with `data-reveal`.
  *
- * The blur is borrowed straight from the onboarding deck's chapter content
- * (`data-in`, a defocus-to-focus settle), brought over so a tab change reads
- * as the same publication as the way in. `expo.out` rather than the spring
- * used everywhere else in the app: a spring overshoots past its target, and
- * blur has no "past zero" to overshoot into, so pairing the two risked a
- * fractional negative blur radius browsers silently clamp. Opacity and y stay
- * on the same tween as the blur so all three settle together.
+ * **No blur, and that is a performance decision rather than a taste one.** This
+ * used to animate `filter: blur(10px)` to zero, borrowed from the onboarding
+ * deck so a tab change read as the same publication as the way in. A filter
+ * forces the element onto its own offscreen buffer and re-rasterises it every
+ * single frame, and this fires on up to twelve elements at once on Home, on
+ * every arrival. It was the most expensive thing in the app, running at exactly
+ * the moment there was least to spare.
+ *
+ * Transform and opacity only, which is the rule the rest of the codebase
+ * already holds itself to (see the greeting's handover, and `pageIn`). Both
+ * stay on the compositor, so the whole entrance costs about as much as one
+ * blurred element used to.
+ *
+ * **The stagger is a total, not a per element gap.** `{ amount }` distributes
+ * the whole stagger across however many targets there are, so a screen with
+ * twelve rows settles in the same time as one with three. A per element gap
+ * silently made the busiest screen the slowest, which is backwards.
  */
 export function revealIn(
   scope: HTMLElement,
@@ -142,31 +159,29 @@ export function revealIn(
   opts: {
     selector?: string;
     y?: number;
+    /** Total time the stagger is spread over, in seconds. */
     stagger?: number;
     delay?: number;
-    /** Off for `revealRows`: a per-row filter multiplies with row count. */
-    blur?: boolean;
   } = {},
 ): void {
-  const { selector = "[data-reveal]", y = 22, stagger = 0.07, delay = 0, blur = true } = opts;
+  const { selector = "[data-reveal]", y = 16, stagger = 0.14, delay = 0.05 } = opts;
   const targets = gsap.utils.toArray<HTMLElement>(scope.querySelectorAll(selector));
   if (targets.length === 0) return;
   if (reduced) {
-    gsap.set(targets, { opacity: 1, y: 0, filter: "none", clearProps: "transform,filter" });
+    gsap.set(targets, { opacity: 1, y: 0, clearProps: "transform" });
     return;
   }
   gsap.fromTo(
     targets,
-    { opacity: 0, y, filter: blur ? "blur(10px)" : "none" },
+    { opacity: 0, y },
     {
       opacity: 1,
       y: 0,
-      filter: "blur(0px)",
-      duration: blur ? 0.56 : 0.44,
-      ease: blur ? EASE.emphasis : EASE.spring,
-      stagger,
+      duration: 0.3,
+      ease: EASE.out,
+      stagger: { amount: stagger },
       delay,
-      clearProps: "transform,filter",
+      clearProps: "transform",
     },
   );
 }
@@ -281,29 +296,29 @@ export function revealRows(
     gsap.set(rows, { opacity: 1, y: 0 });
     return;
   }
-  // Only THIS is deferred, not the whole entrance. Creating a ScrollTrigger per
-  // row measures the document, and a trace put 51ms of forced reflow inside
-  // GSAP's computed-style reads during a page change. Holding just the triggers
-  // keeps the frames clear while `revealIn` still lands on time, so the screen
-  // never looks dead while it arrives.
-  const build = () => {
-    rows.forEach((row) => {
-      gsap.fromTo(
-        row,
-        { opacity: 0, y: 20 },
-        {
-          opacity: 1,
-          y: 0,
-          duration: 0.52,
-          ease: EASE.spring,
-          scrollTrigger: { trigger: row, start: "top bottom-=40", once: true },
-        },
-      );
-    });
-  };
-  const wait = Math.max(0, transitionEndsAt - performance.now());
-  if (wait > 0) window.setTimeout(build, wait);
-  else build();
+  // ONE batch rather than a ScrollTrigger per row, and no longer deferred.
+  //
+  // Both halves of that were the same bug. A trigger per row meant N separate
+  // measurements of the document, which a trace once caught putting 51ms of
+  // forced reflow inside GSAP's computed style reads during a page change, and
+  // the fix at the time was to hold them all until the transition had finished.
+  // That traded jank for lateness: rows below the fold could not begin until
+  // the slide was over. `batch` shares one refresh cycle and one callback
+  // across the whole set, which is cheap enough to simply run when asked.
+  gsap.set(rows, { opacity: 0, y: 14 });
+  ScrollTrigger.batch(rows, {
+    start: "top bottom-=40",
+    once: true,
+    onEnter: (batch) =>
+      gsap.to(batch, {
+        opacity: 1,
+        y: 0,
+        duration: 0.34,
+        ease: EASE.out,
+        stagger: { amount: 0.12 },
+        overwrite: "auto",
+      }),
+  });
 }
 
 /**
@@ -323,12 +338,6 @@ let navDirection = 0;
  * snapshot.
  */
 let outgoing: HTMLElement | null = null;
-/**
- * When the transition currently running will be finished, so an entrance on the
- * arriving screen can wait its turn instead of measuring over the top of it.
- * Module scope, because the two screens are different React trees.
- */
-let transitionEndsAt = 0;
 
 /**
  * Freeze the screen being left exactly where it is, including any distance the
@@ -390,9 +399,6 @@ export function pageIn(el: HTMLElement | null): void {
 
   const width = el.getBoundingClientRect().width || window.innerWidth;
   const travel = width * dir;
-  // Claim the window, so `revealRows` holds its ScrollTriggers until the
-  // movement is over.
-  transitionEndsAt = performance.now() + PAGE * 1000;
 
   if (prev) {
     prev.style.transformOrigin = "50% 42%";
@@ -419,10 +425,14 @@ export function pageIn(el: HTMLElement | null): void {
     { x: travel },
     {
       x: 0,
-      // The spring is what makes the arrival feel like it landed rather than
-      // stopped. Mild enough that text never blurs on the overshoot.
+      // `expo.out` rather than the spring, and that follows from the shorter
+      // duration rather than contradicting it. `back.out(1.7)` spends its last
+      // third overshooting and settling, which reads as weight over 620ms and
+      // as a twitch over 300. Expo puts almost all of its travel in the opening
+      // frames, so the screen is essentially in place immediately and then
+      // eases the final pixels: decisive, and it lands rather than wobbling.
       duration: PAGE,
-      ease: EASE.spring,
+      ease: EASE.emphasis,
       overwrite: "auto",
     },
   );

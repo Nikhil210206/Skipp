@@ -1,6 +1,5 @@
 "use client";
 
-import AppShell from "@/components/AppShell";
 import { useSession } from "@/context/SessionContext";
 import { revealIn, revealRows, useGsap } from "@/lib/motion";
 import {
@@ -75,7 +74,7 @@ export default function MarksPage() {
   );
 
   return (
-    <AppShell section="Marks">
+    <>
       <div ref={scope} className="flex flex-1 flex-col">
         {marksState === "loading" && (
           <div className="flex flex-col gap-4 pt-6">
@@ -244,7 +243,7 @@ export default function MarksPage() {
           </>
         )}
       </div>
-    </AppShell>
+    </>
   );
 }
 

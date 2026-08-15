@@ -1,7 +1,6 @@
 "use client";
 
 import { useRef, useState } from "react";
-import AppShell from "@/components/AppShell";
 import PredictModal from "@/components/PredictModal";
 import { useSession } from "@/context/SessionContext";
 import { predict } from "@/lib/predictor";
@@ -53,7 +52,7 @@ export default function AttendancePage() {
   );
 
   return (
-    <AppShell section="Attendance">
+    <>
       <div ref={scope} className="flex flex-1 flex-col">
         {attendanceState === "loading" && (
           <div className="flex flex-col gap-5 pt-6">
@@ -166,7 +165,7 @@ export default function AttendancePage() {
       </div>
 
       <PredictModal open={predictOpen} onClose={() => setPredictOpen(false)} />
-    </AppShell>
+    </>
   );
 }
 

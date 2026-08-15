@@ -1,7 +1,6 @@
 "use client";
 
 import { useMemo, useState } from "react";
-import AppShell from "@/components/AppShell";
 import { useSession } from "@/context/SessionContext";
 import { todayISO } from "@/lib/schedule";
 import { revealIn, useGsap } from "@/lib/motion";
@@ -58,12 +57,12 @@ export default function CalendarPage() {
 
   if (cal.length === 0) {
     return (
-      <AppShell section="Calendar">
+      <>
         <StateView
           title="Calendar unavailable"
           message="The academic planner did not load. Pull down to try again."
         />
-      </AppShell>
+      </>
     );
   }
 
@@ -97,7 +96,7 @@ export default function CalendarPage() {
   const termPct = workingAll.length > 0 ? (workingDone / workingAll.length) * 100 : 0;
 
   return (
-    <AppShell section="Calendar">
+    <>
       <div ref={scope} className="flex flex-1 flex-col">
         {/* The term as one measurement */}
         <div data-reveal className="pb-9 pt-3">
@@ -365,6 +364,6 @@ export default function CalendarPage() {
           setSelected(date);
         }}
       />
-    </AppShell>
+    </>
   );
 }

@@ -3,7 +3,6 @@
 import Link from "next/link";
 import { useRef } from "react";
 import gsap from "gsap";
-import AppShell from "@/components/AppShell";
 import Countdown from "@/components/Countdown";
 import { useSession } from "@/context/SessionContext";
 import {
@@ -109,7 +108,7 @@ export default function DashboardPage() {
   );
 
   return (
-    <AppShell section={prettyDate(todayISO())}>
+    <>
       <div ref={scope} className="flex flex-1 flex-col">
         {/* ---------- 1. THE COVER ---------- */}
         <section className="bleed bleed-pad relative flex min-h-[42dvh] flex-col justify-end overflow-hidden pb-9 pt-2">
@@ -309,7 +308,7 @@ export default function DashboardPage() {
         )}
       </div>
 
-    </AppShell>
+    </>
   );
 }
 

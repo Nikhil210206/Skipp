@@ -18,6 +18,26 @@ import { useSwipeNav } from "@/lib/useSwipeNav";
 import { NOTICE, useSeenNotice } from "@/lib/whatsNew";
 import { ensureFeedbackSchedule, useFeedbackDue } from "@/lib/feedback";
 import { FeedbackPrompt } from "./FeedbackSheet";
+import { actionSlotRef } from "./ShellAction";
+import { prettyDate, todayISO } from "@/lib/schedule";
+
+/**
+ * The section name shown in the masthead, per route.
+ *
+ * It is derived here rather than passed in because this shell now mounts ONCE,
+ * from the route group's layout, and a layout cannot take props from the page
+ * inside it. That is the whole point of the move: every screen used to render
+ * its own copy of this component, so each tab change tore down the masthead,
+ * the tab bar, pull to refresh, the sidebar and three sheets and built them all
+ * again on exactly the frames the page transition was trying to animate.
+ */
+const SECTIONS: Record<string, string> = {
+  "/attendance": "Attendance",
+  "/marks": "Marks",
+  "/timetable": "Schedule",
+  "/calendar": "Calendar",
+  "/profile": "Profile",
+};
 
 /**
  * The frame: auth guard, a thin masthead, pull to refresh, tab bar.
@@ -27,17 +47,7 @@ import { FeedbackPrompt } from "./FeedbackSheet";
  * what lets Home, Attendance and Timetable feel like different pages of one
  * publication rather than one template repainted.
  */
-export default function AppShell({
-  section,
-  action,
-  children,
-}: {
-  /** Small caps section name in the masthead. */
-  section: string;
-  /** Optional screen-level control, shown beside the profile mark. */
-  action?: React.ReactNode;
-  children: React.ReactNode;
-}) {
+export default function AppShell({ children }: { children: React.ReactNode }) {
   const router = useRouter();
   const pathname = usePathname();
   const { isAuthed, restoring, displayName, student, refresh, fetchedAt } =
@@ -48,13 +58,17 @@ export default function AppShell({
   const taps = useRef(0);
   const timer = useRef<number | null>(null);
   const [signature, setSignature] = useState(false);
-  // Runs once per mount, which is every navigation: AppShell remounts on every
-  // route change, so this is the masthead's equivalent of the onboarding
-  // chapter word arriving fresh each time the section name changes.
+  // Home's masthead is the date, which is a fact about today rather than a name
+  // for the screen. Everything else is simply what the tab is called.
+  const section =
+    pathname === "/dashboard" ? prettyDate(todayISO()) : (SECTIONS[pathname] ?? "Skipp");
+  // Keyed on the section rather than on the mount, now that the mount happens
+  // once: the label still rises fresh each time the screen changes, which is
+  // the masthead's echo of the onboarding deck's chapter word.
   const label = useRef<HTMLSpanElement>(null);
   useLayoutEffect(() => {
     revealWord(label.current, prefersReducedMotion());
-  }, []);
+  }, [section]);
 
   // The install offer, for a student already signed in through a browser. The
   // entry screen offers it first and more cheaply (see InstallGate), so by the
@@ -100,9 +114,13 @@ export default function AppShell({
   // Swipe left or right to move between tabs, using the same exit the bar does.
   const shell = useRef<HTMLDivElement>(null);
   useSwipeNav(shell, pathname, !restoring && isAuthed);
+  // Keyed on the pathname, because `main` is now a persistent element whose
+  // children swap rather than a fresh one per navigation. The tween therefore
+  // runs against the same node every time, which is exactly what makes the
+  // arrival cheap: nothing above the content has to be built again.
   useLayoutEffect(() => {
     if (!restoring && isAuthed) pageIn(main.current);
-  }, [restoring, isAuthed]);
+  }, [restoring, isAuthed, pathname]);
 
   if (restoring) return <RestoringFrame />;
   if (!isAuthed) return null;
@@ -155,7 +173,10 @@ export default function AppShell({
                 )}
               </button>
               <div className="flex items-center gap-1">
-                {action}
+                {/* Where a screen puts its own control (Schedule's download).
+                    A portal, because the page can no longer hand this shell a
+                    prop: see ShellAction. */}
+                <span ref={actionSlotRef} className="flex items-center gap-1" />
                 {/* The sidebar carries its own profile row past `lg`, so this
                     would be a second way to the same place sitting right next
                     to the first. */}

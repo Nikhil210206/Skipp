@@ -1198,6 +1198,21 @@ html {
   border-radius: var(--radius-control);
 }
 
+/* While the bar is being dragged, the tab under the finger reads as the
+   selection. `aria-current` cannot say this: it still belongs to the route you
+   have not left yet, and it would be a lie to move it before you release.
+
+   Unlayered, so it beats the Tailwind colour utility the link carries. Both
+   halves are needed: one to light the tab being offered, and one to put the
+   route's own tab back down while the offer stands, or two tabs read as
+   chosen at once. */
+[data-nav-item][data-drag-active] {
+  color: var(--color-text-1);
+}
+[data-dragging] [data-nav-item]:not([data-drag-active]) {
+  color: var(--color-text-3);
+}
+
 /* Border weight, routed through the token. Outside @layer so it beats the
    utility, and defaulted to 1px so the existing look is untouched. */
 .border {

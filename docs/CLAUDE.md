@@ -345,6 +345,147 @@ is deployment and true push notifications.
 Entries below are newest first. **When something breaks, read the relevant entry first**: most
 oddities here (login shell, empty calendar, 429s, duplicated course codes) are already diagnosed.
 
+### DONE: The shell stopped rebuilding itself, and the bar became draggable (2026-08-15, later)
+
+Reported as the app not being snappy, with the animations feeling laggy. The
+tuning was not the problem and had not been for a long time: **every tab change
+was tearing down and rebuilding the entire chrome**, and every entry in this
+file about the transition is an attempt to hide that from the eye rather than
+remove it.
+
+**All six screens were sibling routes each rendering their own `AppShell`.** So
+a tap unmounted and remounted the masthead, the tab bar and its
+`ResizeObserver`, pull to refresh and its four listeners, the sidebar, the
+profile mark (a hash, a generated face and an SVG), the install gate, three
+sheets and their localStorage reads, on exactly the frames the transition needed
+to animate. Every piece of module scope bookkeeping in the app (`lastPlacement`,
+`riseAt`, `cooldownUntil`, `transitionEndsAt`) exists to survive that remount.
+
+**The fix is a route group.** `app/(app)/` with a `layout.tsx` holding the
+shell, which does not change a single URL: `(app)/dashboard` still serves
+`/dashboard`. React now keeps the shell mounted and swaps only `children`.
+**Verified by stamping the DOM**: after navigating, the `nav`, `header` and
+`main` nodes come back with the same stamps they were given before, where
+previously all three were new elements.
+
+**This is what the earlier notes stopped one step short of.** They diagnosed it
+exactly right ("it is the arriving page MOUNTING, not the transition", "no
+amount of tween tuning touches that") and then went on tuning tweens. The
+conclusion was correct and the action did not follow from it.
+
+**A layout cannot take props from its page**, so two things had to move:
+- **The section name is derived from the pathname** in the shell, with Home's
+  date as the one special case.
+- **`components/ShellAction.tsx` portals a screen's own control** into the
+  masthead. Only Schedule has one. The slot is published through a module store
+  read with `useSyncExternalStore`, matching `useSeenNotice`, because the
+  compiler lint rejects setState in an effect and refs attach bottom up, so the
+  page commits before the layout on the very first mount.
+
+**A guard that was correct became a bug the moment the remount stopped.**
+`BottomNav`'s `placed` ref meant "has THIS mount placed the indicator yet", and
+a component that mounts once answers yes for ever: the selection would have
+moved to the second tab and then frozen there permanently. It is keyed on the
+**pathname** now. **Anything holding per mount state in this shell needs the
+same read**, because "per mount" and "per navigation" are no longer the same
+thing.
+
+**Then the timings, which were only affordable because the lump was gone.**
+
+- **`PAGE` 0.62 to 0.3.** The old note says 0.46 was tried and measured worse,
+  which was true and is no longer: compressing a fixed lump of mount work into
+  fewer frames drops more of them, so the length was buying the mount somewhere
+  to hide. There is nothing left to hide.
+- **The arriving screen eases on `expo.out`, not the spring.** `back.out(1.7)`
+  spends its last third overshooting, which reads as weight over 620ms and as a
+  twitch over 300.
+- **`revealIn`'s blur is gone, and that is performance rather than taste.** It
+  animated `filter: blur(10px)` to zero on up to seventeen elements at once on
+  Home, on every arrival. A filter forces each element onto its own offscreen
+  buffer and re-rasterises it every frame, so it was the most expensive thing in
+  the app running at the moment there was least to spare. Transform and opacity
+  only now, which is the rule the greeting and `pageIn` already hold themselves
+  to.
+- **The stagger is a TOTAL, not a per element gap** (`stagger: { amount }`). A
+  per element gap silently made the busiest screen the slowest, which is
+  backwards: Home has seventeen reveal targets and was spending 0.84s of stagger
+  alone.
+- **`revealRows` is one `ScrollTrigger.batch` and is no longer deferred.** Both
+  halves were the same bug. A trigger per row measured the document N times, and
+  the fix at the time was to hold them all until the transition ended, which
+  traded jank for lateness: rows below the fold could not begin until the slide
+  was over. `transitionEndsAt` is deleted.
+
+**Measured at 4x CPU throttle**, matching this file's earlier benchmarks:
+median frame 16.7ms, p95 17.6ms, **at most one frame over 32ms per change and
+none over 50**, against the 42.5ms worst frame recorded before. Content settles
+in about 450 to 500ms where it used to take ~1.3s. Calendar is the exception at
+~980ms and that is its own mount cost, not the motion: it builds a 180 day grid,
+and its frame health is the same as everywhere else.
+
+**THE TAB BAR IS DRAGGABLE.** Put a finger on it and slide, and the selection
+comes with you; release on the section you want. Tapping is untouched.
+
+- **It is MAGNETIC, not free.** The indicator tracks the nearest tab rather than
+  sitting wherever the finger is. That is not a simplification, it is what keeps
+  it honest across nineteen themes: Brutal fills the pill and Clay rounds it, and
+  a filled block straddling two tabs states a selection that does not exist.
+  Every frame of the drag shows a real, choosable answer.
+- **Nothing re-renders React.** Positions go straight to the two marker elements
+  through GSAP and the tab under the finger is marked with a data attribute the
+  stylesheet reads, so crossing five tabs costs five tweens and no renders.
+- **`aria-current` is deliberately NOT moved during the drag.** It belongs to
+  the route you have not left yet, and moving it before release would be a lie.
+  Two unlayered rules in `globals.css` light the tab being offered and put the
+  route's own tab back down, or two tabs read as chosen at once.
+- **The bar carries `touch-action: none`**, which is the reliable way to claim a
+  horizontal drag on a sticky element: iOS decides at the START of a gesture
+  whether the page scrolls and ignores every later `preventDefault`.
+- **`useSwipeNav` now ignores touches starting inside `[data-nav]`.** The bar
+  sits inside that gesture's scope, so without it a finger moving along the bar
+  was read as a swipe between screens at the same time, and both navigated.
+- One haptic tick per tab crossed, so it can be felt as well as seen.
+- **A tap leads too**: the selection springs to the tapped tab before the route
+  changes, so the eye is already at the destination when the screen arrives.
+  Placing it afterwards made the indicator look like it was catching up with a
+  decision already taken.
+
+**TWO REAL BUGS WERE FOUND BY TESTING THE GESTURE, AND BOTH ARE THE USEFUL
+PART.**
+
+- **Reduced motion killed the whole gesture, not just its animation.** An early
+  return on `prefersReducedMotion()` sat above the tracking, so with the setting
+  on the bar engaged, lit the tab it was already on, and then ignored the finger
+  and refused to navigate on release. Reduced motion takes the TWEEN away and
+  never the function: it places instantly instead. **This is the same lesson
+  pull to refresh already had to learn** and it was reintroduced anyway, so it
+  is worth checking on every new gesture: a control that follows your finger is
+  feedback, not decoration.
+- **`touchcancel` was wired to the same handler as `touchend` and committed the
+  navigation.** A cancelled gesture is one taken away rather than finished (a
+  system edge swipe, an incoming call, a second finger), so it would have
+  navigated people to tabs they never released on. It abandons and puts the
+  indicator back on the open route.
+
+**Verified against the real account with the backend deliberately DOWN**, so no
+sign-in was possible at any point: all five tabs, the labels, the Schedule
+control appearing in the masthead and leaving with the screen, `/profile` deep
+linked with the indicator correctly hidden (no tab matches it), scroll resetting
+to the top on a tab change, no hidden content, no horizontal overflow, no
+console output. Drag verified in both directions, released at its origin,
+cancelled, and under real reduced motion. Checked visually in Brutal, where the
+filled pill lands squarely on one tab mid drag while the route is still the
+previous screen.
+
+**A note for anyone verifying this pane again.** The temporary `?fixture=1`
+bypass in `SessionContext` plus `lib/__devFixture.ts` is how the authed screens
+were driven without spending a sign-in; both were removed afterwards. Rebuild
+them rather than reloading the authed dev app against a live backend. And this
+Chrome reports `prefers-reduced-motion: reduce`, so an `initScript` patching
+`matchMedia` is needed for any motion measurement, and it only applies to the
+NEXT navigation: a later `navigate_page` silently drops it, which is exactly
+how the reduced motion bug above came to be noticed.
+
 ### DONE: A day off is the loudest date in the grid (2026-08-15)
 
 Reported as holidays being hard to spot quickly, blamed on the dot being small.

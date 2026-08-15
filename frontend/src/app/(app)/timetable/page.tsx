@@ -2,7 +2,7 @@
 
 import { useLayoutEffect, useRef, useState } from "react";
 import gsap from "gsap";
-import AppShell from "@/components/AppShell";
+import ShellAction from "@/components/ShellAction";
 import CustomClassSheet from "@/components/CustomClassSheet";
 import { useSession } from "@/context/SessionContext";
 import {
@@ -228,12 +228,10 @@ export default function TimetablePage() {
 
   if (dayOrders.length === 0) {
     return (
-      <AppShell section="Schedule">
-        <StateView
-          title="Timetable unavailable"
-          message="Your day-order grid did not load. Pull down to try again."
-        />
-      </AppShell>
+      <StateView
+        title="Timetable unavailable"
+        message="Your day-order grid did not load. Pull down to try again."
+      />
     );
   }
 
@@ -241,9 +239,10 @@ export default function TimetablePage() {
   const dayEnd = classes.at(-1)?.endMin ?? 0;
 
   return (
-    <AppShell
-      section="Schedule"
-      action={
+    <>
+      {/* Into the persistent masthead, beside the profile mark. The shell is a
+          layout now, so it cannot be handed this as a prop. */}
+      <ShellAction>
         <IconButton
           label="Download the full timetable"
           variant="quiet"
@@ -252,8 +251,7 @@ export default function TimetablePage() {
         >
           <IconDownload size={19} />
         </IconButton>
-      }
-    >
+      </ShellAction>
       <div ref={scope} className="flex flex-1 flex-col">
         {/* The day order, set as the poster. The picker beneath it is small on
             purpose: the numeral is the subject of the page, not the control. */}
@@ -384,7 +382,7 @@ export default function TimetablePage() {
         onClose={() => setSheetOpen(false)}
         onAdd={addCustomClass}
       />
-    </AppShell>
+    </>
   );
 }
 

@@ -2,7 +2,6 @@
 
 import { useRouter } from "next/navigation";
 import { useState } from "react";
-import AppShell from "@/components/AppShell";
 import { useSession } from "@/context/SessionContext";
 import { setTheme, THEMES, useTheme } from "@/lib/theme";
 import { revealIn, revealRows, useGsap } from "@/lib/motion";
@@ -75,7 +74,7 @@ export default function ProfilePage() {
   }
 
   return (
-    <AppShell section="Profile">
+    <>
       <div ref={scope} className="flex flex-1 flex-col">
         {/* Masthead.
             **Deliberately NOT a `data-reveal` target.** It is this screen's
@@ -360,7 +359,7 @@ export default function ProfilePage() {
       </div>
       <SkinPicker open={picking} onClose={() => setPicking(false)} />
       <FeedbackSheet open={saying} onClose={() => setSaying(false)} />
-    </AppShell>
+    </>
   );
 }
 

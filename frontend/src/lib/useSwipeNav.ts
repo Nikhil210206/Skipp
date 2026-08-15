@@ -63,6 +63,11 @@ export function useSwipeNav(
       // An open sheet or panel owns the gesture; so does a second finger.
       if (e.touches.length !== 1) return;
       if (document.querySelector("[role=dialog]")) return;
+      // The tab bar is inside this scope and runs its own horizontal drag, so
+      // without this a finger moving along the bar would be read as a swipe
+      // between screens at the same time as a drag along the bar, and the two
+      // would each navigate.
+      if ((e.target as Element | null)?.closest?.("[data-nav]")) return;
       startX = e.touches[0].clientX;
       startY = e.touches[0].clientY;
       axis = null;
