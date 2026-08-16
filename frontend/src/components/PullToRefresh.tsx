@@ -77,10 +77,31 @@ export default function PullToRefresh({
     // looking dead on any phone with the setting on. That is the likeliest
     // reason this read as broken while testing fine everywhere else.
     const reduced = prefersReducedMotion();
-    const setY = gsap.quickSetter(inner, "y", "px");
-    const setBadge = gsap.quickSetter(dot, "y", "px");
-    const setScale = gsap.quickSetter(dot, "scale");
-    const setOpacity = gsap.quickSetter(dot, "opacity");
+    // Written straight to the element rather than through GSAP.
+    //
+    // **This is the iOS bug.** The badge's opacity had TWO owners: the
+    // `opacity-0` class it is born with, and a `gsap.quickSetter`. Chrome
+    // resolved that in GSAP's favour and Safari did not, so on every iPhone the
+    // indicator was positioned perfectly and painted completely transparent for
+    // the whole gesture. Measured on an iPhone in both Safari and an installed
+    // PWA: at a pull of 88px, where the opacity should be 1, the computed value
+    // was 0 on every single frame while the translate was landing correctly.
+    //
+    // That is why the page moved under the finger and the refresh genuinely
+    // ran, yet the gesture read as completely dead: there was nothing to see.
+    // One owner, one write, and `translate3d` so the badge gets its own layer
+    // instead of being re-rasterised each frame.
+    const setBadgeState = (y: number) => {
+      const travel = Math.min(y, MAX) * 0.55;
+      const scale = 0.6 + Math.min(y / THRESHOLD, 1) * 0.4;
+      dot.style.transform = `translate3d(0,${travel}px,0) scale(${scale})`;
+      dot.style.opacity = String(Math.min(y / (THRESHOLD * 0.6), 1));
+    };
+    // Same reasoning for the content: an explicit 3D transform, so iOS gives
+    // the scrolling subtree a compositor layer instead of repainting it.
+    const setY = (y: number) => {
+      inner.style.transform = `translate3d(0,${y}px,0)`;
+    };
     const setRing = (p: number) => {
       if (ring.current) {
         ring.current.style.strokeDashoffset = String(RING_C * (1 - p));
@@ -110,9 +131,7 @@ export default function PullToRefresh({
       // anchor, which on a notched phone parks it inside the status bar for
       // most of the pull, so the indicator only appeared right at the end (or
       // not at all). Opacity is what hides it at rest, not position.
-      setBadge(Math.min(y, MAX) * 0.55);
-      setScale(0.6 + Math.min(y / THRESHOLD, 1) * 0.4);
-      setOpacity(Math.min(y / (THRESHOLD * 0.6), 1));
+      setBadgeState(y);
       setRing(Math.min(y / THRESHOLD, 1));
     };
     const settle = (to: number, done?: () => void) => {
@@ -270,13 +289,17 @@ export default function PullToRefresh({
         // it only travels to about 28px at the threshold it was never visible
         // at all: pulling just opened a blank band. Never position a pull
         // indicator against the raw top of a full height wrapper.
-        style={{ top: "env(safe-area-inset-top)" }}
+        // Opacity starts here and is owned by the gesture from then on. It used
+        // to be an `opacity-0` CLASS, which gave the property two owners and is
+        // exactly what made the indicator invisible on iOS: the gesture's write
+        // never won, so the page moved under the finger with nothing to see.
+        style={{ top: "env(safe-area-inset-top)", opacity: 0 }}
         // Above the masthead. At z-20 it tied with AppShell's sticky header and
         // lost, because the header comes later in the DOM: the indicator spent
         // its whole travel behind an opaque bar and was never visible, however
         // correctly it moved. Ties in the same stacking context are decided by
         // document order, so equal z-index is not equal.
-        className="pointer-events-none absolute inset-x-0 z-40 flex justify-center opacity-0"
+        className="pointer-events-none absolute inset-x-0 z-40 flex justify-center"
       >
         {/* The outer element is GSAP's (y, scale, opacity). Everything that
             reacts to state is styled on this inner pill instead, so the two

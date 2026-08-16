@@ -345,6 +345,69 @@ is deployment and true push notifications.
 Entries below are newest first. **When something breaks, read the relevant entry first**: most
 oddities here (login shell, empty calendar, 429s, duplicated course codes) are already diagnosed.
 
+### DONE: The pull was invisible on iPhone, and it was never the gesture (2026-08-16)
+
+Reported as pull to refresh working on Android and not on iPhone, with the app
+also feeling less smooth there. **The gesture was working perfectly on iOS the
+whole time. Nothing was drawn, so there was nothing to see.**
+
+**Reproduced on a real iPhone simulator**, in Safari AND in a genuinely
+installed home screen web app, which is the environment that matters. An on
+screen readout (rebuilt from the `?pulldebug` idea in the entry below) printed
+what WebKit actually saw:
+
+    reduced=false standalone=true
+    START st=0 doc=HTML bodyST=0 winY=0
+    MV1 dy=12 canc=true -> claim -> prevented=true -> axis=y mode=pull
+    END pulled=116 engaged=true thr=68 fire=true
+
+Every part of the gesture was right: iOS handed us the touch, `preventDefault`
+took, the threshold armed, and the refresh actually ran. **This contradicts the
+two entries below it**, which assumed iOS was stealing the gesture. That was
+true once and is not the current fault, so do not go back to fighting
+`touch-action` and first-touchmove claiming: those fixes are in and they work.
+
+**The bug was that the indicator painted at `opacity: 0` on every frame.**
+Measured directly: at a pull of 88px, where the opacity should be 1, the
+computed value was 0, while the badge's `translate` was landing correctly at the
+same instant. So the page moved under the finger with a blank band above it,
+which reads as a broken gesture rather than a missing decoration.
+
+**The cause is the standing rule in section 8, in a new disguise: the badge's
+opacity had TWO owners.** It was born with an `opacity-0` class and then written
+by `gsap.quickSetter(dot, "opacity")`. Chrome resolved that in GSAP's favour and
+WebKit did not.
+
+**The distinction that matters, because three other places do this safely:** a
+real `gsap.to` / `gsap.set` tween DOES win over the class (the nav pill, the nav
+dot and `ProfileMark`'s ring all carry `opacity-0` and are visibly fine on
+iOS). It was **`quickSetter` specifically** that failed to apply, and only for
+`opacity`: the transform quickSetters on the same element worked. If a
+quickSetter is ever reached for again, check it on a phone rather than in
+Chrome, and prefer a plain style write.
+
+**The fix is one owner and one write.** The badge's transform and opacity are
+set straight on the element, the `opacity-0` class is gone and the initial 0 is
+inline, so nothing can outrank it. Both writes use `translate3d`, so the badge
+and the scrolling content get compositor layers instead of being re-rasterised
+each frame, which is the one part of this that is also a smoothness fix.
+
+**Verified on the simulator after the change: peak opacity 1.00**, against 0 on
+every frame before it. The tab bar drag from the entry below was checked on real
+WebKit at the same time and navigates correctly.
+
+**Honest limit: the general "not smooth" report is NOT settled by this.** A
+simulator runs on the Mac's GPU and is not a frame rate proxy for a handset, so
+what is fixed here is a real drawing bug plus the compositing of the pull. If
+the app still reads as sluggish on a real iPhone, that needs a frame sampler on
+the device itself, not another fix aimed from here.
+
+**Two notes for anyone testing iOS again.** The install gate correctly appears
+in Safari and not in the installed app, so it has to be dismissed before the
+authed screens are reachable; and **HMR does not reach an installed web app**,
+so a code change needs the URL opened afresh rather than a resume, which is the
+same "an installed iOS PWA does not reload" trap recorded further down.
+
 ### DONE: The shell stopped rebuilding itself, and the bar became draggable (2026-08-15, later)
 
 Reported as the app not being snappy, with the animations feeling laggy. The
