@@ -207,6 +207,22 @@ export function SessionProvider({ children }: { children: React.ReactNode }) {
   // it's stale, so reloads within a session cost zero Zoho sign-ins.
   useEffect(() => {
     let cancelled = false;
+    // TEMPORARY dev bypass, remove with lib/__devFixture.ts.
+    if (
+      process.env.NODE_ENV === "development" &&
+      typeof window !== "undefined" &&
+      window.location.search.includes("fixture=1")
+    ) {
+      void import("@/lib/__devFixture").then(({ DEV_SNAPSHOT }) => {
+        if (cancelled) return;
+        setCreds({ username: "dev", password: "dev" });
+        setSnapshot(DEV_SNAPSHOT);
+        setRestoring(false);
+      });
+      return () => {
+        cancelled = true;
+      };
+    }
     (async () => {
       const saved = await loadCredentials();
       if (!saved) {

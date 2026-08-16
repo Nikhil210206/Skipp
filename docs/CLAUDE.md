@@ -345,6 +345,60 @@ is deployment and true push notifications.
 Entries below are newest first. **When something breaks, read the relevant entry first**: most
 oddities here (login shell, empty calendar, 429s, duplicated course codes) are already diagnosed.
 
+### DONE: Marks is a contents page again, one line per subject (2026-08-17)
+
+Reported bluntly: "this marks page i hate it, its too much info and too clumsy".
+It was, and the count is the argument. **Every subject stacked six blocks**: the
+title and score, a meter, the component list, a line about the internals still
+to come, a six column grade table, and a two line caption explaining that table.
+Six subjects is roughly forty lines each, and **the caption was repeated
+verbatim under all six**. Nothing in it was wrong. It was all shown at once,
+which is what made it unreadable.
+
+**One line per subject now: title, score, grade.** The rest is the answer to a
+question about ONE subject, so it waits until that subject is tapped. Measured
+on a 390px phone: the whole page is **844px, exactly one screen**, against a
+scroll of several thousand before.
+
+**One open at a time.** Letting every row stand open rebuilds the wall it
+replaced, so opening a second closes the first. Verified: open row 0 (panel
+226px), open row 1 and row 0 returns to 0, tap the open row to close it.
+
+**The grade table and its caption moved inside the disclosure**, where the
+caption is stated once instead of six times. The "on track" badge that used to
+sit beside it is gone: the row above already states the grade, and repeating it
+inside the thing the row opens is the same duplication in miniature.
+
+**GPA was removed on request.** It was a projection built on projections (a
+grade each subject is on track for, itself assuming every remaining internal
+mark) quoted to two decimals next to a figure that is simply counted. The
+stacked fraction stays as the screen's one poster figure.
+
+**The disclosure animates on `grid-template-rows`, not a height tween**, so it
+opens to its own natural height with nothing having to measure the content
+first. The inner element owns the `overflow: hidden`, or the panel is not
+actually zero high when closed.
+
+**TITLES WRAP, THEY DO NOT TRUNCATE, and the fix is a flexbox subtlety worth
+keeping.** SRM course names are long: "Formal Language and Automata" and
+"Database Management Systems" were both cut to "Formal Language …" on a phone,
+which is the one thing a subject line may not do, since the name is what you are
+scanning for.
+
+The dot leader is `flex-1`, so its **basis is 0, and flexbox weights shrinkage
+by basis: it therefore never shrinks**. A `min-w-6` floor on it was consequently
+taken straight out of the title, and in the card themes, which spend another
+28px on padding, that squeezed the title box to 90px while "Mathematics" needs
+103, so the word spilled across the dots. The leader carries **no minimum**: it
+grows into whatever slack the row has and collapses to nothing when there is
+none. Decoration yields, content does not.
+
+Measured at 320 and 390 across Ink, Brutal, Clay, Stone, Terminal and Paper:
+**no title spills in any theme at either width**, no horizontal overflow, and
+every tap target is 55px or more. At 390 in Ink the single line rows still get
+real leaders (44 to 89px) while the two wrapped rows correctly get none, so the
+contents page reads as one wherever there is room for it.
+
 ### DONE: The pull was invisible on iPhone, and it was never the gesture (2026-08-16)
 
 Reported as pull to refresh working on Android and not on iPhone, with the app
