@@ -35,6 +35,24 @@ class StudentPortalParseRequest(_CamelModel):
         default=None, description="studentInternalMarkDetails.jsp body, if fetched"
     )
 
+class StudentPortalCaptchaResponse(_CamelModel):
+    """The initialized session and captcha image for a backend login."""
+    session_cookie: str
+    domain_field: str
+    captcha_field: str
+    random_delim: str
+    captcha_base64: str
+
+class StudentPortalLoginRequest(_CamelModel):
+    """The submitted credentials, captcha, and session metadata to complete login."""
+    username: str
+    password: str
+    captcha: str
+    session_cookie: str
+    domain_field: str
+    captcha_field: str
+    random_delim: str
+
 
 class StudentPortalSnapshot(_CamelModel):
     """What one signed-in WebView session yields, parsed.

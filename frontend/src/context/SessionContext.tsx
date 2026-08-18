@@ -23,10 +23,11 @@ import type {
   SectionStatus,
   Snapshot,
   StudentInfo,
+  StudentPortalSnapshot,
+  StudentPortalLoginRequest,
   Timetable,
 } from "@/types";
-import { AuthError, fetchSnapshot } from "@/lib/api";
-import { canImportStudentPortal, importStudentPortal } from "@/lib/studentPortal";
+import { AuthError, fetchSnapshot, submitStudentPortalLogin } from "@/lib/api";
 import {
   clearPortalOverride,
   enrichTitles,
@@ -140,7 +141,7 @@ type SessionValue = {
   /** True only in the native shell, where a real portal WebView login works. */
   canImportAttendance: boolean;
   /** Open the portal login and import attendance. Native only. */
-  importAttendance: () => Promise<void>;
+  importAttendance: (req: StudentPortalLoginRequest) => Promise<void>;
   /** Discard imported attendance and fall back to academia. */
   clearImportedAttendance: () => void;
   marks: Marks | null;
@@ -344,8 +345,8 @@ export function SessionProvider({ children }: { children: React.ReactNode }) {
   // (native only, see lib/studentPortal.ts). Kept apart from `refresh` on
   // purpose: it opens a login sheet and needs a human, so it can never run on a
   // timer or on foreground the way an academia refresh does.
-  const importAttendance = useCallback(async (): Promise<void> => {
-    const sp = await importStudentPortal();
+  const importAttendance = useCallback(async (req: StudentPortalLoginRequest): Promise<void> => {
+    const sp = await submitStudentPortalLogin(req);
     if (sp.attendanceStatus !== "ready" || !sp.attendance) {
       throw new Error(
         sp.attendanceMessage ??
@@ -443,7 +444,7 @@ export function SessionProvider({ children }: { children: React.ReactNode }) {
       attendanceMessage: usePortal ? null : (snapshot?.attendanceMessage ?? null),
       attendanceSource: academiaReady ? "academia" : usePortal ? "portal" : null,
       reportedPeriod: usePortal ? portalAtt.reportedPeriod : null,
-      canImportAttendance: canImportStudentPortal(),
+      canImportAttendance: true,
       importAttendance,
       clearImportedAttendance,
       marks: usePortalMarks ? portalAtt.marks : (snapshot?.marks ?? null),

@@ -501,25 +501,38 @@ def _sp_rate_check(request: Request) -> None:
     _prune(now)
 
 
-@app.post("/sp/parse", response_model=StudentPortalSnapshot)
-def sp_parse(req: StudentPortalParseRequest, request: Request) -> StudentPortalSnapshot:
-    """Parse report HTML a real signed-in WebView captured, into attendance JSON.
+from core.student_portal_client import init_login_session, submit_login_and_fetch, StudentPortalClientError
+from models.student_portal import StudentPortalCaptchaResponse, StudentPortalLoginRequest
 
-    Course titles are NOT enriched here: the backend has no timetable in this
-    request. The portal SHOUTS course names anyway, so the app enriches them
-    from academia's own course list on the client, where it is free, exactly as
-    /refresh already does for academia's own marks table.
-    """
+@app.get("/sp/captcha", response_model=StudentPortalCaptchaResponse)
+def sp_captcha() -> StudentPortalCaptchaResponse:
+    """Initialize a student portal login session and return the captcha."""
+    try:
+        return init_login_session()
+    except StudentPortalClientError as e:
+        raise _fail(502, "upstream_error", str(e))
+
+
+@app.post("/sp/login", response_model=StudentPortalSnapshot)
+def sp_login(req: StudentPortalLoginRequest, request: Request) -> StudentPortalSnapshot:
+    """Submit credentials and captcha, simulate anti-bot payload, and fetch attendance."""
     _sp_rate_check(request)
 
-    # A signed-out WebView lands on the login page, so the "report" it scraped
-    # would be that form. Caught here rather than parsed into an empty snapshot,
-    # which would read as "no classes" instead of "sign in again".
-    if sp_looks_signed_out(req.attendance_html):
+    try:
+        att_html, marks_html = submit_login_and_fetch(req)
+    except StudentPortalClientError as e:
+        msg = str(e)
+        if "Invalid captcha" in msg:
+            raise _fail(401, "invalid_captcha", "Incorrect captcha. Please try again.")
+        if "Invalid username or password" in msg:
+            raise _fail(401, "invalid_credentials", "Incorrect NetID or password.")
+        raise _fail(401, "login_failed", msg)
+
+    if sp_looks_signed_out(att_html):
         raise _fail(
             401,
             "session_expired",
-            "The student portal session has expired. Open it and sign in again.",
+            "The student portal session expired immediately after login.",
         )
 
     attendance = marks = None
@@ -529,15 +542,15 @@ def sp_parse(req: StudentPortalParseRequest, request: Request) -> StudentPortalS
     period = None
 
     try:
-        attendance = parse_sp_attendance(req.attendance_html)
-        period = sp_reported_period(req.attendance_html)
+        attendance = parse_sp_attendance(att_html)
+        period = sp_reported_period(att_html)
         att_status = "ready"
     except SPAttendanceUnavailable as e:
         att_status, att_msg = "gated", str(e)
 
-    if req.marks_html and not sp_looks_signed_out(req.marks_html):
+    if marks_html and not sp_looks_signed_out(marks_html):
         try:
-            marks = parse_sp_marks(req.marks_html)
+            marks = parse_sp_marks(marks_html)
             marks_status = "ready"
         except SPMarksUnavailable as e:
             marks_status, marks_msg = "gated", str(e)

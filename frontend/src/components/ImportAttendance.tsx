@@ -1,52 +1,63 @@
 "use client";
 
-// The entry point for pulling attendance from the student portal when academia
-// has stopped publishing it. It appears inside the attendance gated/error state
-// (as the StateView action) and does two different things depending on where
-// the app is running:
-//
-//   - In the native Skipp app: a button that opens the real portal login in an
-//     in-app WebView, then imports what a real signed-in session returns.
-//   - On the web PWA: no button (a browser cannot read a cross-origin login),
-//     just a line telling the student the app can do it.
-//
-// See lib/studentPortal.ts for why the native shell is required.
-
-import { useState } from "react";
-
+import { useState, useRef, useEffect } from "react";
 import { Button } from "@/components/ui";
 import { Sheet } from "@/components/ui/Overlay";
 import { useSession } from "@/context/SessionContext";
-import { ImportCancelled } from "@/lib/studentPortal";
+import { initStudentPortalLogin } from "@/lib/api";
+import type { StudentPortalCaptchaResponse } from "@/types";
 
 export function ImportAttendanceAction() {
-  const { canImportAttendance, importAttendance } = useSession();
+  const { importAttendance } = useSession();
   const [open, setOpen] = useState(false);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  
+  const [sessionData, setSessionData] = useState<StudentPortalCaptchaResponse | null>(null);
+  const [username, setUsername] = useState("");
+  const [password, setPassword] = useState("");
+  const [captcha, setCaptcha] = useState("");
 
-  if (!canImportAttendance) {
-    return (
-      <p className="max-w-[34ch] text-callout text-text-3">
-        Attendance is on the SRM student portal right now. Open Skipp on your
-        phone to sign in and import it.
-      </p>
-    );
-  }
+  const loadCaptcha = async () => {
+    setBusy(true);
+    setError(null);
+    setSessionData(null);
+    setCaptcha("");
+    try {
+      const data = await initStudentPortalLogin();
+      setSessionData(data);
+    } catch (e) {
+      setError(e instanceof Error ? e.message : "Failed to load captcha.");
+    } finally {
+      setBusy(false);
+    }
+  };
 
-  const run = async () => {
+  const handleOpen = () => {
+    setOpen(true);
+    if (!sessionData) {
+      loadCaptcha();
+    }
+  };
+
+  const run = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!sessionData || !username || !password || !captcha) return;
+    
     setBusy(true);
     setError(null);
     try {
-      await importAttendance();
-      setOpen(false); // success: the screen re-renders with the attendance
-    } catch (e) {
-      // Closing the login is a choice, not a failure, so it says nothing.
-      if (e instanceof ImportCancelled) {
-        setOpen(false);
-      } else {
-        setError(e instanceof Error ? e.message : "Import failed. Try again.");
-      }
+      await importAttendance({
+        username: username.trim(),
+        password,
+        captcha,
+        ...sessionData
+      });
+      setOpen(false);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Import failed. Try again.");
+      // Refresh captcha on failure
+      loadCaptcha();
     } finally {
       setBusy(false);
     }
@@ -54,7 +65,7 @@ export function ImportAttendanceAction() {
 
   return (
     <>
-      <Button variant="outline" onClick={() => setOpen(true)}>
+      <Button variant="outline" onClick={handleOpen}>
         Import from student portal
       </Button>
 
@@ -64,11 +75,6 @@ export function ImportAttendanceAction() {
           if (!busy) setOpen(false);
         }}
         title="Get your attendance"
-        footer={
-          <Button variant="primary" onClick={run} disabled={busy}>
-            {busy ? "Opening portal…" : "Sign in to student portal"}
-          </Button>
-        }
       >
         <div className="flex flex-col gap-5 pb-2">
           <p className="text-body text-text-2">
@@ -76,85 +82,252 @@ export function ImportAttendanceAction() {
             from the SRM student portal instead.
           </p>
 
-          <ol className="flex flex-col gap-4">
-            <Step n={1}>
-              Tap the button below and sign in to the student portal, the real
-              login with your captcha.
-            </Step>
-            <Step n={2}>
-              That is it. Your attendance shows up right here, and refreshes
-              whenever you tap import again.
-            </Step>
-          </ol>
+          {!sessionData && busy ? (
+            <div className="flex items-center justify-center p-6">
+              <span className="text-callout text-text-3">Loading portal...</span>
+            </div>
+          ) : sessionData ? (
+            <form onSubmit={run} className="flex flex-col gap-3">
+              <Field
+                id="username"
+                label="SRM Net ID"
+                suffix="@srmist.edu.in"
+                value={username}
+                onChange={setUsername}
+                autoComplete="username"
+              />
+              <Field
+                id="password"
+                label="Password"
+                value={password}
+                onChange={setPassword}
+                type="password"
+                placeholder="••••••••"
+                autoComplete="current-password"
+              />
+              
+              <div className="flex flex-col gap-2 rounded-control border border-line bg-ink-1 p-3">
+                <span className="text-label uppercase text-text-3">Captcha</span>
+                <img 
+                  src={sessionData.captchaBase64} 
+                  alt="Captcha" 
+                  className="h-12 w-32 rounded bg-ink-2 object-cover mix-blend-screen invert" 
+                />
+                <input
+                  type="text"
+                  value={captcha}
+                  onChange={(e) => setCaptcha(e.target.value)}
+                  placeholder="Type characters above"
+                  className="mt-1 w-full appearance-none bg-transparent text-headline text-text-1 outline-none placeholder:text-text-3"
+                  required
+                />
+              </div>
 
-          <p className="text-callout text-text-3">
-            Your portal password is typed on the portal, never saved by Skipp.
+              {error && <p className="text-callout text-risk mt-1">{error}</p>}
+              
+              <div className="mt-2">
+                <Button type="submit" variant="primary" size="lg" full disabled={busy || !username || !password || !captcha}>
+                  {busy ? "Signing in…" : "Import"}
+                </Button>
+              </div>
+            </form>
+          ) : (
+            <div className="flex flex-col items-center gap-3 p-4">
+              {error && <p className="text-callout text-risk">{error}</p>}
+              <Button onClick={loadCaptcha} variant="secondary">Try Again</Button>
+            </div>
+          )}
+
+          <p className="text-callout text-text-3 mt-2">
+            Your portal password is only used for this login and is never saved by Skipp.
           </p>
-
-          {error && <p className="text-callout text-risk">{error}</p>}
         </div>
       </Sheet>
     </>
   );
 }
 
-function Step({ n, children }: { n: number; children: React.ReactNode }) {
+function Field({
+  id,
+  label,
+  value,
+  onChange,
+  placeholder,
+  type = "text",
+  autoComplete,
+  suffix,
+}: {
+  id: string;
+  label: string;
+  value: string;
+  onChange: (v: string) => void;
+  placeholder?: string;
+  type?: string;
+  autoComplete?: string;
+  suffix?: string;
+}) {
+  const input = useRef<HTMLInputElement>(null);
+
   return (
-    <li className="flex items-start gap-3">
-      <span className="mt-[2px] flex h-6 w-6 shrink-0 items-center justify-center rounded-full border border-line text-label text-text-2 tnum">
-        {n}
-      </span>
-      <span className="text-body text-text-1">{children}</span>
-    </li>
+    <label
+      htmlFor={id}
+      className="block cursor-text rounded-control border border-line bg-ink-1 px-4 py-3 transition-colors focus-within:border-accent"
+    >
+      <span className="block text-label uppercase text-text-3">{label}</span>
+      {suffix ? (
+        <div className="mt-1.5 flex items-baseline gap-1">
+          <input
+            ref={input}
+            id={id}
+            type={type}
+            value={value}
+            autoComplete={autoComplete}
+            onChange={(e) => onChange(e.target.value)}
+            className="min-w-0 flex-1 appearance-none bg-transparent text-headline text-text-1 outline-none placeholder:text-text-3"
+          />
+          <span className="shrink-0 text-headline text-text-3">{suffix}</span>
+        </div>
+      ) : (
+        <input
+          id={id}
+          type={type}
+          value={value}
+          autoComplete={autoComplete}
+          onChange={(e) => onChange(e.target.value)}
+          placeholder={placeholder}
+          className="mt-1.5 w-full appearance-none bg-transparent text-headline text-text-1 outline-none placeholder:text-text-3"
+        />
+      )}
+    </label>
   );
 }
 
-/**
- * A quiet note shown above portal-sourced attendance: where it came from and
- * the window it covers (the portal lags a few days), with a way to re-import or
- * drop back to academia. Rendered only when `attendanceSource === "portal"`.
- */
 export function PortalSourceNote() {
-  const { reportedPeriod, canImportAttendance, importAttendance, clearImportedAttendance } =
-    useSession();
+  const { reportedPeriod, importAttendance, clearImportedAttendance } = useSession();
   const [busy, setBusy] = useState(false);
+  const [open, setOpen] = useState(false);
+  const [sessionData, setSessionData] = useState<StudentPortalCaptchaResponse | null>(null);
+  const [username, setUsername] = useState("");
+  const [password, setPassword] = useState("");
+  const [captcha, setCaptcha] = useState("");
+  const [error, setError] = useState<string | null>(null);
 
-  const reimport = async () => {
+  const loadCaptcha = async () => {
     setBusy(true);
+    setError(null);
     try {
-      await importAttendance();
-    } catch {
-      /* a cancel or failure just leaves the current data in place */
+      const data = await initStudentPortalLogin();
+      setSessionData(data);
+    } catch (e) {
+      setError(e instanceof Error ? e.message : "Failed to load captcha.");
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  const handleOpen = () => {
+    setOpen(true);
+    setCaptcha("");
+    loadCaptcha();
+  };
+
+  const run = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!sessionData || !username || !password || !captcha) return;
+    
+    setBusy(true);
+    setError(null);
+    try {
+      await importAttendance({
+        username: username.trim(),
+        password,
+        captcha,
+        ...sessionData
+      });
+      setOpen(false);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Update failed. Try again.");
+      loadCaptcha();
     } finally {
       setBusy(false);
     }
   };
 
   return (
-    <div className="flex items-center justify-between gap-3 border-t border-line-soft pt-3">
-      <p className="text-callout text-text-3">
-        From the student portal
-        {reportedPeriod ? ` · ${reportedPeriod}` : ""}
-      </p>
-      <div className="flex items-center gap-4">
-        {canImportAttendance && (
+    <>
+      <div className="flex items-center justify-between gap-3 border-t border-line-soft pt-3">
+        <p className="text-callout text-text-3">
+          From the student portal
+          {reportedPeriod ? ` · ${reportedPeriod}` : ""}
+        </p>
+        <div className="flex items-center gap-4">
           <button
             type="button"
-            onClick={reimport}
+            onClick={handleOpen}
             disabled={busy}
             className="text-callout text-text-2 underline underline-offset-4 disabled:opacity-50"
           >
-            {busy ? "Updating…" : "Update"}
+            Update
           </button>
-        )}
-        <button
-          type="button"
-          onClick={clearImportedAttendance}
-          className="text-callout text-text-3 underline underline-offset-4"
-        >
-          Clear
-        </button>
+          <button
+            type="button"
+            onClick={clearImportedAttendance}
+            className="text-callout text-text-3 underline underline-offset-4"
+          >
+            Clear
+          </button>
+        </div>
       </div>
-    </div>
+      
+      <Sheet open={open} onClose={() => { if (!busy) setOpen(false); }} title="Update attendance">
+        <div className="flex flex-col gap-5 pb-2">
+          {!sessionData && busy ? (
+            <div className="flex items-center justify-center p-6">
+              <span className="text-callout text-text-3">Loading portal...</span>
+            </div>
+          ) : sessionData ? (
+            <form onSubmit={run} className="flex flex-col gap-3">
+              <Field
+                id="re-username"
+                label="SRM Net ID"
+                suffix="@srmist.edu.in"
+                value={username}
+                onChange={setUsername}
+              />
+              <Field
+                id="re-password"
+                label="Password"
+                value={password}
+                onChange={setPassword}
+                type="password"
+              />
+              <div className="flex flex-col gap-2 rounded-control border border-line bg-ink-1 p-3">
+                <span className="text-label uppercase text-text-3">Captcha</span>
+                <img src={sessionData.captchaBase64} alt="Captcha" className="h-12 w-32 rounded bg-ink-2 object-cover mix-blend-screen invert" />
+                <input
+                  type="text"
+                  value={captcha}
+                  onChange={(e) => setCaptcha(e.target.value)}
+                  placeholder="Type characters above"
+                  className="mt-1 w-full appearance-none bg-transparent text-headline text-text-1 outline-none placeholder:text-text-3"
+                  required
+                />
+              </div>
+              {error && <p className="text-callout text-risk mt-1">{error}</p>}
+              <div className="mt-2">
+                <Button type="submit" variant="primary" size="lg" full disabled={busy || !username || !password || !captcha}>
+                  {busy ? "Signing in…" : "Update"}
+                </Button>
+              </div>
+            </form>
+          ) : (
+            <div className="flex flex-col items-center gap-3 p-4">
+              {error && <p className="text-callout text-risk">{error}</p>}
+              <Button onClick={loadCaptcha} variant="secondary">Try Again</Button>
+            </div>
+          )}
+        </div>
+      </Sheet>
+    </>
   );
 }

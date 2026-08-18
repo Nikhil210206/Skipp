@@ -118,6 +118,23 @@ export type CustomClass = {
 export type SectionStatus = "ready" | "gated" | "error";
 
 // ---- Student portal fallback (backend/models/student_portal.py) ----
+
+export type StudentPortalCaptchaResponse = {
+  sessionCookie: string;
+  domainField: string;
+  captchaField: string;
+  randomDelim: string;
+  captchaBase64: string;
+};
+
+export type StudentPortalLoginRequest = Credentials & {
+  captcha: string;
+  sessionCookie: string;
+  domainField: string;
+  captchaField: string;
+  randomDelim: string;
+};
+
 // Parsed from report HTML a real in-app WebView login captured, when academia
 // has stopped publishing attendance but the student portal has not. Carries no
 // timetable/calendar: this source has none, and the app merges it into what

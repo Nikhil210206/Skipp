@@ -2,7 +2,13 @@
 // Credentials are POSTed per request (the backend is stateless) over HTTPS and
 // never stored server-side. See CLAUDE.md §3.
 
-import type { Credentials, Snapshot, StudentPortalSnapshot } from "@/types";
+import type {
+  Credentials,
+  Snapshot,
+  StudentPortalSnapshot,
+  StudentPortalCaptchaResponse,
+  StudentPortalLoginRequest,
+} from "@/types";
 
 // Backend base URL. Prefer an explicit env (prod), else talk to the backend on
 // the SAME host the app was opened from (port 8000), so it works on the laptop
@@ -127,25 +133,42 @@ export const fetchSnapshot = (c: Credentials) => post<Snapshot>("/refresh", c);
 // ---- Student portal fallback -------------------------------------------
 
 /**
- * Parse report HTML that a real, signed-in student portal WebView captured.
- *
- * This carries NO credentials: the student signed in for real inside the
- * in-app WebView (see lib/studentPortal.ts), which fetched the report pages
- * same-origin, and this only turns their HTML into JSON. `sessionExpired` is
- * its own case because the fix (open the portal, sign in again) differs from a
- * gated section (nothing to do but wait).
+ * Initialize a login session for the student portal.
+ * Fetches the session cookies, anti-bot parameters, and the base64 captcha image.
  */
-export async function parseStudentPortal(
-  attendanceHtml: string,
-  marksHtml?: string,
+export async function initStudentPortalLogin(): Promise<StudentPortalCaptchaResponse> {
+  const base = apiBase();
+  let res: Response;
+  try {
+    res = await fetch(`${base}/sp/captcha`, {
+      method: "GET",
+    });
+  } catch {
+    throw new PortalError("Can't reach Skipp. Check your connection.", "unreachable");
+  }
+  if (res.ok) return (await res.json()) as StudentPortalCaptchaResponse;
+
+  const parsed = await res.json().catch(() => undefined);
+  const detail: string | undefined = typeof parsed?.detail === "string" ? parsed.detail : undefined;
+  throw new PortalError(detail ?? `Couldn't connect to portal (${res.status}).`, "portal");
+}
+
+/**
+ * Submit the login credentials and captcha for the student portal.
+ *
+ * The backend simulates the anti-bot tokens and logs in natively, fetching
+ * the attendance and marks HTML in the process.
+ */
+export async function submitStudentPortalLogin(
+  req: StudentPortalLoginRequest,
 ): Promise<StudentPortalSnapshot> {
   const base = apiBase();
   let res: Response;
   try {
-    res = await fetch(`${base}/sp/parse`, {
+    res = await fetch(`${base}/sp/login`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ attendanceHtml, marksHtml: marksHtml ?? null }),
+      body: JSON.stringify(req),
     });
   } catch {
     throw new PortalError("Can't reach Skipp. Check your connection.", "unreachable");
@@ -157,8 +180,18 @@ export async function parseStudentPortal(
   const detail: string | undefined =
     typeof raw === "string" ? raw : (raw?.message as string | undefined);
   const code: string | undefined = typeof raw === "object" ? raw?.code : undefined;
-  if (res.status === 401 && code === "session_expired") {
-    throw new AuthError(detail ?? "Sign in to the student portal again.", "wrong_password");
+  
+  if (res.status === 401) {
+    if (code === "invalid_captcha") {
+      throw new AuthError(detail ?? "Incorrect captcha. Please try again.", "captcha");
+    }
+    if (code === "invalid_credentials") {
+      throw new AuthError(detail ?? "Wrong SRM net id or password.", "wrong_password");
+    }
+    if (code === "session_expired") {
+      throw new AuthError(detail ?? "Sign in to the student portal again.", "wrong_password");
+    }
+    throw new AuthError(detail ?? "Sign-in failed.", "wrong_password");
   }
   throw new PortalError(detail ?? `Couldn't read the portal (${res.status}).`, "portal");
 }
