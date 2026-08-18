@@ -138,23 +138,28 @@ def submit_login_and_fetch(req_data: StudentPortalLoginRequest) -> Tuple[str, Op
     except urllib.error.HTTPError as e:
         raise StudentPortalClientError(f"Login request failed: {e.code}") from e
         
-    def merge_cookies(cookie_str: str, new_headers: list[str] | None) -> str:
-        cookies = {}
-        if cookie_str:
-            for part in cookie_str.split(';'):
-                part = part.strip()
-                if '=' in part:
-                    k, v = part.split('=', 1)
-                    cookies[k] = v
-        if new_headers:
-            for header in new_headers:
-                main_part = header.split(';')[0].strip()
-                if '=' in main_part:
-                    k, v = main_part.split('=', 1)
-                    cookies[k] = v
-        return '; '.join([f"{k}={v}" for k, v in cookies.items()])
-        
-    current_cookie_str = merge_cookies(req_data.session_cookie, set_cookies)
+    # Create a CookieJar opener to handle redirects and cookies automatically
+    import http.cookiejar
+    cj = http.cookiejar.CookieJar()
+    opener = urllib.request.build_opener(urllib.request.HTTPCookieProcessor(cj))
+    
+    # Load initial cookies into CookieJar
+    if req_data.session_cookie:
+        for part in req_data.session_cookie.split(';'):
+            part = part.strip()
+            if '=' in part:
+                k, v = part.split('=', 1)
+                ck = http.cookiejar.Cookie(version=0, name=k, value=v, port=None, port_specified=False, domain='sp.srmist.edu.in', domain_specified=False, domain_initial_dot=False, path='/', path_specified=False, secure=False, expires=None, discard=True, comment=None, comment_url=None, rest={'HttpOnly': None}, rfc2109=False)
+                cj.set_cookie(ck)
+                
+    # Update CookieJar with the cookies from the POST response
+    if set_cookies:
+        for header in set_cookies:
+            main_part = header.split(';')[0].strip()
+            if '=' in main_part:
+                k, v = main_part.split('=', 1)
+                ck = http.cookiejar.Cookie(version=0, name=k, value=v, port=None, port_specified=False, domain='sp.srmist.edu.in', domain_specified=False, domain_initial_dot=False, path='/', path_specified=False, secure=False, expires=None, discard=True, comment=None, comment_url=None, rest={'HttpOnly': None}, rfc2109=False)
+                cj.set_cookie(ck)
         
     if "Invalid credentials" in result_html or "invalid credentials" in result_html.lower():
         print("Login failed: Invalid credentials found in HTML")
@@ -177,16 +182,16 @@ def submit_login_and_fetch(req_data: StudentPortalLoginRequest) -> Tuple[str, Op
             f"{SP_BASE_URL}/srmiststudentportal/students/loginManager/youLogin.jsp",
             data=b"",
             headers={
+                'Content-Type': 'application/x-www-form-urlencoded',
                 'User-Agent': UA,
-                'Cookie': current_cookie_str,
                 'Referer': LOGIN_PAGE_URL
             }
         )
         try:
-            res_redirect = urllib.request.urlopen(req_redirect)
+            res_redirect = opener.open(req_redirect)
             result_html = res_redirect.read().decode('utf-8', errors='ignore')
-            redirect_cookies = res_redirect.info().get_all('Set-Cookie')
-            current_cookie_str = merge_cookies(current_cookie_str, redirect_cookies)
+            
+            
         except urllib.error.HTTPError as e:
             raise StudentPortalClientError(f"Login redirect failed: {e.code}") from e
 
@@ -195,27 +200,38 @@ def submit_login_and_fetch(req_data: StudentPortalLoginRequest) -> Tuple[str, Op
         with open("unknown_response.html", "w") as f:
             f.write(result_html)
         raise StudentPortalClientError("Failed to login, unknown response.")
+
+    # Fetch HRDSystem.jsp first to initialize dashboard session
+    req_hrd = urllib.request.Request(f"{SP_BASE_URL}/srmiststudentportal/students/template/HRDSystem.jsp", headers={
+        'User-Agent': UA,
+        'Referer': LOGIN_PAGE_URL
+    })
+    try:
+        res_hrd = opener.open(req_hrd)
+        
+        
+    except urllib.error.HTTPError as e:
+        print(f"HRDSystem fetch failed: {e}")
+        pass
         
     # If successful, fetch reports
-    req_att = urllib.request.Request(ATTENDANCE_URL, data=b"", headers={
+    req_att = urllib.request.Request(ATTENDANCE_URL, headers={
         'User-Agent': UA,
-        'Cookie': current_cookie_str,
         'Referer': f"{SP_BASE_URL}/srmiststudentportal/students/template/HRDSystem.jsp"
     })
     try:
-        res_att = urllib.request.urlopen(req_att)
+        res_att = opener.open(req_att)
         att_html = res_att.read().decode('utf-8', errors='ignore')
     except urllib.error.HTTPError as e:
         raise StudentPortalClientError(f"Failed to fetch attendance: {e.code}") from e
         
     # Marks
-    req_marks = urllib.request.Request(MARKS_URL, data=b"", headers={
+    req_marks = urllib.request.Request(MARKS_URL, headers={
         'User-Agent': UA,
-        'Cookie': current_cookie_str,
         'Referer': f"{SP_BASE_URL}/srmiststudentportal/students/template/HRDSystem.jsp"
     })
     try:
-        res_marks = urllib.request.urlopen(req_marks)
+        res_marks = opener.open(req_marks)
         marks_html = res_marks.read().decode('utf-8', errors='ignore')
     except urllib.error.HTTPError:
         marks_html = None

@@ -522,13 +522,22 @@ def sp_login(req: StudentPortalLoginRequest, request: Request) -> StudentPortalS
         att_html, marks_html = submit_login_and_fetch(req)
     except StudentPortalClientError as e:
         msg = str(e)
+        print(f"DEBUG: StudentPortalClientError raised with msg: {msg}")
         if "Invalid captcha" in msg:
             raise _fail(401, "invalid_captcha", "Incorrect captcha. Please try again.")
         if "Invalid username or password" in msg:
             raise _fail(401, "invalid_credentials", "Incorrect NetID or password.")
         raise _fail(401, "login_failed", msg)
+    except Exception as e:
+        import traceback
+        traceback.print_exc()
+        print(f"DEBUG: Unhandled exception: {e}")
+        raise _fail(500, "internal_error", f"Internal server error: {str(e)}")
 
     if sp_looks_signed_out(att_html):
+        print(f"DEBUG: Session expired trigger! att_html length: {len(att_html)}", flush=True)
+        with open("expired_att.html", "w") as f:
+            f.write(att_html)
         raise _fail(
             401,
             "session_expired",
