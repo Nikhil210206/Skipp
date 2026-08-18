@@ -170,7 +170,8 @@ export async function submitStudentPortalLogin(
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify(req),
     });
-  } catch {
+  } catch (e) {
+    console.error("fetch(/sp/login) failed:", e);
     throw new PortalError("Can't reach Skipp. Check your connection.", "unreachable");
   }
   if (res.ok) return (await res.json()) as StudentPortalSnapshot;
