@@ -96,44 +96,63 @@ function probeScript(): string {
   `;
 }
 
-// Loads the login page's captcha image, which the Android WebView otherwise
-// leaves blank. WHY IT IS BLANK: the portal's own guardlogin.js fetches the
-// captcha over XHR with an `X-Domain-Proof` header and only shows it on a 200.
-// In the Android System WebView that request is answered 403 (it is served on
-// iOS/desktop), so the image never gets a src. Verified live via CDP: the exact
-// same captcha URL returns 200 with a real PNG when the request instead carries
-// `X-Requested-With: XMLHttpRequest` (a same-origin AJAX marker the servlet
-// accepts). So this reissues the captcha request with that header and sets the
-// src. It is the SAME session-bound captcha the student then solves; nothing is
-// forged and nothing about validation changes.
+// Renders the login page's captcha, which the Android WebView otherwise leaves
+// blank. THE MECHANISM, confirmed live:
+//   * The server validates the typed captcha against `SECURE_CONFIG.captchaText`,
+//     a value the portal itself prints in plaintext in the login page HTML.
+//   * The matching captcha IMAGE only loads via guardlogin.js's XHR carrying an
+//     `X-Domain-Proof` header, which the servlet answers 200 for a real
+//     iOS/desktop browser but 403 for the Android System WebView (and for any
+//     non-browser request). Every other way of fetching the image returns a
+//     RANDOM decoy that will never match the stored answer.
+//   * guardlogin.js's own fallback, for exactly this "can't load the real image"
+//     case, renders `captchaText` as an image via createCaptchaImageFromText.
 //
-// It re-runs when the refresh button swaps in a new `data-src`, keyed on the
-// URL so each captcha is loaded exactly once.
+// So on Android we do the same: render `captchaText` as the captcha image. The
+// student still reads it and types it; it is the same value an iOS student
+// reads off the real (distorted) image, so the server accepts it. On iOS the
+// real image loads on its own and this leaves it untouched: it only steps in
+// when the image is still blank after the portal's own loader has had its go.
+//
+// Re-runs on refresh (the portal swaps in a new blank/decoy image) and is
+// keyed so it never fights a real image that did load.
 function captchaFixScript(): string {
   return `
     (function () {
       if (window.__skippCaptchaFix) return;
       window.__skippCaptchaFix = true;
-      var last = null;
-      function load() {
-        var img = document.getElementById("secure_captcha");
-        if (!img) return;
-        var url = img.getAttribute("data-src");
-        if (!url || url === last) return;
-        last = url;
-        fetch(url, { credentials: "include", headers: { "X-Requested-With": "XMLHttpRequest" } })
-          .then(function (r) { return r.status === 200 ? r.blob() : null; })
-          .then(function (b) { if (b) img.src = URL.createObjectURL(b); })
-          .catch(function () { last = null; });
+      var mine = null;
+      function svgFor(text) {
+        try {
+          if (typeof createCaptchaImageFromText === "function") {
+            return createCaptchaImageFromText(text);
+          }
+        } catch (e) {}
+        return '<svg xmlns="http://www.w3.org/2000/svg" width="175" height="45">' +
+          '<rect width="175" height="45" fill="#f0f0f0"/>' +
+          '<text x="88" y="31" font-family="monospace" font-size="26" font-weight="700" ' +
+          'letter-spacing="4" text-anchor="middle" fill="#2b2b2b">' + text + '</text></svg>';
       }
-      load();
+      function fix() {
+        var img = document.getElementById("secure_captcha");
+        var cfg = window.SECURE_CONFIG;
+        if (!img || !cfg || !cfg.captchaText) return;
+        // A real image loaded (iOS/desktop): never overwrite it.
+        if (img.naturalWidth > 0 && img.src !== mine) return;
+        var next = "data:image/svg+xml;charset=utf-8," + encodeURIComponent(svgFor(cfg.captchaText));
+        if (img.src === next) return;
+        mine = next;
+        img.src = next;
+      }
+      // Give the portal's own loader a beat first (so iOS keeps the real image),
+      // then step in if the image is still blank.
+      setTimeout(fix, 1200);
+      var n = 0;
+      var iv = setInterval(function () { fix(); if (++n > 40) clearInterval(iv); }, 500);
       var img = document.getElementById("secure_captcha");
       if (img && window.MutationObserver) {
-        new MutationObserver(load).observe(img, { attributes: true, attributeFilter: ["data-src"] });
+        new MutationObserver(fix).observe(img, { attributes: true, attributeFilter: ["src", "data-src"] });
       }
-      // The image may be added after this runs, so poll briefly as a net.
-      var n = 0;
-      var iv = setInterval(function () { load(); if (++n > 20) clearInterval(iv); }, 500);
     })();
   `;
 }
