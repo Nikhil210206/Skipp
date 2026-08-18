@@ -78,7 +78,7 @@ def submit_login_and_fetch(req_data: StudentPortalLoginRequest) -> Tuple[str, Op
     form_data = {
         'username': req_data.username,
         'password': req_data.password,
-        'sscc': req_data.captcha,
+        'captcha': req_data.captcha,
         req_data.domain_field: domain_value,
         req_data.captcha_field: captcha_trap_value
     }
@@ -89,7 +89,7 @@ def submit_login_and_fetch(req_data: StudentPortalLoginRequest) -> Tuple[str, Op
         'Cookie': req_data.session_cookie,
         'Content-Type': 'application/x-www-form-urlencoded',
         'Origin': SP_BASE_URL,
-        'Referer': LOGIN_PAGE_URL
+        'Referer': LOGIN_SUBMIT_URL
     })
     
     try:
