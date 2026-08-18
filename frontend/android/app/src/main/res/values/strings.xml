@@ -1,0 +1,7 @@
+<?xml version='1.0' encoding='utf-8'?>
+<resources>
+    <string name="app_name">Skipp</string>
+    <string name="title_activity_main">Skipp</string>
+    <string name="package_name">life.skipp.app</string>
+    <string name="custom_url_scheme">life.skipp.app</string>
+</resources>

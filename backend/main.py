@@ -23,6 +23,7 @@ from pydantic import BaseModel, Field
 import logging
 import os
 import time
+from datetime import datetime, timezone
 
 from core.client import (
     TimeBudgetExceeded,
@@ -35,6 +36,20 @@ from core.feedback import (
     FeedbackDeliveryFailed,
     FeedbackNotConfigured,
     deliver as deliver_feedback,
+)
+from core.student_portal import looks_signed_out as sp_looks_signed_out
+from models.student_portal import (
+    StudentPortalParseRequest,
+    StudentPortalSnapshot,
+)
+from services.sp_attendance import (
+    AttendanceUnavailable as SPAttendanceUnavailable,
+    parse_attendance as parse_sp_attendance,
+    reported_period as sp_reported_period,
+)
+from services.sp_marks import (
+    MarksUnavailable as SPMarksUnavailable,
+    parse_marks as parse_sp_marks,
 )
 from core.session import (
     AppSessionError,
@@ -453,6 +468,94 @@ def feedback(req: FeedbackRequest, request: Request) -> dict:
     # record, the log is not a second copy of it.
     log.info("feedback delivered: %s, %s stars", req.kind, req.rating)
     return {"ok": True}
+
+
+# --- Student portal fallback (WebView model) ---------------------------------
+#
+# As of August 2026 academia stopped publishing attendance while the student
+# portal (sp.srmist.edu.in) kept publishing it. The portal refuses scripted
+# logins (an anti-bot fingerprint gate we do not forge), so Skipp signs the
+# student in inside a real in-app WebView instead. That WebView fetches the
+# report pages same-origin and posts their HTML to this ONE route, which parses
+# it. No credentials reach the backend for this source, and it spends no Zoho
+# sign-in, so it cannot touch anyone's SI503 daily cap.
+#
+# It still gets a limiter, keyed by IP, because it accepts a body and does real
+# parsing work: a floor against someone hammering it, nothing more.
+
+_SP_PARSE_PER_IP_PER_HOUR = 40
+
+
+def _sp_rate_check(request: Request) -> None:
+    now = time.monotonic()
+    key = f"spp:{_client_ip(request)}"
+    hits = [t for t in _RATE.get(key, []) if now - t < _WINDOW]
+    if len(hits) >= _SP_PARSE_PER_IP_PER_HOUR:
+        raise _fail(
+            429,
+            "too_many",
+            "Too many student portal refreshes. Wait a while and try again.",
+        )
+    hits.append(now)
+    _RATE[key] = hits
+    _prune(now)
+
+
+@app.post("/sp/parse", response_model=StudentPortalSnapshot)
+def sp_parse(req: StudentPortalParseRequest, request: Request) -> StudentPortalSnapshot:
+    """Parse report HTML a real signed-in WebView captured, into attendance JSON.
+
+    Course titles are NOT enriched here: the backend has no timetable in this
+    request. The portal SHOUTS course names anyway, so the app enriches them
+    from academia's own course list on the client, where it is free, exactly as
+    /refresh already does for academia's own marks table.
+    """
+    _sp_rate_check(request)
+
+    # A signed-out WebView lands on the login page, so the "report" it scraped
+    # would be that form. Caught here rather than parsed into an empty snapshot,
+    # which would read as "no classes" instead of "sign in again".
+    if sp_looks_signed_out(req.attendance_html):
+        raise _fail(
+            401,
+            "session_expired",
+            "The student portal session has expired. Open it and sign in again.",
+        )
+
+    attendance = marks = None
+    att_status: str = "error"
+    marks_status: str = "error"
+    att_msg = marks_msg = None
+    period = None
+
+    try:
+        attendance = parse_sp_attendance(req.attendance_html)
+        period = sp_reported_period(req.attendance_html)
+        att_status = "ready"
+    except SPAttendanceUnavailable as e:
+        att_status, att_msg = "gated", str(e)
+
+    if req.marks_html and not sp_looks_signed_out(req.marks_html):
+        try:
+            marks = parse_sp_marks(req.marks_html)
+            marks_status = "ready"
+        except SPMarksUnavailable as e:
+            marks_status, marks_msg = "gated", str(e)
+    else:
+        marks_status, marks_msg = "gated", "Marks were not fetched."
+
+    log.info("student portal parsed: attendance=%s marks=%s", att_status, marks_status)
+
+    return StudentPortalSnapshot(
+        attendance=attendance,
+        attendance_status=att_status,
+        attendance_message=att_msg,
+        marks=marks,
+        marks_status=marks_status,
+        marks_message=marks_msg,
+        reported_period=period,
+        fetched_at=datetime.now(timezone.utc).isoformat(),
+    )
 
 
 _GATED_MSG = (

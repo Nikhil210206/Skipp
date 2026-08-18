@@ -26,6 +26,14 @@ import type {
   Timetable,
 } from "@/types";
 import { AuthError, fetchSnapshot } from "@/lib/api";
+import { canImportStudentPortal, importStudentPortal } from "@/lib/studentPortal";
+import {
+  clearPortalOverride,
+  enrichTitles,
+  loadPortalOverride,
+  savePortalOverride,
+  type PortalOverride,
+} from "@/lib/portalAttendance";
 import {
   attendingOnly,
   optionalKey,
@@ -123,6 +131,18 @@ type SessionValue = {
   attendance: Attendance | null;
   attendanceState: SectionState;
   attendanceMessage: string | null;
+  /** "academia" when academia published it, "portal" when it came from an
+   *  imported student-portal login, null when there is no attendance at all. */
+  attendanceSource: "academia" | "portal" | null;
+  /** The window an imported portal report covers (it lags a few days). Null
+   *  unless the shown attendance is from the portal. */
+  reportedPeriod: string | null;
+  /** True only in the native shell, where a real portal WebView login works. */
+  canImportAttendance: boolean;
+  /** Open the portal login and import attendance. Native only. */
+  importAttendance: () => Promise<void>;
+  /** Discard imported attendance and fall back to academia. */
+  clearImportedAttendance: () => void;
   marks: Marks | null;
   marksState: SectionState;
   marksMessage: string | null;
@@ -165,6 +185,7 @@ export function SessionProvider({ children }: { children: React.ReactNode }) {
   const [customName, setCustomName] = useState<string | null>(null);
   const [attendanceChanges, setChanges] = useState<AttendanceChange[]>([]);
   const [loadedReg, setLoadedReg] = useState<string | null>(null);
+  const [portalAtt, setPortalAtt] = useState<PortalOverride | null>(null);
 
   const reg = snapshot?.timetable.student.registrationNumber ?? null;
   // The portal shouts names in caps. Present it the way a person writes it.
@@ -180,6 +201,7 @@ export function SessionProvider({ children }: { children: React.ReactNode }) {
     setCustomClasses(reg ? loadCustomClasses(reg) : []);
     setOptionalCourses(reg ? loadOptionalCourses(reg) : []);
     setCustomName(reg ? loadDisplayName(reg) : null);
+    setPortalAtt(reg ? loadPortalOverride(reg) : null);
   }
 
   /**
@@ -318,6 +340,44 @@ export function SessionProvider({ children }: { children: React.ReactNode }) {
     };
   }, [refreshIfStale]);
 
+  // Import attendance from the student portal, via a REAL in-app WebView login
+  // (native only, see lib/studentPortal.ts). Kept apart from `refresh` on
+  // purpose: it opens a login sheet and needs a human, so it can never run on a
+  // timer or on foreground the way an academia refresh does.
+  const importAttendance = useCallback(async (): Promise<void> => {
+    const sp = await importStudentPortal();
+    if (sp.attendanceStatus !== "ready" || !sp.attendance) {
+      throw new Error(
+        sp.attendanceMessage ??
+          "The student portal did not return attendance this time.",
+      );
+    }
+    // Titles come from academia's own course list, so the portal's SHOUTY names
+    // read the same as everywhere else in the app.
+    const titles = new Map(
+      (snapshot?.timetable.courses ?? []).map((c) => [
+        c.code.toUpperCase(),
+        c.title,
+      ]),
+    );
+    const override: PortalOverride = {
+      attendance: enrichTitles(sp.attendance, titles),
+      marks: sp.marksStatus === "ready" ? sp.marks : null,
+      reportedPeriod: sp.reportedPeriod,
+      fetchedAt: sp.fetchedAt,
+    };
+    setPortalAtt(override);
+    if (reg) savePortalOverride(reg, override);
+  }, [snapshot, reg]);
+
+  // Drop the imported attendance and go back to academia (which may still be
+  // gated). The escape hatch for when academia recovers but the app is showing
+  // stale portal data, or the student simply wants it gone.
+  const clearImportedAttendance = useCallback(() => {
+    setPortalAtt(null);
+    if (reg) clearPortalOverride(reg);
+  }, [reg]);
+
   // Stable across renders. It used to be rebuilt inside the value memo, so its
   // identity changed whenever anything in the session did, including the
   // `refreshing` flag it sets itself. PullToRefresh depends on it, so the pull
@@ -351,6 +411,21 @@ export function SessionProvider({ children }: { children: React.ReactNode }) {
   const value = useMemo<SessionValue>(() => {
     const sectionState = (s: SectionStatus | undefined): SectionState =>
       creds && !snapshot ? "loading" : (s ?? "loading");
+
+    // Academia is the default and self-heals: the imported portal override is
+    // only consulted while academia attendance is NOT ready, so the day
+    // academia publishes real attendance again it silently takes back over.
+    const academiaReady =
+      snapshot?.attendanceStatus === "ready" && !!snapshot.attendance;
+    const usePortal = !academiaReady && portalAtt !== null;
+
+    // Marks likewise: prefer academia's, fall back to the portal's only when
+    // academia's are not ready and the import carried some.
+    const academiaMarksReady =
+      snapshot?.marksStatus === "ready" && !!snapshot.marks;
+    const usePortalMarks =
+      !academiaMarksReady && portalAtt?.marks != null;
+
     return {
       creds,
       student: snapshot?.timetable.student ?? null,
@@ -359,12 +434,21 @@ export function SessionProvider({ children }: { children: React.ReactNode }) {
         snapshot?.timetable.dayOrders ?? [],
         optionalCourses,
       ),
-      attendance: snapshot?.attendance ?? null,
-      attendanceState: sectionState(snapshot?.attendanceStatus),
-      attendanceMessage: snapshot?.attendanceMessage ?? null,
-      marks: snapshot?.marks ?? null,
-      marksState: sectionState(snapshot?.marksStatus),
-      marksMessage: snapshot?.marksMessage ?? null,
+      attendance: usePortal
+        ? portalAtt.attendance
+        : (snapshot?.attendance ?? null),
+      attendanceState: usePortal
+        ? "ready"
+        : sectionState(snapshot?.attendanceStatus),
+      attendanceMessage: usePortal ? null : (snapshot?.attendanceMessage ?? null),
+      attendanceSource: academiaReady ? "academia" : usePortal ? "portal" : null,
+      reportedPeriod: usePortal ? portalAtt.reportedPeriod : null,
+      canImportAttendance: canImportStudentPortal(),
+      importAttendance,
+      clearImportedAttendance,
+      marks: usePortalMarks ? portalAtt.marks : (snapshot?.marks ?? null),
+      marksState: usePortalMarks ? "ready" : sectionState(snapshot?.marksStatus),
+      marksMessage: usePortalMarks ? null : (snapshot?.marksMessage ?? null),
       fetchedAt: snapshot?.fetchedAt ?? null,
       isAuthed: creds !== null,
       restoring,
@@ -459,6 +543,9 @@ export function SessionProvider({ children }: { children: React.ReactNode }) {
     officialFirst,
     reg,
     refresh,
+    portalAtt,
+    importAttendance,
+    clearImportedAttendance,
   ]);
 
   return (

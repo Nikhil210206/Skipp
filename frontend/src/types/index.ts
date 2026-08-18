@@ -117,6 +117,25 @@ export type CustomClass = {
 // Combined snapshot (backend/models/snapshot.py), fetched in one login.
 export type SectionStatus = "ready" | "gated" | "error";
 
+// ---- Student portal fallback (backend/models/student_portal.py) ----
+// Parsed from report HTML a real in-app WebView login captured, when academia
+// has stopped publishing attendance but the student portal has not. Carries no
+// timetable/calendar: this source has none, and the app merges it into what
+// academia already gave.
+export type StudentPortalSnapshot = {
+  attendance: Attendance | null;
+  attendanceStatus: SectionStatus;
+  attendanceMessage: string | null;
+  marks: Marks | null;
+  marksStatus: SectionStatus;
+  marksMessage: string | null;
+  // The window the portal's own report covers, e.g. "21/Jul/2026 To
+  // 14/Aug/2026". The portal lags a few days, so a class you just sat may not
+  // be in it yet. Surface it so that reads as "not yet" rather than "wrong".
+  reportedPeriod: string | null;
+  fetchedAt: string;
+};
+
 export type Snapshot = {
   timetable: Timetable;
   attendance: Attendance | null;

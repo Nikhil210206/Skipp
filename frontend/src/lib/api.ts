@@ -2,7 +2,7 @@
 // Credentials are POSTed per request (the backend is stateless) over HTTPS and
 // never stored server-side. See CLAUDE.md §3.
 
-import type { Credentials, Snapshot } from "@/types";
+import type { Credentials, Snapshot, StudentPortalSnapshot } from "@/types";
 
 // Backend base URL. Prefer an explicit env (prod), else talk to the backend on
 // the SAME host the app was opened from (port 8000), so it works on the laptop
@@ -123,6 +123,45 @@ async function post<T>(path: string, creds: Credentials): Promise<T> {
 
 /** One login gives timetable, attendance and marks: the only fetch there is. */
 export const fetchSnapshot = (c: Credentials) => post<Snapshot>("/refresh", c);
+
+// ---- Student portal fallback -------------------------------------------
+
+/**
+ * Parse report HTML that a real, signed-in student portal WebView captured.
+ *
+ * This carries NO credentials: the student signed in for real inside the
+ * in-app WebView (see lib/studentPortal.ts), which fetched the report pages
+ * same-origin, and this only turns their HTML into JSON. `sessionExpired` is
+ * its own case because the fix (open the portal, sign in again) differs from a
+ * gated section (nothing to do but wait).
+ */
+export async function parseStudentPortal(
+  attendanceHtml: string,
+  marksHtml?: string,
+): Promise<StudentPortalSnapshot> {
+  const base = apiBase();
+  let res: Response;
+  try {
+    res = await fetch(`${base}/sp/parse`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ attendanceHtml, marksHtml: marksHtml ?? null }),
+    });
+  } catch {
+    throw new PortalError("Can't reach Skipp. Check your connection.", "unreachable");
+  }
+  if (res.ok) return (await res.json()) as StudentPortalSnapshot;
+
+  const parsed = await res.json().catch(() => undefined);
+  const raw = parsed?.detail;
+  const detail: string | undefined =
+    typeof raw === "string" ? raw : (raw?.message as string | undefined);
+  const code: string | undefined = typeof raw === "object" ? raw?.code : undefined;
+  if (res.status === 401 && code === "session_expired") {
+    throw new AuthError(detail ?? "Sign in to the student portal again.", "wrong_password");
+  }
+  throw new PortalError(detail ?? `Couldn't read the portal (${res.status}).`, "portal");
+}
 
 // ---- Feedback ----------------------------------------------------------
 

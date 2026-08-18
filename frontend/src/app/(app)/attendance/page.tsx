@@ -2,6 +2,10 @@
 
 import { useRef, useState } from "react";
 import PredictModal from "@/components/PredictModal";
+import {
+  ImportAttendanceAction,
+  PortalSourceNote,
+} from "@/components/ImportAttendance";
 import { useSession } from "@/context/SessionContext";
 import { predict } from "@/lib/predictor";
 import { countTo, recedeOnScroll, revealIn, revealRows, useGsap } from "@/lib/motion";
@@ -26,7 +30,8 @@ const THRESHOLD = 75;
  * reads a percentage. No panels, no bars in boxes: the measurement is the layout.
  */
 export default function AttendancePage() {
-  const { attendance, attendanceState, attendanceMessage } = useSession();
+  const { attendance, attendanceState, attendanceMessage, attendanceSource } =
+    useSession();
   const [predictOpen, setPredictOpen] = useState(false);
 
   const subjects = attendance?.subjects ?? [];
@@ -69,8 +74,9 @@ export default function AttendancePage() {
             title="Not published yet"
             message={
               attendanceMessage ??
-              "Your department has not opened attendance for this term. It appears here automatically."
+              "Your department has not opened attendance on academia for this term."
             }
+            action={<ImportAttendanceAction />}
           />
         )}
 
@@ -79,11 +85,17 @@ export default function AttendancePage() {
             tone="risk"
             title="Could not load attendance"
             message={attendanceMessage ?? "Pull down to try again."}
+            action={<ImportAttendanceAction />}
           />
         )}
 
         {attendanceState === "ready" && attendance && (
           <>
+            {attendanceSource === "portal" && (
+              <div data-reveal className="pt-6">
+                <PortalSourceNote />
+              </div>
+            )}
             {/* The whole term as one measurement */}
             {/* No data-reveal here: recedeOnScroll owns this block's opacity. */}
             <div ref={masthead} className="pb-11 pt-6">
