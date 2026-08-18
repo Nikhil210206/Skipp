@@ -34,6 +34,17 @@ const REPORT_MARKS = `${CONTEXT}/students/report/studentInternalMarkDetails.jsp`
 // never be mistaken for our capture.
 const MSG = "skipp-sp-capture";
 
+// The Android System WebView identifies itself with WebView markers in its
+// User-Agent ("; wv" / "Version/4.0"), which the portal's anti-bot layer flags:
+// the login page renders but the captcha image is refused, so sign-in is
+// impossible. Overriding the UA to a plain Chrome-on-Android string makes the
+// WebView present as an ordinary mobile browser, which is what it is (a real
+// person is about to type into it). iOS WKWebView already passes as clean
+// Safari, but we set the same UA on both so the two behave identically.
+const PORTAL_UA =
+  "Mozilla/5.0 (Linux; Android 14; Pixel 8) AppleWebKit/537.36 " +
+  "(KHTML, like Gecko) Chrome/126.0.0.0 Mobile Safari/537.36";
+
 /** True only in the native shell, where a real WebView login is possible. */
 export function canImportStudentPortal(): boolean {
   return Capacitor.isNativePlatform();
@@ -156,6 +167,10 @@ export async function importStudentPortal(): Promise<StudentPortalSnapshot> {
         title: "Sign in to SRM Student Portal",
         // The portal handles its own captcha and JS; we only read the result.
         isPresentAfterPageLoad: true,
+        // Present as an ordinary mobile browser so the portal serves the
+        // captcha (see PORTAL_UA). Without this the Android WebView is flagged
+        // and the captcha never loads.
+        headers: { "User-Agent": PORTAL_UA },
       });
     })().catch((e) => {
       void settle(() => reject(e as Error));
