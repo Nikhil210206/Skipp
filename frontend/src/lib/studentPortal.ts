@@ -96,6 +96,48 @@ function probeScript(): string {
   `;
 }
 
+// Loads the login page's captcha image, which the Android WebView otherwise
+// leaves blank. WHY IT IS BLANK: the portal's own guardlogin.js fetches the
+// captcha over XHR with an `X-Domain-Proof` header and only shows it on a 200.
+// In the Android System WebView that request is answered 403 (it is served on
+// iOS/desktop), so the image never gets a src. Verified live via CDP: the exact
+// same captcha URL returns 200 with a real PNG when the request instead carries
+// `X-Requested-With: XMLHttpRequest` (a same-origin AJAX marker the servlet
+// accepts). So this reissues the captcha request with that header and sets the
+// src. It is the SAME session-bound captcha the student then solves; nothing is
+// forged and nothing about validation changes.
+//
+// It re-runs when the refresh button swaps in a new `data-src`, keyed on the
+// URL so each captcha is loaded exactly once.
+function captchaFixScript(): string {
+  return `
+    (function () {
+      if (window.__skippCaptchaFix) return;
+      window.__skippCaptchaFix = true;
+      var last = null;
+      function load() {
+        var img = document.getElementById("secure_captcha");
+        if (!img) return;
+        var url = img.getAttribute("data-src");
+        if (!url || url === last) return;
+        last = url;
+        fetch(url, { credentials: "include", headers: { "X-Requested-With": "XMLHttpRequest" } })
+          .then(function (r) { return r.status === 200 ? r.blob() : null; })
+          .then(function (b) { if (b) img.src = URL.createObjectURL(b); })
+          .catch(function () { last = null; });
+      }
+      load();
+      var img = document.getElementById("secure_captcha");
+      if (img && window.MutationObserver) {
+        new MutationObserver(load).observe(img, { attributes: true, attributeFilter: ["data-src"] });
+      }
+      // The image may be added after this runs, so poll briefly as a net.
+      var n = 0;
+      var iv = setInterval(function () { load(); if (++n > 20) clearInterval(iv); }, 500);
+    })();
+  `;
+}
+
 /**
  * Open the portal login, wait for a real sign-in, capture attendance (and
  * marks if present), and return them parsed.
@@ -108,6 +150,7 @@ export async function importStudentPortal(): Promise<StudentPortalSnapshot> {
   }
 
   const probe = probeScript();
+  const captchaFix = captchaFixScript();
   let done = false;
 
   const listeners: Array<{ remove: () => Promise<void> }> = [];
@@ -128,7 +171,11 @@ export async function importStudentPortal(): Promise<StudentPortalSnapshot> {
       // Re-probe on every page load and URL change: login is one or more
       // redirects, and we do not want to depend on which page it lands on.
       const runProbe = () => {
-        if (!done) void InAppBrowser.executeScript({ code: probe });
+        if (done) return;
+        // Fix the blank captcha on the login page, then probe for a signed-in
+        // report. Both are harmless on pages they do not apply to.
+        void InAppBrowser.executeScript({ code: captchaFix });
+        void InAppBrowser.executeScript({ code: probe });
       };
 
       listeners.push(
