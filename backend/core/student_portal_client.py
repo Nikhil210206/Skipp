@@ -55,7 +55,7 @@ def init_login_session() -> StudentPortalCaptchaResponse:
     try:
         c_res = urllib.request.urlopen(req_c)
         captcha_bytes = c_res.read()
-        captcha_b64 = "data:image/jpeg;base64," + base64.b64encode(captcha_bytes).decode()
+        captcha_b64 = "data:image/png;base64," + base64.b64encode(captcha_bytes).decode()
     except urllib.error.HTTPError as e:
         raise StudentPortalClientError(f"Failed to fetch captcha: {e.code}") from e
 

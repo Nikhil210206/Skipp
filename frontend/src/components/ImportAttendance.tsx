@@ -111,7 +111,7 @@ export function ImportAttendanceAction() {
                 <img 
                   src={sessionData.captchaBase64} 
                   alt="Captcha" 
-                  className="h-12 w-32 rounded bg-ink-2 object-cover mix-blend-screen invert" 
+                  className="h-12 w-32 rounded bg-white object-cover" 
                 />
                 <input
                   type="text"
@@ -303,7 +303,11 @@ export function PortalSourceNote() {
               />
               <div className="flex flex-col gap-2 rounded-control border border-line bg-ink-1 p-3">
                 <span className="text-label uppercase text-text-3">Captcha</span>
-                <img src={sessionData.captchaBase64} alt="Captcha" className="h-12 w-32 rounded bg-ink-2 object-cover mix-blend-screen invert" />
+                <img 
+                  src={sessionData.captchaBase64} 
+                  alt="Captcha" 
+                  className="h-12 w-32 rounded bg-white object-cover" 
+                />
                 <input
                   type="text"
                   value={captcha}
