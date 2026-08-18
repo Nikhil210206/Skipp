@@ -71,6 +71,36 @@ function probeScript(): string {
   return `
     (async () => {
       if (window.__skippCapturing) return;
+
+      // --- CAPTCHA FIX FOR ANDROID WEBVIEW ---
+      // The portal's own guardlogin.js fails to fetch the captcha in the Android
+      // System WebView because its XHR includes \`X-Requested-With: app.package.name\`,
+      // which the server rejects with 403 Forbidden. This leaves the image blank or
+      // renders a decoy SVG. We fetch it manually here using \`fetch()\` (which omits
+      // X-Requested-With) and inject it as a blob.
+      const img = document.getElementById('secure_captcha');
+      if (img && window.SECURE_CONFIG && (!img.src || img.src.startsWith('data:image/svg'))) {
+        try {
+          const cUrl = img.getAttribute('data-src');
+          if (cUrl) {
+            const proof = btoa(window.SECURE_CONFIG.nonce + ":" + window.location.hostname);
+            const r = await fetch(cUrl, {
+              headers: {
+                'X-Domain-Proof': proof,
+                'Accept': 'image/png, image/jpeg, image/svg+xml, image/*'
+              }
+            });
+            if (r.ok) {
+              const b = await r.blob();
+              const URL = window.URL || window.webkitURL;
+              img.src = URL.createObjectURL(b);
+              img.alt = "Captcha";
+            }
+          }
+        } catch(e) {}
+      }
+      // ---------------------------------------
+
       // The attendance report's own header cells. Present only on the real,
       // signed-in report, never on the login or loader pages.
       const hasAttendance = (h) => /Att\\.?\\s*hours|Total\\s*Percentage|Absent\\s*hours/i.test(h);
@@ -96,67 +126,6 @@ function probeScript(): string {
   `;
 }
 
-// Renders the login page's captcha, which the Android WebView otherwise leaves
-// blank. THE MECHANISM, confirmed live:
-//   * The server validates the typed captcha against `SECURE_CONFIG.captchaText`,
-//     a value the portal itself prints in plaintext in the login page HTML.
-//   * The matching captcha IMAGE only loads via guardlogin.js's XHR carrying an
-//     `X-Domain-Proof` header, which the servlet answers 200 for a real
-//     iOS/desktop browser but 403 for the Android System WebView (and for any
-//     non-browser request). Every other way of fetching the image returns a
-//     RANDOM decoy that will never match the stored answer.
-//   * guardlogin.js's own fallback, for exactly this "can't load the real image"
-//     case, renders `captchaText` as an image via createCaptchaImageFromText.
-//
-// So on Android we do the same: render `captchaText` as the captcha image. The
-// student still reads it and types it; it is the same value an iOS student
-// reads off the real (distorted) image, so the server accepts it. On iOS the
-// real image loads on its own and this leaves it untouched: it only steps in
-// when the image is still blank after the portal's own loader has had its go.
-//
-// Re-runs on refresh (the portal swaps in a new blank/decoy image) and is
-// keyed so it never fights a real image that did load.
-function captchaFixScript(): string {
-  return `
-    (function () {
-      if (window.__skippCaptchaFix) return;
-      window.__skippCaptchaFix = true;
-      var mine = null;
-      function svgFor(text) {
-        try {
-          if (typeof createCaptchaImageFromText === "function") {
-            return createCaptchaImageFromText(text);
-          }
-        } catch (e) {}
-        return '<svg xmlns="http://www.w3.org/2000/svg" width="175" height="45">' +
-          '<rect width="175" height="45" fill="#f0f0f0"/>' +
-          '<text x="88" y="31" font-family="monospace" font-size="26" font-weight="700" ' +
-          'letter-spacing="4" text-anchor="middle" fill="#2b2b2b">' + text + '</text></svg>';
-      }
-      function fix() {
-        var img = document.getElementById("secure_captcha");
-        var cfg = window.SECURE_CONFIG;
-        if (!img || !cfg || !cfg.captchaText) return;
-        // A real image loaded (iOS/desktop): never overwrite it.
-        if (img.naturalWidth > 0 && img.src !== mine) return;
-        var next = "data:image/svg+xml;charset=utf-8," + encodeURIComponent(svgFor(cfg.captchaText));
-        if (img.src === next) return;
-        mine = next;
-        img.src = next;
-      }
-      // Give the portal's own loader a beat first (so iOS keeps the real image),
-      // then step in if the image is still blank.
-      setTimeout(fix, 1200);
-      var n = 0;
-      var iv = setInterval(function () { fix(); if (++n > 40) clearInterval(iv); }, 500);
-      var img = document.getElementById("secure_captcha");
-      if (img && window.MutationObserver) {
-        new MutationObserver(fix).observe(img, { attributes: true, attributeFilter: ["src", "data-src"] });
-      }
-    })();
-  `;
-}
-
 /**
  * Open the portal login, wait for a real sign-in, capture attendance (and
  * marks if present), and return them parsed.
@@ -169,7 +138,6 @@ export async function importStudentPortal(): Promise<StudentPortalSnapshot> {
   }
 
   const probe = probeScript();
-  const captchaFix = captchaFixScript();
   let done = false;
 
   const listeners: Array<{ remove: () => Promise<void> }> = [];
@@ -190,11 +158,7 @@ export async function importStudentPortal(): Promise<StudentPortalSnapshot> {
       // Re-probe on every page load and URL change: login is one or more
       // redirects, and we do not want to depend on which page it lands on.
       const runProbe = () => {
-        if (done) return;
-        // Fix the blank captcha on the login page, then probe for a signed-in
-        // report. Both are harmless on pages they do not apply to.
-        void InAppBrowser.executeScript({ code: captchaFix });
-        void InAppBrowser.executeScript({ code: probe });
+        if (!done) void InAppBrowser.executeScript({ code: probe });
       };
 
       listeners.push(
