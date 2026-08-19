@@ -2,6 +2,7 @@ import re
 import base64
 import urllib.request
 import urllib.parse
+import os
 from typing import Tuple, Dict, Optional
 
 from models.student_portal import StudentPortalCaptchaResponse, StudentPortalLoginRequest
