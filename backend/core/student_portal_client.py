@@ -19,7 +19,10 @@ class StudentPortalClientError(Exception):
 
 def init_login_session() -> StudentPortalCaptchaResponse:
     req = urllib.request.Request(LOGIN_PAGE_URL, headers={'User-Agent': UA})
-    res = urllib.request.urlopen(req)
+    try:
+        res = urllib.request.urlopen(req)
+    except urllib.error.URLError as e:
+        raise StudentPortalClientError(f"Network error connecting to student portal: {e}")
     html = res.read().decode('utf-8', errors='ignore')
     
     # Extract session cookies
@@ -37,6 +40,14 @@ def init_login_session() -> StudentPortalCaptchaResponse:
         domain_field = re.search(r"domainFieldName\s*=\s*'([^']+)'", html).group(1)
         captcha_field = re.search(r"captchaFieldName\s*=\s*'([^']+)'", html).group(1)
         random_delim = re.search(r"randomDelimiter\s*=\s*'([^']+)'", html).group(1)
+        
+        honeypot_match = re.search(r'id="(ph_[a-f0-9]+)"', html)
+        if not honeypot_match:
+            print("WARNING: Could not extract honeypot field name! Using default ph_cf19b370")
+            honeypot_field = "ph_cf19b370"
+        else:
+            honeypot_field = honeypot_match.group(1)
+
         
         token = re.search(r"SCaptchaServlet\?ts=[^&]+&token=([^\"']+)", html).group(1)
         ts = re.search(r"SCaptchaServlet\?ts=([^&]+)&token=", html).group(1)
@@ -73,6 +84,7 @@ def init_login_session() -> StudentPortalCaptchaResponse:
         domain_field=domain_field,
         captcha_field=captcha_field,
         random_delim=random_delim,
+        honeypot_field=honeypot_field,
         captcha_base64=captcha_b64
     )
 
@@ -118,26 +130,13 @@ def submit_login_and_fetch(req_data: StudentPortalLoginRequest) -> Tuple[str, Op
         'captcha': req_data.captcha,
         req_data.domain_field: domain_value,
         req_data.captcha_field: captcha_trap_value,
+        req_data.honeypot_field: '',
+        'fpPayload': '',
+        'fpToken': '',
         'telemetryPayload': telemetry_payload
     }
     encoded_data = urllib.parse.urlencode(form_data).encode()
     
-    req_post = urllib.request.Request(LOGIN_SUBMIT_URL, data=encoded_data, headers={
-        'User-Agent': UA,
-        'Cookie': req_data.session_cookie,
-        'Content-Type': 'application/x-www-form-urlencoded',
-        'Origin': SP_BASE_URL,
-        'Referer': LOGIN_SUBMIT_URL
-    })
-    
-    try:
-        res_post = urllib.request.urlopen(req_post)
-        result_html = res_post.read().decode('utf-8', errors='ignore')
-        
-        set_cookies = res_post.info().get_all('Set-Cookie')
-    except urllib.error.HTTPError as e:
-        raise StudentPortalClientError(f"Login request failed: {e.code}") from e
-        
     # Create a CookieJar opener to handle redirects and cookies automatically
     import http.cookiejar
     cj = http.cookiejar.CookieJar()
@@ -151,6 +150,23 @@ def submit_login_and_fetch(req_data: StudentPortalLoginRequest) -> Tuple[str, Op
                 k, v = part.split('=', 1)
                 ck = http.cookiejar.Cookie(version=0, name=k, value=v, port=None, port_specified=False, domain='sp.srmist.edu.in', domain_specified=False, domain_initial_dot=False, path='/', path_specified=False, secure=False, expires=None, discard=True, comment=None, comment_url=None, rest={'HttpOnly': None}, rfc2109=False)
                 cj.set_cookie(ck)
+    
+    req_post = urllib.request.Request(LOGIN_SUBMIT_URL, data=encoded_data, headers={
+        'User-Agent': UA,
+        'Content-Type': 'application/x-www-form-urlencoded',
+        'Origin': SP_BASE_URL,
+        'Referer': LOGIN_PAGE_URL
+    })
+    
+    try:
+        res_post = opener.open(req_post)
+        result_html = res_post.read().decode('utf-8', errors='ignore')
+        
+        set_cookies = res_post.info().get_all('Set-Cookie')
+    except urllib.error.HTTPError as e:
+        raise StudentPortalClientError(f"Login request failed: {e.code}") from e
+        
+
                 
     # Update CookieJar with the cookies from the POST response
     if set_cookies:
@@ -190,6 +206,7 @@ def submit_login_and_fetch(req_data: StudentPortalLoginRequest) -> Tuple[str, Op
         try:
             res_redirect = opener.open(req_redirect)
             result_html = res_redirect.read().decode('utf-8', errors='ignore')
+                f.write(result_html)
             
             
         except urllib.error.HTTPError as e:
@@ -208,6 +225,7 @@ def submit_login_and_fetch(req_data: StudentPortalLoginRequest) -> Tuple[str, Op
     })
     try:
         res_hrd = opener.open(req_hrd)
+            f.write(res_hrd.read().decode('utf-8', errors='ignore'))
         
         
     except urllib.error.HTTPError as e:

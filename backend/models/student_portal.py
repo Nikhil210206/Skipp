@@ -41,6 +41,7 @@ class StudentPortalCaptchaResponse(_CamelModel):
     domain_field: str
     captcha_field: str
     random_delim: str
+    honeypot_field: str
     captcha_base64: str
 
 class StudentPortalLoginRequest(_CamelModel):
@@ -52,6 +53,7 @@ class StudentPortalLoginRequest(_CamelModel):
     domain_field: str
     captcha_field: str
     random_delim: str
+    honeypot_field: str
 
 
 class StudentPortalSnapshot(_CamelModel):
