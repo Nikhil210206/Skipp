@@ -149,7 +149,12 @@ export async function initStudentPortalLogin(): Promise<StudentPortalCaptchaResp
   if (res.ok) return (await res.json()) as StudentPortalCaptchaResponse;
 
   const parsed = await res.json().catch(() => undefined);
-  const detail: string | undefined = typeof parsed?.detail === "string" ? parsed.detail : undefined;
+  let detail: string | undefined = undefined;
+  if (typeof parsed?.detail === "string") {
+    detail = parsed.detail;
+  } else if (parsed?.detail && typeof parsed.detail.message === "string") {
+    detail = parsed.detail.message;
+  }
   throw new PortalError(detail ?? `Couldn't connect to portal (${res.status}).`, "portal");
 }
 
