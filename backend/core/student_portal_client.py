@@ -206,7 +206,6 @@ def submit_login_and_fetch(req_data: StudentPortalLoginRequest) -> Tuple[str, Op
         try:
             res_redirect = opener.open(req_redirect)
             result_html = res_redirect.read().decode('utf-8', errors='ignore')
-                f.write(result_html)
             
             
         except urllib.error.HTTPError as e:
@@ -225,8 +224,6 @@ def submit_login_and_fetch(req_data: StudentPortalLoginRequest) -> Tuple[str, Op
     })
     try:
         res_hrd = opener.open(req_hrd)
-            f.write(res_hrd.read().decode('utf-8', errors='ignore'))
-        
         
     except urllib.error.HTTPError as e:
         print(f"HRDSystem fetch failed: {e}")
