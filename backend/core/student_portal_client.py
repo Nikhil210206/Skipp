@@ -89,7 +89,7 @@ def init_login_session() -> StudentPortalCaptchaResponse:
     })
     
     try:
-        c_res = urllib.request.urlopen(req_c)
+        c_res = opener.open(req_c)
         if c_res.info().get_all('Set-Cookie'):
             for c in c_res.info().get_all('Set-Cookie'):
                 cookies.append(c.split(';')[0])
