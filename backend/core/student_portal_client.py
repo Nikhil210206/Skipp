@@ -17,10 +17,31 @@ UA = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like 
 class StudentPortalClientError(Exception):
     pass
 
+import random
+
+def _get_opener(cj=None, force_proxy=None):
+    handlers = []
+    if cj is not None:
+        handlers.append(urllib.request.HTTPCookieProcessor(cj))
+        
+    proxy_url = force_proxy
+    if not proxy_url:
+        proxy_env = os.environ.get("SKIPP_PROXY") or os.environ.get("HTTPS_PROXY")
+        if proxy_env:
+            # If multiple proxies are provided (comma separated), pick one randomly
+            proxies = [p.strip() for p in proxy_env.split(',') if p.strip()]
+            if proxies:
+                proxy_url = random.choice(proxies)
+                
+    if proxy_url:
+        handlers.append(urllib.request.ProxyHandler({'http': proxy_url, 'https': proxy_url}))
+    return urllib.request.build_opener(*handlers), proxy_url
+
 def init_login_session() -> StudentPortalCaptchaResponse:
     req = urllib.request.Request(LOGIN_PAGE_URL, headers={'User-Agent': UA})
     try:
-        res = urllib.request.urlopen(req)
+        opener, chosen_proxy = _get_opener()
+        res = opener.open(req)
     except urllib.error.URLError as e:
         raise StudentPortalClientError(f"Network error connecting to student portal: {e}")
     html = res.read().decode('utf-8', errors='ignore')
@@ -79,6 +100,10 @@ def init_login_session() -> StudentPortalCaptchaResponse:
 
     cookie_str = "; ".join(cookies)
 
+    # Append the proxy to the session cookie so we can reuse it
+    if chosen_proxy:
+        cookie_str += f"; SKIPP_PROXY_ID={chosen_proxy}"
+        
     return StudentPortalCaptchaResponse(
         session_cookie=cookie_str,
         domain_field=domain_field,
@@ -140,17 +165,24 @@ def submit_login_and_fetch(req_data: StudentPortalLoginRequest) -> Tuple[str, Op
     # Create a CookieJar opener to handle redirects and cookies automatically
     import http.cookiejar
     cj = http.cookiejar.CookieJar()
-    opener = urllib.request.build_opener(urllib.request.HTTPCookieProcessor(cj))
+    # Note: we need to delay creating the opener until after we parse chosen_proxy from cookies
+
     
+    chosen_proxy = None
     # Load initial cookies into CookieJar
     if req_data.session_cookie:
         for part in req_data.session_cookie.split(';'):
             part = part.strip()
             if '=' in part:
                 k, v = part.split('=', 1)
+                if k == 'SKIPP_PROXY_ID':
+                    chosen_proxy = v
+                    continue
+                k, v = part.split('=', 1)
                 ck = http.cookiejar.Cookie(version=0, name=k, value=v, port=None, port_specified=False, domain='sp.srmist.edu.in', domain_specified=False, domain_initial_dot=False, path='/', path_specified=False, secure=False, expires=None, discard=True, comment=None, comment_url=None, rest={'HttpOnly': None}, rfc2109=False)
                 cj.set_cookie(ck)
     
+    opener, _ = _get_opener(cj, force_proxy=chosen_proxy)
     req_post = urllib.request.Request(LOGIN_SUBMIT_URL, data=encoded_data, headers={
         'User-Agent': UA,
         'Content-Type': 'application/x-www-form-urlencoded',
