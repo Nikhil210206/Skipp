@@ -255,24 +255,49 @@ export function PortalSourceNote() {
 
   return (
     <>
-      <div className="flex items-center justify-between gap-3 border-t border-line-soft pt-3">
-        <p className="text-callout text-text-3">
+      <div className="flex flex-wrap items-center justify-between gap-x-4 gap-y-3 border-t border-line-soft pt-3">
+        <p className="min-w-0 flex-1 text-callout text-text-3">
           From the student portal
           {reportedPeriod ? ` · ${reportedPeriod}` : ""}
         </p>
-        <div className="flex items-center gap-4">
+        <div className="flex shrink-0 items-center gap-4">
+          {/* Update has a SHAPE now, and it is filled rather than tinted.
+              Two earlier versions were read straight past: a `text-text-2`
+              underline, then the same underline at the top text level in the
+              emphasis weight. Both were still just a word in a row of words,
+              and a word is what the eye skips. A filled block is an object, and
+              an object in a page of type is the one thing that cannot be
+              skimmed over.
+
+              Red on request. Worth knowing what it costs: this app reserves
+              `risk` for a subject below the line (section 7.5, colour marks
+              trouble), so a red control here is the loudest thing on a screen
+              whose whole point is that a healthy student sees no colour at all.
+              It is the one exception, and it is deliberate.
+
+              `text-ink-0` rather than a fixed white: ink-0 is the page colour,
+              so it flips with the theme and stays legible on both the light
+              red the dark themes use and the dark red the light ones do.
+
+              `data-btn`, so the material themes treat it as a button (Brutal's
+              hard offset, Clay's soft shadow, Stone's lit edge) instead of it
+              being the one control in the app they cannot see. */}
           <button
             type="button"
+            data-btn
+            data-update
             onClick={handleOpen}
             disabled={busy}
-            className="text-callout text-text-2 underline underline-offset-4 disabled:opacity-50"
+            className="inline-flex min-h-11 select-none items-center justify-center rounded-control bg-risk px-5 text-body font-semibold tracking-[-0.01em] text-ink-0 transition-colors duration-150 ease-out hover:bg-risk/90 active:bg-risk/80 disabled:pointer-events-none disabled:opacity-35"
           >
             Update
           </button>
+          {/* Stays a quiet word. Clear throws the imported attendance away and
+              is wanted about once ever, so it must not compete. */}
           <button
             type="button"
             onClick={clearImportedAttendance}
-            className="text-callout text-text-3 underline underline-offset-4"
+            className="-my-3 inline-flex min-h-11 items-center py-3 text-callout text-text-3 underline underline-offset-4"
           >
             Clear
           </button>

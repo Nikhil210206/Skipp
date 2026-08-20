@@ -11,6 +11,7 @@ import InstallGate, { useShouldOfferInstall } from "./InstallGate";
 import NotifyOnOpen from "./NotifyOnOpen";
 import WhatsNewSheet from "./WhatsNewSheet";
 import NewThemeSheet from "./NewThemeSheet";
+import AttendanceBackSheet from "./AttendanceBackSheet";
 import { CREATOR } from "@/lib/creator";
 import { Skeleton } from "./ui";
 import { pageIn, prefersReducedMotion, revealWord } from "@/lib/motion";
@@ -78,6 +79,7 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
   const [installDismissed, setInstallDismissed] = useState(false);
   const seenHolidays = useSeenNotice(NOTICE.holidays);
   const seenTheme = useSeenNotice(NOTICE.stone);
+  const seenAttendance = useSeenNotice(NOTICE.attendance);
   const feedbackDue = useFeedbackDue();
   // A device that reached a signed-in screen without passing the entry screen
   // (a deep link, a restored tab) has no schedule yet. Seeding it here treats
@@ -87,8 +89,12 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
   }, []);
   /** The install gate is a takeover, so nothing else may rise underneath it. */
   const gateUp = canOfferInstall && !installDismissed;
-  const showTheme = !seenTheme && !gateUp;
-  const showHolidays = !seenHolidays && !showTheme && !gateUp;
+  // Attendance leads the queue: it is the only notice here about the app's own
+  // core number being readable again, and it asks for an action. A skin and a
+  // calendar feature can wait a launch.
+  const showAttendance = !seenAttendance && !gateUp;
+  const showTheme = !seenTheme && !showAttendance && !gateUp;
+  const showHolidays = !seenHolidays && !showTheme && !showAttendance && !gateUp;
   function tapMasthead() {
     taps.current += 1;
     if (timer.current) window.clearTimeout(timer.current);
@@ -230,9 +236,14 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
             as being handed news reads as a survey, and it would also be asking
             what they think of a change they had not seen yet. Its date is not
             consumed when it loses, so it simply comes round next launch. */}
+        <AttendanceBackSheet open={showAttendance} />
         <NewThemeSheet open={showTheme} />
         <WhatsNewSheet open={showHolidays} />
-        <FeedbackPrompt open={feedbackDue && !showTheme && !showHolidays && !gateUp} />
+        <FeedbackPrompt
+          open={
+            feedbackDue && !showAttendance && !showTheme && !showHolidays && !gateUp
+          }
+        />
       </div>
     </div>
   );

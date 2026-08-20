@@ -843,6 +843,16 @@ html[data-theme="clay"] [data-nav-item][aria-current="page"] {
 html[data-theme="clay"] [data-btn] {
   box-shadow: var(--shadow-lift);
 }
+/* The attendance Update button is filled with `risk` and labelled in `ink-0`,
+   which is the page colour and therefore the right inverse in eighteen of the
+   nineteen themes. Clay is the exception: its risk is a light pink red and its
+   page is a near white lavender, so light on light measured 3.28 to 1, under
+   AA. Measured, not guessed, and this is the only theme that fell short.
+   The label goes white and the fill is deepened under it. */
+html[data-theme="clay"] [data-update] {
+  background: color-mix(in srgb, var(--color-risk) 78%, #000);
+  color: #ffffff;
+}
 html[data-theme="clay"] [data-day] {
   border-radius: 14px;
 }
