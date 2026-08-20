@@ -9,7 +9,16 @@ import gsap from "gsap";
 import { ScrollTrigger } from "gsap/ScrollTrigger";
 import { haptic } from "./haptics";
 
-if (typeof window !== "undefined") gsap.registerPlugin(ScrollTrigger);
+if (typeof window !== "undefined") {
+  gsap.registerPlugin(ScrollTrigger);
+  // A mobile browser resizes its own viewport as the address bar hides and
+  // shows, and ScrollTrigger treats a resize as a reason to remeasure the whole
+  // document. That is a full refresh landing in the middle of the scroll that
+  // caused it, which is precisely the moment there is nothing to spare. The
+  // flag exists for exactly this and ignores the vertical resizes a mobile
+  // browser makes on its own, while still honouring a real orientation change.
+  ScrollTrigger.config({ ignoreMobileResize: true });
+}
 
 /**
  * Failsafe for the entrance system.
@@ -256,6 +265,14 @@ export function pressable(el: HTMLElement | null): () => void {
  */
 export function recedeOnScroll(el: HTMLElement, reduced: boolean): void {
   if (reduced) return;
+  // Its own layer for as long as the screen is up. This is the poster figure,
+  // the largest piece of type on the page, and its opacity is rewritten on
+  // every frame of every scroll: unpromoted, that is a full re-rasterisation of
+  // the biggest glyphs in the app, once a frame, on the phone that has least to
+  // give. Promoted, opacity is a compositor property and the scroll costs
+  // nothing. There is one of these per screen and it lives and dies with the
+  // screen, so there is no layer churn to pay for.
+  gsap.set(el, { willChange: "opacity" });
   gsap.fromTo(
     el,
     { opacity: 1 },
@@ -425,6 +442,17 @@ export function pageIn(el: HTMLElement | null): void {
     { x: travel },
     {
       x: 0,
+      // Pinned to 3D for the whole tween rather than left on `auto`.
+      //
+      // On `auto` GSAP renders a 2D translate at ratio 0 and ratio 1 and a 3D
+      // one in between, so every navigation builds a compositor layer on its
+      // first frame and throws it away on its last. Those two frames are a
+      // full re-rasterisation of the screen, at the two moments the eye is
+      // most likely to be looking: the start of the movement and the landing.
+      // `main` carries a standing `will-change: transform` for the same
+      // reason, so the layer simply already exists and nothing has to be built
+      // or torn down to move it.
+      force3D: true,
       // `expo.out` rather than the spring, and that follows from the shorter
       // duration rather than contradicting it. `back.out(1.7)` spends its last
       // third overshooting and settling, which reads as weight over 620ms and

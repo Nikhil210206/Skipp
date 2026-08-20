@@ -139,6 +139,12 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
       <SideNav />
       <div
         ref={shell}
+        // Marked so the stylesheet can hand this column's horizontal axis to
+        // the swipe gesture (`touch-action: pan-y`, in globals.css). Without
+        // that declaration the browser owns both axes until JavaScript argues
+        // otherwise, and on iOS the argument arrives too late to be heard: the
+        // scroller has already taken the gesture. See `useSwipeNav`.
+        data-shell
         className="mx-auto flex min-h-full w-full max-w-md flex-1 flex-col md:border-x md:border-line-soft lg:mx-0 lg:max-w-none lg:border-0"
       >
         <PullToRefresh onRefresh={refresh} fetchedAt={fetchedAt}>
@@ -211,7 +217,17 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
             // sized to a phone column on purpose, and stretching that column
             // across a 1440px window would not read as "more app", it would
             // read as the same page zoomed past its own scale.
-            className="relative z-[2] flex flex-1 flex-col bg-ink-0 px-[var(--gutter)] pb-10 lg:px-10 xl:px-16"
+            // `will-change-transform` is standing, not per gesture, and that is
+            // deliberate. This element is translated on EVERY navigation and
+            // on every swipe, so promoting it on the way in and demoting it on
+            // the way out would re-rasterise a screenful of text twice per tab
+            // change, at the two moments the eye is most on it. One permanent
+            // layer costs a little memory once; the churn costs frames for
+            // ever. It is safe here because `main` is opaque (`bg-ink-0`) and
+            // holds nothing `position: fixed`: every overlay in the app is
+            // already portalled to the body, for the neighbouring reason that
+            // PullToRefresh's transform would otherwise contain it.
+            className="relative z-[2] flex flex-1 flex-col bg-ink-0 px-[var(--gutter)] pb-10 will-change-transform lg:px-10 xl:px-16"
           >
             {children}
           </main>
@@ -289,7 +305,10 @@ function ScrollEdge() {
     <div
       ref={el}
       aria-hidden
-      style={{ opacity: 0 }}
+      // Its own layer, because its opacity is rewritten on every scroll frame
+      // and a gradient this size is not free to repaint. Promoted, the change
+      // is a compositor property and costs nothing at all.
+      style={{ opacity: 0, willChange: "opacity" }}
       className="pointer-events-none absolute inset-x-0 top-0 h-[calc(100%+34px)] bg-gradient-to-b from-ink-0 from-40% via-ink-0/35 via-75% to-transparent"
     />
   );

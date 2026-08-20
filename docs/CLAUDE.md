@@ -345,6 +345,122 @@ is deployment and true push notifications.
 Entries below are newest first. **When something breaks, read the relevant entry first**: most
 oddities here (login shell, empty calendar, 429s, duplicated course codes) are already diagnosed.
 
+### DONE: The swipe composites instead of repainting (2026-08-21)
+
+Reported as the swipe between tabs being stuttery on both iPhone and Android,
+and wanting it instant. Three separate faults, and **none of them was the
+timing**, which is where the previous four passes at this all went.
+
+**THE GESTURE WAS IN A FIGHT WITH THE BROWSER FOR ITS FIRST TEN PIXELS.**
+Nothing in the app declared `touch-action`, so the scroller owned both axes
+until JavaScript said otherwise, and the swipe said nothing until the axis lock
+at 10px. That is the exact trap `PullToRefresh` is already documented as having
+fallen into: **iOS decides at the START of a gesture whether the page is going
+to scroll and ignores every later `preventDefault`**, so a horizontal drag with
+any vertical component at all was handed to the scroller for good, and the page
+then scrolled underneath while we translated sideways. Two owners, one gesture.
+
+`[data-shell]` declares **`touch-action: pan-y`** now: vertical is the
+browser's, horizontal is ours, and neither has to ask. The `preventDefault` is
+kept as the belt to those braces, and the slop is down to 6px.
+
+- **Written twice on purpose**, `pan-y` then `pan-y pinch-zoom`. Nothing in
+  this app disables zoom, and a browser too old for the keyword would throw
+  away the whole declaration and hand both axes back.
+- **It is safe to claim the whole column** because the one horizontal scroller
+  in the app, the skins strip, lives in a `Sheet` portalled to the body and is
+  not a descendant. The tab bar keeps its own `touch-action: none`.
+
+**THE DRAG WAS REPAINTING THE SCREEN ON EVERY FRAME, and this is the measured
+one.** `gsap.quickSetter(el, "x", "px")` renders a **2D `translate()`** unless
+the cache says otherwise: GSAP only reaches for 3D part way through a tween
+(`use3D = force3D === "auto" && ratio && ratio !== 1`), and a quickSetter always
+passes ratio 1. A 2D translate on an unpromoted element is not a compositor
+move, so the browser re-rasterised a screenful of text for every pixel the
+finger travelled.
+
+Measured over an identical 670ms drag, at 6x CPU throttle:
+
+| | before | after |
+| --- | --- | --- |
+| Paint events | 66 | **8** |
+| Paint time | 16.2ms | **2.5ms** |
+| RasterTask events | 190 | **0** |
+| Raster time | 3.3ms | **0.0ms** |
+| frames drawn | 38 | 39 |
+
+**Frame times were IDENTICAL in both runs** (median 16.7ms, worst 17.7, zero
+over 32), and that is the point rather than a disappointment: this is a raster
+cost, not a main thread one, so a desktop GPU absorbs it completely and a phone
+does not. **CPU throttling cannot show this bug.** Count paints.
+
+The fix is `gsap.set(dragEl, { force3D: true })` once per gesture, plus a
+standing `will-change: transform` on `main`, plus `force3D: true` on `pageIn`'s
+tween. The standing promotion is deliberate: `main` is translated on every
+navigation and every swipe, so promoting and demoting it each time would
+re-rasterise the screen twice per tab change, which is worse than one permanent
+layer. It is safe because `main` is opaque and holds nothing `position: fixed`
+(every overlay is portalled to the body already, for the neighbouring reason
+that PullToRefresh's transform would otherwise contain it).
+
+**THE SCREEN MOVED AT A DIFFERENT SPEED FROM THE FINGER, FROM THE FIRST PIXEL.**
+The follow was a flat 45% of the finger's travel, and a flat fraction is the one
+thing a drag must never be: the eye reads it as the app being slow, at any frame
+rate. It is `LIMIT * (1 - e^(-d / LIMIT))` now, which is the finger's own travel
+near zero and never passes LIMIT however hard it is pulled. Measured: 8px of
+finger gives 7.8px of screen, 20 gives 18.5, the 68px commit point gives 52.9,
+and 200 has settled at 102. Instant where it is judged, resistant where it
+matters.
+
+**Writes are coalesced into one per FRAME**, in the swipe and in the pull. A
+phone digitiser samples faster than the screen draws, so a handler that wrote as
+it was called set the same properties two or three times between paints and only
+the last was ever seen.
+
+**`PullToRefresh` read `scrollTop` on EVERY touchmove**, which is a layout read
+interleaved with the transform writes both gestures make on the same frames, and
+a read after a write is what forces style and layout to be recalculated there
+and then. It is read once, at touchstart. Nothing is lost: changing the scroll
+position takes a movement, so it cannot change between touchstart and the axis
+lock, and a gesture that starts mid page belongs to the scroller either way.
+
+**TWO REAL BUGS FELL OUT, both the same one, and both were live.**
+`touchcancel` was wired straight to `touchend` in the screen swipe and in pull
+to refresh. So a cancelled swipe past the threshold NAVIGATED (verified against
+the old code: a `touchcancel` at 150px changed the route), and a cancelled pull
+past the threshold FETCHED, spending a real sign-in against the `SI503` daily
+cap on a gesture the student never completed. The tab bar's own drag was
+corrected for exactly this a week ago and the other two were missed. **Anything
+here that acts on release needs a separate cancel path.**
+
+**Two things that turned out not to be the problem, recorded so they are not
+chased again.** The outgoing snapshot in `captureOutgoing` looks expensive and
+is not: `main` is 82 to 151 elements on these screens, and cloning, inserting
+and laying it out measures about 2ms. And the `body:has(a[href][aria-current])`
+rules Stone uses to colour each tab cost **0.1ms** when the selection moves,
+measured by deleting the four rules at runtime and re-timing: `:has()` on the
+body reads like a document wide invalidation and Chrome handles it fine.
+
+**Also promoted, and measured:** the masthead figure `recedeOnScroll` fades. It
+is the largest type on the page and its opacity was rewritten on every scroll
+frame unpromoted. Over an identical 670ms scroll, RasterTasks went **63 to 5**
+and paint time 6.5ms to 4.0ms. `ScrollEdge` got the same treatment, for the same
+reason. And `ScrollTrigger.config({ ignoreMobileResize: true })`, because a
+mobile browser resizes its own viewport as the address bar hides and shows, and
+ScrollTrigger treats that as a reason to remeasure the whole document in the
+middle of the scroll that caused it.
+
+**What is left, honestly.** A warm tab change still costs one to three frames
+over 32ms at 6x throttle (median 16.7, none over 50), and that is the arriving
+screen's React render, not the transition. And **the numbers above are a desktop
+at 6x CPU throttle**: the raster savings are exactly the part that cannot be
+measured here, so the phone is where this has to be judged.
+
+**DEPLOY BEFORE TESTING.** `capacitor.config.ts` points the native shell at
+`https://skipp.life`, so the iOS and Android apps run the DEPLOYED site and none
+of this reaches a handset until the frontend ships. An installed iOS PWA also
+does not reload on resume (see the entry on that below), so open it fresh.
+
 ### DONE: Marks is a contents page again, one line per subject (2026-08-17)
 
 Reported bluntly: "this marks page i hate it, its too much info and too clumsy".

@@ -118,13 +118,27 @@ export default function PullToRefresh({
     let engaged = false;
     let wasArmed = false;
     const scroller = () => document.scrollingElement ?? document.documentElement;
-    const scrollTop = () => scroller().scrollTop;
-
+    /**
+     * Where the page stood when the finger landed, read ONCE per gesture.
+     *
+     * `scrollTop` is a layout read, and it was being taken on every single
+     * touchmove, interleaved with the transform writes this component and the
+     * swipe gesture are making on the same frames. A read straight after a
+     * write is what forces the browser to recalculate style and layout there
+     * and then, while a finger is already moving, which is the one moment it
+     * has nothing spare.
+     *
+     * Nothing is lost by reading it once: changing the scroll position takes a
+     * movement, so it cannot have changed between touchstart and the axis
+     * lock, and a gesture that begins mid page belongs to the scroller for the
+     * whole of its life either way.
+     */
+    let atTop = true;
 
     // How far the finger has travelled, tracked even when we do not animate.
     let pull = 0;
-    const paint = (y: number) => {
-      pull = y;
+    /** The writes themselves. Called from a frame, never from a touch event. */
+    const draw = (y: number) => {
       // The page only moves when motion is welcome; the indicator always does.
       if (!reduced) setY(y);
       // Travels DOWN from the safe area edge. It used to start 40px above its
@@ -134,9 +148,38 @@ export default function PullToRefresh({
       setBadgeState(y);
       setRing(Math.min(y / THRESHOLD, 1));
     };
+    /**
+     * One write per FRAME, not one per touch event.
+     *
+     * A phone digitiser samples faster than the screen draws, so a handler that
+     * writes as it is called sets the same three properties two or three times
+     * between paints. Every one of those costs a style recalculation and only
+     * the last of them is ever seen by anybody.
+     */
+    let frame = 0;
+    let pendingY = 0;
+    const flush = () => {
+      frame = 0;
+      draw(pendingY);
+    };
+    const paint = (y: number) => {
+      pull = y;
+      pendingY = y;
+      if (!frame) frame = requestAnimationFrame(flush);
+    };
+    const drop = () => {
+      if (!frame) return;
+      cancelAnimationFrame(frame);
+      frame = 0;
+    };
     const settle = (to: number, done?: () => void) => {
+      // A pending write from the gesture would land a frame into the tween and
+      // undo its first step, so the queue is emptied before anything else.
+      drop();
       if (reduced) {
-        paint(to);
+        pull = to;
+        pendingY = to;
+        draw(to);
         done?.();
         return;
       }
@@ -147,7 +190,12 @@ export default function PullToRefresh({
           duration: DUR.base,
           ease: EASE.emphasis,
           onUpdate() {
-            paint(this.targets()[0].v as number);
+            // Straight to the element: GSAP is already running inside a frame,
+            // so queueing another one would only add a frame of lag.
+            const v = this.targets()[0].v as number;
+            pull = v;
+            pendingY = v;
+            draw(v);
           },
           onComplete: done,
         },
@@ -160,6 +208,7 @@ export default function PullToRefresh({
         return;
       }
       mode = null;
+      atTop = scroller().scrollTop <= 0;
       startY = e.touches[0].clientY;
       startX = e.touches[0].clientX;
       axis = null;
@@ -184,7 +233,7 @@ export default function PullToRefresh({
       //
       // Only a downward drag from the very top is claimed, so upward scrolling
       // and the bounce at the end of the page are untouched.
-      if (dy > 0 && Math.abs(dy) >= Math.abs(dx) && scrollTop() <= 0) {
+      if (dy > 0 && Math.abs(dy) >= Math.abs(dx) && atTop) {
         e.preventDefault();
       }
 
@@ -199,7 +248,7 @@ export default function PullToRefresh({
       if (mode === null) {
         // Downward, from the very top, is ours. Everything else is the
         // browser's, including the bounce at the end of the page.
-        mode = dy > 0 && scrollTop() <= 0 ? "pull" : "scroll";
+        mode = dy > 0 && atTop ? "pull" : "scroll";
       }
       if (mode === "scroll") return;
 
@@ -207,8 +256,6 @@ export default function PullToRefresh({
       e.preventDefault();
       // Resistance: the further you pull, the less it gives.
       paint(Math.min(MAX, dy * 0.52));
-      if (badge.current) {
-      }
       // Announce the moment it becomes releasable, so the threshold is
       // discoverable by feel rather than by guessing.
       const nowArmed = pull >= THRESHOLD;
@@ -265,15 +312,32 @@ export default function PullToRefresh({
       engaged = false;
     };
 
+    /**
+     * Taken away rather than finished: a system edge swipe, an incoming call, a
+     * second finger. Wired to `onEnd` this FETCHED, so a gesture the student
+     * never completed spent a real sign-in against the daily cap. It abandons
+     * and retracts, which is the same correction the tab bar's drag and the
+     * screen swipe each needed.
+     */
+    const onCancel = () => {
+      if (startY === null) return;
+      startY = null;
+      mode = null;
+      engaged = false;
+      setArmed(false);
+      settle(0);
+    };
+
     el.addEventListener("touchstart", onStart, { passive: true });
     el.addEventListener("touchmove", onMove, { passive: false });
     el.addEventListener("touchend", onEnd, { passive: true });
-    el.addEventListener("touchcancel", onEnd, { passive: true });
+    el.addEventListener("touchcancel", onCancel, { passive: true });
     return () => {
       el.removeEventListener("touchstart", onStart);
       el.removeEventListener("touchmove", onMove);
       el.removeEventListener("touchend", onEnd);
-      el.removeEventListener("touchcancel", onEnd);
+      el.removeEventListener("touchcancel", onCancel);
+      drop();
     };
   }, [onRefresh]);
 

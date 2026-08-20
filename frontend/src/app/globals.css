@@ -1250,6 +1250,36 @@ html {
   overscroll-behavior-y: contain;
 }
 
+/* THE SIGNED-IN COLUMN OWNS ITS HORIZONTAL AXIS.
+ *
+ * A browser decides for itself, at the very start of a touch, which way a
+ * gesture is going to scroll the page, and it decides on both axes at once
+ * unless it is told otherwise. That left the tab swipe in a fight it could not
+ * win: the scroller claimed the gesture on the first movement, our own
+ * `preventDefault` arrived a few pixels later and was ignored (iOS ignores a
+ * late one outright), and the screen ended up being dragged sideways by us
+ * while the page was being scrolled underneath by the browser. Two owners, one
+ * gesture, and it reads as stutter rather than as the conflict it is.
+ *
+ * `pan-y` ends the argument before it starts: vertical is the browser's,
+ * horizontal is ours, and neither has to wait on the other to find out. The
+ * compositor can also keep scrolling without consulting our handler, which is
+ * what a WebView needs most.
+ *
+ * Written twice on purpose. `pinch-zoom` keeps the page zoomable, which
+ * matters because nothing here disables zoom, and a browser too old to know
+ * the keyword would otherwise throw away the whole declaration and hand both
+ * axes back. The old one takes the first line, the rest take the second.
+ *
+ * Anything inside that needs a different answer says so for itself: the tab
+ * bar declares `touch-action: none` for its own drag, and the one horizontal
+ * scroller in the app (the skins strip) lives in a sheet portalled to the
+ * body, outside this column entirely. */
+[data-shell] {
+  touch-action: pan-y;
+  touch-action: pan-y pinch-zoom;
+}
+
 body {
   background: var(--color-ink-0);
   color: var(--color-text-1);
