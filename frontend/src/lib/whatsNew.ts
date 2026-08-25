@@ -54,6 +54,7 @@ export const NOTICE = {
   holidays: "skipp.seen-holidays-update",
   stone: "skipp.seen-stone-theme",
   attendance: "skipp.seen-attendance-back",
+  marks: "skipp.seen-marks-back",
 } as const;
 
 export type Notice = (typeof NOTICE)[keyof typeof NOTICE];

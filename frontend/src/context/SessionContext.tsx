@@ -147,6 +147,7 @@ type SessionValue = {
   marks: Marks | null;
   marksState: SectionState;
   marksMessage: string | null;
+  marksSource: "academia" | "portal" | null;
   fetchedAt: string | null;
   isAuthed: boolean;
   restoring: boolean;
@@ -450,6 +451,7 @@ export function SessionProvider({ children }: { children: React.ReactNode }) {
       marks: usePortalMarks ? portalAtt.marks : (snapshot?.marks ?? null),
       marksState: usePortalMarks ? "ready" : sectionState(snapshot?.marksStatus),
       marksMessage: usePortalMarks ? null : (snapshot?.marksMessage ?? null),
+      marksSource: academiaMarksReady ? "academia" : usePortalMarks ? "portal" : null,
       fetchedAt: snapshot?.fetchedAt ?? null,
       isAuthed: creds !== null,
       restoring,

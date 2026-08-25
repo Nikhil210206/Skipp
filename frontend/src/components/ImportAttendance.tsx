@@ -7,7 +7,7 @@ import { useSession } from "@/context/SessionContext";
 import { initStudentPortalLogin } from "@/lib/api";
 import type { StudentPortalCaptchaResponse } from "@/types";
 
-export function ImportAttendanceAction() {
+export function ImportAttendanceAction({ type = "attendance" }: { type?: "attendance" | "marks" }) {
   const { importAttendance } = useSession();
   const [open, setOpen] = useState(false);
   const [busy, setBusy] = useState(false);
@@ -74,11 +74,11 @@ export function ImportAttendanceAction() {
         onClose={() => {
           if (!busy) setOpen(false);
         }}
-        title="Get your attendance"
+        title={type === "marks" ? "Get your marks" : "Get your attendance"}
       >
         <div className="flex flex-col gap-5 pb-2">
           <p className="text-body text-text-2">
-            Academia has not published attendance yet, so Skipp reads it straight
+            Academia has not published {type} yet, so Skipp reads {type === "marks" ? "them" : "it"} straight
             from the SRM student portal instead.
           </p>
 
@@ -202,7 +202,7 @@ function Field({
   );
 }
 
-export function PortalSourceNote() {
+export function PortalSourceNote({ type = "attendance" }: { type?: "attendance" | "marks" }) {
   const { reportedPeriod, importAttendance, clearImportedAttendance } = useSession();
   const [busy, setBusy] = useState(false);
   const [open, setOpen] = useState(false);
@@ -304,7 +304,7 @@ export function PortalSourceNote() {
         </div>
       </div>
       
-      <Sheet open={open} onClose={() => { if (!busy) setOpen(false); }} title="Update attendance">
+      <Sheet open={open} onClose={() => { if (!busy) setOpen(false); }} title={`Update ${type}`}>
         <div className="flex flex-col gap-5 pb-2">
           {!sessionData && busy ? (
             <div className="flex items-center justify-center p-6">

@@ -12,6 +12,7 @@ import NotifyOnOpen from "./NotifyOnOpen";
 import WhatsNewSheet from "./WhatsNewSheet";
 import NewThemeSheet from "./NewThemeSheet";
 import AttendanceBackSheet from "./AttendanceBackSheet";
+import MarksBackSheet from "./MarksBackSheet";
 import { CREATOR } from "@/lib/creator";
 import { Skeleton } from "./ui";
 import { pageIn, prefersReducedMotion, revealWord } from "@/lib/motion";
@@ -80,6 +81,7 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
   const seenHolidays = useSeenNotice(NOTICE.holidays);
   const seenTheme = useSeenNotice(NOTICE.stone);
   const seenAttendance = useSeenNotice(NOTICE.attendance);
+  const seenMarks = useSeenNotice(NOTICE.marks);
   const feedbackDue = useFeedbackDue();
   // A device that reached a signed-in screen without passing the entry screen
   // (a deep link, a restored tab) has no schedule yet. Seeding it here treats
@@ -93,8 +95,9 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
   // core number being readable again, and it asks for an action. A skin and a
   // calendar feature can wait a launch.
   const showAttendance = !seenAttendance && !gateUp;
-  const showTheme = !seenTheme && !showAttendance && !gateUp;
-  const showHolidays = !seenHolidays && !showTheme && !showAttendance && !gateUp;
+  const showMarks = !seenMarks && !showAttendance && !gateUp;
+  const showTheme = !seenTheme && !showMarks && !showAttendance && !gateUp;
+  const showHolidays = !seenHolidays && !showTheme && !showMarks && !showAttendance && !gateUp;
   function tapMasthead() {
     taps.current += 1;
     if (timer.current) window.clearTimeout(timer.current);
@@ -253,11 +256,12 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
             what they think of a change they had not seen yet. Its date is not
             consumed when it loses, so it simply comes round next launch. */}
         <AttendanceBackSheet open={showAttendance} />
+        <MarksBackSheet open={showMarks} />
         <NewThemeSheet open={showTheme} />
         <WhatsNewSheet open={showHolidays} />
         <FeedbackPrompt
           open={
-            feedbackDue && !showAttendance && !showTheme && !showHolidays && !gateUp
+            feedbackDue && !showMarks && !showAttendance && !showTheme && !showHolidays && !gateUp
           }
         />
       </div>

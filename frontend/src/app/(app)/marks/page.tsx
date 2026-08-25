@@ -13,6 +13,10 @@ import {
   SectionHead,
   TrackRule,
 } from "@/components/ui/editorial";
+import {
+  ImportAttendanceAction,
+  PortalSourceNote,
+} from "@/components/ImportAttendance";
 
 const pct = (a: number, b: number) => (b > 0 ? (a / b) * 100 : 0);
 const round = (n: number) => Math.round(n * 100) / 100;
@@ -34,7 +38,7 @@ const round = (n: number) => Math.round(n * 100) / 100;
  * question about ONE subject, so it waits until you tap that subject.
  */
 export default function MarksPage() {
-  const { marks, marksState, marksMessage, timetable } = useSession();
+  const { marks, marksState, marksMessage, marksSource, timetable } = useSession();
   const subjects = marks?.subjects ?? [];
 
   // Credit and category come from the registration list, keyed by course code.
@@ -100,6 +104,7 @@ export default function MarksPage() {
               marksMessage ??
               "Nothing has been published for this term. Marks appear here the moment they are."
             }
+            action={<ImportAttendanceAction type="marks" />}
           />
         )}
 
@@ -108,7 +113,14 @@ export default function MarksPage() {
             tone="risk"
             title="Could not load marks"
             message={marksMessage ?? "Pull down to try again."}
+            action={<ImportAttendanceAction type="marks" />}
           />
+        )}
+
+        {marksState === "ready" && marksSource === "portal" && (
+          <div data-reveal className="pt-6 pb-2">
+            <PortalSourceNote type="marks" />
+          </div>
         )}
 
         {/* Nothing published yet is still a moment: the count of subjects
