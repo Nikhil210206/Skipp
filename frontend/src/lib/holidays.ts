@@ -12,6 +12,7 @@
 // it hold classes.
 
 import type { CalendarDay } from "@/types";
+import { isSaturdayClassEntry, teachingPeriod } from "@/lib/saturday";
 
 export type Holiday = {
   date: string;
@@ -26,6 +27,15 @@ export type Holiday = {
   runLead: boolean;
   /** Whether classes actually start again afterwards. */
   resumes: boolean;
+  /**
+   * Whether it lands on a day this student had off anyway.
+   *
+   * Not simply "is it a weekend": a student who sits Saturday classes GAINS a
+   * real day when a festival falls on a Saturday, and telling them it "falls
+   * on a weekend" would be telling them they gained nothing. Sunday is always
+   * free; Saturday depends on the student.
+   */
+  onFreeWeekend: boolean;
   past: boolean;
 };
 
@@ -46,9 +56,6 @@ export function holidayName(event: string): string {
   return CALLED[clean.toLowerCase()] ?? clean;
 }
 
-export const isWeekendDay = (weekday: string) =>
-  weekday === "Sat" || weekday === "Sun";
-
 const isNextDay = (a: string, b: string) =>
   Date.parse(`${b}T00:00:00`) - Date.parse(`${a}T00:00:00`) === 86400000;
 
@@ -56,9 +63,45 @@ const isNextDay = (a: string, b: string) =>
  * Every named holiday in the term, in date order, each carrying the break it
  * belongs to.
  */
-export function termHolidays(cal: CalendarDay[], today: string): Holiday[] {
+export function termHolidays(
+  cal: CalendarDay[],
+  today: string,
+  /**
+   * Set when the student sits their own Saturday classes.
+   *
+   * **This is the one place Saturday is allowed to reach outside its own
+   * store, and it is deliberate rather than an oversight.** A break is only a
+   * break if you do not have to come back into the middle of it, so for a
+   * student with a Saturday timetable, Gandhi Jayanthi on a Friday is one day
+   * off and not three. The dependency runs one way (holidays asks about
+   * Saturday, never the reverse) and reaches a displayed figure only: nothing
+   * here touches attendance, the day-order grid or the leave planner.
+   *
+   * Left off, every Saturday is a day off exactly as before, which is the
+   * truth for a student who has added no Saturday classes.
+   */
+  opts: { saturdaysAreClassDays?: boolean } = {},
+): Holiday[] {
   const days = [...cal].sort((a, b) => a.date.localeCompare(b.date));
   const out: Holiday[] = [];
+  const satWorks = opts.saturdaysAreClassDays ?? false;
+  // Computed once. Saturdays outside the teaching period hold no classes,
+  // which is what stops Christmas reading as though the term resumed on the
+  // 26th, three weeks after the last working day.
+  const term = teachingPeriod(cal);
+
+  /**
+   * Does this student have class on this day?
+   *
+   * **`dayOrder != null` is not enough once Saturdays are in play**, and both
+   * halves of that matter. The run walk has to STOP at a working Saturday, or
+   * it swallows one and reports a break that is really two. And `resumes` has
+   * to count it as a return to class, or a Friday holiday followed by a
+   * working Saturday reads as "after the term", because the Saturday carries
+   * no day order and the old test saw only that.
+   */
+  const isClassDay = (d: CalendarDay) =>
+    d.dayOrder != null || (satWorks && isSaturdayClassEntry(d, term));
 
   for (let i = 0; i < days.length; i++) {
     const d = days[i];
@@ -72,7 +115,7 @@ export function termHolidays(cal: CalendarDay[], today: string): Holiday[] {
     while (
       a > 0 &&
       days[a - 1].date >= floor &&
-      days[a - 1].dayOrder == null &&
+      !isClassDay(days[a - 1]) &&
       isNextDay(days[a - 1].date, days[a].date)
     )
       a--;
@@ -80,7 +123,7 @@ export function termHolidays(cal: CalendarDay[], today: string): Holiday[] {
     let b = i;
     while (
       b < days.length - 1 &&
-      days[b + 1].dayOrder == null &&
+      !isClassDay(days[b + 1]) &&
       isNextDay(days[b].date, days[b + 1].date)
     )
       b++;
@@ -105,7 +148,10 @@ export function termHolidays(cal: CalendarDay[], today: string): Holiday[] {
       runStart: days[a].date,
       runEnd: days[b].date,
       runLead,
-      resumes: Boolean(next && next.dayOrder != null),
+      resumes: Boolean(next && isClassDay(next)),
+      // Sunday is free for everybody. A Saturday is free only for a student
+      // who does not sit classes on it.
+      onFreeWeekend: d.weekday === "Sun" || (d.weekday === "Sat" && !satWorks),
       past: d.date < today,
     });
   }
@@ -187,7 +233,10 @@ export function holidayNote(
       strong: true,
       range: dateRange(h.runStart, h.runEnd),
     };
-  if (isWeekendDay(h.weekday))
+  // Asks whether the student actually had the day off, not what the day is
+  // called. A festival on a Saturday is a real day gained by anyone who sits
+  // Saturday classes, and saying it "falls on a weekend" would deny them it.
+  if (h.onFreeWeekend)
     return { text: `falls on a ${fullWeekday(h.weekday)}`, strong: false };
   return null;
 }

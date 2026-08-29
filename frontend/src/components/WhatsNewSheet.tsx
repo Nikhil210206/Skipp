@@ -27,12 +27,18 @@ import { markNoticeSeen, NOTICE, useNoticeHold } from "@/lib/whatsNew";
  */
 export default function WhatsNewSheet({ open }: { open: boolean }) {
   const router = useRouter();
-  const { timetable } = useSession();
+  const { timetable, saturday } = useSession();
   const today = todayISO();
 
   const held = useNoticeHold(open);
 
-  const holidays = timetable ? termHolidays(timetable.calendar, today) : [];
+  // Saturday-aware, so a student who sits Saturday classes is not advertised a
+  // long weekend they do not get.
+  const holidays = timetable
+    ? termHolidays(timetable.calendar, today, {
+        saturdaysAreClassDays: saturday.classes.length > 0,
+      })
+    : [];
   // The best thing we can show them: a real long weekend still to come, or
   // failing that simply the next day off.
   const feature = holidays.find(isLongBreak) ?? holidays.find((h) => !h.past);

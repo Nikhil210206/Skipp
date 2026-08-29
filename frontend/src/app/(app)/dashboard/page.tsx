@@ -21,6 +21,7 @@ import { IconChevronRight } from "@/components/Icons";
 import { SectionHead, TrackRule } from "@/components/ui/editorial";
 import { buildReminders } from "@/lib/reminders";
 import { holidayName } from "@/lib/holidays";
+import { saturdayFocus, saturdayItems } from "@/lib/saturday";
 
 /**
  * HOME: a cover, not a dashboard.
@@ -42,21 +43,53 @@ export default function DashboardPage() {
     attendanceState,
     customClasses,
     attendingDayOrders,
+    saturday,
     displayName,
     attendanceChanges,
   } = useSession();
 
   const holiday = timetable ? holidayToday(timetable.calendar) : null;
-  const focus = timetable ? focusDay(timetable, attendingDayOrders) : null;
+  const today = todayISO();
+
+  /**
+   * THE STUDENT'S OWN SATURDAY, WHICH THE PORTAL DOES NOT PUBLISH.
+   *
+   * Every Saturday of the term carries `dayOrder: null`, so `focusDay` walks
+   * straight past it to Monday. Without this branch, a student with a Saturday
+   * class is told on Friday night and again on Saturday morning that their
+   * next class is two days away, while they are on their way to one.
+   *
+   * **It deliberately does not go through `focusDay` or the day-order grid.**
+   * A Saturday carries no day order and must not gain one, or the leave
+   * planner, the term-progress count and every long-weekend run change meaning
+   * at once. Instead the day is described here and handed to `buildCover`,
+   * which only ever asks for a date, a weekday and a list of rows: it neither
+   * knows nor cares that these came from somewhere else.
+   */
+  const satItems = saturdayItems(saturday);
+  const normalFocus = timetable ? focusDay(timetable, attendingDayOrders) : null;
+  const satFocus = timetable
+    ? saturdayFocus({
+        today,
+        nowMin: nowMinutes(),
+        calendar: timetable.calendar,
+        plan: saturday,
+        normalFocusDate: normalFocus?.date ?? null,
+      })
+    : null;
+
+  const focus = satFocus ?? normalFocus;
   // The filtered grid, so optional courses never reach the day's class list.
   const schedule = scheduleFor(attendingDayOrders, focus?.dayOrder ?? null);
   // Merged FIRST. A lab is two or three consecutive periods of one course, and
   // a student thinks of it as one class: if the hero is picked from unmerged
   // periods, the rest of the same lab reappears in the list below it, and the
   // countdown runs to the end of period one rather than the end of the lab.
-  const classes = mergeRuns(
-    daySchedule(schedule?.classes ?? [], customClasses, focus?.dayOrder ?? null),
-  );
+  const classes = satFocus
+    ? satItems
+    : mergeRuns(
+        daySchedule(schedule?.classes ?? [], customClasses, focus?.dayOrder ?? null),
+      );
 
   const cover = buildCover(classes, focus, holiday);
   const later = cover.hero
@@ -69,7 +102,6 @@ export default function DashboardPage() {
 
   // Everything that wants attention right now, derived from the snapshot
   // already on the device plus the student's own reminders.
-  const today = todayISO();
   const isTodayFocused = focus?.label === "TODAY";
   const feed = buildReminders({
     attendance,

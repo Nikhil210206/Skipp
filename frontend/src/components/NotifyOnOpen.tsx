@@ -10,6 +10,7 @@ import {
   todayISO,
 } from "@/lib/schedule";
 import { notifyClassSoon } from "@/lib/notify";
+import { saturdayClassesOn } from "@/lib/saturday";
 
 /**
  * Raises the "class starting soon" notification when the app is opened.
@@ -27,8 +28,14 @@ import { notifyClassSoon } from "@/lib/notify";
  * per real change rather than once per glance.
  */
 export default function NotifyOnOpen() {
-  const { timetable, attendingDayOrders, customClasses, optionalCourses, isAuthed } =
-    useSession();
+  const {
+    timetable,
+    attendingDayOrders,
+    customClasses,
+    optionalCourses,
+    saturday,
+    isAuthed,
+  } = useSession();
 
   useEffect(() => {
     if (!isAuthed || !timetable) return;
@@ -36,15 +43,35 @@ export default function NotifyOnOpen() {
     const check = async () => {
       const iso = todayISO();
       const today = calendarDay(timetable.calendar, iso);
-      // A holiday has no day order, and nothing to be late for.
-      if (today?.dayOrder == null) return;
 
-      const classes = daySchedule(
-        scheduleFor(attendingDayOrders, today.dayOrder)?.classes ?? [],
-        customClasses,
-        today.dayOrder,
-        optionalCourses,
-      );
+      /**
+       * A Saturday has no day order, so the guard below would drop it, and a
+       * student with a Saturday class would be the one person the reminder
+       * never reached.
+       *
+       * **Asked through the shared predicate, never spelled out here.** This
+       * was written inline as `today?.dayOrder == null`, which is TRUE for a
+       * date the calendar has never heard of, so it kept announcing Saturday
+       * classes every weekend for ever once the term was over. Home refused
+       * the same dates. One predicate, so they cannot disagree again.
+       *
+       * These classes are never merged into the day-order path: they are the
+       * whole day here, or they are nothing.
+       */
+      const sat = saturdayClassesOn(iso, timetable.calendar, saturday);
+
+      // A holiday has no day order, and nothing to be late for.
+      if (sat.length === 0 && today?.dayOrder == null) return;
+
+      const classes =
+        sat.length > 0
+          ? sat
+          : daySchedule(
+              scheduleFor(attendingDayOrders, today!.dayOrder)?.classes ?? [],
+              customClasses,
+              today!.dayOrder,
+              optionalCourses,
+            );
       // "Have I already said this?" is answered inside notifyClassSoon, against
       // a log in localStorage. It cannot live here: this component is remounted
       // on every navigation, so anything held in a ref forgets instantly and
@@ -58,7 +85,14 @@ export default function NotifyOnOpen() {
     };
     document.addEventListener("visibilitychange", onVisible);
     return () => document.removeEventListener("visibilitychange", onVisible);
-  }, [isAuthed, timetable, attendingDayOrders, customClasses, optionalCourses]);
+  }, [
+    isAuthed,
+    timetable,
+    attendingDayOrders,
+    customClasses,
+    optionalCourses,
+    saturday,
+  ]);
 
   return null;
 }

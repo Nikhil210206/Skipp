@@ -140,8 +140,15 @@ export default function AttendancePage() {
                   Below the line
                 </SectionHead>
                 <ul className="mt-2">
+                  {/* THE CATEGORY IS PART OF THE KEY, and it has to be. A
+                      course has separate Theory and Practical attendance rows
+                      sharing one code, and they can share a slot too, so
+                      `code-slot` collided and React was dropping one of the
+                      two: a whole subject could vanish off the screen it is
+                      the entire point of. The index closes the last gap, since
+                      the portal is free to report a course twice. */}
                   {short.map((s, i) => (
-                    <li key={`${s.code}-${s.slot ?? i}`} data-row>
+                    <li key={`${s.code}-${s.category}-${i}`} data-row>
                       <Ledger s={s} tone="accent" />
                     </li>
                   ))}
@@ -155,7 +162,7 @@ export default function AttendancePage() {
               <SectionHead aside={`${rest.length} listed`}>Subjects</SectionHead>
               <ul className="mt-2">
                 {rest.map((s, i) => (
-                  <li key={`${s.code}-${s.slot ?? i}`} data-row>
+                  <li key={`${s.code}-${s.category}-${i}`} data-row>
                     <Ledger s={s} />
                   </li>
                 ))}

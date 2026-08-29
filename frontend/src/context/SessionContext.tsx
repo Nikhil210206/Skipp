@@ -117,6 +117,15 @@ import {
   saveDisplayName,
   saveOptionalCourses,
 } from "@/lib/customClasses";
+import {
+  EMPTY_PLAN,
+  loadSaturday,
+  newSaturdayId,
+  saveSaturday,
+  type SaturdayBatch,
+  type SaturdayClass,
+  type SaturdayPlan,
+} from "@/lib/saturday";
 
 type SectionState = SectionStatus | "loading";
 
@@ -156,6 +165,16 @@ type SessionValue = {
   customClasses: CustomClass[];
   addCustomClass: (c: Omit<CustomClass, "id">) => void;
   removeCustomClass: (id: string) => void;
+  /**
+   * The student's own Saturday timetable. Deliberately NOT part of
+   * `timetable.dayOrders`: a Saturday carries no day order and must never gain
+   * one, or every attendance calculation in the app silently changes. See
+   * `lib/saturday.ts`.
+   */
+  saturday: SaturdayPlan;
+  setSaturdayBatch: (batch: SaturdayBatch) => void;
+  addSaturdayClass: (c: Omit<SaturdayClass, "id">) => void;
+  removeSaturdayClass: (id: string) => void;
   /** Optional markings, one per day order and per lab-ness (see optionalKey). */
   optionalCourses: string[];
   /** Marks or unmarks ONE row: this course, on this day order, this side of the
@@ -184,6 +203,7 @@ export function SessionProvider({ children }: { children: React.ReactNode }) {
   const [restoring, setRestoring] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [customClasses, setCustomClasses] = useState<CustomClass[]>([]);
+  const [saturday, setSaturday] = useState<SaturdayPlan>(EMPTY_PLAN);
   const [optionalCourses, setOptionalCourses] = useState<string[]>([]);
   const [customName, setCustomName] = useState<string | null>(null);
   const [attendanceChanges, setChanges] = useState<AttendanceChange[]>([]);
@@ -202,6 +222,9 @@ export function SessionProvider({ children }: { children: React.ReactNode }) {
   if (reg !== loadedReg) {
     setLoadedReg(reg);
     setCustomClasses(reg ? loadCustomClasses(reg) : []);
+    // Never seeded from `student.batch`: the Saturday split is its own
+    // arrangement that merely reuses the numbers 1 and 2. See lib/saturday.ts.
+    setSaturday(reg ? loadSaturday(reg) : EMPTY_PLAN);
     setOptionalCourses(reg ? loadOptionalCourses(reg) : []);
     setCustomName(reg ? loadDisplayName(reg) : null);
     setPortalAtt(reg ? loadPortalOverride(reg) : null);
@@ -482,6 +505,28 @@ export function SessionProvider({ children }: { children: React.ReactNode }) {
         setCustomClasses(next);
         if (reg) saveCustomClasses(reg, next);
       },
+      saturday,
+      setSaturdayBatch(batch) {
+        const next = { ...saturday, batch };
+        setSaturday(next);
+        if (reg) saveSaturday(reg, next);
+      },
+      addSaturdayClass(c) {
+        const next = {
+          ...saturday,
+          classes: [...saturday.classes, { ...c, id: newSaturdayId() }],
+        };
+        setSaturday(next);
+        if (reg) saveSaturday(reg, next);
+      },
+      removeSaturdayClass(id) {
+        const next = {
+          ...saturday,
+          classes: saturday.classes.filter((x) => x.id !== id),
+        };
+        setSaturday(next);
+        if (reg) saveSaturday(reg, next);
+      },
       attendanceChanges,
       optionalCourses,
       toggleOptional(dayOrder, code, isLab, covers) {
@@ -555,6 +600,7 @@ export function SessionProvider({ children }: { children: React.ReactNode }) {
     restoring,
     refreshing,
     customClasses,
+    saturday,
     optionalCourses,
     attendanceChanges,
     customName,

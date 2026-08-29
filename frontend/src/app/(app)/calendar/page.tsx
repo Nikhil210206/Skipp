@@ -2,12 +2,14 @@
 
 import { useMemo, useState } from "react";
 import { useSession } from "@/context/SessionContext";
-import { todayISO } from "@/lib/schedule";
+import { fmtTime, todayISO } from "@/lib/schedule";
 import { revealIn, useGsap } from "@/lib/motion";
 import { Button, IconButton, StateView } from "@/components/ui";
 import { Marginalia, Rule, SectionHead, TrackRule } from "@/components/ui/editorial";
 import { IconChevronLeft, IconChevronRight } from "@/components/Icons";
 import HolidaysSheet from "@/components/HolidaysSheet";
+import SaturdaySheet from "@/components/SaturdaySheet";
+import { BATCH_LABEL, isSaturdayClassDay, sortedSaturday } from "@/lib/saturday";
 import HolidayRow from "@/components/HolidayRow";
 import {
   MONTH_NAMES as MONTHS,
@@ -27,7 +29,7 @@ const WEEKDAYS = ["M", "T", "W", "T", "F", "S", "S"];
  * words rather than boxed in a card, so the grid itself is the whole screen.
  */
 export default function CalendarPage() {
-  const { timetable } = useSession();
+  const { timetable, saturday } = useSession();
   const cal = useMemo(() => timetable?.calendar ?? [], [timetable]);
 
   const byDate = useMemo(() => {
@@ -50,8 +52,31 @@ export default function CalendarPage() {
     () => (byDate.has(today) ? today : months[0] ? `${months[0]}-01` : today),
   );
 
-  const holidays = useMemo(() => termHolidays(cal, today), [cal, today]);
+  /**
+   * Days off, told from this student's week rather than the portal's.
+   *
+   * A break has to be one you do not come back into the middle of, so once a
+   * student sits Saturday classes, Gandhi Jayanthi on a Friday is one day off
+   * and not three. With no Saturday classes this is exactly what it always
+   * was.
+   */
+  const holidays = useMemo(
+    () => termHolidays(cal, today, { saturdaysAreClassDays: saturday.classes.length > 0 }),
+    [cal, today, saturday],
+  );
   const [allOpen, setAllOpen] = useState(false);
+  const [satOpen, setSatOpen] = useState(false);
+
+  /**
+   * The student's Saturday, which the portal knows nothing about.
+   *
+   * The same classes on every Saturday of the term, so this is one list rather
+   * than a lookup by date. It is read straight from its own store and is never
+   * merged into `cal`: a Saturday carries no day order and must not gain one,
+   * or the term-progress count and every long-weekend run below silently
+   * change meaning. See lib/saturday.ts.
+   */
+  const satClasses = useMemo(() => sortedSaturday(saturday), [saturday]);
 
   const scope = useGsap(({ self, reduced }) => revealIn(self, reduced, { y: 12 }), [ym]);
 
@@ -77,6 +102,11 @@ export default function CalendarPage() {
   ];
   const iso = (d: number) =>
     `${year}-${String(month0 + 1).padStart(2, "0")}-${String(d).padStart(2, "0")}`;
+
+  // Through the shared predicate, so this screen cannot drift from Home and
+  // the notifications about what counts as a Saturday. It also refuses a date
+  // the term has never heard of, which spelling it out here did not.
+  const selIsSat = isSaturdayClassDay(selected, cal);
 
   const working = cells.filter(
     (d) => d !== null && byDate.get(iso(d))?.dayOrder != null,
@@ -134,7 +164,9 @@ export default function CalendarPage() {
                 ? `Day order ${sel.dayOrder}`
                 : sel?.isHoliday
                   ? "Holiday"
-                  : "No classes"}
+                  : selIsSat && satClasses.length > 0
+                    ? "Your Saturday"
+                    : "No classes"}
           </h1>
           {sel?.isHoliday && sel.event ? (
             <p className="mt-2 text-callout uppercase tracking-[0.075em] text-accent">
@@ -146,6 +178,50 @@ export default function CalendarPage() {
                 <span className="mt-3 block">{holidayName(sel.event)}</span>
               </Marginalia>
             )
+          )}
+
+          {/* THE SATURDAY. The portal publishes none, so this is the student's
+              own, typed once and repeated on every Saturday of the term.
+
+              It lives here rather than on Schedule on purpose: Schedule is the
+              day-order screen and its tabs are 1 to 5, so a sixth tab would
+              say a Saturday has a day order when it has not. A date is the
+              honest place to ask about a day that only exists as a date. */}
+          {selIsSat && (
+            <div className="mt-5">
+              {satClasses.length > 0 && (
+                <ul className="mb-4 flex flex-col">
+                  {satClasses.map((c) => (
+                    <li
+                      key={c.id}
+                      className="flex items-baseline gap-3 border-b border-line-soft py-2.5 last:border-0"
+                    >
+                      <span className="tnum w-[104px] shrink-0 text-callout text-text-2">
+                        {fmtTime(c.startMin)} to {fmtTime(c.endMin)}
+                      </span>
+                      <span className="min-w-0 flex-1 text-body text-text-1">
+                        {c.title}
+                        {c.room && (
+                          <span className="ml-2 text-label uppercase text-text-3">
+                            {c.room}
+                          </span>
+                        )}
+                      </span>
+                    </li>
+                  ))}
+                </ul>
+              )}
+              <Button variant="outline" onClick={() => setSatOpen(true)}>
+                {satClasses.length > 0 ? "Edit Saturday" : "Add Saturday classes"}
+              </Button>
+              <Marginalia>
+                <span className="mt-3 block">
+                  {satClasses.length > 0 && saturday.batch != null
+                    ? `Batch ${saturday.batch}, ${BATCH_LABEL[saturday.batch]}. Every Saturday of the term. Not counted towards attendance.`
+                    : "The portal does not publish Saturdays. Add yours and they show on every Saturday."}
+                </span>
+              </Marginalia>
+            </div>
           )}
         </div>
 
@@ -194,6 +270,10 @@ export default function CalendarPage() {
               const isToday = date === today;
               const works = day?.dayOrder != null;
               const holiday = Boolean(day?.isHoliday);
+              // A Saturday the student sits classes on. Same predicate as the
+              // written-out day above, so a ring can never appear on a square
+              // the day panel would refuse to open.
+              const sat = satClasses.length > 0 && isSaturdayClassDay(date, cal);
               return (
                 <button
                   key={i}
@@ -204,7 +284,11 @@ export default function CalendarPage() {
                       ? `, day order ${day!.dayOrder}`
                       : holiday
                         ? `, holiday${day?.event ? `, ${holidayName(day.event)}` : ""}`
-                        : ""
+                        : sat
+                          ? `, ${satClasses.length} Saturday ${
+                              satClasses.length === 1 ? "class" : "classes"
+                            }`
+                          : ""
                   }`}
                   data-day
                   // The day order as a marker as well as a numeral, so a theme
@@ -247,7 +331,14 @@ export default function CalendarPage() {
                               // also says "free" without a word of explanation,
                               // and every theme already defines and tunes it.
                               "font-semibold text-safe"
-                            : "text-text-3/45"
+                            : sat
+                              // Lifted clear of a dead weekend without being
+                              // promoted to a working day's `text-1`: this IS
+                              // a day with classes on it, but they are the
+                              // student's own and the portal counts none of
+                              // them. The rank says exactly that.
+                              ? "text-text-2"
+                              : "text-text-3/45"
                     }`}
                   >
                     {d}
@@ -266,6 +357,18 @@ export default function CalendarPage() {
                       day!.dayOrder
                     ) : holiday ? (
                       <span aria-hidden className="size-2 rounded-full bg-safe" />
+                    ) : sat ? (
+                      /* A ring, not a filled dot and not a colour. Filled green
+                         is already the holiday and the accent already means two
+                         things on this grid (the selection, today's underline),
+                         so a third use of either would leave all of them
+                         meaning nothing. Shape carries it instead, and the
+                         aria-label says it in words so nothing rests on telling
+                         a ring from a disc at 8px. */
+                      <span
+                        aria-hidden
+                        className="size-2 rounded-full border border-text-3"
+                      />
                     ) : null}
                   </span>
                   {isToday && (
@@ -282,6 +385,7 @@ export default function CalendarPage() {
             <span className="tnum">{working} working days</span> · small figures are day
             orders
             {monthHasHoliday && ", a dot is a holiday"}
+            {satClasses.length > 0 && ", a ring is your Saturday"}
           </Marginalia>
         </div>
 
@@ -364,6 +468,8 @@ export default function CalendarPage() {
           setSelected(date);
         }}
       />
+
+      <SaturdaySheet open={satOpen} onClose={() => setSatOpen(false)} />
     </>
   );
 }

@@ -46,7 +46,11 @@ const calendar: CalendarDay[] = (() => {
     const d = new Date(start.getTime() + i * 86400000);
     const iso = `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`;
     const holiday = holidays[iso];
-    const off = d.getDay() === 0 || Boolean(holiday);
+    // Saturday is off as well as Sunday. Verified against the real captured
+    // planner: all 26 of its Saturdays carry `dayOrder: null`, so a fixture
+    // that hands them day orders is not the portal and quietly hides every
+    // Saturday-shaped bug.
+    const off = d.getDay() === 0 || d.getDay() === 6 || Boolean(holiday);
     out.push({
       date: iso, weekday: names[d.getDay()], dayOrder: off ? null : rotate,
       event: holiday ?? null, isHoliday: Boolean(holiday),
