@@ -30,6 +30,7 @@ import type {
 import { AuthError, fetchSnapshot, submitStudentPortalLogin } from "@/lib/api";
 import {
   clearPortalOverride,
+  enrichMarkTitles,
   enrichTitles,
   loadPortalOverride,
   savePortalOverride,
@@ -428,6 +429,18 @@ export function SessionProvider({ children }: { children: React.ReactNode }) {
     const usePortalMarks =
       !academiaMarksReady && portalAtt?.marks != null;
 
+    // The portal's marks table has no course-name column, so imported marks
+    // arrive with an empty title and the app printed the course CODE where the
+    // subject name belongs. Academia's own course list is the name everywhere
+    // else in Skipp, so it supplies them here too, matched by code.
+    const portalMarks = usePortalMarks ? portalAtt.marks : null;
+    const courseTitles = new Map(
+      (snapshot?.timetable.courses ?? []).map((c) => [
+        c.code.toUpperCase(),
+        c.title,
+      ]),
+    );
+
     return {
       creds,
       student: snapshot?.timetable.student ?? null,
@@ -448,7 +461,9 @@ export function SessionProvider({ children }: { children: React.ReactNode }) {
       canImportAttendance: true,
       importAttendance,
       clearImportedAttendance,
-      marks: usePortalMarks ? portalAtt.marks : (snapshot?.marks ?? null),
+      marks: portalMarks
+        ? enrichMarkTitles(portalMarks, courseTitles)
+        : (snapshot?.marks ?? null),
       marksState: usePortalMarks ? "ready" : sectionState(snapshot?.marksStatus),
       marksMessage: usePortalMarks ? null : (snapshot?.marksMessage ?? null),
       marksSource: academiaMarksReady ? "academia" : usePortalMarks ? "portal" : null,

@@ -42,13 +42,16 @@ export default function MarksPage() {
   const subjects = marks?.subjects ?? [];
 
   // Credit and category come from the registration list, keyed by course code.
+  // Keyed uppercase: the portal writes course codes in its own casing and a
+  // case-sensitive miss here would silently forecast every subject as theory.
   const courseInfo = new Map(
     (timetable?.courses ?? []).map((c) => [
-      c.code,
+      c.code.toUpperCase(),
       { credit: c.credit ?? 0, practical: /practical|lab/i.test(c.category ?? "") },
     ]),
   );
-  const isPractical = (code: string) => courseInfo.get(code)?.practical ?? false;
+  const isPractical = (code: string) =>
+    courseInfo.get(code.toUpperCase())?.practical ?? false;
 
   // The GPA projection was removed on request. It was a projection built on
   // projections (a grade each subject is on track for, itself assuming every
@@ -215,6 +218,12 @@ export default function MarksPage() {
                       <div data-surface>
                         <SubjectRow
                           title={s.title || s.code}
+                          // Only when it is not already leading the row: a
+                          // course academia does not list has no name to fill
+                          // in, so the code stands as the title and repeating
+                          // it underneath would be furniture.
+                          code={s.title ? s.code : null}
+                          assessment={assessmentLabel(s.components)}
                           scored={published ? round(s.scoredTotal) : null}
                           max={round(s.maxTotal)}
                           open={isOpen}
@@ -248,14 +257,45 @@ export default function MarksPage() {
 }
 
 /**
- * One entry in the contents page: the title, and the score hung on the right.
- * Nothing else, at any width.
+ * Names the assessments a subject's marks came from, for the collapsed row.
  *
- * The title truncates rather than wrapping, because a dot leader only reads as
- * a leader when the title and the figure share one line.
+ * The portal writes one row per assessment ("CLA-1", "CLA-2"), and the page
+ * used to add them up and print only the total, so a student could see 4.5/5
+ * without ever being told WHICH test that was. One or two are named outright,
+ * since that is the whole answer; beyond that the names stop fitting a meta
+ * line and the count is the honest summary, with the list itself one tap away.
+ */
+function assessmentLabel(components: { name: string }[]): string | null {
+  const names = components.map((c) => c.name.trim()).filter(Boolean);
+  if (names.length === 0) return null;
+  if (names.length === 1) return names[0];
+  // Two names joined was tried and truncated to "CLA-1 ..." in the card themes
+  // at 320, which names nothing while taking the room of a name. A count always
+  // fits, and the names themselves are one tap away.
+  return `${names.length} tests`;
+}
+
+/**
+ * One entry in the contents page.
+ *
+ * **The subject name leads and everything else supports it**, which is the fix
+ * for two faults that shared a cause. The row used to print `s.title || s.code`
+ * on one line, so a subject whose title was missing (every subject imported
+ * from the student portal, whose marks table carries no course-name column)
+ * silently became a bare course code: "21ASO301T" where a name belongs. And
+ * the figure beside it was a total with nothing saying which assessment it came
+ * from.
+ *
+ * So the row is two lines: the name at headline weight, then a support line
+ * carrying the code and the assessment it is scored out of, joined to the
+ * figure by the dot leader this page is built on. The name gets the full
+ * column width, which also means it can wrap without ever fighting the leader
+ * for room.
  */
 function SubjectRow({
   title,
+  code,
+  assessment,
   scored,
   max,
   open,
@@ -264,6 +304,10 @@ function SubjectRow({
   onToggle,
 }: {
   title: string;
+  /** Null when the code is already standing in as the title. */
+  code: string | null;
+  /** Which test(s) the figure is made of, null while nothing is published. */
+  assessment: string | null;
   /** Null while nothing has been published for this subject. */
   scored: number | null;
   max: number;
@@ -272,55 +316,65 @@ function SubjectRow({
   panelId: string;
   onToggle: () => void;
 }) {
-  const line = (
-    <>
+  const body = (
+    <span className="min-w-0 flex-1">
       {/* **Wraps rather than truncating.** SRM course names are long, and at
-          this width "Formal Language and Automata" and "Database Management
-          Systems" both ran off the end as "Formal Language …", which is the one
-          thing a subject line may not do: the name is what you are scanning
-          for. A contents entry that runs to two lines is normal typography; a
-          course you cannot identify is a bug. */}
-      <span className="min-w-0 shrink text-headline">{title}</span>
-      {/* Dot leader, the way a contents page joins a title to its page number.
-          It grows into whatever slack the row has and collapses to nothing when
-          there is none, which is the whole trick: it is decoration, and the
-          title is content.
+          this width "Formal Language and Automata" ran off the end as "Formal
+          Language ...", which is the one thing a subject line may not do: the
+          name is what you are scanning for. It now owns the whole column, so a
+          two line entry is ordinary typography rather than a squeeze. */}
+      <span className="block text-headline text-text-1">{title}</span>
 
-          **It must carry no minimum width.** Its basis is 0, so flexbox never
-          shrinks it (shrinkage is weighted by basis), and a floor of 24px was
-          therefore taken straight out of the title: in the card themes, which
-          spend another 28px on padding, that squeezed the title box to 90px
-          while "Mathematics" needs 103, so the word spilled over the dots. */}
-      <span
-        aria-hidden
-        className="min-w-0 flex-1 self-center border-b border-dotted border-line"
-      />
-      {/* The figures are set a step below the title. The subject is what you
-          are looking for; the score is what you are looking up. Smaller type
-          also buys the title about twenty pixels, which is the difference
-          between "Formal Language and Automata" fitting and not. */}
-      {/* The grade used to be hung here as a second figure. It is gone: a
-          contents page carries the score, and a projected letter beside every
-          published number was a verdict competing with a fact. It is stated
-          once, inside the subject it belongs to, above the table it comes
-          from. */}
-      <span className="tnum shrink-0 text-body">
-        {scored !== null ? (
-          <>
-            {scored}
-            <span className="text-text-3">/{max}</span>
-          </>
-        ) : (
-          <span className="text-callout text-text-3">Awaiting</span>
+      <span className="mt-1.5 flex items-baseline gap-2">
+        {code && (
+          <span className="tnum shrink-0 text-callout text-text-3">{code}</span>
         )}
+        {assessment && (
+          <>
+            {code && (
+              <span aria-hidden className="shrink-0 text-callout text-text-3">
+                &middot;
+              </span>
+            )}
+            {/* Truncates where the name does not: an assessment label is a
+                reference ("CLA-1"), and its full form is in the panel. */}
+            <span className="min-w-0 shrink truncate text-callout text-text-3">
+              {assessment}
+            </span>
+          </>
+        )}
+        {/* Dot leader, the way a contents page joins a title to its page
+            number. It grows into whatever slack the line has and collapses to
+            nothing when there is none: it is decoration, the figure is not.
+
+            **It must carry no minimum width.** Its basis is 0, so flexbox never
+            shrinks it (shrinkage is weighted by basis), and a floor here would
+            be taken straight out of the label beside it. */}
+        <span
+          aria-hidden
+          className="min-w-0 flex-1 self-center border-b border-dotted border-line"
+        />
+        {/* The figure sits on the support line's baseline but is set a step
+            above it, so the eye lands on the mark rather than on the label
+            that qualifies it. */}
+        <span className="tnum shrink-0 text-headline text-text-1">
+          {scored !== null ? (
+            <>
+              {scored}
+              <span className="text-callout text-text-3">/{max}</span>
+            </>
+          ) : (
+            <span className="text-callout text-text-3">Awaiting</span>
+          )}
+        </span>
       </span>
-    </>
+    </span>
   );
 
   // Nothing published means there is nothing behind the row, so it stays a line
   // of text rather than becoming a control that opens onto an empty panel.
   if (!expandable) {
-    return <div className="flex items-baseline gap-2.5 py-4">{line}</div>;
+    return <div className="flex items-center gap-2.5 py-3.5">{body}</div>;
   }
 
   return (
@@ -329,13 +383,13 @@ function SubjectRow({
       onClick={onToggle}
       aria-expanded={open}
       aria-controls={panelId}
-      className="flex min-h-11 w-full items-baseline gap-2.5 py-4 text-left"
+      className="flex min-h-11 w-full items-center gap-2.5 py-3.5 text-left"
     >
-      {line}
+      {body}
       <IconChevronRight
         size={15}
         aria-hidden
-        className={`shrink-0 self-center text-text-3 transition-transform duration-200 motion-reduce:transition-none ${
+        className={`shrink-0 text-text-3 transition-transform duration-200 motion-reduce:transition-none ${
           open ? "rotate-90" : ""
         }`}
       />
@@ -373,8 +427,13 @@ function Panel({
 }
 
 /**
- * Everything about one subject, shown only for the subject asked about: how the
- * published marks are made up, and what the exam has to deliver for each grade.
+ * Everything about one subject, shown only for the subject asked about: what
+ * each published assessment scored, and what the exam has to deliver for each
+ * grade.
+ *
+ * **This is where a mark is named.** The collapsed row states a total; the
+ * panel is the itemised bill behind it, one line per test, so "4.5 out of 5" is
+ * never an anonymous figure.
  */
 function Detail({
   components,
@@ -389,23 +448,53 @@ function Detail({
     <div className="pb-5">
       <TrackRule value={percent} className="bleed" />
 
-      <ul className="mt-4 flex flex-col gap-1.5 pl-0">
-        {components.map((c) => (
-          <li
-            key={c.name}
-            className="flex items-baseline gap-3 text-callout text-text-3"
-          >
-            <span className="min-w-0 shrink truncate">{c.name}</span>
-            <span
-              aria-hidden
-              className="min-w-4 flex-1 self-center border-b border-dotted border-line-soft"
-            />
-            <span className="tnum shrink-0">
-              {round(c.scored)}/{round(c.max)}
+      {/* **One assessment gets a sentence, not a table.** The row above already
+          names it and states its marks, so listing it again under a heading was
+          the same line printed twice, which is exactly the duplication this
+          page was rebuilt to remove. What the panel can add is the figure the
+          row does not carry: the percentage that mark works out to. */}
+      {components.length === 1 ? (
+        <p className="mt-3.5 text-body text-text-2">
+          <span className="tnum text-text-1">{percent.toFixed(0)}%</span> in{" "}
+          {components[0].name}
+        </p>
+      ) : (
+        <>
+          {/* Named and hung with the subject's percentage opposite, so the
+              itemised marks read as the bill behind the row's total. */}
+          <div className="mt-4 flex items-baseline gap-3">
+            <span className="text-label uppercase text-text-3">Assessments</span>
+            <span aria-hidden className="h-px flex-1 bg-line-soft" />
+            <span className="tnum text-callout text-text-3">
+              {percent.toFixed(0)}%
             </span>
-          </li>
-        ))}
-      </ul>
+          </div>
+
+          <ul className="mt-3 flex flex-col gap-2 pl-0">
+            {components.map((c, i) => (
+              // Keyed with the index as well as the name: a subject can publish
+              // two assessments the portal labels identically, and a bare name
+              // key would collapse them into one React child.
+              <li
+                key={`${c.name}-${i}`}
+                className="flex items-baseline gap-3 text-body"
+              >
+                {/* The test name is content, so it wraps and is set at the
+                    level of text you read rather than skim past. */}
+                <span className="min-w-0 shrink text-text-2">{c.name}</span>
+                <span
+                  aria-hidden
+                  className="min-w-0 flex-1 self-center border-b border-dotted border-line-soft"
+                />
+                <span className="tnum shrink-0 text-text-1">
+                  {round(c.scored)}
+                  <span className="text-text-3">/{round(c.max)}</span>
+                </span>
+              </li>
+            ))}
+          </ul>
+        </>
+      )}
 
       {forecast && <Forecast forecast={forecast} />}
     </div>

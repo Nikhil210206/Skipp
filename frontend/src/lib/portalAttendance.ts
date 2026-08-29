@@ -77,3 +77,35 @@ function toTitleCase(s: string): string {
     // Keep short acronyms uppercased: "Sql" -> "SQL", "Ii" -> "II".
     .replace(/\b(sql|ii|iii|iv|vi|vii|viii|ix)\b/gi, (m) => m.toUpperCase());
 }
+
+/**
+ * The same treatment for the marks half of an import.
+ *
+ * The student portal's marks table carries no course name at all: its
+ * "Description" column names the ASSESSMENT ("CLA-1"), not the subject, so the
+ * parser deliberately leaves `title` empty and expects it filled from the
+ * course list. Academia's `/refresh` route already does that server side; the
+ * portal login route cannot, because it never sees the timetable, so it is done
+ * here from the snapshot the app is already holding.
+ *
+ * Applied on READ rather than at import, so a student who imported before this
+ * existed gets subject names on the next launch instead of having to sign in
+ * to the portal again for them.
+ */
+export function enrichMarkTitles(
+  marks: Marks,
+  titlesByCode: Map<string, string>,
+): Marks {
+  return {
+    ...marks,
+    subjects: marks.subjects.map((s) => {
+      const proper = titlesByCode.get(s.code.toUpperCase());
+      if (proper) return { ...s, title: proper };
+      const t = s.title.trim();
+      // No match (an open elective academia does not list): keep whatever the
+      // portal gave, tidied. Empty stays empty, and the row falls back to
+      // leading with the course code rather than printing a blank line.
+      return { ...s, title: t === t.toUpperCase() ? toTitleCase(t) : t };
+    }),
+  };
+}
