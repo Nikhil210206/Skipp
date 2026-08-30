@@ -345,6 +345,42 @@ is deployment and true push notifications.
 Entries below are newest first. **When something breaks, read the relevant entry first**: most
 oddities here (login shell, empty calendar, 429s, duplicated course codes) are already diagnosed.
 
+### REMOVED: Saturday classes, built and then scrapped on request (2026-08-30)
+
+A whole Saturday timetable was built (`lib/saturday.ts`, `components/SaturdaySheet.tsx`,
+an entry point on Calendar, a branch on Home, a notification path, and a Saturday-aware
+`termHolidays`) and then **removed entirely on request**: "scrap the entire saturday
+thing, i think no need to show in my app". **Do not rebuild it unless asked.** It is
+recoverable in full from commit `ae12dfd` if it ever is.
+
+**Two fixes from that work were deliberately KEPT**, because neither is about Saturday:
+
+- **`attendance/page.tsx` had duplicate React keys.** Rows were keyed `code-slot`, and a
+  course has separate Theory and Practical attendance rows **that can share both**, so
+  React saw two `21CSC302J-A` children and is free to drop one: a whole subject silently
+  missing from the screen the app exists for. The key carries the category and the index
+  now.
+- **`lib/__devFixture.ts` marked only Sunday as off**, so its Saturdays carried day orders
+  and the fixture was not the portal. Verified against the real captured planner: all 26
+  of its Saturdays carry `dayOrder: null`.
+
+**What was learned, worth keeping even though the feature is gone:**
+
+- **The portal genuinely publishes no Saturdays.** All 26 Saturdays in the real captured
+  planner carry `dayOrder: null`, holidays included. It is not hiding them.
+- **THE PLANNER IS WIDER THAN THE TERM.** The real one runs **1 July to 31 December while
+  teaching runs 21 July to 7 December**: three weekends before classes start, three after
+  they stop, and a 24 day tail with no day orders at all. Anything that treats
+  "in the calendar" as "in the term" will be wrong on those dates. This bit the Saturday
+  work twice and would bite any future feature keyed on `dayOrder == null`.
+- **`dayOrder == null` is TRUE for a date the calendar has never heard of**, so a guard
+  written as `today?.dayOrder == null` silently accepts every date past the end of term.
+  That one shipped a notification path that would have fired for ever.
+- **Every non-interference test needs a control that must fail.** A suite asserting a
+  feature changed nothing passed while reading `projection.after`, a field that does not
+  exist (`overallAfter` does), so it compared `undefined === undefined` and proved
+  nothing. Only a deliberate assertion that something DOES move exposed it.
+
 ### DONE: The swipe composites instead of repainting (2026-08-21)
 
 Reported as the swipe between tabs being stuttery on both iPhone and Android,
