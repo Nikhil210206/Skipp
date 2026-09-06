@@ -123,11 +123,11 @@ export async function downloadTimetableGrid(
   const H = PAD * 2 + TITLE_H + HEAD_H + rows.length * ROW_H + FOOT_H;
 
   const family = getComputedStyle(document.body).fontFamily || "system-ui, sans-serif";
-  const ink = token("--color-ink-0", "#08080a");
-  const line = token("--color-line", "#24242b");
-  const soft = token("--color-line-soft", "#17171c");
-  const text1 = token("--color-text-1", "#f4f4f6");
-  const text3 = token("--color-text-3", "#6b6b75");
+  const ink = token("--color-ink-0", "#000000");
+  const line = token("--color-line", "#262626");
+  const soft = token("--color-line-soft", "#181818");
+  const text1 = token("--color-text-1", "#f5f5f5");
+  const text3 = token("--color-text-3", "#6f6f6f");
   const accent = token("--color-accent", "#f2661c");
   // Not a theme token: this blue exists only to mark the student's own classes
   // in the export, where the accent already means "lab".

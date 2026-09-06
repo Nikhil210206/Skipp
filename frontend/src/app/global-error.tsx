@@ -28,25 +28,25 @@ export default function GlobalError({
           flexDirection: "column",
           justifyContent: "center",
           padding: "0 24px",
-          background: "#08080a",
-          color: "#f4f4f6",
+          background: "#000000",
+          color: "#f5f5f5",
           fontFamily: "ui-sans-serif, system-ui, sans-serif",
         }}
       >
         <title>Skipp could not start</title>
-        <p style={{ fontSize: 11, letterSpacing: "0.08em", textTransform: "uppercase", color: "#6b6b75", margin: 0 }}>
+        <p style={{ fontSize: 11, letterSpacing: "0.08em", textTransform: "uppercase", color: "#6f6f6f", margin: 0 }}>
           Skipp could not start
         </p>
         <h1 style={{ fontSize: 40, lineHeight: 1.05, letterSpacing: "-0.03em", margin: "18px 0 0" }}>
           Something broke early.
         </h1>
-        <div style={{ height: 1, background: "#24242b", margin: "24px 0" }} />
-        <p style={{ maxWidth: "30ch", lineHeight: 1.6, color: "#9d9da7", margin: 0 }}>
+        <div style={{ height: 1, background: "#262626", margin: "24px 0" }} />
+        <p style={{ maxWidth: "30ch", lineHeight: 1.6, color: "#a1a1a1", margin: 0 }}>
           The app failed before it could draw. Nothing on this device has been
           lost, and your details were never sent anywhere.
         </p>
         {error.digest && (
-          <p style={{ marginTop: 20, fontSize: 13, color: "#6b6b75", fontVariantNumeric: "tabular-nums" }}>
+          <p style={{ marginTop: 20, fontSize: 13, color: "#6f6f6f", fontVariantNumeric: "tabular-nums" }}>
             Reference {error.digest}
           </p>
         )}

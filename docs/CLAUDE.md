@@ -240,12 +240,12 @@ exactly three levels, and the accent is used for **one action per screen**.
 
 | Token | Dark | Light | Use |
 | ----- | ---- | ----- | --- |
-| `ink-0` | `#08080a` | `#ffffff` | page |
-| `ink-1` | `#0e0e11` | `#f6f6f7` | cards |
-| `ink-2` | `#16161a` | `#efeff1` | inputs, secondary buttons |
-| `ink-3` | `#1f1f25` | `#e5e5e9` | pressed / selected fills |
-| `line` / `line-soft` | `#24242b` / `#17171c` | `#e3e3e7` / `#eeeef0` | hairlines |
-| `text-1/2/3` | `#f4f4f6` / `#9d9da7` / `#6b6b75` | `#0c0c0f` / `#5d5d67` / `#8b8b95` | heading / body / meta |
+| `ink-0` | `#000000` | `#ffffff` | page |
+| `ink-1` | `#0a0a0a` | `#f6f6f7` | cards |
+| `ink-2` | `#141414` | `#efeff1` | inputs, secondary buttons |
+| `ink-3` | `#1e1e1e` | `#e5e5e9` | pressed / selected fills |
+| `line` / `line-soft` | `#262626` / `#181818` | `#e3e3e7` / `#eeeef0` | hairlines |
+| `text-1/2/3` | `#f5f5f5` / `#a1a1a1` / `#6f6f6f` | `#0c0c0f` / `#5d5d67` / `#8b8b95` | heading / body / meta |
 | `accent` | `#f2661c` | `#d2530b` | the one action |
 | `safe` `watch` `risk` | `#4fa97b` `#cf9b34` `#e2584f` | `#1f7d55` `#8a6410` `#c23b32` | states only |
 
@@ -344,6 +344,68 @@ is deployment and true push notifications.
 
 Entries below are newest first. **When something breaks, read the relevant entry first**: most
 oddities here (login shell, empty calendar, 429s, duplicated course codes) are already diagnosed.
+
+### DONE: Ink is a true black now, and a neutral one (2026-09-06)
+
+Reported as the default theme's background not being true black but a light
+shade of it. It was: `#08080a`, and on an OLED phone every one of those pixels
+was lit to draw a colour indistinguishable from off. `ink-0` is `#000000`.
+
+**The bigger half of the complaint was the HUE, not the level.** The ramp above
+the page carried a faint blue cast (`#0e0e11`, `#16161a`, `#1f1f25`, and the
+hairlines and all three text levels with it), which is what makes a dark app
+read as dark navy rather than as black, and it is far more obvious once the page
+beside it is a true zero. Every neutral in Ink is now a pure grey.
+
+**THE STEPS ARE SET IN PERCEPTUAL SPACE, NOT BY EVEN CODE VALUES, and that is
+the part worth keeping.** sRGB is steep at the bottom: an even `00 / 0a / 14 /
+1e` looks like even spacing written down and is not one. Measured in L*:
+
+| | ink-0 | ink-1 | ink-2 | ink-3 |
+| --- | --- | --- | --- | --- |
+| before | 2.23 | 4.05 | 7.40 | 11.99 |
+| after | 0.00 | 2.74 | 6.32 | 11.26 |
+
+So a card separates from the page by **2.74** where it used to separate by
+**1.81**, and the top of the ramp lands within a step of where it always did,
+which is what stops "darken the page" from quietly flattening every screen into
+one tone. **Naively subtracting the same 8 code values from each rung would have
+done exactly that**: it would have taken 1.81 of separation down to about 1.1
+and left the first card almost sitting on the page.
+
+Every hairline and text level was re-checked rather than assumed. Nothing lost
+contrast: `text-1` 18.22 to 19.26, `text-2` 7.45 to 8.13, `text-3` 3.80 to 4.18,
+the accent 6.38 to 6.69, and `line` pulls 15.16 of L* off the page against
+12.23 before. A darker ground gives everything on it slightly more room.
+
+**Ink only, on request.** Slate, Terminal and the eight hue skins keep their
+tinted pages, because the tint reaching the surfaces is the entire reason those
+are different rooms rather than one room with a different dot in it (see the
+skins entry). Stone is excluded by its nature: `ink-0` there is a photographed
+plaster wall. **Mono was already `#000000`** and stays, so Ink and Mono now
+share a page colour and are told apart by the accent (orange against white) and
+by whether the state colours carry hue at all.
+
+**Five places hardcode the page colour outside the token, and all five had to
+move together** or the app flashes the old near-black on launch: `THEMES` and
+`BARS` (the status bar, applied before paint from two separate files),
+`layout.tsx`'s `themeColor` metadata, the manifest's `theme_color` and
+`background_color`, and `global-error.tsx`, which is hand styled precisely
+because the thing that failed may be what supplies the tokens.
+`timetableImage.ts`'s fallbacks moved too, though those only apply if a token
+read fails.
+
+**The app icon's tile was deliberately left at `#0a0a0c`.** It is not a theme
+surface: a pure black tile has no edge against a dark home screen wallpaper.
+
+**Verified**: `tsc --noEmit` and `eslint src` clean, and the live computed
+tokens on the running dev server read `#000`, `#0a0a0a`, `#141414`, `#1e1e1e`
+under `data-theme="ink"`. **The rendered screens were NOT put in front of a
+human eye here**, and that is an honest limit rather than an oversight: the
+Browser MCP pane serves zero animation frames (the trap already recorded twice
+in this file), so it cannot get past the GSAP launch overlay, and reaching the
+authed screens means spending a real portal sign-in against the `SI503` cap.
+Look at Home and Attendance on a phone before trusting the card separation.
 
 ### DONE: The page turn was switched off, not calmed down (2026-09-06)
 
@@ -1852,7 +1914,7 @@ canvas here**, so it was half fixed in one place and not at all in the other.
 Both now paint all three, and both hand them back on the way out. Verified: on
 the welcome, meta, `html` and `body` all read `#331206`, then `#1B0B3B` on the
 next chapter, and after leaving the deck both inline styles are gone, `body` is
-back to `#08080a` and the meta to the theme's own bar colour.
+back to `#000000` and the meta to the theme's own bar colour.
 
 **This does not remove Safari's toolbar**, which nothing on the page can do. It
 makes every surface the page controls the chapter's colour. The genuinely full
@@ -4320,7 +4382,7 @@ periods per subject → conducted+1. **Keyed by code + lab-ness**
   expandable "if I skip N" simulator with projected % + safe/unsafe.
 - **Marks target calculator** (`components/MarksCalculator.tsx` on marks page): enter internal
   scored/max + final max → needed final-exam score per grade (O/A+/A/B+/B/C), secured/not-reachable.
-- **Installable PWA:** `app/manifest.ts` (standalone, theme #08080a, start_url /), real PNG icons in
+- **Installable PWA:** `app/manifest.ts` (standalone, theme #000000, start_url /), real PNG icons in
   `public/` (192/512/maskable + apple-icon, generated via canvas), `public/sw.js` (network-first
   runtime cache, offline) registered in prod only (`components/PWARegister.tsx`), apple-web-app +
   theme-color meta in `layout.tsx`. Installable on localhost/HTTPS; phone needs HTTPS (tunnel/deploy).

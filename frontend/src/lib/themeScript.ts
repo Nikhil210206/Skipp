@@ -34,7 +34,7 @@ const VALID = [
 
 /** Status bar colour per theme, applied before paint so it never flashes. */
 const BARS: Record<string, string> = {
-  ink: "#08080a",
+  ink: "#000000",
   slate: "#0a0f16",
   mono: "#000000",
   paper: "#ffffff",

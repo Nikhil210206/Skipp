@@ -83,8 +83,8 @@ export const THEMES: ThemeInfo[] = [
     id: "ink",
     name: "Ink",
     note: "The original",
-    bar: "#08080a",
-    swatch: ["#08080a", "#1f1f25", "#f2661c"],
+    bar: "#000000",
+    swatch: ["#000000", "#1e1e1e", "#f2661c"],
   },
   {
     id: "slate",

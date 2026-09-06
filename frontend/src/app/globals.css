@@ -6,24 +6,37 @@
    ============================================================ */
 
 @theme {
-  /* --- Surfaces. ink-0 is the page, each step up is nearer the eye. --- */
-  --color-ink-0: #08080a;
-  --color-ink-1: #0e0e11;
-  --color-ink-2: #16161a;
-  --color-ink-3: #1f1f25;
-  --color-line: #24242b;
-  --color-line-soft: #17171c;
+  /* --- Surfaces. ink-0 is the page, each step up is nearer the eye.
+
+     TRUE BLACK, and neutral. The page is #000000, not a near-black, so on an
+     OLED phone those pixels are genuinely off and the app has no visible edge
+     against the bezel. The ramp above it is pure grey: this ramp used to carry
+     a faint blue cast (#0e0e11, #16161a, #1f1f25) which reads as dark navy
+     rather than black once the page beside it is a true zero.
+
+     The steps are set in PERCEPTUAL space, not by even code values. sRGB is
+     steep at the bottom, so an even 0/10/20/30 spacing would put the first card
+     almost on top of the page. Measured in L*: 0, 2.7, 6.3, 11.3, against the
+     old ramp's 2.2, 4.0, 7.2, 11.8. So a card separates from the page by a
+     little MORE than it used to, and the top of the ramp lands where it always
+     did, which is what keeps every screen looking like itself. --- */
+  --color-ink-0: #000000;
+  --color-ink-1: #0a0a0a;
+  --color-ink-2: #141414;
+  --color-ink-3: #1e1e1e;
+  --color-line: #262626;
+  --color-line-soft: #181818;
   /* One step brighter than a hairline: hover and focus edges. */
-  --color-line-strong: #35353f;
+  --color-line-strong: #383838;
 
   /* --- Text. Three levels, never more. --- */
-  --color-text-1: #f4f4f6;
-  --color-text-2: #9d9da7;
-  --color-text-3: #6b6b75;
+  --color-text-1: #f5f5f5;
+  --color-text-2: #a1a1a1;
+  --color-text-3: #6f6f6f;
 
   /* --- Accent. Earns its place: one action per screen. --- */
   --color-accent: #f2661c;
-  --color-accent-ink: #0a0a0b;
+  --color-accent-ink: #0a0a0a;
 
   /* --- Semantic. Muted on purpose, these are states not decoration. --- */
   --color-safe: #4fa97b;
