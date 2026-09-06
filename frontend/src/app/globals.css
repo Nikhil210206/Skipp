@@ -181,19 +181,19 @@ html[data-theme="slate"] {
 /* MONO. No hue except where something is wrong. */
 html[data-theme="mono"] {
   --color-ink-0: #000000;
-  --color-ink-1: #0b0b0b;
-  --color-ink-2: #151515;
-  --color-ink-3: #1f1f1f;
-  --color-line: #2b2b2b;
-  --color-line-soft: #161616;
-  --color-line-strong: #454545;
+  --color-ink-1: #131313;
+  --color-ink-2: #202020;
+  --color-ink-3: #2e2e2e;
+  --color-line: #3d3d3d;
+  --color-line-soft: #1c1c1c;
+  --color-line-strong: #5a5a5a;
   --color-text-1: #ffffff;
-  --color-text-2: #a3a3a3;
-  --color-text-3: #6e6e6e;
+  --color-text-2: #bdbdbd;
+  --color-text-3: #8a8a8a;
   --color-accent: #ffffff;
   --color-accent-ink: #000000;
-  --color-safe: #d4d4d4;
-  --color-watch: #a3a3a3;
+  --color-safe: #d0d0d0;
+  --color-watch: #949494;
   --color-risk: #ff4d4d;
 }
 /* A day off has to be the LOUDEST date in the calendar grid, and this is the
@@ -275,201 +275,201 @@ html[data-theme="brutal"] {
 /* ROSE. Deep pink. */
 html[data-theme="rose"] {
   color-scheme: dark;
-  --color-ink-0: #0c0709;
-  --color-ink-1: #150b0f;
-  --color-ink-2: #1d1016;
-  --color-ink-3: #29171f;
-  --color-line: #2e1a22;
-  --color-line-soft: #1a0e13;
-  --color-line-strong: #452835;
-  --color-text-1: #f7e7ec;
-  --color-text-2: #b795a1;
-  --color-text-3: #86636f;
-  --color-accent: #fb7185;
-  --color-accent-ink: #1a0509;
-  --color-safe: #4fa97b;
-  --color-watch: #e0a52f;
-  --color-risk: #ff4d3d;
+  --color-ink-0: #3f0323;
+  --color-ink-1: #4f0e2f;
+  --color-ink-2: #5e1b3b;
+  --color-ink-3: #72294a;
+  --color-line: #773551;
+  --color-line-soft: #4e1931;
+  --color-line-strong: #944b6a;
+  --color-text-1: #ffeef4;
+  --color-text-2: #d9b2c0;
+  --color-text-3: #b18b99;
+  --color-accent: #fd64aa;
+  --color-accent-ink: #230010;
+  --color-safe: #5ec981;
+  --color-watch: #e8b631;
+  --color-risk: #f05846;
 }
 
 /* EMBER. Warm orange. */
 html[data-theme="ember"] {
   color-scheme: dark;
-  --color-ink-0: #0b0705;
-  --color-ink-1: #150d08;
-  --color-ink-2: #1d130c;
-  --color-ink-3: #291b11;
-  --color-line: #2e1f14;
-  --color-line-soft: #1a110a;
-  --color-line-strong: #452e1d;
-  --color-text-1: #f7ebe2;
-  --color-text-2: #b79b86;
-  --color-text-3: #866f5e;
-  --color-accent: #ff8a3d;
-  --color-accent-ink: #1a0c03;
-  --color-safe: #4fa97b;
-  --color-watch: #d4b02a;
-  --color-risk: #ff4d6a;
+  --color-ink-0: #3b1100;
+  --color-ink-1: #4d1a00;
+  --color-ink-2: #5f2200;
+  --color-ink-3: #742f07;
+  --color-line: #793a1b;
+  --color-line-soft: #501d02;
+  --color-line-strong: #97512f;
+  --color-text-1: #fff0e9;
+  --color-text-2: #dab5a5;
+  --color-text-3: #b28e7e;
+  --color-accent: #fd7428;
+  --color-accent-ink: #230600;
+  --color-safe: #5ec981;
+  --color-watch: #e8b631;
+  --color-risk: #f44f62;
 }
 
 /* GOLD. Bright yellow. */
 html[data-theme="gold"] {
   color-scheme: dark;
-  --color-ink-0: #0a0904;
-  --color-ink-1: #14120a;
-  --color-ink-2: #1c190e;
-  --color-ink-3: #282413;
-  --color-line: #2d2815;
-  --color-line-soft: #19170c;
-  --color-line-strong: #443c20;
-  --color-text-1: #f6f0dd;
-  --color-text-2: #b5ab8a;
-  --color-text-3: #847b5f;
-  --color-accent: #f5c542;
-  --color-accent-ink: #161103;
-  --color-safe: #4fa97b;
-  --color-watch: #b8862a;
-  --color-risk: #ff5f56;
+  --color-ink-0: #272000;
+  --color-ink-1: #342c00;
+  --color-ink-2: #423800;
+  --color-ink-3: #534700;
+  --color-line: #5b4e00;
+  --color-line-soft: #382f00;
+  --color-line-strong: #776602;
+  --color-text-1: #f8f4e1;
+  --color-text-2: #c6bf9c;
+  --color-text-3: #9f9875;
+  --color-accent: #cfb518;
+  --color-accent-ink: #1d1700;
+  --color-safe: #3ece75;
+  --color-watch: #c27f00;
+  --color-risk: #f1645f;
 }
 
 /* FERN. Living green. */
 html[data-theme="fern"] {
   color-scheme: dark;
-  --color-ink-0: #050a07;
-  --color-ink-1: #0b140e;
-  --color-ink-2: #101c14;
-  --color-ink-3: #17281c;
-  --color-line: #1a2e21;
-  --color-line-soft: #0f1a13;
-  --color-line-strong: #27452f;
-  --color-text-1: #e4f5ea;
-  --color-text-2: #93b7a1;
-  --color-text-3: #698574;
-  --color-accent: #4ade80;
-  --color-accent-ink: #04140a;
-  --color-safe: #5eead4;
-  --color-watch: #cf9b34;
-  --color-risk: #ff5f56;
+  --color-ink-0: #002909;
+  --color-ink-1: #003710;
+  --color-ink-2: #004516;
+  --color-ink-3: #0c5622;
+  --color-line: #205d2e;
+  --color-line-soft: #033a13;
+  --color-line-strong: #367743;
+  --color-text-1: #e9f8ea;
+  --color-text-2: #aac7ad;
+  --color-text-3: #83a086;
+  --color-accent: #1bd259;
+  --color-accent-ink: #001e05;
+  --color-safe: #63a579;
+  --color-watch: #e8b631;
+  --color-risk: #f1645f;
 }
 
 /* TEAL. Cool water. */
 html[data-theme="teal"] {
   color-scheme: dark;
-  --color-ink-0: #04090a;
-  --color-ink-1: #0a1315;
-  --color-ink-2: #0f1b1d;
-  --color-ink-3: #152628;
-  --color-line: #182c2e;
-  --color-line-soft: #0e191a;
-  --color-line-strong: #244144;
-  --color-text-1: #e0f4f5;
-  --color-text-2: #8db4b7;
-  --color-text-3: #648488;
-  --color-accent: #2dd4bf;
-  --color-accent-ink: #031413;
-  --color-safe: #7bd88f;
-  --color-watch: #cf9b34;
-  --color-risk: #ff5f56;
+  --color-ink-0: #002727;
+  --color-ink-1: #003434;
+  --color-ink-2: #004142;
+  --color-ink-3: #005253;
+  --color-line: #005a5b;
+  --color-line-soft: #003738;
+  --color-line-strong: #007677;
+  --color-text-1: #e1f9f9;
+  --color-text-2: #9bc9c8;
+  --color-text-3: #72a1a1;
+  --color-accent: #1ccbcd;
+  --color-accent-ink: #001c1d;
+  --color-safe: #20a558;
+  --color-watch: #e8b631;
+  --color-risk: #f1645f;
 }
 
 /* AZURE. True blue. */
 html[data-theme="azure"] {
   color-scheme: dark;
-  --color-ink-0: #05080d;
-  --color-ink-1: #0b1119;
-  --color-ink-2: #101823;
-  --color-ink-3: #172232;
-  --color-line: #1a2738;
-  --color-line-soft: #0f1520;
-  --color-line-strong: #273a53;
-  --color-text-1: #e6eefb;
-  --color-text-2: #96a8c2;
-  --color-text-3: #6b7d96;
-  --color-accent: #3b82f6;
-  --color-accent-ink: #020814;
-  --color-safe: #4fa97b;
-  --color-watch: #cf9b34;
-  --color-risk: #ff5f56;
+  --color-ink-0: #00223d;
+  --color-ink-1: #002e4f;
+  --color-ink-2: #003b61;
+  --color-ink-3: #004b79;
+  --color-line: #115280;
+  --color-line-soft: #003253;
+  --color-line-strong: #286c9f;
+  --color-text-1: #eaf5ff;
+  --color-text-2: #a5c2dc;
+  --color-text-3: #7e9bb4;
+  --color-accent: #20a5fc;
+  --color-accent-ink: #001224;
+  --color-safe: #5ec981;
+  --color-watch: #e8b631;
+  --color-risk: #f1645f;
 }
 
 /* INDIGO. Deep blue violet. */
 html[data-theme="indigo"] {
   color-scheme: dark;
-  --color-ink-0: #07070f;
-  --color-ink-1: #0d0e1b;
-  --color-ink-2: #131425;
-  --color-ink-3: #1b1d34;
-  --color-line: #1f213a;
-  --color-line-soft: #121323;
-  --color-line-strong: #2e3155;
-  --color-text-1: #e9e9fb;
-  --color-text-2: #9d9dc4;
-  --color-text-3: #727299;
-  --color-accent: #818cf8;
-  --color-accent-ink: #050615;
-  --color-safe: #4fa97b;
-  --color-watch: #cf9b34;
-  --color-risk: #ff5f56;
+  --color-ink-0: #20144a;
+  --color-ink-1: #2c205a;
+  --color-ink-2: #372c6a;
+  --color-ink-3: #463b7d;
+  --color-line: #4d4480;
+  --color-line-soft: #2e2657;
+  --color-line-strong: #645c9f;
+  --color-text-1: #f2f2ff;
+  --color-text-2: #bcbadc;
+  --color-text-3: #9593b5;
+  --color-accent: #9c8dfc;
+  --color-accent-ink: #0f062a;
+  --color-safe: #5ec981;
+  --color-watch: #e8b631;
+  --color-risk: #f1645f;
 }
 
 /* VIOLET. Electric purple. */
 html[data-theme="violet"] {
   color-scheme: dark;
-  --color-ink-0: #0a060f;
-  --color-ink-1: #120b1b;
-  --color-ink-2: #191026;
-  --color-ink-3: #241735;
-  --color-line: #2a1b3c;
-  --color-line-soft: #170f22;
-  --color-line-strong: #3f2957;
-  --color-text-1: #f1e8fb;
-  --color-text-2: #ac97c4;
-  --color-text-3: #7f6d99;
-  --color-accent: #c084fc;
-  --color-accent-ink: #0d0417;
-  --color-safe: #4fa97b;
-  --color-watch: #cf9b34;
-  --color-risk: #ff5f56;
+  --color-ink-0: #340a3a;
+  --color-ink-1: #421649;
+  --color-ink-2: #502157;
+  --color-ink-3: #613069;
+  --color-line: #673a6e;
+  --color-line-soft: #421e48;
+  --color-line-strong: #82518a;
+  --color-text-1: #fceefe;
+  --color-text-2: #ceb5d1;
+  --color-text-3: #a68daa;
+  --color-accent: #e761fd;
+  --color-accent-ink: #19011d;
+  --color-safe: #5ec981;
+  --color-watch: #e8b631;
+  --color-risk: #f1645f;
 }
 
 /* BLOOM. Light and pink. */
 html[data-theme="bloom"] {
   color-scheme: light;
-  --color-ink-0: #fff7f8;
-  --color-ink-1: #ffeef1;
-  --color-ink-2: #ffe3e8;
-  --color-ink-3: #ffd2da;
-  --color-line: #f3d3da;
-  --color-line-soft: #fbe8ec;
-  --color-line-strong: #e5aab6;
-  --color-text-1: #2b1119;
-  --color-text-2: #7a4e58;
-  --color-text-3: #a67d86;
-  --color-accent: #d6336c;
+  --color-ink-0: #ffe7ef;
+  --color-ink-1: #ffd4e3;
+  --color-ink-2: #f9c4d7;
+  --color-ink-3: #eeb0c7;
+  --color-line: #e4abc0;
+  --color-line-soft: #f6d1de;
+  --color-line-strong: #c988a1;
+  --color-text-1: #2f0f1d;
+  --color-text-2: #6f4a58;
+  --color-text-3: #8c6976;
+  --color-accent: #c60e76;
   --color-accent-ink: #ffffff;
-  --color-safe: #1f7d55;
-  --color-watch: #8a6410;
-  --color-risk: #c2321f;
+  --color-safe: #007137;
+  --color-watch: #845d00;
+  --color-risk: #860011;
 }
 
 /* MEADOW. Light and green. */
 html[data-theme="meadow"] {
   color-scheme: light;
-  --color-ink-0: #f6fbf7;
-  --color-ink-1: #ecf6ef;
-  --color-ink-2: #e0efe5;
-  --color-ink-3: #cfe4d6;
-  --color-line: #d4e7da;
-  --color-line-soft: #e9f3ec;
-  --color-line-strong: #a6c7b1;
-  --color-text-1: #0f2318;
-  --color-text-2: #4a6355;
-  --color-text-3: #7a9184;
-  --color-accent: #167c48;
+  --color-ink-0: #dcf7df;
+  --color-ink-1: #caeccd;
+  --color-ink-2: #b9e1bd;
+  --color-ink-3: #a2d3a8;
+  --color-line: #9fcba4;
+  --color-line-soft: #c9e5cc;
+  --color-line-strong: #7aad81;
+  --color-text-1: #06220c;
+  --color-text-2: #415f45;
+  --color-text-3: #627d65;
+  --color-accent: #097930;
   --color-accent-ink: #ffffff;
-  --color-safe: #0f6b41;
-  --color-watch: #8a6410;
-  --color-risk: #c23b32;
+  --color-safe: #004b22;
+  --color-watch: #845d00;
+  --color-risk: #b52a2d;
 }
 
 /* TERMINAL. Monospace throughout, phosphor on near-black, boxes drawn with
@@ -491,7 +491,7 @@ html[data-theme="terminal"] {
   --color-text-3: #4e7861;
   --color-accent: #3ef08c;
   --color-accent-ink: #041209;
-  --color-safe: #3ef08c;
+  --color-safe: #5ddbc8;
   --color-watch: #f0c93e;
   --color-risk: #ff6259;
 

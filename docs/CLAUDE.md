@@ -345,6 +345,102 @@ is deployment and true push notifications.
 Entries below are newest first. **When something breaks, read the relevant entry first**: most
 oddities here (login shell, empty calendar, 429s, duplicated course codes) are already diagnosed.
 
+### DONE: The skins became actual colours, and Mono got its own job (2026-09-07)
+
+Two follow-ons from Ink going true black. **Mono was left sharing a page colour
+with Ink**, and the fifteen skins were reported as not that big a difference from
+one another. Both were measured before anything was changed, and the
+measurements are the whole entry.
+
+**THE SKINS WERE NOT SUBTLE, THEY WERE INVISIBLE, and the reason is arithmetic.**
+Every skin page sat at 3 to 4% lightness. At that level a 40% saturated purple is
+R10 G6 B15: the channels are nine values apart, and the eye reads that as black.
+The hue only began to appear at `ink-3`, weakly. So fifteen skins really were one
+near-black app with a different coloured dot on it, exactly as reported.
+
+**And the accent hues were clumped.** Measured in OKLCH the eight ran 13, 51, 88,
+152, 182, 260, 277, 306. **Azure and Indigo were 17 degrees apart**, while there
+was a 78 degree hole between Teal and Azure and a 64 degree one between Gold and
+Fern. Even spacing for eight is 45. They are 355, 45, 98, 148, 196, 245, 288, 322
+now: worst gap 33, and every name still honest.
+
+**Every ramp is GENERATED in OKLCH rather than written by hand**, and that is the
+load bearing decision rather than a tidiness one. Stated in hex or HSL, "the same
+lightness" is a lie: sRGB yellow at HSL 50% is roughly twice as bright as sRGB
+blue at HSL 50%, so a hand written set of eight can only ever be bold in some
+hues and washed out in others. Pages are `oklch(0.245 0.095 h)` and the ramp
+climbs from there, so all eight are bold to the same degree.
+
+**Three constraints the generator solves against, and each caught a real fault
+when it was added:**
+
+- **The accent sits in a CONTRAST BAND, never at maximum chroma.** Maximising
+  chroma was tried first and gave the wide corners of sRGB (yellow, green, cyan)
+  a neon slab at 12:1 while blue and pink, which sRGB cannot push nearly as far,
+  came out a dim wash at 5:1. Holding every accent to 6 to 8:1 on its own page is
+  what makes eight accents read as one set.
+- **A state may move, and its rotation is bounded by its FAMILY, not by a fixed
+  number of degrees.** A first version capped rotation at 30 degrees and
+  cheerfully turned Ember's `risk` into `#e15789`, a pink. **A danger colour that
+  is not red is worse than a danger colour that is hard to tell from the
+  accent**, so red is penned into hue 14 to 42, amber into 52 to 108, green into
+  128 to 192.
+- **A state must stay legible on its own page.** Without this the search "solved"
+  the warm collisions by darkening `risk` until it hit **2.9:1 on Rose and
+  Ember**, which is illegible, on the single most important colour in the app.
+
+**THE dE FLOOR IS CALIBRATED AGAINST WHAT THE APP ALREADY SHIPPED, not against a
+number invented for the occasion**, and taking that measurement is what stopped
+an afternoon of pointless tuning. Today Ink runs accent-vs-risk at **0.066**,
+Sand at **0.041**, Paper at 0.069, Teal accent-vs-safe at 0.078. The floor used
+here is **0.15**, comfortably better than ten of the fourteen shipped themes, and
+the tightest pair after this work is 0.105.
+
+**That sweep found a real bug: Terminal's accent and its `safe` were the same
+hex** (`#3ef08c`, dE 0.000). `safe` paints the holiday numeral and dot on the
+Calendar, where the accent already carries today's underline and the selected
+date, so on Terminal a day off was drawn in the colour that already meant two
+other things, which is precisely the collision the holiday entry below says must
+not happen. Terminal's `safe` is a cooler mint now, 0.115 clear of its accent and
+still phosphor. **The mechanical check recorded in section 7.5 only ever compared
+accent against `risk`**, which is why this went unseen for months.
+
+**Two warm skins are hand-picked and the search could not do better.** On an
+orange or a pink page, any red bright enough to stay legible is within about 0.13
+of the accent. That is the intrinsic cost of choosing a warm accent, not a
+defect: Ember lands at 0.105 and Rose at 0.130, both still well clear of Ink's
+shipped 0.066, and both unmistakably red.
+
+Result across all eleven regenerated themes: **lowest contrast anywhere 3.97** (a
+light skin's `text-3`, against Paper's shipped 3.28 for the same token),
+tightest accent-vs-state **0.105**, closest pair of accents **0.119** where it
+was 0.074.
+
+**MONO TOOK THE HIGH CONTRAST JOB.** Its page stays `#000000`, so it is still a
+true black theme, but the ramp is lifted hard: cards `#131313` against Ink's
+`#0a0a0a`, hairlines `#3d3d3d` against `#262626`. The two are told apart by
+MATERIAL as well as by the accent, which matters because an accent is one object
+on a screen and the ramp is the whole screen. Its `[data-holiday]` override still
+stands: `safe` is `#d0d0d0`, still dimmer than a working day's pure white, which
+is the exact inversion that override exists to fix.
+
+**The two light skins had the same fault one step further on.** Bloom's page was
+`#fff7f8`, which is white with a rumour of pink in it. Both are properly tinted
+now, with `text-3` lifted because the first pass put it at 3.05:1.
+
+**Slate, Paper and Sand were deliberately NOT touched.** Slate is "cool and dim"
+and Paper and Sand are the neutral lights: with fifteen skins, some of them being
+quiet is the point, and making every one bold would move the "they all look
+alike" complaint to a different group rather than answering it.
+
+**Verified by rendering, not by reading hex.** A sheet carrying a real subject
+row, meter, card, the three state words and the accent button was generated from
+the shipped `globals.css` and screenshotted across all nineteen themes at two
+widths. That is worth doing because the Browser pane serves no animation frames
+and so cannot reach the app's own screens (see the entries below), but a static
+page renders in it perfectly well. **`tsc --noEmit` and `eslint src` are clean.
+The skins have still not been seen on a phone.**
+
 ### DONE: Ink is a true black now, and a neutral one (2026-09-06)
 
 Reported as the default theme's background not being true black but a light
@@ -2815,13 +2911,18 @@ Meadow). Nineteen themes in total with the four full looks (Stone was added
 **Each hue tints the whole ink ramp**, not just the accent, the way Slate
 already did. A set of skins differing by one small dot would have been the same
 complaint as before: colour has to reach the surfaces to be a different room.
+**As of 2026-09-07 the skins are generated in OKLCH and their pages are boldly
+coloured**, because tinting the ramp at 3% lightness turned out to be the same
+complaint in a better disguise. See the entry in section 11.
 
 **There is deliberately no red skin.** Red is `risk`, and a red accent makes a
 subject below the line indistinguishable from the furniture. Rose leans pink so
 red stays free for trouble. Where an accent still crowds a state colour, **the
 state moves, never the rule**: Gold darkens `watch`, Fern turns `safe` toward
 teal, Rose and Ember push `risk` clear of the accent. Checked mechanically that
-no theme has `accent` equal to `risk`.
+no theme has `accent` equal to `risk`. **That check was too narrow**: Terminal's
+accent was byte-identical to its `safe` for months and nothing caught it. Compare
+the accent against all three states.
 
 **Only the full looks are tiles on Profile** (three then, four now).
 Fifteen colours listed there took
