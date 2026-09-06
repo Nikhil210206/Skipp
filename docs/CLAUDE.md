@@ -345,6 +345,134 @@ is deployment and true push notifications.
 Entries below are newest first. **When something breaks, read the relevant entry first**: most
 oddities here (login shell, empty calendar, 429s, duplicated course codes) are already diagnosed.
 
+### DONE: The page turn was switched off, not calmed down (2026-09-06)
+
+Reported as the page flip not happening on a laptop. **It was not happening, and
+the cause was `prefers-reduced-motion`.** `turn()` opened with
+`if (!el || prefersReducedMotion()) { then(); return; }`, so with the setting on
+there was no transition of any kind: the next chapter replaced the current one
+between two frames. Confirmed by the user turning the setting off, at which
+point the flip appeared.
+
+**This is the third time this exact mistake has been made in this app** (the tab
+bar drag, then pull to refresh, now the deck), so it is worth stating as a rule
+rather than as an incident: **reduced motion takes the TWEEN away and never the
+function.** It means "do not swing a page through three dimensions at me", not
+"give me a hard cut", and a cut between two full screens is its own kind of
+disorienting. The turn **dissolves** now: opacity only, 340ms, `then()` called up
+front so the next page is already underneath. Verified with the setting forced
+on: opacity 1 to 0 over 21 frames and **`transform` never leaves `none`** for a
+single frame, which is the assertion that matters.
+
+**Then the spread's turn, which was running the whole time and could barely be
+seen.** Three measured faults, all spread-only:
+
+- **THE HINGE SAT EXACTLY ON THE VANISHING POINT.** The stage's
+  `perspective-origin` computed to `720px 346.5px` (the centre of a 1440 wide
+  viewport) and the leaf's hinge computed to `720px 346.5px`, the same point in
+  both axes, because on the spread the spine IS the centre of the screen. A
+  plane rotating about an axis through the vanishing point cannot keystone, so
+  the leaf did not lift or lean, it **squashed horizontally into the spine**,
+  which is the silhouette of a door seen precisely edge on and of no page ever
+  turned. The eye now stands off toward the page being turned onto (26% for
+  forward, 74% for back) and the perspective is shortened to 1150px, since
+  1500px across a 1440px pad is very nearly orthographic. **The phone is
+  deliberately untouched** and re-measured to prove it: its leaf hinges at
+  `x=22` while the eye is at ~195, so it has always keystoned, and it keeps
+  1500px and a centred origin.
+- **Cream on cream.** The turning face measures `rgb(246,241,228)` against a pad
+  of `rgb(246,241,228)`, byte identical, so the only thing separating a moving
+  leaf from a still page is a gradient reaching 0.42 alpha at its far edge. The
+  faces had to be tinted red and blue before the leaf was unambiguously visible
+  in a screenshot. Left alone for now; recorded because it is the next thing to
+  reach for if the turn still reads weakly.
+- **Over half the turn is a blank rectangle.** The swap fires at 46%, so about
+  360ms of the 660ms is the back face, which is featureless by definition.
+
+**Two traps for anyone measuring this again.** The Browser pane runs
+`requestAnimationFrame` **zero times** while hidden (measured: 0 in 2.3s), so
+GSAP never ticks, nothing animates, and abandoned stages pile up in the body: it
+looks exactly like a dead animation and is not. Use the chrome-devtools MCP.
+And **GSAP captures `requestAnimationFrame` at import**, so overriding
+`window.requestAnimationFrame` later does not freeze a tween, it only freezes
+your own sampler. To photograph a frame, stretch `TURN` instead.
+
+### DONE: The sign-in landing was crashing, and the wait got a field (2026-09-06)
+
+**Every sign-in ended on the error boundary.** Not the wait: the LANDING, the
+screen that says "Signed in", your name, and your first four numbers. Found
+while rebuilding the wait, and reproduced against the **unmodified** file to be
+sure it was not newly introduced.
+
+    TypeError: Cannot read properties of null (reading '_gsap')
+
+The exit was written `tl.to([status.current, sweep.current?.parentElement ?? null], ...)`
+and by the time that effect runs both refs are null, because `done` flipping is
+what unmounts the waiting block and **React detaches a removed subtree's refs in
+the mutation phase, before layout effects.** So the timeline was handed
+`[null, null]`.
+
+**A bare null target is safe in GSAP and an ARRAY containing one is not.** That
+is the whole trap, and it is worth remembering because it inverts the instinct:
+measured directly, `gsap.to(null, ...)` logs "target not found" and carries on,
+while `gsap.to([null], ...)` throws. So the defensive looking `?? null` inside
+an array is exactly what crashed it.
+
+**Filtering the nulls was not the fix**, because it would leave the exit
+animating nothing, which is what it had always been doing: that tween has never
+once played. `waiting` state holds the block in the DOM past the flip so it has
+something to leave with, and drops it when the exit ends. **The two halves are
+stacked in one grid cell**, not listed one after the other, or they overlap
+during the handover and shunt each other down the page on the exact frames both
+are animating. Same device the multilingual greeting uses.
+
+**The wait itself is `components/onboarding/NumeralField.tsx`**, on request: the
+old screen was a status line and a hairline with a bar sweeping along it, which
+was true and read as a spinner with better manners. Four planes of drifting
+figures now stand behind it, in the shapes a student actually sees here
+(percentages, day orders, marks out of sixty, class times).
+
+- **Every value in it is invented and nothing counts toward anything**, because
+  the one thing a loading screen must not do is imply a progress it cannot know.
+  It is weather, not a gauge. The honest sweep stays.
+- **Depth needs four things moving together, never one**: a nearer plane is
+  larger, faster, dimmer AND going the other way. Change only the speed and it
+  is a list scrolling. Measured over 700ms: 36, 16, 8 and 4px, alternating.
+- **The nearest plane is the DIMMEST.** A big pale figure sliding past reads as
+  close and out of focus; a big bright one reads as the thing you are meant to
+  be looking at, and that is the status line in front of it.
+- **The field is WIDER than the screen** (`-inset-x-24`). Sized to the viewport,
+  four figures were sheared off on the same vertical line at the screen edge,
+  which does not read as a photograph bleeding, it reads as text overflowing.
+- **The plane's alpha is on each figure, not on the column**, and that is forced
+  rather than tidy: a child cannot be more opaque than its parent, so with the
+  alpha on the column the one accent figure was capped at 0.06 along with
+  everything else and the field's only point of colour was not perceptibly
+  coloured.
+- **A scrim across the band the words sit in.** The field is quiet enough to be
+  atmosphere and still not quiet enough to have a headline read across it.
+- Reduced motion keeps the composition and loses the drift. Verified static:
+  all four columns at `transform: none`, and the landing still arrives with
+  every fact row at full opacity.
+
+**SHARING A GRID CELL INTRODUCED A BUG OF ITS OWN, and it is the reason to
+measure a handover rather than look at it.** Stacked, both halves are mounted
+for the length of the exit, and the landing had no entrance at all, so it
+rendered at full opacity from its first frame: measured, **fifteen consecutive
+frames with "Almost there" and the student's name laid over each other, both
+fully opaque.** A crash had been traded for a pile-up. The header now fades in
+at 0.16 as the line leaves, and the rows follow at 0.3. Measured after: **one**
+frame where both are over 0.35, at the 0.43 / 0.47 crossover, which is a
+dissolve rather than an overlap. Header and rows are animated separately, so no
+element has two owners writing its opacity.
+
+**Verified through a temporary `/dev-sync` route** carrying invented facts, at
+430 and 1440, in both motion settings, then removed. Reaching this screen for
+real means signing in, and this file is emphatic about what that costs. Under
+reduced motion the landing is checked to arrive with the header at opacity 1 and
+no transform and every row visible, since nothing here may depend on an
+animation having run.
+
 ### REMOVED: Saturday classes, built and then scrapped on request (2026-08-30)
 
 A whole Saturday timetable was built (`lib/saturday.ts`, `components/SaturdaySheet.tsx`,

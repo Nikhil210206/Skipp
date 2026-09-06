@@ -247,11 +247,31 @@ export default function Notebook({
   const turn = useCallback((dir: 1 | -1, then: () => void) => {
     const el = sheet.current;
     haptic("tick");
-    if (!el || prefersReducedMotion()) {
+    if (!el) {
       then();
       return;
     }
     if (turning.current) return;
+
+    /**
+     * **Reduced motion takes the TWEEN away, never the function.**
+     *
+     * This bailed straight to `then()`, so with the setting on there was no
+     * transition of any kind: the next chapter simply replaced this one between
+     * two frames. Reported as the flip not happening on a laptop, and it was
+     * not happening, because the whole thing had been switched off rather than
+     * calmed down. It is the same mistake the tab bar drag made and had to be
+     * corrected for, so it is worth stating plainly: the setting means "do not
+     * swing a page through three dimensions at me", not "give me a hard cut",
+     * and a cut between two full screens is its own kind of disorienting.
+     *
+     * So it dissolves instead. Opacity only: nothing rotates, nothing travels,
+     * and there is no parallax, which is the whole of what the setting is
+     * asking for. `then()` is called immediately so the next page is already
+     * underneath, and the outgoing sheet is opaque paper, so what you see is
+     * one page becoming the other rather than the two of them overlaid.
+     */
+    const reduced = prefersReducedMotion();
 
     // The leaf that moves: one page of the spread, or the whole pad on a phone,
     // where there is only ever one page to turn.
@@ -265,8 +285,32 @@ export default function Notebook({
 
     const box = leaf.getBoundingClientRect();
     const stage = document.createElement("div");
+    /**
+     * **The eye is deliberately NOT on the hinge.**
+     *
+     * `perspective-origin` defaults to the centre of the stage, which is the
+     * centre of the viewport, and on the spread the spine is the centre of the
+     * viewport too. Measured: origin `720px 346.5px` against a hinge at
+     * `720px 346.5px`, the same point in both axes. A plane rotating about an
+     * axis that passes through the vanishing point cannot keystone, so the leaf
+     * did not lift or lean, it squashed horizontally into the spine, which is
+     * the silhouette of a closing door seen exactly edge on and of no page ever
+     * turned. On a phone this never came up, because there the leaf hinges at
+     * `x=22` while the eye is at ~195, so it keystoned all along.
+     *
+     * Standing off toward the page being turned ONTO puts the leaf's free edge
+     * near the eye as it comes over, which is what makes a corner rise out of
+     * the screen. The perspective is shortened with it: 1500px across a 1440px
+     * pad is very nearly an orthographic projection.
+     */
+    const eye = spread
+      ? `perspective:1150px;perspective-origin:${dir === 1 ? 26 : 74}% 42%`
+      : // The phone is left exactly as it was. Its leaf hinges at the pad's own
+        // left edge, nowhere near the centre of the viewport, so it has always
+        // keystoned properly and there is nothing here to correct.
+        "perspective:1500px";
     stage.style.cssText =
-      "position:fixed;inset:0;z-index:60;pointer-events:none;perspective:1500px";
+      "position:fixed;inset:0;z-index:60;pointer-events:none;" + eye;
     const clone = leaf.cloneNode(true) as HTMLElement;
     clone.style.margin = "0";
 
@@ -359,8 +403,12 @@ export default function Notebook({
        * uncovered is blank paper, which is what the next page actually is until
        * it gets written on. Restored at the swap, which is the frame the leaf
        * goes edge on and stops covering anything.
+       *
+       * A dissolve is the exception: there the clone lies still on top and the
+       * page it uncovers is the one being faded to, so hiding it would mean
+       * fading out to nothing.
        */
-      leaf.style.visibility = "hidden";
+      if (!reduced) leaf.style.visibility = "hidden";
 
       // The shadow the leaf throws on the page it is coming over. Anchored to
       // the spine and spreading outward, so the turn is legible even in the
@@ -405,6 +453,14 @@ export default function Notebook({
         turning.current = false;
       },
     });
+
+    if (reduced) {
+      // Opacity only. The next page is already underneath, so what fades is the
+      // old one, and nothing on screen travels, rotates or scales.
+      then();
+      tl.to(spinner, { opacity: 0, duration: 0.34, ease: "power1.inOut" });
+      return;
+    }
 
     tl.to(spinner, {
       rotateY: dir === 1 ? -172 : 172,
