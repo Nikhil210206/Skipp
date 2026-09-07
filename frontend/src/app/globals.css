@@ -212,21 +212,28 @@ html[data-theme="mono"] [data-holiday] {
   color: var(--color-text-1);
 }
 
-/* SAND. Warm paper, easier than white in daylight. */
+/* SAND. A warm oat neutral, easier than white in daylight.
+
+   DESATURATED ON PURPOSE. An earlier pass at "more sand" raised the chroma to
+   force separation from Paper and landed on #f6e3c3, an R-to-B spread of 51,
+   which is manila envelope and read as dated. Modern warm neutrals are low
+   chroma; the spread here is 17, and Sand is told apart from Paper by sitting a
+   clear step DOWN in level (0.046 in OKLab L below Paper's composited page)
+   rather than by being more yellow than it. */
 html[data-theme="sand"] {
   color-scheme: light;
-  --color-ink-0: #f6e3c3;
-  --color-ink-1: #edd6b2;
-  --color-ink-2: #e4cba3;
-  --color-ink-3: #d7bc90;
-  --color-line: #d1b88d;
-  --color-line-soft: #e4d2b3;
-  --color-line-strong: #b89e73;
-  --color-text-1: #211807;
-  --color-text-2: #62533a;
-  --color-text-3: #7e6d52;
+  --color-ink-0: #ede6dc;
+  --color-ink-1: #e2dbce;
+  --color-ink-2: #d8d1c3;
+  --color-ink-3: #cac2b2;
+  --color-line: #c6beaf;
+  --color-line-soft: #ddd6ca;
+  --color-line-strong: #aca393;
+  --color-text-1: #1a150e;
+  --color-text-2: #5b5344;
+  --color-text-3: #79705f;
   --color-accent: #b0400a;
-  --color-accent-ink: #fcfaf6;
+  --color-accent-ink: #fdfaf5;
   --color-safe: #1a6b4c;
   --color-watch: #77550c;
   --color-risk: #a92f27;

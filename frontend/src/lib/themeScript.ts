@@ -38,7 +38,7 @@ const BARS: Record<string, string> = {
   slate: "#0a0f16",
   mono: "#000000",
   paper: "#f9f6f0",
-  sand: "#f6e3c3",
+  sand: "#ede6dc",
   brutal: "#fdf6e3",
   clay: "#eceefa",
   terminal: "#040705",

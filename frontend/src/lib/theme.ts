@@ -111,8 +111,8 @@ export const THEMES: ThemeInfo[] = [
     id: "sand",
     name: "Sand",
     note: "Warm light",
-    bar: "#f6e3c3",
-    swatch: ["#f6e3c3", "#d7bc90", "#b0400a"],
+    bar: "#ede6dc",
+    swatch: ["#ede6dc", "#cac2b2", "#b0400a"],
   },
   {
     id: "rose",

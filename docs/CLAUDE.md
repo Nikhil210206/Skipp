@@ -407,8 +407,26 @@ to break.
 
 **SAND WAS COMPETING WITH PAPER FOR THE SAME JOB.** `#faf6ef` is off-white with a
 hint, and its own comment called it "warm paper", so warming Paper up would have
-left two themes doing warm paper. It is an actual beige now, `#f6e3c3`, and the
-two pages are 0.076 apart in OKLab where they were **0.028**.
+left two themes doing warm paper.
+
+**THE FIRST FIX WAS WRONG AND THE MISTAKE IS THE USEFUL PART.** Separation was
+bought with CHROMA: the page went to `#f6e3c3`, an R-to-B spread of 51. Reported
+as "toooo yellow, old and ugly", and correctly, because **high chroma at that hue
+is manila envelope**. It is `#ede6dc` now, spread 17, and it is told apart from
+Paper by sitting a clear step DOWN in level (0.046 in OKLab L below Paper's
+composited page) rather than by being more yellow than it.
+
+**A modern warm neutral is a DESATURATED one.** That is the rule to keep: warmth
+comes from the hue being warm at low chroma, not from turning the saturation up.
+Turning it up does not make a colour more itself, it makes it older. The pages
+sat at 0.028 apart before any of this, 0.076 with the yellow version, and 0.046
+now, which is the right amount for two light themes that are meant to be calm.
+
+**Judged at full-screen scale, not on a swatch.** Four candidates were rendered
+as full-width copies of the real Home layout and compared against Paper directly
+beneath. The yellow version had passed review as a small card in a grid: a page
+colour has to be judged filling a page, because that is the only place a mild
+cast becomes a strong one.
 
 **GOLD'S ACCENT WAS MUSTARD** (`#cfb518`). It is `#fee219`, a proper canary.
 **This deliberately breaks the contrast band the other accents are held to**,
@@ -425,7 +443,7 @@ yellow, `watch` comes back to a real amber `#d5a201` at **6.96:1**.
 the chosen trade: a dark yellow IS olive, so the only way to a gold page is to
 stop being a dark theme.
 
-Contrast after, on their own pages: Paper `text-3` 3.85 and Sand 3.98, against
+Contrast after, on their own pages: Paper `text-3` 3.85 and Sand 3.95, against
 Paper's shipped **3.28** for the same token. Every other token on all three
 clears 4.5. `tsc --noEmit` and `eslint src` clean. **Judged by rendering the real
 tile and the real tokens, not by reading hex, and still not seen on a phone.**
