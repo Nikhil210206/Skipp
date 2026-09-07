@@ -240,14 +240,14 @@ exactly three levels, and the accent is used for **one action per screen**.
 
 | Token | Dark | Light | Use |
 | ----- | ---- | ----- | --- |
-| `ink-0` | `#000000` | `#ffffff` | page |
-| `ink-1` | `#0a0a0a` | `#f6f6f7` | cards |
-| `ink-2` | `#141414` | `#efeff1` | inputs, secondary buttons |
-| `ink-3` | `#1e1e1e` | `#e5e5e9` | pressed / selected fills |
-| `line` / `line-soft` | `#262626` / `#181818` | `#e3e3e7` / `#eeeef0` | hairlines |
-| `text-1/2/3` | `#f5f5f5` / `#a1a1a1` / `#6f6f6f` | `#0c0c0f` / `#5d5d67` / `#8b8b95` | heading / body / meta |
-| `accent` | `#f2661c` | `#d2530b` | the one action |
-| `safe` `watch` `risk` | `#4fa97b` `#cf9b34` `#e2584f` | `#1f7d55` `#8a6410` `#c23b32` | states only |
+| `ink-0` | `#000000` | `#fefbf5` | page |
+| `ink-1` | `#0a0a0a` | `#f5f0e7` | cards |
+| `ink-2` | `#141414` | `#efe9dd` | inputs, secondary buttons |
+| `ink-3` | `#1e1e1e` | `#e6dfcf` | pressed / selected fills |
+| `line` / `line-soft` | `#262626` / `#181818` | `#e2dbcc` / `#efebe1` | hairlines |
+| `text-1/2/3` | `#f5f5f5` / `#a1a1a1` / `#6f6f6f` | `#14110a` / `#5e594e` / `#857f72` | heading / body / meta |
+| `accent` | `#f2661c` | `#c04a07` | the one action |
+| `safe` `watch` `risk` | `#4fa97b` `#cf9b34` `#e2584f` | `#1c7150` `#7d5a0d` `#b8352d` | states only |
 
 **The colour rule: colour marks trouble, not health.** A safe subject gets a
 neutral grey meter and the word "Safe"; only borderline and at-risk subjects get
@@ -344,6 +344,91 @@ is deployment and true push notifications.
 
 Entries below are newest first. **When something breaks, read the relevant entry first**: most
 oddities here (login shell, empty calendar, 429s, duplicated course codes) are already diagnosed.
+
+### DONE: Paper is stock, Sand is sand, Gold is yellow (2026-09-07, later)
+
+Three named themes were not the thing they were named after.
+
+**PAPER WAS SCREEN WHITE, and the tell was the hue, not the level.** Its page was
+`#ffffff` and, more to the point, its greys ran `#f6f6f7`, `#efeff1`, `#e3e3e7`,
+all faintly BLUE. A cool grey ramp is what a monitor looks like; paper is warm.
+The ramp is warm now (OKLCH hue 85 at very low chroma) and the page is `#fefbf5`.
+
+**And it has real grain**, `public/textures/paper.webp`, built by
+`scripts/make-paper.mjs` and painted the way Stone paints its wall.
+
+**This one is SYNTHESISED where the wall had to be a photograph, and the
+distinction matters** because this file records at length that answering a
+photograph with procedural noise is a mistake. That lesson does not apply here:
+there was no reference image to match, and paper grain genuinely IS a noise field
+(randomly laid fibre) rather than a particular object. It also means no stock
+licence, which the wall still has hanging over it.
+
+**THE HARD PART IS RESTRAINT, WHICH IS THE EXACT OPPOSITE OF STONE.** Stone
+needed RANGE, roughly `#232322` to `#6e6e68`, because a dark ground swallows
+texture. A light ground shows everything, and grain loud enough to register on
+charcoal reads as dirt or as JPEG rot on a white sheet. The tile lives inside
+about 27 code values, stdev 2.5.
+
+Four things it needed, each found by rendering it rather than by reasoning:
+
+- **The coarse mottle is kept deliberately weak** (0.16 against the fibre
+  scales' 0.30). At 0.42 it drew a soft blotch across the sheet, which does not
+  read as paper at all, it reads as **uneven lighting**, and this app already has
+  a theme where the light is the point.
+- **THE TILE'S MEAN IS NORMALISED, or a texture is just a tone change in
+  disguise.** The tone curve alone left the average at 240, so multiplying it
+  into the page darkened Paper by 5.7% overall and the sheet came out visibly
+  duller than the colour its own token names. Shifted to a mean of 249.5, the
+  fibre depth survives and the page colour comes back.
+- **The rest of the ramp pays for the grain.** The texture multiplies the PAGE
+  and nothing else, because a card is its own sheet and stays smooth. At the
+  designed values a card and the page therefore ended up within half the intended
+  separation and the cards effectively vanished, so `ink-1` and everything above
+  it are pulled down 0.008 in L. `ink-0` is the token; what you see is `ink-0`
+  times 249.7/255.
+- **`bar` is the COMPOSITED page (`#f9f6f0`), not `ink-0`.** The grain does not
+  reach the status bar, so `ink-0` there paints a brighter strip above a duller
+  page. Same rule Stone needed, for the same reason.
+
+**It is ONE LOSSY GREY CHANNEL MULTIPLIED IN, not an RGBA overlay, and that is a
+16KB versus 243KB decision.** The obvious build puts the deviation in an alpha
+channel, and it was built that way first: **WebP encodes alpha LOSSLESSLY
+whatever `alphaQuality` says** (measured, 70 and 82 produced byte-identical
+files), and per-pixel grain is the least compressible thing there is. The RGBA
+tile came out larger than the entire wall photograph. Multiply only darkens,
+which is the right one-way door: paper is subtractive, a clump of fibre blocks
+light rather than emitting any, so a sheet has specks and no glints.
+
+The tile is seamless by construction rather than by blending: the mottle is value
+noise sampled on a **wrapped** lattice, the fibres wrap when they cross an edge,
+and per-pixel grain tiles for free since independent samples have no correlation
+to break.
+
+**SAND WAS COMPETING WITH PAPER FOR THE SAME JOB.** `#faf6ef` is off-white with a
+hint, and its own comment called it "warm paper", so warming Paper up would have
+left two themes doing warm paper. It is an actual beige now, `#f6e3c3`, and the
+two pages are 0.076 apart in OKLab where they were **0.028**.
+
+**GOLD'S ACCENT WAS MUSTARD** (`#cfb518`). It is `#fee219`, a proper canary.
+**This deliberately breaks the contrast band the other accents are held to**,
+which is defensible rather than sloppy: it sits at 12.5:1 where the rest sit at 6
+to 8, because pure yellow only exists at high lightness and there is no such
+thing as a dark bright yellow.
+
+**Moving it fixed something else for free.** `watch` had been squeezed to
+`#c27f00` at **4.90:1**, the least legible thing in the whole set, because the
+old mustard accent was sitting on top of amber. With the accent gone to true
+yellow, `watch` comes back to a real amber `#d5a201` at **6.96:1**.
+
+**The page is still dark and still reads olive rather than gold**, and that is
+the chosen trade: a dark yellow IS olive, so the only way to a gold page is to
+stop being a dark theme.
+
+Contrast after, on their own pages: Paper `text-3` 3.85 and Sand 3.98, against
+Paper's shipped **3.28** for the same token. Every other token on all three
+clears 4.5. `tsc --noEmit` and `eslint src` clean. **Judged by rendering the real
+tile and the real tokens, not by reading hex, and still not seen on a phone.**
 
 ### DONE: The skins became actual colours, and Mono got its own job (2026-09-07)
 

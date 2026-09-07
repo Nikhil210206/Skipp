@@ -128,24 +128,30 @@
 
 html[data-theme="paper"] {
   color-scheme: light;
-  --color-ink-0: #ffffff;
-  --color-ink-1: #f6f6f7;
-  --color-ink-2: #efeff1;
-  --color-ink-3: #e5e5e9;
-  --color-line: #e3e3e7;
-  --color-line-soft: #eeeef0;
-  --color-line-strong: #cdcdd4;
+  /* Stock, not screen white. Paper's greys used to run toward #e3e3e7, a blue
+     grey, which is what made a theme called Paper read as a monitor.
+     `scripts/make-paper.mjs` builds the grain; see the note there on why this
+     one is synthesised where Stone's wall had to be a photograph. */
+  --paper-image: url("/textures/paper.webp");
+  --paper-size: 512px 512px;
+  --color-ink-0: #fefbf5;
+  --color-ink-1: #f5f0e7;
+  --color-ink-2: #efe9dd;
+  --color-ink-3: #e6dfcf;
+  --color-line: #e2dbcc;
+  --color-line-soft: #efebe1;
+  --color-line-strong: #cac1af;
 
-  --color-text-1: #0c0c0f;
-  --color-text-2: #5d5d67;
-  --color-text-3: #8b8b95;
+  --color-text-1: #14110a;
+  --color-text-2: #5e594e;
+  --color-text-3: #857f72;
 
-  --color-accent: #d2530b;
-  --color-accent-ink: #ffffff;
+  --color-accent: #c04a07;
+  --color-accent-ink: #fcfaf6;
 
-  --color-safe: #1f7d55;
-  --color-watch: #8a6410;
-  --color-risk: #c23b32;
+  --color-safe: #1c7150;
+  --color-watch: #7d5a0d;
+  --color-risk: #b8352d;
 
   --shadow-lift: 0 1px 2px rgb(0 0 0 / 0.05), 0 12px 28px -18px rgb(0 0 0 / 0.28);
   --shadow-float: 0 2px 8px rgb(0 0 0 / 0.07), 0 28px 56px -28px rgb(0 0 0 / 0.3);
@@ -209,21 +215,21 @@ html[data-theme="mono"] [data-holiday] {
 /* SAND. Warm paper, easier than white in daylight. */
 html[data-theme="sand"] {
   color-scheme: light;
-  --color-ink-0: #faf6ef;
-  --color-ink-1: #f3ece1;
-  --color-ink-2: #ebe2d3;
-  --color-ink-3: #ded2be;
-  --color-line: #e2d8c8;
-  --color-line-soft: #efe8dc;
-  --color-line-strong: #c9bba5;
-  --color-text-1: #231e18;
-  --color-text-2: #6b6053;
-  --color-text-3: #948877;
-  --color-accent: #b8430b;
-  --color-accent-ink: #fffaf3;
-  --color-safe: #1f7d55;
-  --color-watch: #8a6410;
-  --color-risk: #b3352c;
+  --color-ink-0: #f6e3c3;
+  --color-ink-1: #edd6b2;
+  --color-ink-2: #e4cba3;
+  --color-ink-3: #d7bc90;
+  --color-line: #d1b88d;
+  --color-line-soft: #e4d2b3;
+  --color-line-strong: #b89e73;
+  --color-text-1: #211807;
+  --color-text-2: #62533a;
+  --color-text-3: #7e6d52;
+  --color-accent: #b0400a;
+  --color-accent-ink: #fcfaf6;
+  --color-safe: #1a6b4c;
+  --color-watch: #77550c;
+  --color-risk: #a92f27;
   --shadow-lift: 0 1px 2px rgb(80 60 30 / 0.06), 0 12px 28px -18px rgb(80 60 30 / 0.3);
   --shadow-float: 0 2px 8px rgb(80 60 30 / 0.08), 0 28px 56px -28px rgb(80 60 30 / 0.32);
 }
@@ -325,10 +331,10 @@ html[data-theme="gold"] {
   --color-text-1: #f8f4e1;
   --color-text-2: #c6bf9c;
   --color-text-3: #9f9875;
-  --color-accent: #cfb518;
-  --color-accent-ink: #1d1700;
-  --color-safe: #3ece75;
-  --color-watch: #c27f00;
+  --color-accent: #fee219;
+  --color-accent-ink: #181400;
+  --color-safe: #5ec981;
+  --color-watch: #d5a201;
   --color-risk: #f1645f;
 }
 
@@ -872,6 +878,34 @@ html[data-theme="clay"] [data-day] {
 html[data-theme="clay"] [data-day]:has([aria-current]),
 html[data-theme="clay"] [data-day].is-today {
   background: var(--color-ink-2);
+}
+
+/* PAPER: the grain goes on every surface that paints the page colour.
+
+   IT IS MULTIPLIED INTO THE COLOUR, not painted over it, so `--color-ink-0`
+   still owns the white and the tile carries only the fibre. That is also why
+   the tile is one lossy grey channel (8KB) rather than an RGBA overlay: WebP
+   encodes an alpha channel losslessly whatever `alphaQuality` claims, and the
+   RGBA build measured 243KB, more than twice the whole wall photograph.
+
+   ONE SHARED ORIGIN, for the reason recorded at length under Stone: `main` is
+   capped and centred, so past 448px the body shows down both sides and each
+   element was tiling from its own top left, which put a seam at the column
+   edge. Centring the x phase makes them agree. `background-attachment: fixed`
+   cannot be used here either, since `pageIn` leaves an inline transform on
+   `main` and a transformed element becomes the containing block for its own
+   fixed background. */
+html[data-theme="paper"] body,
+html[data-theme="paper"] .bg-ink-0 {
+  background-color: var(--color-ink-0);
+  background-image: var(--paper-image);
+  background-size: var(--paper-size);
+  background-position: center top;
+  background-blend-mode: multiply;
+}
+
+html[data-theme="paper"] main.bg-ink-0 {
+  background-position: center calc(-3.5rem - env(safe-area-inset-top));
 }
 
 /* STONE: a lit plaster wall, and content on smooth planes above it.

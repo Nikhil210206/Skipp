@@ -104,15 +104,15 @@ export const THEMES: ThemeInfo[] = [
     id: "paper",
     name: "Paper",
     note: "Plain light",
-    bar: "#ffffff",
-    swatch: ["#ffffff", "#e5e5e9", "#d2530b"],
+    bar: "#f9f6f0",
+    swatch: ["#f9f6f0", "#e6dfcf", "#c04a07"],
   },
   {
     id: "sand",
     name: "Sand",
     note: "Warm light",
-    bar: "#faf6ef",
-    swatch: ["#faf6ef", "#ded2be", "#b8430b"],
+    bar: "#f6e3c3",
+    swatch: ["#f6e3c3", "#d7bc90", "#b0400a"],
   },
   {
     id: "rose",
@@ -133,7 +133,7 @@ export const THEMES: ThemeInfo[] = [
     name: "Gold",
     note: "Bright yellow",
     bar: "#272000",
-    swatch: ["#272000", "#534700", "#cfb518"],
+    swatch: ["#272000", "#534700", "#fee219"],
   },
   {
     id: "fern",
