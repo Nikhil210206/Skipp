@@ -18,9 +18,9 @@ export function ImportAttendanceAction({ type = "attendance" }: { type?: "attend
   const [password, setPassword] = useState("");
   const [captcha, setCaptcha] = useState("");
 
-  const loadCaptcha = async () => {
+  const loadCaptcha = async (keepError = false) => {
     setBusy(true);
-    setError(null);
+    if (!keepError) setError(null);
     setSessionData(null);
     setCaptcha("");
     try {
@@ -57,8 +57,10 @@ export function ImportAttendanceAction({ type = "attendance" }: { type?: "attend
     } catch (err) {
       setError(err instanceof Error ? err.message : "Import failed. Try again.");
       // Refresh captcha on failure
-      loadCaptcha();
+      await loadCaptcha(true);
     } finally {
+      // Don't set busy to false if we just triggered loadCaptcha, which manages its own busy state
+      // Actually, since we awaited loadCaptcha, busy is already false at the end of loadCaptcha.
       setBusy(false);
     }
   };
@@ -212,9 +214,9 @@ export function PortalSourceNote({ type = "attendance" }: { type?: "attendance" 
   const [captcha, setCaptcha] = useState("");
   const [error, setError] = useState<string | null>(null);
 
-  const loadCaptcha = async () => {
+  const loadCaptcha = async (keepError = false) => {
     setBusy(true);
-    setError(null);
+    if (!keepError) setError(null);
     try {
       const data = await initStudentPortalLogin();
       setSessionData(data);
@@ -247,8 +249,9 @@ export function PortalSourceNote({ type = "attendance" }: { type?: "attendance" 
       setOpen(false);
     } catch (err) {
       setError(err instanceof Error ? err.message : "Update failed. Try again.");
-      loadCaptcha();
+      await loadCaptcha(true);
     } finally {
+      // Don't set busy to false if we just triggered loadCaptcha, which manages its own busy state
       setBusy(false);
     }
   };

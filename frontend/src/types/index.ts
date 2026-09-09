@@ -124,6 +124,7 @@ export type StudentPortalCaptchaResponse = {
   domainField: string;
   captchaField: string;
   randomDelim: string;
+  honeypotField: string;
   captchaBase64: string;
 };
 
@@ -133,6 +134,7 @@ export type StudentPortalLoginRequest = Credentials & {
   domainField: string;
   captchaField: string;
   randomDelim: string;
+  honeypotField: string;
 };
 
 // Parsed from report HTML a real in-app WebView login captured, when academia
