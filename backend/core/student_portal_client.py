@@ -127,26 +127,27 @@ def submit_login_and_fetch(req_data: StudentPortalLoginRequest) -> Tuple[str, Op
     import json
     t_now = int(time.time() * 1000)
     payload_json = json.dumps({
-        "startTime": t_now - 15000,
-        "deviceMemory": 8,
-        "hardwareConcurrency": 8,
+        "startTime": t_now - 12000,
+        "currentDomain": "sp.srmist.edu.in",
+        "timezoneOffset": -330,
         "screenWidth": 1440,
         "screenHeight": 900,
         "colorDepth": 24,
         "devicePixelRatio": 2,
-        "language": "en-US",
-        "userLanguage": "en-US",
         "userAgent": UA,
-        "timezoneOffset": -330,
+        "platform": "Win32",
+        "language": "en-US",
+        "deviceMemory": 8,
+        "hardwareConcurrency": 8,
         "touchSupport": False,
         "webdriver": False,
-        "keystrokeCount": 11,
-        "mouseMovements": 42,
-        "mouseClicks": 2,
+        "mouseClicks": 1,
+        "mouseMovements": 3,
+        "keystrokeCount": 2,
         "typingSpeedMs": 1500,
-        "canvasHash": "canvas-123456",
+        "canvasHash": "58bc8d31",
         "submitTime": t_now,
-        "timeOnPageMs": 15000
+        "timeOnPageMs": 12000
     }, separators=(',', ':'))
     telemetry_payload = base64.b64encode(payload_json.encode('utf-8')).decode('utf-8')
     
@@ -210,20 +211,29 @@ def submit_login_and_fetch(req_data: StudentPortalLoginRequest) -> Tuple[str, Op
                 ck = http.cookiejar.Cookie(version=0, name=k, value=v, port=None, port_specified=False, domain='sp.srmist.edu.in', domain_specified=False, domain_initial_dot=False, path='/', path_specified=False, secure=False, expires=None, discard=True, comment=None, comment_url=None, rest={'HttpOnly': None}, rfc2109=False)
                 cj.set_cookie(ck)
         
-    if "Invalid credentials" in result_html or "invalid credentials" in result_html.lower():
+    with open("last_error.html", "w") as f:
+        f.write(result_html)
+    
+    if "invalid credentials" in result_html.lower() or "invalid login credentials" in result_html.lower():
         print("Login failed: Invalid credentials found in HTML")
         raise StudentPortalClientError("Invalid username or password.")
     if "Invalid Captcha" in result_html or "invalid captcha" in result_html.lower():
         print("Login failed: Invalid Captcha found in HTML")
         raise StudentPortalClientError("Invalid captcha.")
-    if "JavaScript is required" in result_html and "alert-danger" in result_html:
-        # Avoid matching the generic <noscript> tag that is always present
-        print("Login failed: Javascript required (bot blocked)")
-        raise StudentPortalClientError("Anti-bot verification failed.")
     if "temporarily locked" in result_html.lower():
         print("Login failed: Account temporarily locked")
         raise StudentPortalClientError("Account temporarily locked due to multiple unsuccessful attempts. Please try again after 5 minutes.")
         
+    if "alert-danger" in result_html:
+        # Extract the text content by finding alert-icon-content
+        start_idx = result_html.find('alert-icon-content')
+        if start_idx != -1:
+            end_idx = result_html.find('</div>', start_idx)
+            error_html = result_html[start_idx:end_idx]
+            import re
+            error_msg = re.sub(r'<[^>]+>', '', error_html).replace('alert-icon-content">', '').replace('Alert', '').strip()
+            print(f"Login failed: Server returned error: {error_msg}")
+            raise StudentPortalClientError(f"Login failed: {error_msg}")
     if "theGR8LoginLoader" in result_html:
         # This is a successful login! The server wants us to POST to youLogin.jsp
         print("Login successful, following theGR8LoginLoader redirect...")
