@@ -211,8 +211,7 @@ def submit_login_and_fetch(req_data: StudentPortalLoginRequest) -> Tuple[str, Op
                 ck = http.cookiejar.Cookie(version=0, name=k, value=v, port=None, port_specified=False, domain='sp.srmist.edu.in', domain_specified=False, domain_initial_dot=False, path='/', path_specified=False, secure=False, expires=None, discard=True, comment=None, comment_url=None, rest={'HttpOnly': None}, rfc2109=False)
                 cj.set_cookie(ck)
         
-    with open("last_error.html", "w") as f:
-        f.write(result_html)
+    # Debugging HTML dump removed to avoid Read-Only filesystem errors in production
     
     if "invalid credentials" in result_html.lower() or "invalid login credentials" in result_html.lower():
         print("Login failed: Invalid credentials found in HTML")
@@ -256,8 +255,7 @@ def submit_login_and_fetch(req_data: StudentPortalLoginRequest) -> Tuple[str, Op
 
     if "welcome" not in result_html.lower() and "attendance" not in result_html.lower() and "dashboard" not in result_html.lower() and "thegr8loginloader" not in result_html.lower():
         print(f"Login failed: Unknown response, size {len(result_html)}")
-        with open("unknown_response.html", "w") as f:
-            f.write(result_html)
+        # Debugging HTML dump removed to avoid Read-Only filesystem errors in production
         raise StudentPortalClientError("Failed to login, unknown response.")
 
     # Fetch HRDSystem.jsp first to initialize dashboard session
