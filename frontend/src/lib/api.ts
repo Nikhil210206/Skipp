@@ -199,7 +199,60 @@ export async function submitStudentPortalLogin(
     }
     throw new AuthError(detail ?? "Sign-in failed.", "wrong_password");
   }
-  throw new PortalError(detail ?? `Couldn't read the portal (${res.status}).`, "portal");
+  if (res.status === 429) {
+    throw new AuthError(
+      detail ?? "The portal is rate limiting sign-ins right now.",
+      "captcha",
+    );
+  }
+  throw new PortalError(detail ?? `Something went wrong (${res.status}).`, "portal");
+}
+
+/**
+ * Submit credentials only and let the backend automatically solve the captcha via OCR.
+ */
+export async function autoStudentPortalLogin(
+  creds: Credentials,
+): Promise<StudentPortalSnapshot> {
+  const base = apiBase();
+  let res: Response;
+  try {
+    res = await fetch(`${base}/sp/auto-login`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(creds),
+    });
+  } catch (e) {
+    console.error("fetch(/sp/auto-login) failed:", e);
+    throw new PortalError("Can't reach Skipp. Check your connection.", "unreachable");
+  }
+  if (res.ok) return (await res.json()) as StudentPortalSnapshot;
+
+  const parsed = await res.json().catch(() => undefined);
+  const raw = parsed?.detail;
+  const detail: string | undefined =
+    typeof raw === "string" ? raw : (raw?.message as string | undefined);
+  const code: string | undefined = typeof raw === "object" ? raw?.code : undefined;
+  
+  if (res.status === 401) {
+    if (code === "invalid_captcha") {
+      throw new AuthError(detail ?? "Automated login failed. Please try again manually.", "captcha");
+    }
+    if (code === "invalid_credentials") {
+      throw new AuthError(detail ?? "Wrong SRM net id or password.", "wrong_password");
+    }
+    if (code === "session_expired") {
+      throw new AuthError(detail ?? "Sign in to the student portal again.", "wrong_password");
+    }
+    throw new AuthError(detail ?? "Sign-in failed.", "wrong_password");
+  }
+  if (res.status === 429) {
+    throw new AuthError(
+      detail ?? "The portal is rate limiting sign-ins right now.",
+      "captcha",
+    );
+  }
+  throw new PortalError(detail ?? `Something went wrong (${res.status}).`, "portal");
 }
 
 // ---- Feedback ----------------------------------------------------------

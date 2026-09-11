@@ -3,6 +3,7 @@ import base64
 import urllib.request
 import urllib.parse
 import os
+import ssl
 from typing import Tuple, Dict, Optional
 
 from models.student_portal import StudentPortalCaptchaResponse, StudentPortalLoginRequest
@@ -22,6 +23,13 @@ import random
 
 def _get_opener(cj=None, force_proxy=None):
     handlers = []
+    
+    # Disable SSL verification due to portal's self-signed certificates or local network interception
+    ctx = ssl.create_default_context()
+    ctx.check_hostname = False
+    ctx.verify_mode = ssl.CERT_NONE
+    handlers.append(urllib.request.HTTPSHandler(context=ctx))
+    
     if cj is not None:
         handlers.append(urllib.request.HTTPCookieProcessor(cj))
         

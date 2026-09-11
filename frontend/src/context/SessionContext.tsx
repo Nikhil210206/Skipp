@@ -27,7 +27,7 @@ import type {
   StudentPortalLoginRequest,
   Timetable,
 } from "@/types";
-import { AuthError, fetchSnapshot, submitStudentPortalLogin } from "@/lib/api";
+import { AuthError, fetchSnapshot, submitStudentPortalLogin, autoStudentPortalLogin } from "@/lib/api";
 import {
   clearPortalOverride,
   enrichMarkTitles,
@@ -143,6 +143,8 @@ type SessionValue = {
   canImportAttendance: boolean;
   /** Open the portal login and import attendance. Native only. */
   importAttendance: (req: StudentPortalLoginRequest) => Promise<void>;
+  /** Automatically login and import attendance via OCR backend. */
+  autoImportAttendance: (req: Credentials) => Promise<void>;
   /** Discard imported attendance and fall back to academia. */
   clearImportedAttendance: () => void;
   marks: Marks | null;
@@ -373,6 +375,30 @@ export function SessionProvider({ children }: { children: React.ReactNode }) {
     if (reg) savePortalOverride(reg, override);
   }, [snapshot, reg]);
 
+  const autoImportAttendance = useCallback(async (req: Credentials): Promise<void> => {
+    const sp = await autoStudentPortalLogin(req);
+    if (sp.attendanceStatus !== "ready" || !sp.attendance) {
+      throw new Error(
+        sp.attendanceMessage ??
+          "The student portal did not return attendance this time.",
+      );
+    }
+    const titles = new Map(
+      (snapshot?.timetable.courses ?? []).map((c) => [
+        c.code.toUpperCase(),
+        c.title,
+      ]),
+    );
+    const override: PortalOverride = {
+      attendance: enrichTitles(sp.attendance, titles),
+      marks: sp.marksStatus === "ready" ? sp.marks : null,
+      reportedPeriod: sp.reportedPeriod,
+      fetchedAt: sp.fetchedAt,
+    };
+    setPortalAtt(override);
+    if (reg) savePortalOverride(reg, override);
+  }, [snapshot, reg]);
+
   // Drop the imported attendance and go back to academia (which may still be
   // gated). The escape hatch for when academia recovers but the app is showing
   // stale portal data, or the student simply wants it gone.
@@ -458,8 +484,9 @@ export function SessionProvider({ children }: { children: React.ReactNode }) {
       attendanceMessage: usePortal ? null : (snapshot?.attendanceMessage ?? null),
       attendanceSource: academiaReady ? "academia" : usePortal ? "portal" : null,
       reportedPeriod: usePortal ? portalAtt.reportedPeriod : null,
-      canImportAttendance: true,
+      canImportAttendance: true, // we can always try to import via OCR
       importAttendance,
+      autoImportAttendance,
       clearImportedAttendance,
       marks: portalMarks
         ? enrichMarkTitles(portalMarks, courseTitles)

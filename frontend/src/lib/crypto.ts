@@ -12,6 +12,7 @@ const DB_NAME = "skipp";
 const STORE = "keys";
 const KEY_ID = "cred-key";
 const BLOB_KEY = "skipp.cred";
+const PORTAL_BLOB_KEY = "skipp.portal_cred";
 const SNAP_KEY = "skipp.snap";
 
 function openDB(): Promise<IDBDatabase> {
@@ -99,7 +100,7 @@ async function readKey(): Promise<CryptoKey | null> {
 async function getOrCreateKey(): Promise<CryptoKey> {
   const existing = await readKey();
   if (existing) return existing;
-  if (localStorage.getItem(BLOB_KEY) || localStorage.getItem(SNAP_KEY)) {
+  if (localStorage.getItem(BLOB_KEY) || localStorage.getItem(PORTAL_BLOB_KEY) || localStorage.getItem(SNAP_KEY)) {
     throw new Error("skipp: refusing to mint a key over existing ciphertext");
   }
   const key = await crypto.subtle.generateKey(
@@ -190,6 +191,33 @@ export async function loadCredentials(): Promise<Credentials | null> {
 export function clearCredentials(): void {
   try {
     localStorage.removeItem(BLOB_KEY);
+  } catch {
+    /* ignore */
+  }
+}
+
+export async function savePortalCredentials(creds: Credentials): Promise<void> {
+  try {
+    localStorage.removeItem(PORTAL_BLOB_KEY);
+    localStorage.setItem(PORTAL_BLOB_KEY, await encryptJSON(creds));
+  } catch {
+    // Crypto/IDB unavailable, so degrade to in-memory only (re-login on reload).
+  }
+}
+
+export async function loadPortalCredentials(): Promise<Credentials | null> {
+  try {
+    const blob = localStorage.getItem(PORTAL_BLOB_KEY);
+    if (!blob) return null;
+    return await decryptJSON<Credentials>(blob);
+  } catch {
+    return null;
+  }
+}
+
+export function clearPortalCredentials(): void {
+  try {
+    localStorage.removeItem(PORTAL_BLOB_KEY);
   } catch {
     /* ignore */
   }

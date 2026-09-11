@@ -5,10 +5,11 @@ import { Button } from "@/components/ui";
 import { Sheet } from "@/components/ui/Overlay";
 import { useSession } from "@/context/SessionContext";
 import { initStudentPortalLogin } from "@/lib/api";
+import { savePortalCredentials, loadPortalCredentials } from "@/lib/crypto";
 import type { StudentPortalCaptchaResponse } from "@/types";
 
 export function ImportAttendanceAction({ type = "attendance" }: { type?: "attendance" | "marks" }) {
-  const { importAttendance } = useSession();
+  const { importAttendance, autoImportAttendance } = useSession();
   const [open, setOpen] = useState(false);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -33,8 +34,27 @@ export function ImportAttendanceAction({ type = "attendance" }: { type?: "attend
     }
   };
 
-  const handleOpen = () => {
+  const handleOpen = async () => {
     setOpen(true);
+    const creds = await loadPortalCredentials();
+    if (creds) {
+      setBusy(true);
+      setError(null);
+      try {
+        await autoImportAttendance(creds);
+        setOpen(false);
+        setBusy(false);
+        return;
+      } catch (err) {
+        setError(err instanceof Error ? err.message : "Auto-update failed. Please sign in manually.");
+        setUsername(creds.username);
+        setPassword(creds.password);
+        await loadCaptcha(true);
+        // loadCaptcha sets busy=false when done
+        return;
+      }
+    }
+    
     if (!sessionData) {
       loadCaptcha();
     }
@@ -53,6 +73,7 @@ export function ImportAttendanceAction({ type = "attendance" }: { type?: "attend
         captcha,
         ...sessionData
       });
+      await savePortalCredentials({ username: username.trim(), password });
       setOpen(false);
     } catch (err) {
       setError(err instanceof Error ? err.message : "Import failed. Try again.");
@@ -141,7 +162,7 @@ export function ImportAttendanceAction({ type = "attendance" }: { type?: "attend
           )}
 
           <p className="text-callout text-text-3 mt-2">
-            Your portal password is only used for this login and is never saved by Skipp.
+            Your credentials are securely encrypted and saved on your device for automatic updates.
           </p>
         </div>
       </Sheet>
@@ -205,7 +226,7 @@ function Field({
 }
 
 export function PortalSourceNote({ type = "attendance" }: { type?: "attendance" | "marks" }) {
-  const { reportedPeriod, importAttendance, clearImportedAttendance } = useSession();
+  const { reportedPeriod, importAttendance, autoImportAttendance, clearImportedAttendance } = useSession();
   const [busy, setBusy] = useState(false);
   const [open, setOpen] = useState(false);
   const [sessionData, setSessionData] = useState<StudentPortalCaptchaResponse | null>(null);
@@ -227,8 +248,27 @@ export function PortalSourceNote({ type = "attendance" }: { type?: "attendance" 
     }
   };
 
-  const handleOpen = () => {
+  const handleOpen = async () => {
     setOpen(true);
+    const creds = await loadPortalCredentials();
+    if (creds) {
+      setBusy(true);
+      setError(null);
+      try {
+        await autoImportAttendance(creds);
+        setOpen(false);
+        setBusy(false);
+        return;
+      } catch (err) {
+        setError(err instanceof Error ? err.message : "Auto-update failed. Please sign in manually.");
+        setUsername(creds.username);
+        setPassword(creds.password);
+        setCaptcha("");
+        await loadCaptcha(true);
+        return;
+      }
+    }
+
     setCaptcha("");
     loadCaptcha();
   };
@@ -246,6 +286,7 @@ export function PortalSourceNote({ type = "attendance" }: { type?: "attendance" 
         captcha,
         ...sessionData
       });
+      await savePortalCredentials({ username: username.trim(), password });
       setOpen(false);
     } catch (err) {
       setError(err instanceof Error ? err.message : "Update failed. Try again.");

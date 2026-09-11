@@ -501,6 +501,7 @@ def _sp_rate_check(request: Request) -> None:
     _prune(now)
 
 
+from services.sp_auto import auto_login_and_fetch
 from core.student_portal_client import init_login_session, submit_login_and_fetch, StudentPortalClientError
 from models.student_portal import StudentPortalCaptchaResponse, StudentPortalLoginRequest
 
@@ -567,6 +568,68 @@ def sp_login(req: StudentPortalLoginRequest, request: Request) -> StudentPortalS
         marks_status, marks_msg = "gated", "Marks were not fetched."
 
     log.info("student portal parsed: attendance=%s marks=%s", att_status, marks_status)
+
+    return StudentPortalSnapshot(
+        attendance=attendance,
+        attendance_status=att_status,
+        attendance_message=att_msg,
+        marks=marks,
+        marks_status=marks_status,
+        marks_message=marks_msg,
+        reported_period=period,
+        fetched_at=datetime.now(timezone.utc).isoformat(),
+    )
+
+
+@app.post("/sp/auto-login", response_model=StudentPortalSnapshot)
+def sp_auto_login(req: LoginRequest, request: Request) -> StudentPortalSnapshot:
+    """Submit credentials and use OCR to bypass captcha automatically."""
+    _sp_rate_check(request)
+
+    try:
+        att_html, marks_html = auto_login_and_fetch(req.username, req.password)
+    except StudentPortalClientError as e:
+        msg = str(e)
+        if "Invalid captcha" in msg or "Failed to solve CAPTCHA" in msg:
+            raise _fail(401, "invalid_captcha", "Incorrect captcha. Please try again.")
+        if "Invalid username or password" in msg:
+            raise _fail(401, "invalid_credentials", "Incorrect NetID or password.")
+        raise _fail(401, "login_failed", msg)
+    except Exception as e:
+        import traceback
+        traceback.print_exc()
+        raise _fail(500, "internal_error", f"Internal server error: {str(e)}")
+
+    if sp_looks_signed_out(att_html):
+        raise _fail(
+            401,
+            "session_expired",
+            "The student portal session expired immediately after login.",
+        )
+
+    attendance = marks = None
+    att_status: str = "error"
+    marks_status: str = "error"
+    att_msg = marks_msg = None
+    period = None
+
+    try:
+        attendance = parse_sp_attendance(att_html)
+        period = sp_reported_period(att_html)
+        att_status = "ready"
+    except SPAttendanceUnavailable as e:
+        att_status, att_msg = "gated", str(e)
+
+    if marks_html and not sp_looks_signed_out(marks_html):
+        try:
+            marks = parse_sp_marks(marks_html)
+            marks_status = "ready"
+        except SPMarksUnavailable as e:
+            marks_status, marks_msg = "gated", str(e)
+    else:
+        marks_status, marks_msg = "gated", "Marks were not fetched."
+
+    log.info("student portal auto-parsed: attendance=%s marks=%s", att_status, marks_status)
 
     return StudentPortalSnapshot(
         attendance=attendance,
