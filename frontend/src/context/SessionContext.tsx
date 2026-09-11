@@ -47,6 +47,7 @@ import {
   clearCredentials,
   clearSnapshot,
   loadCredentials,
+  loadPortalCredentials,
   loadSnapshot,
   saveCredentials,
   saveSnapshot,
@@ -155,6 +156,7 @@ type SessionValue = {
   isAuthed: boolean;
   restoring: boolean;
   refreshing: boolean;
+  isAutoSyncing: boolean;
   customClasses: CustomClass[];
   addCustomClass: (c: Omit<CustomClass, "id">) => void;
   removeCustomClass: (id: string) => void;
@@ -191,6 +193,7 @@ export function SessionProvider({ children }: { children: React.ReactNode }) {
   const [attendanceChanges, setChanges] = useState<AttendanceChange[]>([]);
   const [loadedReg, setLoadedReg] = useState<string | null>(null);
   const [portalAtt, setPortalAtt] = useState<PortalOverride | null>(null);
+  const [isAutoSyncing, setIsAutoSyncing] = useState(false);
 
   const reg = snapshot?.timetable.student.registrationNumber ?? null;
   // The portal shouts names in caps. Present it the way a person writes it.
@@ -399,6 +402,39 @@ export function SessionProvider({ children }: { children: React.ReactNode }) {
     if (reg) savePortalOverride(reg, override);
   }, [snapshot, reg]);
 
+  // Silently sync with the portal in the background if academia is down
+  // and the user has saved portal credentials.
+  useEffect(() => {
+    if (!snapshot) return;
+    
+    const academiaReady = snapshot.attendanceStatus === "ready" && !!snapshot.attendance;
+    const academiaMarksReady = snapshot.marksStatus === "ready" && !!snapshot.marks;
+    
+    // If academia has everything, no need for the portal
+    if (academiaReady && academiaMarksReady) return;
+    
+    // Skip if we recently synced portal (within the last hour)
+    if (portalAtt?.fetchedAt && (Date.now() - Date.parse(portalAtt.fetchedAt) < 3600000)) return;
+
+    let isMounted = true;
+    const silentSync = async () => {
+      try {
+        const creds = await loadPortalCredentials();
+        if (creds && isMounted) {
+          setIsAutoSyncing(true);
+          await autoImportAttendance(creds);
+        }
+      } catch (e) {
+        console.error("Background portal sync failed:", e);
+      } finally {
+        if (isMounted) setIsAutoSyncing(false);
+      }
+    };
+    
+    void silentSync();
+    return () => { isMounted = false; };
+  }, [snapshot?.fetchedAt, portalAtt?.fetchedAt, autoImportAttendance]);
+
   // Drop the imported attendance and go back to academia (which may still be
   // gated). The escape hatch for when academia recovers but the app is showing
   // stale portal data, or the student simply wants it gone.
@@ -494,10 +530,14 @@ export function SessionProvider({ children }: { children: React.ReactNode }) {
       marksState: usePortalMarks ? "ready" : sectionState(snapshot?.marksStatus),
       marksMessage: usePortalMarks ? null : (snapshot?.marksMessage ?? null),
       marksSource: academiaMarksReady ? "academia" : usePortalMarks ? "portal" : null,
-      fetchedAt: snapshot?.fetchedAt ?? null,
-      isAuthed: creds !== null,
+      fetchedAt:
+        academiaReady || academiaMarksReady
+          ? (snapshot?.fetchedAt ?? null)
+          : (portalAtt?.fetchedAt ?? snapshot?.fetchedAt ?? null),
+      isAuthed: creds != null,
       restoring,
       refreshing,
+      isAutoSyncing,
       customClasses,
       addCustomClass(c) {
         const next = [...customClasses, { ...c, id: newCustomId() }];
