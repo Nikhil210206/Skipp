@@ -326,29 +326,16 @@ export function PortalSourceNote({ type = "attendance" }: { type?: "attendance" 
               `data-btn`, so the material themes treat it as a button (Brutal's
               hard offset, Clay's soft shadow, Stone's lit edge) instead of it
               being the one control in the app they cannot see. */}
-          {isAutoSyncing ? (
-            <div className="relative inline-flex min-h-11 select-none items-center justify-center overflow-hidden rounded-control bg-risk/15 px-5 text-body font-semibold tracking-[-0.01em] text-risk shadow-[0_0_15px_rgba(0,0,0,0.1)] transition-all duration-300">
-              <div className="absolute inset-0 bg-risk/10 animate-pulse" />
-              <span className="relative z-10 flex items-center gap-2">
-                <svg className="h-4 w-4 animate-spin" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
-                  <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
-                  <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
-                </svg>
-                Syncing
-              </span>
-            </div>
-          ) : (
-            <button
-              type="button"
-              data-btn
-              data-update
-              onClick={handleOpen}
-              disabled={busy}
-              className="inline-flex min-h-11 select-none items-center justify-center rounded-control bg-risk px-5 text-body font-semibold tracking-[-0.01em] text-ink-0 transition-colors duration-150 ease-out hover:bg-risk/90 active:bg-risk/80 disabled:pointer-events-none disabled:opacity-35"
-            >
-              Update
-            </button>
-          )}
+          <button
+            type="button"
+            data-btn
+            data-update
+            onClick={handleOpen}
+            disabled={busy || isAutoSyncing}
+            className="inline-flex min-h-11 select-none items-center justify-center rounded-control bg-risk px-5 text-body font-semibold tracking-[-0.01em] text-ink-0 transition-colors duration-150 ease-out hover:bg-risk/90 active:bg-risk/80 disabled:pointer-events-none disabled:opacity-35"
+          >
+            {isAutoSyncing ? "Syncing..." : "Update"}
+          </button>
           {/* Stays a quiet word. Clear throws the imported attendance away and
               is wanted about once ever, so it must not compete. */}
           <button

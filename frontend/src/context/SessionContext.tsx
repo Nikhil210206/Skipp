@@ -427,7 +427,7 @@ export function SessionProvider({ children }: { children: React.ReactNode }) {
       } catch (e) {
         console.error("Background portal sync failed:", e);
       } finally {
-        if (isMounted) setIsAutoSyncing(false);
+        setIsAutoSyncing(false);
       }
     };
     
