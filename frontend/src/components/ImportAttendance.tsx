@@ -3,6 +3,7 @@
 import { useState, useRef, useEffect } from "react";
 import { Button } from "@/components/ui";
 import { Sheet } from "@/components/ui/Overlay";
+import { IconTrash } from "@/components/Icons";
 import { useSession } from "@/context/SessionContext";
 import { initStudentPortalLogin } from "@/lib/api";
 import { savePortalCredentials, loadPortalCredentials } from "@/lib/crypto";
@@ -234,6 +235,23 @@ export function PortalSourceNote({ type = "attendance" }: { type?: "attendance" 
   const [password, setPassword] = useState("");
   const [captcha, setCaptcha] = useState("");
   const [error, setError] = useState<string | null>(null);
+  const [armed, setArmed] = useState(false);
+  const disarmTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  useEffect(() => () => {
+    if (disarmTimer.current) clearTimeout(disarmTimer.current);
+  }, []);
+
+  const handleClear = () => {
+    if (disarmTimer.current) clearTimeout(disarmTimer.current);
+    if (armed) {
+      setArmed(false);
+      clearImportedAttendance();
+      return;
+    }
+    setArmed(true);
+    disarmTimer.current = setTimeout(() => setArmed(false), 3000);
+  };
 
   const loadCaptcha = async (keepError = false) => {
     setBusy(true);
@@ -336,14 +354,24 @@ export function PortalSourceNote({ type = "attendance" }: { type?: "attendance" 
           >
             {isAutoSyncing ? "Syncing..." : "Update"}
           </button>
-          {/* Stays a quiet word. Clear throws the imported attendance away and
-              is wanted about once ever, so it must not compete. */}
+          {/* A real button with a dustbin, on request. Bold makes it easy to
+              hit, and it throws the imported attendance away, so it asks once:
+              the first tap tips the lid open and turns it red, the second
+              clears, and it quietly disarms after a few seconds. Outlined
+              rather than filled so it does not fight Update's red block. */}
           <button
             type="button"
-            onClick={clearImportedAttendance}
-            className="-my-3 inline-flex min-h-11 items-center py-3 text-callout text-text-3 underline underline-offset-4"
+            data-btn
+            onClick={handleClear}
+            aria-label={armed ? "Tap again to clear imported attendance" : "Clear imported attendance"}
+            className={`group inline-flex min-h-11 select-none items-center justify-center gap-2 rounded-control border px-4 text-body font-semibold tracking-[-0.01em] transition-colors duration-150 ease-out ${
+              armed
+                ? "border-risk bg-risk/10 text-risk"
+                : "border-line-strong bg-ink-2 text-text-1 hover:border-risk hover:text-risk"
+            }`}
           >
-            Clear
+            <IconTrash size={18} open={armed} />
+            <span className="tnum">{armed ? "Sure?" : "Clear"}</span>
           </button>
         </div>
       </div>

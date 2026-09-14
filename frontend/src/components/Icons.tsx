@@ -96,6 +96,28 @@ export function IconClose(p: IconProps) {
   );
 }
 
+/**
+ * A dustbin whose lid is its own group, hinged at its right end, so a caller
+ * can tip it open (`open`) or let a `group` ancestor's hover do it. The origin
+ * is in viewBox units, which is what an SVG child's transform box resolves to.
+ */
+export function IconTrash({ open = false, ...p }: IconProps & { open?: boolean }) {
+  return (
+    <Svg {...p}>
+      <g
+        className={`origin-[20px_7px] transition-transform duration-200 ease-out ${
+          open ? "-rotate-[28deg] -translate-y-px" : "group-hover:-rotate-12"
+        }`}
+      >
+        <path d="M4 7h16" />
+        <path d="M9 7V5a1 1 0 0 1 1-1h4a1 1 0 0 1 1 1v2" />
+      </g>
+      <path d="M6 7l1 12a2 2 0 0 0 2 2h6a2 2 0 0 0 2-2l1-12" />
+      <path d="M10 11v6M14 11v6" />
+    </Svg>
+  );
+}
+
 export function IconCheck(p: IconProps) {
   return (
     <Svg {...p}>
