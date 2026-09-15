@@ -365,6 +365,56 @@ attach their textures to `.bg-ink-0`, and the masthead has always been flat.
 behind it to be opaque.** A gradient that is "mostly solid" behind a tinted
 control is not solid.
 
+### DONE: The haze was the profile ring, and Arcade got switched on (2026-09-15, latest)
+
+**The "blur at the top" survived the ScrollEdge fix because it was never the
+fade.** Reported again from a real iPhone, with screenshots taken at the very
+top of the page, where ScrollEdge is at opacity 0. The haze was
+`ProfileMark`'s ring: it rested at 35% opacity, 16% larger than the tile, so a
+faint second circle sat just outside a tile that already has its own
+translucent edge. On black with a bright accent that reads exactly as a glow
+or blur. It rests at opacity 0 now and only appears, crisp, while pressed.
+**When a symptom survives a verified fix, check whether the screenshot was
+even in the state the fix addresses**: scroll position zero ruled ScrollEdge
+out at a glance.
+
+**Arcade was reported as "fine but plain and dull".** Everything was correct
+and nothing was lit. A cabinet is a glowing screen behind glass whose
+characters never stand still, so four additions, all CSS except one marker:
+
+1. **The glass.** Scanlines plus a vignette on one `position: fixed`
+   `body::after` at z-45: above page and tab bar, below sheets (50) and the
+   launch (100), `pointer-events: none`. Fixed means it never repaints on
+   scroll.
+2. **Neon.** Walls, section rules, the tab pill and the action carry static
+   glows (they rasterise once). The big figures glow, and ONLY
+   `.text-poster` / `.text-display`: a glow on body copy is just blur. **And
+   not the countdown's ghosted second unit** (`text-text-1/30`): the first
+   screenshot showed a glow round 30% text smeared under the crisp unit
+   above it, which is precisely the blur being fixed elsewhere. Home's
+   day-order numeral is a neon maze outline (`data-do-numeral`,
+   `-webkit-text-stroke` plus `drop-shadow`); the filter sits on a static
+   child while GSAP moves the parent, so it travels on the compositor.
+3. **Nothing idle.** The meter chomper chomps (a two-frame `background-image`
+   swap on `steps(1)`), power pellets flash, the ghost in a short row's wall
+   bobs, and **on a subject below the line a second ghost chases the chomper
+   down its own meter**: the verdict drawn as a scene. Plan a leave has a
+   chomping chomper in front of it. Every moving part is 14 to 22px, so a
+   frame change repaints a thumbnail, and all of it is off under reduced
+   motion.
+4. **Each screen is a ghost.** `--screen` from `body:has(a[aria-current])`,
+   Stone's device: Home chomper yellow, Marks pink, Attendance cyan, Schedule
+   orange, Calendar pale blue. It colours the tab pill, the travelling dot, the
+   open tab's icon and the section-label dot. **Identity only**: health is
+   still uncoloured, trouble is still red, and the one action is still yellow.
+   Red is deliberately no screen's colour.
+
+Verified at 390 against `?fixture=1`: every animation reports running with
+reduced motion off, ring opacity 0, the chaser present on the short row, no
+horizontal overflow, `tsc` clean. **Not measured: frame cost on a real phone.**
+The scanline layer is the part to suspect first if scrolling ever reads as
+heavier in this theme, since it composites over everything.
+
 ### DONE: Arcade replaced Handheld (2026-09-15, later)
 
 The green four-shade LCD was reported as boring olive and replaced, on

@@ -43,7 +43,13 @@ export default function ProfileMark({ seed }: { seed: string }) {
     // the standalone `scale` property, which composes on top of GSAP's
     // `transform` and silently cancels the animation, so the rest state is set
     // here rather than in the markup.
-    gsap.set(r, { scale: 1.16, opacity: 0.35 });
+    //
+    // INVISIBLE AT REST. It used to rest at 35% opacity, 16% larger than the
+    // tile, which drew a faint second circle just outside a tile that already
+    // has its own translucent edge. On a phone that read as a soft haze round
+    // the icon, reported as the masthead "still blurring" after the scroll
+    // fade had been fixed. It now only exists while pressed, and is crisp then.
+    gsap.set(r, { scale: 1.16, opacity: 0 });
     live.current = !prefersReducedMotion();
     const h = head.current;
     const e = eyes.current;
@@ -68,7 +74,7 @@ export default function ProfileMark({ seed }: { seed: string }) {
 
   const settle = useCallback(() => {
     to(tile.current, { scale: 1 }, DUR.micro);
-    to(ring.current, { scale: 1.16, opacity: 0.35 }, DUR.quick);
+    to(ring.current, { scale: 1.16, opacity: 0 }, DUR.quick);
     // The eyes spring back open, which is the half people notice.
     if (eyes.current && live.current) {
       gsap.to(eyes.current, {

@@ -121,7 +121,7 @@ export default function DashboardPage() {
               {/* Steps down below 360px. At 11rem the numeral is 176px tall and
                   about a third of the width of a 320px column, which leaves the
                   greeting beside it too narrow to set even one word of. */}
-              <span className="block text-[8rem] font-bold leading-[0.78] tracking-[-0.06em] text-ink-2 min-[360px]:text-[11rem]">
+              <span data-do-numeral className="block text-[8rem] font-bold leading-[0.78] tracking-[-0.06em] text-ink-2 min-[360px]:text-[11rem]">
                 {focus.dayOrder}
               </span>
               {/* The numeral is the day order, so it says so. Unlabelled it would

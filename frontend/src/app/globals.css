@@ -1567,6 +1567,169 @@ html[data-theme="arcade"] [data-do-label]::after {
   text-align: inherit;
 }
 
+/* ------------------------------------------------------------
+   ARCADE, SWITCHED ON.
+
+   The first cut was reported as "fine but plain and dull". Everything was
+   right and nothing was lit: a cabinet is a GLOWING screen behind glass, the
+   characters never stand still, and every ghost has its own colour. So:
+
+     1. The glass: scanlines and a vignette, one fixed layer over the page.
+     2. Neon: walls, rules, the action and the big figures carry a glow.
+     3. Nothing idle: the chomper chomps, power pellets flash, a ghost bobs,
+        and on a subject below the line the ghost is CHASING the chomper
+        down its own meter, which is the verdict drawn as a scene.
+     4. Each screen is a ghost: the tab you are on lights in its colour.
+
+   Rules that cost frames were kept off the scroll path. The glass is one
+   `position: fixed` layer that never repaints; glows are static shadows that
+   rasterise once; the moving parts are all 14 to 22px, so a frame change
+   repaints a thumbnail rather than a screen. Every loop is switched off under
+   reduced motion, and the screen still says everything it did without them.
+   ------------------------------------------------------------ */
+
+html[data-theme="arcade"] {
+  /* The chomper, mouth shut: the second frame of the chomp. */
+  --chomp-shut: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 14 14'><circle cx='7' cy='7' r='6.5' fill='%23ffe600'/></svg>");
+  /* The colour of the screen you are on, a ghost each. Home is the chomper. */
+  --screen: #ffe600;
+  --maze-glow: rgb(33 33 255 / 0.55);
+}
+html[data-theme="arcade"] body:has(a[href="/marks"][aria-current="page"]) {
+  --screen: #ffb8ff;
+}
+html[data-theme="arcade"] body:has(a[href="/attendance"][aria-current="page"]) {
+  --screen: #00f0ff;
+}
+html[data-theme="arcade"] body:has(a[href="/timetable"][aria-current="page"]) {
+  --screen: #ffb852;
+}
+html[data-theme="arcade"] body:has(a[href="/calendar"][aria-current="page"]) {
+  --screen: #a8b8ff;
+}
+
+/* 1. THE GLASS. Above the page and the tab bar, below every sheet (z-50) and
+   the launch (z-100), and inert so it can never take a tap. */
+html[data-theme="arcade"] body::after {
+  content: "";
+  position: fixed;
+  inset: 0;
+  z-index: 45;
+  pointer-events: none;
+  background:
+    repeating-linear-gradient(180deg, rgb(255 255 255 / 0.028) 0 1px, transparent 1px 3px),
+    radial-gradient(130% 95% at 50% 42%, transparent 58%, rgb(0 0 40 / 0.5));
+}
+
+/* 2. NEON. */
+html[data-theme="arcade"] [data-surface] {
+  box-shadow:
+    inset 0 0 0 3px var(--color-ink-0),
+    inset 0 0 0 5px var(--maze),
+    0 0 16px -3px color-mix(in srgb, var(--maze) 70%, transparent),
+    inset 0 0 22px -8px color-mix(in srgb, var(--maze) 60%, transparent);
+}
+html[data-theme="arcade"] [data-band] + span {
+  box-shadow: 0 0 8px var(--maze-glow);
+}
+html[data-theme="arcade"] [data-band]::before {
+  background: var(--screen);
+  box-shadow: 0 0 6px var(--screen);
+}
+html[data-theme="arcade"] [data-nav] {
+  box-shadow: 0 -2px 14px -4px var(--maze-glow);
+}
+html[data-theme="arcade"] [data-nav-pill] {
+  border-color: var(--screen);
+  box-shadow:
+    0 0 12px -2px color-mix(in srgb, var(--screen) 60%, transparent),
+    inset 0 0 10px -4px color-mix(in srgb, var(--screen) 60%, transparent);
+}
+html[data-theme="arcade"] [data-nav-dot] {
+  background: var(--screen);
+}
+html[data-theme="arcade"] [data-nav-item][aria-current="page"],
+html[data-theme="arcade"] [data-nav-item][data-drag-active] {
+  color: var(--screen);
+}
+/* The score glows like a lit numeral, and only the big ones: a glow on body
+   copy is just blur. */
+/* NOT the countdown's ghosted second unit (`text-text-1/30`): a glow round
+   text that is itself 30% opacity has nothing solid to glow from, and it read
+   as a blurred smear directly under the crisp unit above it. */
+html[data-theme="arcade"] main .tnum:is(.text-poster, .text-display):not([class*="text-text-1/"]) {
+  text-shadow:
+    0 0 2px rgb(255 255 255 / 0.5),
+    0 0 20px rgb(120 120 255 / 0.55);
+}
+html[data-theme="arcade"] [data-btn].bg-accent,
+html[data-theme="arcade"] [data-btn][class*="border-accent"] {
+  box-shadow: 0 0 18px -3px rgb(255 230 0 / 0.55);
+}
+/* The action is a coin slot with a chomper waiting at it. */
+html[data-theme="arcade"] [data-btn][class*="border-accent"]::before {
+  content: "";
+  width: 16px;
+  height: 16px;
+  margin-right: 4px;
+  background: var(--chomp) center / contain no-repeat;
+}
+
+/* Home's day-order numeral is a piece of maze: a neon outline, not a faint
+   fill. The glow is a filter on a static child, while GSAP moves the parent,
+   so it rasterises once and then travels on the compositor. */
+html[data-theme="arcade"] [data-do-numeral] {
+  color: transparent;
+  -webkit-text-stroke: 2px var(--maze);
+  filter: drop-shadow(0 0 7px rgb(33 33 255 / 0.85));
+}
+
+/* 3. NOTHING IDLE. The chaser: on a subject below the line, a ghost follows
+   the chomper down the eaten corridor. */
+html[data-theme="arcade"] [data-short] [data-meter-fill]::before {
+  content: "";
+  position: absolute;
+  z-index: 3;
+  top: 50%;
+  right: 12px;
+  width: 16px;
+  height: 16px;
+  margin-top: -9px;
+  background: var(--ghost) center / contain no-repeat;
+}
+
+@media (prefers-reduced-motion: no-preference) {
+  html[data-theme="arcade"] [data-meter-fill]::after,
+  html[data-theme="arcade"] [data-btn][class*="border-accent"]::before {
+    animation: arcade-chomp 0.32s steps(1, end) infinite;
+  }
+  html[data-theme="arcade"] [data-meter] > span[aria-hidden] {
+    animation: arcade-flash 0.9s steps(1, end) infinite;
+  }
+  html[data-theme="arcade"] [data-short]::before,
+  html[data-theme="arcade"] [data-short] [data-meter-fill]::before {
+    animation: arcade-bob 0.5s steps(1, end) infinite;
+  }
+}
+@keyframes arcade-chomp {
+  0% {
+    background-image: var(--chomp);
+  }
+  50% {
+    background-image: var(--chomp-shut);
+  }
+}
+@keyframes arcade-flash {
+  50% {
+    opacity: 0.2;
+  }
+}
+@keyframes arcade-bob {
+  50% {
+    translate: 0 -2px;
+  }
+}
+
 html {
   -webkit-tap-highlight-color: transparent;
 }
