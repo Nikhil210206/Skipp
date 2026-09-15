@@ -623,7 +623,11 @@ function Look({
     // 29px comes back out of gaps and margins only: every pill stays on the
     // 44px touch floor, and no content was dropped to make room.
     <div className="no-scrollbar flex h-full flex-col overflow-y-auto pb-1 lg:max-w-[30rem]">
-      <div className="my-auto flex flex-col gap-3">
+      {/* gap-1, down from gap-3. The preview row runs taller under the themes
+          that thicken it: Handheld sets it in the pixel face (6px over at
+          375x667) and Brutal's borders and offset shadow put it 8px over. Two
+          gaps of 4px give back exactly that, and no target shrinks. */}
+      <div className="my-auto flex flex-col gap-1">
         {/* The preview is a torn out screenshot of the app, so it is clipped
             to the page rather than written on it. */}
         <div className="relative">
@@ -635,7 +639,13 @@ function Look({
           <Ink as="p" tool="pencil" colour={INKS.look} size="text-[1.05rem]">
             full looks, rebuilds the UI
           </Ink>
-          <div className="mt-1 flex flex-col gap-1">
+          {/* Two columns, not a stack. A fifth look (Handheld) put this chapter
+              102px over the 375x667 phone it had been trimmed to fit exactly,
+              and there was no gap left to take it from. Three rows of 44px
+              instead of five gives back 96px without shrinking a single
+              target. An odd count takes the last pill across both columns,
+              the same answer the Profile grid gives, so no look sits alone. */}
+          <div className="mt-1 grid grid-cols-2 gap-1">
             {LOOKS.map((t) => {
               const on = picked === t.id;
               return (
@@ -644,7 +654,7 @@ function Look({
                   data-in
                   onClick={() => onPick(t.id)}
                   aria-pressed={on}
-                  className="flex min-h-[44px] items-center justify-between gap-4 rounded-full px-5 transition-all duration-300"
+                  className="flex min-h-[44px] min-w-0 items-center justify-between gap-1 rounded-full px-3 transition-all duration-300 [&:last-child:nth-child(odd)]:col-span-2"
                   // Inverted against whatever the theme actually paints with, so
                   // a light theme does not put cream on cream.
                   style={{
@@ -661,11 +671,14 @@ function Look({
                   <span className="min-w-0 truncate text-left text-body font-semibold">
                     {t.name}
                   </span>
-                  <span className="flex shrink-0 gap-1.5">
+                  {/* Tighter than it was in a single column: at size-3 and gap-1.5
+                      the swatches took 48px of a half width pill and left the
+                      name 63px, which cut "Terminal" and "Handheld". */}
+                  <span className="flex shrink-0 gap-1">
                     {t.swatch.map((sw, k) => (
                       <span
                         key={k}
-                        className="size-3 rounded-full"
+                        className="size-2.5 rounded-full"
                         style={{ background: sw }}
                       />
                     ))}

@@ -98,7 +98,13 @@ export function Amount({
   return (
     <span className={`flex items-baseline gap-1.5 ${className}`}>
       <span className={`tnum ${s}`}>{value}</span>
-      {unit && <span className="text-title opacity-40">{unit}</span>}
+      {unit && (
+        // Marked so a theme that swaps the figure face can swap the unit with
+        // it: set in a name face, a "%" beside pixel digits is a stray glyph.
+        <span data-unit className="text-title opacity-40">
+          {unit}
+        </span>
+      )}
     </span>
   );
 }
@@ -128,7 +134,10 @@ export function TrackRule({
         className={`absolute inset-y-0 left-0 ${
           tone === "accent" ? "bg-accent" : "bg-text-1"
         }`}
-        style={{ width: `${pct}%` }}
+        // `--v` repeats the width for a theme that has to snap it. Handheld
+        // draws the meter as whole 5% cells, and CSS cannot read an inline
+        // width back, so the value is handed over as a property too.
+        style={{ width: `${pct}%`, "--v": `${pct}%` } as React.CSSProperties}
       />
       {threshold !== undefined && (
         <span

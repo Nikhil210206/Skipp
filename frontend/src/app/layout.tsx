@@ -4,6 +4,8 @@ import {
   Caveat,
   Geist,
   Geist_Mono,
+  Press_Start_2P,
+  Silkscreen,
   Space_Grotesk,
 } from "next/font/google";
 import "./globals.css";
@@ -56,6 +58,29 @@ const display = Bricolage_Grotesque({
   subsets: ["latin"],
 });
 
+/**
+ * Handheld's two pixel faces. Figures in Press Start 2P (monospaced by
+ * construction, so columns cannot drift), everything else in Silkscreen.
+ *
+ * `preload: false` IS LOAD BEARING. The root layout preloads every font it
+ * declares, so without it every student would download two pixel faces on
+ * every launch for a theme almost none of them run. An @font-face is only
+ * fetched once something actually uses it, which is only ever that theme.
+ */
+const pixel = Press_Start_2P({
+  variable: "--font-pixel-src",
+  subsets: ["latin"],
+  weight: "400",
+  preload: false,
+});
+
+const pixelName = Silkscreen({
+  variable: "--font-pixel-name-src",
+  subsets: ["latin"],
+  weight: ["400", "700"],
+  preload: false,
+});
+
 export const metadata: Metadata = {
   title: "Skipp, know before you bunk",
   description:
@@ -88,7 +113,7 @@ export default function RootLayout({
     <html
       lang="en"
       suppressHydrationWarning
-      className={`${geistSans.variable} ${geistMono.variable} ${signature.variable} ${display.variable} ${hand.variable} h-full antialiased`}
+      className={`${geistSans.variable} ${geistMono.variable} ${signature.variable} ${display.variable} ${hand.variable} ${pixel.variable} ${pixelName.variable} h-full antialiased`}
     >
       <head>
         {/* Applies the saved theme before paint so there is no flash. */}

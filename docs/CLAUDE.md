@@ -345,6 +345,106 @@ is deployment and true push notifications.
 Entries below are newest first. **When something breaks, read the relevant entry first**: most
 oddities here (login shell, empty calendar, 429s, duplicated course codes) are already diagnosed.
 
+### DONE: Handheld, the fifth full look (2026-09-15)
+
+A four-shade green pocket-console LCD. Chosen from a shortlist (Register, OMR
+sheet, Blueprint, Metro, Riso, then retro and graffiti directions) because it
+is the one where the gimmick IS the data: **classes you can still skip are
+already lives, so the margin is drawn as hearts.** A graffiti roller shutter
+("Shutter", dark painted metal with stencil and stickers) was mocked up
+alongside it and then **dropped on request (2026-09-15). Do not build it
+unless asked.**
+
+**NO COLOUR, AND THAT OBEYS THE COLOUR RULE rather than breaking it.** Trouble
+is marked the way the hardware did it: the row INVERTS. `data-short` on the
+Attendance row redefines the ink tokens on that element, so every utility
+inside it flips at once (figure, meta, meter cells, tick, gaps) and nothing
+has to be restyled one by one. Every state token sits on the same dark ink;
+the words already carry the verdict in every theme.
+
+**THE FONT SWAP IS GATED ON `font-size-adjust: cap-height`, and that is what
+made a pixel face possible in a columns-of-figures app.** Measured with
+canvas: Press Start 2P is 1.0em a digit with a 1.0 cap, Silkscreen 0.73em a
+glyph with a 0.625 cap, Geist 0.57em a digit. Unadjusted, every figure would
+be 75% wider. Normalised, figures (`.tnum`, cap 0.55) come out 0.55em a digit,
+which is Geist's width, so **no screen was re-laid out for this theme.** Names
+(cap 0.52) come out about 0.61em. A browser without cap-height support keeps
+Geist and still gets the palette and structure: a plainer Handheld, never a
+broken one. Both faces are `preload: false` in `layout.tsx`, or every student
+downloads two pixel fonts on every launch for a theme almost nobody runs.
+
+**The first cap value was wrong and the measurement is the useful part.** At
+0.62 for names, 14 of the 16 single line titles on Attendance truncated,
+"Computer Networks" included. At 0.52, and with `main .truncate` allowed to
+wrap in this theme only, none are cut: a course name is what you scan for.
+
+**THE METER IS TWENTY CELLS, EACH 5%**, so the 75% tick lands exactly on a cell
+boundary. Three pieces:
+- The fill SNAPS DOWN to whole cells with `round(down, var(--v), 5%)`, because
+  a part-lit cell is not something an LCD segment can be. CSS cannot read an
+  inline width back, so `TrackRule` now also writes `--v`. Gated on
+  `@supports`: an unsupported `round()` with a `var()` in it is invalid at
+  computed time and would collapse the fill to zero width. Measured at 320:
+  67.86% draws as 65, 89.29 as 85, 90.63 as 90, tick at 75.0 on every row.
+- The gaps are painted OVER the fill in the page colour by `::after`, not cut
+  from it, so the fill needs no pattern and cannot fall out of step.
+- The tick is re-cut for the 10px bar (Stone's recorded trap: a tick placed for
+  a 2px bar hangs above a taller one).
+
+**A pre-existing layout bug surfaced here and is worked around, not fixed.**
+`TrackRule` carries `bleed` AND `w-full`, and the page's own notes already say
+those fight: the meter shifts left by the gutter without widening. A hairline
+hides it. A row of cells does not: the masthead bar started at the screen edge
+and stopped short on the right. Handheld zeroes the margins. **Every other
+theme still has the shifted hairline**; it wants a decision about whether
+masthead meters are meant to bleed at all.
+
+**Hearts are CSS, not markup.** `data-margin` plus `--hearts` on the figure's
+wrapper (Attendance rows and masthead), drawn by `::after` as a repeating SVG
+tile, capped at ten because the number beside them is still the figure. At
+zero, one empty heart blinks: the only looping thing in the theme, and off
+under reduced motion.
+
+**Day orders are Worlds**, on Home's ghost label only, which is aria-hidden.
+**`font-size: 0` does NOT hide text under `font-size-adjust`**: Chrome
+computed 0px and still painted "DAY ORDER" in an 89 by 15 box beside
+"WORLD". The label goes `visibility: hidden` and the replacement is laid over
+the same box instead. Anything else that swaps text by zeroing the size will
+hit this in this theme.
+
+**A unit set beside pixel figures has to take the figure face.** In
+Silkscreen the "%" rendered as a stray glyph. `Amount`'s unit and Home's
+separate "%" span now carry `data-unit`.
+
+**Two collisions every card theme hits, answered the usual way:** holidays
+take the darkest ink (`safe` is dimmer than a working day here, Mono's
+problem), and optional classes dash the card edge. Quiet text buttons are
+excluded from the offset shadow, or every "Skip" becomes a slab.
+
+**A fifth look broke two grids.** Profile's two column tiles left Handheld
+alone in a row, so an odd last tile spans both columns. The onboarding theme
+chapter had been trimmed to fit four stacked pills at 375x667 and went 102px
+over; the looks are a two column grid now (last one spanning), swatches
+tightened so names fit, and the chapter gap went 12 to 4px. That last number
+was found in two steps: at 8px Brutal was still 8px over (its borders and
+offset shadow make the preview taller) and "Terminal" was cut in its own pill
+under the two wide faces, so the pill padding went `px-3` / `gap-1` as well.
+Measured after at 375x667 in Ink, Brutal, Clay, Terminal, Stone and Handheld:
+**0px over in all six, no name cut, no target under 44px.**
+
+**Verified** against `?fixture=1` with the backend down, so no sign-in was
+possible: all six screens at 390, Home and Attendance at 320, no horizontal
+overflow anywhere, no tap target under 44px on Schedule, `tsc --noEmit` clean,
+`eslint src` no new warnings. **Not verified**: a real phone, the desktop
+side rail (`SideNav` was not checked for `data-nav-pill`), sheets and the
+leave planner, and GSAP motion, which stays smooth rather than stepped (the
+mock promised stepped motion; it is not built).
+
+**Known and left:** body copy in Silkscreen is readable but tiring in long
+paragraphs (Profile's notification note), and the onboarding deck's Skip
+control picks up the pixel face because it inherits `--font-sans`, which
+Terminal's mono already did.
+
 ### DONE: Paper is stock, Sand is sand, Gold is yellow (2026-09-07, later)
 
 Three named themes were not the thing they were named after.

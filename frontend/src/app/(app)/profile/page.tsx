@@ -167,7 +167,9 @@ export default function ProfilePage() {
                     role="radio"
                     aria-checked={active}
                     onClick={() => setTheme(t.id)}
-                    className={`flex items-center gap-3 rounded-control border px-3 py-3 text-left transition-colors ${
+                    // An odd count leaves the last look alone in a row, which
+                    // reads as the overflow it is, so that one takes the width.
+                    className={`flex items-center gap-3 rounded-control border px-3 py-3 text-left transition-colors [&:last-child:nth-child(odd)]:col-span-2 ${
                       active
                         ? "border-accent bg-ink-2"
                         : "border-line hover:border-line-strong"

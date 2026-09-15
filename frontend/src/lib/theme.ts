@@ -20,6 +20,7 @@ export type Theme =
   | "clay"
   | "terminal"
   | "stone"
+  | "handheld"
   | "rose"
   | "ember"
   | "gold"
@@ -77,6 +78,14 @@ export const THEMES: ThemeInfo[] = [
     // which would have flashed a light bar over a dark app on every launch.
     bar: "#32322e",
     swatch: ["#32322e", "#3b3c37", "#ffc21f"],
+    structural: true,
+  },
+  {
+    id: "handheld",
+    name: "Handheld",
+    note: "Pixel LCD, hearts for skips",
+    bar: "#c1cc8b",
+    swatch: ["#c1cc8b", "#7f9651", "#1c2914"],
     structural: true,
   },
   {

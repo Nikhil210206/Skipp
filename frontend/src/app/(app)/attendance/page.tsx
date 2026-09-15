@@ -118,7 +118,15 @@ export default function AttendancePage() {
                     {attended} of {conducted} attended · {THRESHOLD}% required
                   </span>
                 </Marginalia>
-                <div className="shrink-0 text-right">
+                <div
+                  className="shrink-0 text-right"
+                  data-margin={inHand.isSafe ? inHand.canSkip : undefined}
+                  style={
+                    inHand.isSafe
+                      ? ({ "--hearts": inHand.canSkip } as React.CSSProperties)
+                      : undefined
+                  }
+                >
                   <span
                     className={`tnum block text-title leading-none ${
                       inHand.isSafe ? "text-text-1" : "text-accent"
@@ -200,7 +208,9 @@ function Ledger({ s, tone = "neutral" }: { s: Subject; tone?: "neutral" | "accen
   const label = none ? "No classes" : p.isSafe ? "Margin" : "Required";
 
   return (
-    <div data-surface className="pt-6">
+    // `data-short` lets a theme with no colour say "below the line" another way:
+    // Handheld inverts the whole row, the way the hardware it copies did.
+    <div data-surface data-short={tone === "accent" ? "" : undefined} className="pt-6">
       <div className="flex items-start justify-between gap-5">
         <div className="min-w-0 flex-1 pt-1">
           <p className="truncate text-headline">{s.title || s.code}</p>
@@ -216,8 +226,14 @@ function Ledger({ s, tone = "neutral" }: { s: Subject; tone?: "neutral" | "accen
           </p>
         </div>
 
-        {/* The decision, hung on the right and aligned across every row. */}
-        <div className="shrink-0 text-right">
+        {/* The decision, hung on the right and aligned across every row.
+            `data-margin` carries the skips in hand for a theme to draw: Handheld
+            turns it into hearts. Only when there is a margin to show. */}
+        <div
+          className="shrink-0 text-right"
+          data-margin={!none && p.isSafe ? p.canSkip : undefined}
+          style={!none && p.isSafe ? ({ "--hearts": p.canSkip } as React.CSSProperties) : undefined}
+        >
           <span
             className={`tnum block text-hero leading-none ${
               value === null

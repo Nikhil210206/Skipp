@@ -1251,6 +1251,318 @@ html[data-theme="stone"] [data-mark-group] > div > span:nth-child(5) [data-lette
   color: var(--ms-yellow);
 }
 
+/* ============================================================
+   HANDHELD. A four-shade green pocket-console LCD.
+
+   THE SKIP MARGIN BECOMES HEARTS, and that is the reason this theme exists
+   rather than a coat of paint on it: classes you can still skip already ARE
+   lives, so drawing them as lives adds no meaning the number did not have.
+
+   THERE IS NO COLOUR, and that suits the house rule rather than breaking it.
+   Colour marks trouble; this screen cannot show colour, so trouble is marked
+   the way the hardware did it: the row INVERTS. Every state token therefore
+   sits on the same dark ink, and the words (Safe, Required) carry the rest,
+   exactly as they already do in every other theme.
+
+   THE FONT SWAP IS GATED ON `font-size-adjust: cap-height`. Both pixel faces
+   are far wider than Geist at the same size, and this app is columns of
+   figures. Normalising the cap height brings the advance width back near
+   Geist's, so no screen had to be re-laid out for this theme. A browser that
+   cannot normalise keeps Geist and still gets the palette and the structure,
+   which is a plainer Handheld rather than a broken one.
+   ============================================================ */
+html[data-theme="handheld"] {
+  color-scheme: light;
+  font-synthesis: none;
+
+  --color-ink-0: #c1cc8b;
+  --color-ink-1: #b7c381;
+  --color-ink-2: #aab775;
+  --color-ink-3: #97a563;
+  --color-line: #7f9651;
+  --color-line-soft: #a9b674;
+  --color-line-strong: #3c5227;
+  --color-text-1: #1c2914;
+  --color-text-2: #3c5227;
+  --color-text-3: #4a6231;
+  --color-accent: #1c2914;
+  --color-accent-ink: #c1cc8b;
+  --color-safe: #3c5227;
+  --color-watch: #1c2914;
+  --color-risk: #1c2914;
+
+  --border-w: 2px;
+  --radius-control: 0px;
+  --radius-card: 0px;
+  --radius-sheet: 0px;
+  --shadow-lift: 4px 4px 0 #1c2914;
+  --shadow-float: 6px 6px 0 #1c2914;
+
+  /* Pixel faces have no optical tracking to undo: a negative letter-spacing
+     just runs the glyph blocks into each other. */
+  --text-poster--letter-spacing: 0;
+  --text-mega--letter-spacing: 0;
+  --text-display--letter-spacing: 0;
+  --text-hero--letter-spacing: 0;
+  --text-title--letter-spacing: 0;
+  --text-headline--letter-spacing: 0;
+  --text-body--letter-spacing: 0;
+  /* Pixel caps already carry a column of air per glyph; Ink's 0.075em on top
+     of that spelled every label out one letter at a time. */
+  --text-label--letter-spacing: 0.03em;
+  --text-poster--line-height: 1;
+  --text-mega--line-height: 1;
+  --text-display--line-height: 1;
+  --text-hero--line-height: 1.12;
+
+  /* 8.5 units wide around a 7 unit heart, so the tile carries its own gap. */
+  --heart: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 8.5 6' shape-rendering='crispEdges'><path fill='%231c2914' d='M1 0h2v1h1V0h2v1h1v2H6v1H5v1H4v1H3V5H2V4H1V3H0V1h1z'/></svg>");
+  --heart-empty: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' viewBox='-.5 -.5 8 7'><path fill='none' stroke='%231c2914' stroke-width='1' d='M1 0h2v1h1V0h2v1h1v2H6v1H5v1H4v1H3V5H2V4H1V3H0V1h1z'/></svg>");
+}
+
+@supports (font-size-adjust: cap-height 0.5) {
+  html[data-theme="handheld"] {
+    --font-sans: var(--font-pixel-name-src), var(--font-geist-sans), sans-serif;
+    /* Silkscreen is 0.73em a glyph with a 0.625 cap, measured. At 0.62 that
+       left it 27% wider than Geist, and 14 of the 16 single line titles on
+       Attendance truncated, "Computer Networks" among them. At 0.52 it is
+       0.61em a glyph, and the lines that still do not fit are allowed to wrap
+       below rather than cut: a course name is what you are scanning for. */
+    font-size-adjust: cap-height 0.52;
+  }
+  html[data-theme="handheld"] [data-unit] {
+    font-family: var(--font-pixel-src), var(--font-geist-mono), monospace;
+    font-size-adjust: cap-height 0.55;
+  }
+  html[data-theme="handheld"] main .truncate {
+    white-space: normal;
+    overflow-wrap: anywhere;
+  }
+  html[data-theme="handheld"] .tnum {
+    font-family: var(--font-pixel-src), var(--font-geist-mono), monospace;
+    font-feature-settings: normal;
+    font-size-adjust: cap-height 0.55;
+  }
+}
+
+/* The LCD's own pixel grid, on every surface that paints the page. A 3px
+   pitch, so body and main can disagree on phase by a pixel and nobody sees it. */
+html[data-theme="handheld"] body,
+html[data-theme="handheld"] .bg-ink-0 {
+  background-color: var(--color-ink-0);
+  background-image:
+    repeating-linear-gradient(90deg, rgb(28 41 20 / 0.05) 0 1px, transparent 1px 3px),
+    repeating-linear-gradient(180deg, rgb(28 41 20 / 0.05) 0 1px, transparent 1px 3px);
+}
+
+/* Rows are dialog boxes: a dark line, a gap of screen, a second dark line. */
+html[data-theme="handheld"] [data-surface] {
+  border: var(--border-w) solid #1c2914;
+  box-shadow:
+    inset 0 0 0 2px var(--color-ink-0),
+    inset 0 0 0 4px var(--color-text-1);
+  padding: 14px 16px;
+  margin-bottom: 12px;
+}
+html[data-theme="handheld"] [data-surface] .bleed {
+  margin-left: 0;
+  margin-right: 0;
+}
+html[data-theme="handheld"] [data-rule],
+html[data-theme="handheld"] [data-spine] {
+  display: none;
+}
+
+/* BELOW THE LINE, INVERTED. The tokens are redefined on the row rather than
+   the text restyled, so every utility inside it (the figure, the meta, the
+   meter, its tick and its gaps) flips with it and nothing is missed. */
+html[data-theme="handheld"] [data-short] {
+  --color-ink-0: #1c2914;
+  --color-ink-3: #3c5227;
+  --color-line: #3c5227;
+  --color-text-1: #c1cc8b;
+  --color-text-2: #aab775;
+  --color-text-3: #97a563;
+  --color-accent: #c1cc8b;
+  background: #1c2914;
+  color: var(--color-text-1);
+}
+
+html[data-theme="handheld"] [data-band] {
+  background: var(--color-text-1);
+  color: var(--color-ink-0);
+  padding: 5px 7px 4px;
+}
+
+/* TWENTY CELLS, EACH 5%, so the 75% tick lands on a cell boundary exactly.
+   The fill snaps down to whole cells: a part-lit cell is not something an
+   LCD segment can be. The gaps are painted OVER the fill in the page colour
+   rather than cut from it, so the fill needs no pattern of its own and cannot
+   fall out of step with the track. */
+html[data-theme="handheld"] [data-meter] {
+  height: 10px;
+  background: var(--color-ink-3);
+}
+/* Inside the gutter, never full bleed. `bleed` plus `w-full` on the meter
+   shifts it left without widening it, which a hairline hides and a row of
+   cells does not: the bar started at the screen edge and stopped short of the
+   right one, with its tick no longer under the column it belongs to. */
+html[data-theme="handheld"] [data-meter].bleed {
+  margin-left: 0;
+  margin-right: 0;
+}
+html[data-theme="handheld"] [data-meter-fill] {
+  background: var(--color-text-1);
+}
+@supports (width: round(down, 50%, 5%)) {
+  html[data-theme="handheld"] [data-meter-fill] {
+    width: round(down, var(--v), 5%) !important;
+  }
+}
+html[data-theme="handheld"] [data-meter]::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  z-index: 1;
+  pointer-events: none;
+  background: repeating-linear-gradient(
+    90deg,
+    transparent 0 calc(5% - 2px),
+    var(--color-ink-0) calc(5% - 2px) 5%
+  );
+}
+/* The tick is re-cut for the taller bar, which is the exact trap Stone
+   recorded: a 2px tick positioned for a 2px bar hangs above a 10px one. It
+   fills the gap before the sixteenth cell and crosses the bar top to bottom. */
+html[data-theme="handheld"] [data-meter] > span[aria-hidden] {
+  z-index: 2;
+  top: -5px;
+  height: 20px;
+  width: 2px;
+  margin-left: -2px;
+  background: var(--color-text-1);
+}
+
+/* Hearts: the skips in hand, capped at ten because the number beside them is
+   still the figure, and ten is enough to read as "plenty". At zero a single
+   empty heart blinks, which is the one looping thing in this theme. */
+html[data-theme="handheld"] [data-margin]::after {
+  content: "";
+  display: block;
+  height: 12px;
+  margin: 8px 0 0 auto;
+  width: calc(min(var(--hearts), 10) * 17px - 3px);
+  background: var(--heart) 0 0 / 17px 12px repeat-x;
+}
+html[data-theme="handheld"] [data-margin="0"]::after {
+  width: 14px;
+  background: var(--heart-empty) 0 0 / 14px 12px no-repeat;
+}
+@media (prefers-reduced-motion: no-preference) {
+  html[data-theme="handheld"] [data-margin="0"]::after {
+    animation: handheld-blink 1s steps(1, end) infinite;
+  }
+}
+@keyframes handheld-blink {
+  50% {
+    opacity: 0;
+  }
+}
+
+/* Controls are square, sit on a hard pixel offset, and press flat. Shadow
+   only, never transform: pressable() owns that element's transform. A quiet
+   text button gets none of it, or every "Skip" becomes a slab. */
+html[data-theme="handheld"] [data-btn],
+html[data-theme="handheld"] [data-icon-btn],
+html[data-theme="handheld"] [data-segmented],
+html[data-theme="handheld"] [data-segment],
+html[data-theme="handheld"] [data-chip],
+html[data-theme="handheld"] [data-field],
+html[data-theme="handheld"] [data-mark-tile],
+html[data-theme="handheld"] [data-mark-ring],
+html[data-theme="handheld"] [data-sheet],
+html[data-theme="handheld"] [role="checkbox"] > span[aria-hidden] {
+  border-radius: 0;
+}
+html[data-theme="handheld"]
+  [data-btn]:is(.bg-accent, .bg-ink-1, [class*="border-accent"], [class*="border-risk"]) {
+  border: var(--border-w) solid var(--color-text-1);
+  box-shadow: var(--shadow-lift);
+  backdrop-filter: none;
+}
+html[data-theme="handheld"]
+  [data-btn]:is(.bg-accent, .bg-ink-1, [class*="border-accent"], [class*="border-risk"]):active {
+  box-shadow: 1px 1px 0 var(--color-text-1);
+}
+html[data-theme="handheld"] [data-segment][aria-selected="true"] {
+  background: var(--color-text-1);
+  color: var(--color-ink-0);
+}
+
+/* The tab bar is a strip of cells and the open one is inverted, like a
+   selected menu item. Both halves of the drag rule are restated: the global
+   ones light the offered tab in text-1, which on a dark pill is invisible. */
+html[data-theme="handheld"] [data-nav] {
+  border-top: var(--border-w) solid var(--color-text-1);
+}
+html[data-theme="handheld"] [data-nav] > .rule {
+  display: none;
+}
+html[data-theme="handheld"] [data-nav-pill] {
+  border-radius: 0;
+  background: var(--color-text-1);
+}
+html[data-theme="handheld"] [data-nav-dot] {
+  visibility: hidden;
+}
+html[data-theme="handheld"] [data-nav-item][aria-current="page"],
+html[data-theme="handheld"] [data-nav-item][data-drag-active] {
+  color: var(--color-ink-0);
+}
+html[data-theme="handheld"]
+  [data-dragging]
+  [data-nav-item][aria-current="page"]:not([data-drag-active]) {
+  color: var(--color-text-3);
+}
+
+html[data-theme="handheld"] [data-day] {
+  border: 1px solid var(--color-line-soft);
+  margin: -1px 0 0 -1px;
+}
+/* Same inversion Mono needed: `safe` is dimmer than a working day here, so a
+   holiday would recede. It takes the darkest ink instead. */
+html[data-theme="handheld"] [data-holiday] {
+  color: var(--color-text-1);
+}
+html[data-theme="handheld"] [data-do-marker] {
+  height: 4px;
+  background: var(--color-text-1);
+}
+
+/* Day orders are worlds. Only on Home's ghost numeral, which is aria-hidden,
+   so a screen reader still hears nothing and nothing it relied on moved. */
+/* Hidden, not shrunk. `font-size: 0` was tried first and does NOT hide it here:
+   under `font-size-adjust` Chrome computed 0px and still painted the words in
+   an 89 by 15 box, so "DAY ORDER" and "WORLD" sat side by side. The original
+   keeps its box and goes invisible, and the replacement is laid over that same
+   box at the same size and alignment. */
+html[data-theme="handheld"] [data-do-label] {
+  position: relative;
+  visibility: hidden;
+}
+html[data-theme="handheld"] [data-do-label]::after {
+  content: "World";
+  visibility: visible;
+  position: absolute;
+  inset: 0;
+  text-align: inherit;
+}
+
+html[data-theme="handheld"] :focus-visible {
+  outline-color: var(--color-text-1);
+  border-radius: 0;
+}
+
 html {
   -webkit-tap-highlight-color: transparent;
 }
@@ -1422,7 +1734,8 @@ body {
    the spine, so the card's own edge carries it instead. Clay draws no border at
    all normally, so it is given one here rather than restyled. */
 html[data-theme="brutal"] [data-optional],
-html[data-theme="terminal"] [data-optional] {
+html[data-theme="terminal"] [data-optional],
+html[data-theme="handheld"] [data-optional] {
   border-style: dashed;
 }
 html[data-theme="clay"] [data-optional] {

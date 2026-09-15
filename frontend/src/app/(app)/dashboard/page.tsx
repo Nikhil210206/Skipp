@@ -126,7 +126,7 @@ export default function DashboardPage() {
               </span>
               {/* The numeral is the day order, so it says so. Unlabelled it would
                   be ornament, and ornament is what we are avoiding. */}
-              <span className="mt-2 block text-label uppercase text-text-3/60">
+              <span data-do-label className="mt-2 block text-label uppercase text-text-3/60">
                 Day order
               </span>
             </div>
@@ -201,7 +201,7 @@ export default function DashboardPage() {
                   <span ref={pct} className="tnum text-display">
                     {overall.toFixed(1)}
                   </span>
-                  <span className="text-title text-text-3">%</span>
+                  <span data-unit className="text-title text-text-3">%</span>
                 </span>
                 <span className="pb-2 text-callout text-text-3">
                   {belowTarget > 0 ? (
