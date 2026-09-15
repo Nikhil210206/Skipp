@@ -208,8 +208,8 @@ function Ledger({ s, tone = "neutral" }: { s: Subject; tone?: "neutral" | "accen
   const label = none ? "No classes" : p.isSafe ? "Margin" : "Required";
 
   return (
-    // `data-short` lets a theme with no colour say "below the line" another way:
-    // Handheld inverts the whole row, the way the hardware it copies did.
+    // `data-short` lets a theme say "below the line" with the row itself rather
+    // than only the figure: Arcade turns the row's maze walls red.
     <div data-surface data-short={tone === "accent" ? "" : undefined} className="pt-6">
       <div className="flex items-start justify-between gap-5">
         <div className="min-w-0 flex-1 pt-1">

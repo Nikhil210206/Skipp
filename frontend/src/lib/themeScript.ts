@@ -8,6 +8,7 @@ export const LEGACY_THEMES: Record<string, string> = {
   dark: "ink",
   light: "paper",
   concrete: "stone",
+  handheld: "arcade",
 };
 
 const VALID = [
@@ -20,7 +21,7 @@ const VALID = [
   "clay",
   "terminal",
   "stone",
-  "handheld",
+  "arcade",
   "rose",
   "ember",
   "gold",
@@ -44,7 +45,7 @@ const BARS: Record<string, string> = {
   clay: "#eceefa",
   terminal: "#040705",
   stone: "#32322e",
-  handheld: "#c1cc8b",
+  arcade: "#000000",
   rose: "#3f0323",
   ember: "#3b1100",
   gold: "#272000",

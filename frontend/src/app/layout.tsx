@@ -59,7 +59,7 @@ const display = Bricolage_Grotesque({
 });
 
 /**
- * Handheld's two pixel faces. Figures in Press Start 2P (monospaced by
+ * Arcade's two pixel faces. Figures in Press Start 2P (monospaced by
  * construction, so columns cannot drift), everything else in Silkscreen.
  *
  * `preload: false` IS LOAD BEARING. The root layout preloads every font it

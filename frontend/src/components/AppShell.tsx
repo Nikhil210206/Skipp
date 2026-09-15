@@ -326,8 +326,18 @@ function ScrollEdge() {
       // and a gradient this size is not free to repaint. Promoted, the change
       // is a compositor property and costs nothing at all.
       style={{ opacity: 0, willChange: "opacity" }}
-      className="pointer-events-none absolute inset-x-0 top-0 h-[calc(100%+34px)] bg-gradient-to-b from-ink-0 from-40% via-ink-0/35 via-75% to-transparent"
-    />
+      // SOLID BEHIND THE WHOLE BAR, and the fade only below it. This used to be
+      // one gradient 34px taller than the bar that stopped being opaque 40% of
+      // the way down, so the lower half of the masthead was see-through: the
+      // profile mark's tile is a translucent accent tint, and scrolled text
+      // showed through it and made it look smudged, in every theme. The fade
+      // was also long and heavy enough to eat the first line under the bar.
+      // Now the bar is a clean opaque strip and the soft edge is a short 20px
+      // tail that starts where the bar ends.
+      className="pointer-events-none absolute inset-x-0 top-0 h-full bg-[var(--color-ink-0)]"
+    >
+      <div className="absolute inset-x-0 top-full h-5 bg-gradient-to-b from-ink-0/80 to-transparent" />
+    </div>
   );
 }
 

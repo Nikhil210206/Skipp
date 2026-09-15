@@ -345,6 +345,74 @@ is deployment and true push notifications.
 Entries below are newest first. **When something breaks, read the relevant entry first**: most
 oddities here (login shell, empty calendar, 429s, duplicated course codes) are already diagnosed.
 
+### DONE: The masthead is solid again, and the fade is a short tail (2026-09-15)
+
+Reported as the top blur being too much and smudging the profile mark, in
+every theme. **Both halves were one element.** `ScrollEdge` was a single
+gradient 34px taller than the 56px bar, opaque only to 40% of its height, so
+it stopped being solid about 36px down, which is the lower half of the bar.
+The profile tile is a translucent accent tint (`bg-accent/12`), so scrolled
+text showed THROUGH the tile and read as a smudge on it. The same long,
+heavy ramp also dimmed the first line of content under the bar.
+
+It is two pieces now: an opaque strip exactly the height of the bar, and a
+20px tail below it fading from 80%. Measured scrolled 270px on Home: strip 0
+to 56, tail 56 to 76, profile tile 10 to 46, wholly on solid. The strip paints
+`bg-[var(--color-ink-0)]` rather than `bg-ink-0` on purpose: Stone and Paper
+attach their textures to `.bg-ink-0`, and the masthead has always been flat.
+
+**The general point: anything translucent in the masthead needs the masthead
+behind it to be opaque.** A gradient that is "mostly solid" behind a tinted
+control is not solid.
+
+### DONE: Arcade replaced Handheld (2026-09-15, later)
+
+The green four-shade LCD was reported as boring olive and replaced, on
+request, with a black maze-cabinet look: blue double walls with rounded
+corners, a yellow chomper, peach dots, the same two pixel faces. **Deliberately
+not named or drawn as any licensed game**: the ask was a Pac-Man theme, and
+Skipp is a public app, so it is the genre (black maze, chomper, dots, a generic
+ghost) rather than the trademark. Do not rename it or copy a character roster.
+
+Chosen with the user, one question each:
+- **Skips are lives**, spare chompers under the Margin figure (was hearts). At
+  zero an outline chomper blinks.
+- **The meter is a trail of twenty dots**, eaten up to your percentage with the
+  chomper at the edge, and **the 75% line is a power pellet.** The eaten stretch
+  is the fill painted in the row's own ground over the dot pattern, and it
+  still snaps down to whole 5% steps, so the chomper always stops between two
+  dots.
+- **Below the line, the row's walls turn red** and a ghost sits in a gap cut in
+  the top wall. This brings the theme back inside the colour rule; Handheld had
+  to invert because it had no colour at all.
+
+`LEGACY_THEMES` maps `handheld` to `arcade`, so a device already on the old
+theme keeps a structural look instead of dropping to Ink. Everything below
+about Handheld's font measurements, the `round()` snapping, `--v`, `data-unit`,
+`data-short`, `data-margin`, the hidden-not-shrunk label and the onboarding and
+Profile grids still applies to Arcade unchanged; only the palette, walls,
+lives, trail and trouble treatment are new. The ghost label reads "Level".
+
+**The eaten stretch keeps a faint corridor line**, and that was found by
+looking, not planned. Pure arcade logic says an eaten dot vanishes, and on
+Home at 87% that left the meter as a blank strip with three dots at the far
+right: the length, which IS the measurement, had nothing drawn along it. The
+fill now paints a 2px `--color-line` stroke along its middle over the row's
+ground, so the eaten part reads as a corridor already travelled.
+
+**Verified** against `?fixture=1` with the backend down, at 390: Attendance
+(red walls and ghost on the short row; fills 67.86% to 65, 89.29 to 85, 90.63
+to 90; power pellet centred at 75.0 on every row; five lives 82px, six 99px),
+Home ("Level" under the numeral, trail with corridor), Schedule (10px maze
+walls, no target under 44px), Calendar (holiday in cyan, today in yellow,
+term trail with corridor), Marks and Profile (Arcade's tile spanning both
+columns). No horizontal overflow on any of them; `tsc` clean, `eslint src` no
+new warnings. The onboarding theme chapter, signed out at 375x667, fits with
+0px over, no name cut and no target under 44px in Ink, Brutal, Clay, Terminal,
+Stone and Arcade. **Not verified:** a real phone, the desktop side rail,
+sheets, and 320px (Handheld was checked there; Arcade's walls are 2px thicker
+each side).
+
 ### DONE: Handheld, the fifth full look (2026-09-15)
 
 A four-shade green pocket-console LCD. Chosen from a shortlist (Register, OMR

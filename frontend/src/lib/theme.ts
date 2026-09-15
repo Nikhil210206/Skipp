@@ -20,7 +20,7 @@ export type Theme =
   | "clay"
   | "terminal"
   | "stone"
-  | "handheld"
+  | "arcade"
   | "rose"
   | "ember"
   | "gold"
@@ -81,11 +81,11 @@ export const THEMES: ThemeInfo[] = [
     structural: true,
   },
   {
-    id: "handheld",
-    name: "Handheld",
-    note: "Pixel LCD, hearts for skips",
-    bar: "#c1cc8b",
-    swatch: ["#c1cc8b", "#7f9651", "#1c2914"],
+    id: "arcade",
+    name: "Arcade",
+    note: "Maze walls, lives for skips",
+    bar: "#000000",
+    swatch: ["#000000", "#2121ff", "#ffe600"],
     structural: true,
   },
   {
