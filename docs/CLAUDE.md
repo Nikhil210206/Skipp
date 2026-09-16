@@ -345,6 +345,44 @@ is deployment and true push notifications.
 Entries below are newest first. **When something breaks, read the relevant entry first**: most
 oddities here (login shell, empty calendar, 429s, duplicated course codes) are already diagnosed.
 
+### DONE: The haze was Arcade's own glass, and it was LIFTING the black (2026-09-16)
+
+Third report of "blur at the top", after the scroll fade and the profile ring
+had each been fixed and each been the wrong answer. This time the screenshot
+came with the band circled: the masthead strip, on an unscrolled page.
+
+**Measured rather than guessed, by sampling pixels.** The page was rendered at
+390x844x3 against `?fixture=1`, screenshotted to a file, and the background
+level of every row read with `sharp` (the 25th percentile pixel of each row, so
+text and glyphs cannot skew it). With the CRT overlay on, the background of the
+whole screen measured **2.4/255**; with `body::after` disabled it measured
+**0**. The bottom edge additionally carried **12/255 of blue**, from the
+vignette being tinted `rgb(0 0 40)`.
+
+**So the app's black had stopped being black.** On an OLED phone that is the
+difference between a pixel being OFF and being on, and the strip the system
+paints behind the status bar is still true black, so the film's edge shows as a
+haze exactly where the masthead begins. That is the band that was circled, and
+it is why it survived two correct fixes to two different things.
+
+**THE GLASS ONLY EVER DARKENS NOW.** Scanlines drawn in white at 2.8% lift
+every dark pixel and do nothing to a lit one; a real cabinet's scanlines are
+the gaps BETWEEN lit lines, so they can only subtract. They are
+`rgb(0 0 0 / 0.22)` and the vignette is pure black. Measured after: background
+**0,0,0** across every band at the top, and on a lit glyph every third device
+row now drops **245 to 191**, where before it was 245 flat. The texture moved
+onto the pixels that have something to lose.
+
+**0.22, and the first attempt at 0.38 is why that number is written down.** At
+0.38 the same measurement read 245 to 152, which looked like venetian blinds
+across the countdown figures: on a screen whose whole complaint has been
+"blur", striping the biggest type is the wrong trade.
+
+**The rule worth keeping: an overlay over a black app must be subtractive.**
+Anything additive, however small, is visible as a film precisely where the
+screen is emptiest, and it will be reported as blur rather than as brightness.
+Check it by measuring the background level of a row, not by looking at it.
+
 ### DONE: The masthead is solid again, and the fade is a short tail (2026-09-15)
 
 Reported as the top blur being too much and smudging the profile mark, in

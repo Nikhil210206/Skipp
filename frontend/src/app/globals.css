@@ -1609,7 +1609,22 @@ html[data-theme="arcade"] body:has(a[href="/calendar"][aria-current="page"]) {
 }
 
 /* 1. THE GLASS. Above the page and the tab bar, below every sheet (z-50) and
-   the launch (z-100), and inert so it can never take a tap. */
+   the launch (z-100), and inert so it can never take a tap.
+
+   IT ONLY EVER DARKENS, and that is the whole rule. The first version drew the
+   scanlines in WHITE at 2.8% and vignetted in navy, which lifted the entire
+   screen off black: measured, the background went from 0 to 2.4/255 everywhere
+   and the bottom edge carried 12/255 of blue. On an OLED that is the
+   difference between pixels being OFF and pixels being on, so the app read as
+   a grey film, and the film's edge against the system's own true black behind
+   the status bar is exactly the haze that was reported at the top of the
+   screen, twice, after the scroll fade and the profile ring had both been
+   ruled out.
+
+   A real cabinet's scanlines are the gaps BETWEEN lit lines, so they can only
+   subtract. Drawn in black they are invisible over black (there is nothing to
+   take away) and still cut every bright figure into lines, which is the only
+   place a scanline was ever visible anyway. */
 html[data-theme="arcade"] body::after {
   content: "";
   position: fixed;
@@ -1617,8 +1632,8 @@ html[data-theme="arcade"] body::after {
   z-index: 45;
   pointer-events: none;
   background:
-    repeating-linear-gradient(180deg, rgb(255 255 255 / 0.028) 0 1px, transparent 1px 3px),
-    radial-gradient(130% 95% at 50% 42%, transparent 58%, rgb(0 0 40 / 0.5));
+    repeating-linear-gradient(180deg, rgb(0 0 0 / 0.22) 0 1px, transparent 1px 3px),
+    radial-gradient(130% 95% at 50% 42%, transparent 58%, rgb(0 0 0 / 0.55));
 }
 
 /* 2. NEON. */
