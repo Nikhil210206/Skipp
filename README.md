@@ -1,6 +1,6 @@
 # Skipp
 
-> **Know before you bunk.** Your SRM attendance, marks and timetable, minus the portal.
+> **Know before you bunk.** Your SRM attendance, marks and timetable, minus the portal !
 
 **[skipp.life](https://skipp.life)**
 
