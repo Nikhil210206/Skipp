@@ -2,24 +2,13 @@
 
 Source: `POST /students/report/studentInternalMarkDetails.jsp`.
 
-    Code | Description | Mark / Max. Mark | (unlabelled)
+Populated layout:
+    Code | Description | Mark / Max. Mark | (Assessment / Test Name)
 
-HONEST LIMIT, READ THIS BEFORE TRUSTING IT
-------------------------------------------
-This parser has NEVER been run against populated data. On the account it was
-written from (2026-08-17) the portal answered "No Record found." for marks,
-exactly as academia does this term, so only the empty case is verified. The
-column layout above is real; how a populated row fills the third cell is an
-assumption, and the fourth column's purpose is unknown.
-
-It is therefore written to fail loudly rather than plausibly: a row it cannot
-read is skipped, and a page with no readable rows raises `MarksUnavailable` so
-the route reports the section as gated instead of inventing an empty transcript.
-**When marks publish, check this against a real page before believing a number.**
-
-Note also that this is the LESS useful half of the student portal fallback:
-marks were never the thing that broke on academia. It exists so the fallback is
-complete, not because it is currently needed.
+    e.g.
+    21MAB302T | DISCRETE MATHEMATICS | 5.00/5.00 | FT1
+    21ASO301T | ELEMENTS OF AERONAUTICS | 4.50/5.00 | FT1
+    21CSC301T | FORMAL LANGUAGE AND AUTOMATA | 2.00/5.00 | FT1
 """
 from __future__ import annotations
 
@@ -33,14 +22,11 @@ from models.marks import MarkComponent, Marks, SubjectMarks
 #: "No Record found." is the portal's empty state, not an error page.
 _EMPTY_MARKERS = ("no record found", "no records found")
 
-#: A "scored / max" pair, e.g. "18.50/25.00" or "18.5 / 25".
+#: A "scored / max" pair, e.g. "18.50/25.00" or "18.5 / 25" or "5/5".
 _PAIR_RE = re.compile(r"(-?\d+(?:\.\d+)?)\s*/\s*(-?\d+(?:\.\d+)?)")
 
-_COLUMNS = {
-    "code": "code",
-    "title": "description",
-    "mark": "mark",
-}
+#: Standard course code pattern, e.g. 21MAB302T, 21ASO301T.
+_CODE_RE = re.compile(r"^\d{2}[A-Z]{2,4}\d{3}[A-Z]?$")
 
 
 class MarksUnavailable(Exception):
@@ -67,61 +53,145 @@ def parse_marks(html: str) -> Marks:
         if first
         else []
     )
-    index: dict[str, int] = {}
-    for field, needle in _COLUMNS.items():
-        for i, head in enumerate(headers):
-            if needle in head:
-                index.setdefault(field, i)
-                break
 
-    if "code" not in index or "mark" not in index:
-        raise MarksUnavailable("Marks table is missing the columns we parse.")
+    code_col: int | None = None
+    desc_col: int | None = None
+    mark_col: int | None = None
+    test_col: int | None = None
 
-    # A course may occupy several rows (one per assessment), so rows accumulate
-    # into the subject their code names rather than each becoming a subject.
+    for i, head in enumerate(headers):
+        if "code" in head and code_col is None:
+            code_col = i
+        elif any(k in head for k in ("desc", "course", "subject", "title")) and desc_col is None:
+            desc_col = i
+        elif "mark" in head and mark_col is None:
+            mark_col = i
+        elif any(k in head for k in ("test", "exam", "assess", "component", "eval", "type")) and test_col is None:
+            test_col = i
+
     by_code: dict[str, SubjectMarks] = {}
     order: list[str] = []
 
     for tr in table.find_all("tr"):
-        cells = [_clean(c.get_text()) for c in tr.find_all("td")]
-        if not cells:
+        tds = tr.find_all("td")
+        if not tds:
             continue
+        cells = [_clean(c.get_text()) for c in tds]
 
-        def cell(field: str) -> str:
-            i = index.get(field)
-            return cells[i] if i is not None and i < len(cells) else ""
+        # 1. Identify course code
+        actual_code_idx: int | None = None
+        code: str = ""
+        if code_col is not None and code_col < len(cells) and _CODE_RE.match(cells[code_col]):
+            actual_code_idx = code_col
+            code = cells[code_col]
+        else:
+            for i, c in enumerate(cells):
+                if _CODE_RE.match(c):
+                    actual_code_idx = i
+                    code = c
+                    break
 
-        code = cell("code")
         if not code or any(m in code.lower() for m in _EMPTY_MARKERS):
             continue
 
-        pair = _PAIR_RE.search(cell("mark"))
+        # 2. Identify mark (scored / max)
+        actual_mark_idx: int | None = None
+        pair: re.Match[str] | None = None
+        if mark_col is not None and mark_col < len(cells):
+            pair = _PAIR_RE.search(cells[mark_col])
+            if pair:
+                actual_mark_idx = mark_col
+
         if not pair:
-            # Unreadable rather than zero: a subject silently scored 0 is the
-            # one wrong answer a student would act on.
+            for i, c in enumerate(cells):
+                if i == actual_code_idx:
+                    continue
+                pair = _PAIR_RE.search(c)
+                if pair:
+                    actual_mark_idx = i
+                    break
+
+        if not pair or actual_mark_idx is None:
             continue
+
         scored, maximum = float(pair.group(1)), float(pair.group(2))
+
+        # 3. Identify course description / title
+        actual_desc_idx: int | None = None
+        if desc_col is not None and desc_col < len(cells) and desc_col not in (actual_code_idx, actual_mark_idx):
+            actual_desc_idx = desc_col
+        else:
+            for i, c in enumerate(cells):
+                if i not in (actual_code_idx, actual_mark_idx) and len(c) > 3:
+                    actual_desc_idx = i
+                    break
+
+        desc = cells[actual_desc_idx] if actual_desc_idx is not None and actual_desc_idx < len(cells) else ""
+
+        # 4. Identify test / assessment name (e.g. "FT1", "CT 1", "CLA-1")
+        test_name: str = ""
+
+        # Strategy A: Explicit test column from header
+        if test_col is not None and test_col < len(cells) and test_col not in (actual_code_idx, actual_mark_idx, actual_desc_idx):
+            val = cells[test_col].strip()
+            if val:
+                test_name = val
+
+        # Strategy B: Any remaining cell that is not code, marks, or description
+        # (in the portal report, this is the 4th column whose header is often unlabelled)
+        if not test_name:
+            excluded = {actual_code_idx, actual_mark_idx, actual_desc_idx}
+            other_indices = [i for i in range(len(cells)) if i not in excluded]
+            for i in other_indices:
+                candidate = cells[i].strip()
+                if not candidate and i < len(tds):
+                    inp = tds[i].find(["input", "button", "a", "span"])
+                    if inp:
+                        candidate = _clean(inp.get("value") or inp.get_text() or inp.get("title") or "")
+                # Skip S.No / pure numbers and portal navigation keywords
+                if candidate and not re.match(r"^\d+$", candidate) and candidate.lower() not in ("view", "details", "nil", "-", "na", "n/a"):
+                    if candidate.lower() != desc.lower():
+                        test_name = candidate
+                        break
+
+        # Strategy C: Check if test name was prefixed/suffixed inside the mark cell (e.g. "FT1: 5/5")
+        if not test_name:
+            mark_text = cells[actual_mark_idx]
+            leftover = mark_text.replace(pair.group(0), "").strip(" :-/()")
+            if leftover and len(leftover) >= 2 and re.search(r"[A-Za-z]", leftover) and leftover.lower() != desc.lower():
+                test_name = leftover
+
+        # Strategy D: Check if test name was appended to the description (e.g. "DISCRETE MATHEMATICS - FT1")
+        if not test_name and desc:
+            m = re.search(r"[-–/]\s*([A-Za-z0-9\s]{2,15})$", desc)
+            if m:
+                test_name = m.group(1).strip()
+                desc = desc[: m.start()].strip(" -–/")
 
         subject = by_code.get(code)
         if subject is None:
-            # Title deliberately left EMPTY. "Description" here names the
-            # ASSESSMENT ("CLA-1"), not the course, so using it would put
-            # "CLA-1" where the app prints a subject name. The route fills
-            # titles from the timetable by code, exactly as /refresh already
-            # does for academia's marks table.
-            subject = SubjectMarks(code=code, title="")
+            # Store the course description from the portal (e.g. "DISCRETE MATHEMATICS")
+            # so s.title is never blank, and can be title-cased or enriched from timetable.
+            subject = SubjectMarks(code=code, title=desc)
             by_code[code] = subject
             order.append(code)
+        elif not subject.title and desc:
+            subject.title = desc
+
+        # Final fallback for test name: never use the subject description!
+        if not test_name or test_name.lower() == desc.lower():
+            test_num = len(subject.components) + 1
+            test_name = f"Test {test_num}" if test_num > 1 else "Internal"
 
         subject.components.append(
             MarkComponent(
-                name=cell("title") or "Internal",
+                name=test_name,
                 scored=scored,
                 max=maximum,
             )
         )
-        subject.scored_total += scored
-        subject.max_total += maximum
+        subject.scored_total = round(subject.scored_total + scored, 2)
+        subject.max_total = round(subject.max_total + maximum, 2)
 
     if not by_code:
         raise MarksUnavailable("Marks table held no readable rows.")

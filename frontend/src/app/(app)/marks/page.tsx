@@ -223,7 +223,7 @@ export default function MarksPage() {
                           // in, so the code stands as the title and repeating
                           // it underneath would be furniture.
                           code={s.title ? s.code : null}
-                          assessment={assessmentLabel(s.components)}
+                          assessment={assessmentLabel(s.components, s.title, s.code)}
                           scored={published ? round(s.scoredTotal) : null}
                           max={round(s.maxTotal)}
                           open={isOpen}
@@ -240,6 +240,7 @@ export default function MarksPage() {
                               components={s.components}
                               percent={pct(s.scoredTotal, s.maxTotal)}
                               forecast={forecast}
+                              subjectTitle={s.title}
                             />
                           </Panel>
                         )}
@@ -259,16 +260,29 @@ export default function MarksPage() {
 /**
  * Names the assessments a subject's marks came from, for the collapsed row.
  *
- * The portal writes one row per assessment ("CLA-1", "CLA-2"), and the page
+ * The portal writes one row per assessment ("FT1", "CT 1", "CLA-1"), and the page
  * used to add them up and print only the total, so a student could see 4.5/5
  * without ever being told WHICH test that was. One or two are named outright,
  * since that is the whole answer; beyond that the names stop fitting a meta
  * line and the count is the honest summary, with the list itself one tap away.
  */
-function assessmentLabel(components: { name: string }[]): string | null {
+function assessmentLabel(
+  components: { name: string }[],
+  subjectTitle?: string | null,
+  courseCode?: string | null,
+): string | null {
   const names = components.map((c) => c.name.trim()).filter(Boolean);
   if (names.length === 0) return null;
-  if (names.length === 1) return names[0];
+  if (names.length === 1) {
+    const name = names[0];
+    if (
+      (subjectTitle && name.toLowerCase() === subjectTitle.trim().toLowerCase()) ||
+      (courseCode && name.toUpperCase() === courseCode.trim().toUpperCase())
+    ) {
+      return "Internal";
+    }
+    return name;
+  }
   // Two names joined was tried and truncated to "CLA-1 ..." in the card themes
   // at 320, which names nothing while taking the room of a name. A count always
   // fits, and the names themselves are one tap away.
@@ -439,11 +453,21 @@ function Detail({
   components,
   percent,
   forecast,
+  subjectTitle,
 }: {
   components: { name: string; scored: number; max: number }[];
   percent: number;
   forecast: SubjectForecast | null;
+  subjectTitle?: string | null;
 }) {
+  const getTestDisplayName = (name: string, index: number) => {
+    const trimmed = name.trim();
+    if (subjectTitle && trimmed.toLowerCase() === subjectTitle.trim().toLowerCase()) {
+      return components.length === 1 ? "Internal" : `Test ${index + 1}`;
+    }
+    return trimmed;
+  };
+
   return (
     <div className="pb-5">
       <TrackRule value={percent} className="bleed" />
@@ -456,7 +480,7 @@ function Detail({
       {components.length === 1 ? (
         <p className="mt-3.5 text-body text-text-2">
           <span className="tnum text-text-1">{percent.toFixed(0)}%</span> in{" "}
-          {components[0].name}
+          {getTestDisplayName(components[0].name, 0)}
         </p>
       ) : (
         <>
@@ -481,7 +505,9 @@ function Detail({
               >
                 {/* The test name is content, so it wraps and is set at the
                     level of text you read rather than skim past. */}
-                <span className="min-w-0 shrink text-text-2">{c.name}</span>
+                <span className="min-w-0 shrink text-text-2">
+                  {getTestDisplayName(c.name, i)}
+                </span>
                 <span
                   aria-hidden
                   className="min-w-0 flex-1 self-center border-b border-dotted border-line-soft"
