@@ -79,12 +79,49 @@ function toTitleCase(s: string): string {
 }
 
 /**
+ * Infers an assessment's test name (e.g. "FT1", "CT 1") when the portal
+ * only provided the course title or a generic "Internal" placeholder.
+ *
+ * In SRMIST regulations:
+ * - 5-mark continuous evaluations are Formative Tests (FT1, FT2, FT3...).
+ * - Higher max evaluations (15, 20, 25, 50) are Cycle Tests (CT 1, CT 2...).
+ * Real test names from academia (e.g. "CLA-1", "Assignment") are preserved.
+ */
+export function inferTestName(
+  rawName: string | undefined | null,
+  maxMarks: number = 5,
+  index: number = 0,
+  subjectTitle?: string | null,
+  courseCode?: string | null,
+): string {
+  const trimmed = (rawName || "").trim();
+  const lower = trimmed.toLowerCase();
+  const titleLower = (subjectTitle || "").trim().toLowerCase();
+  const codeUpper = (courseCode || "").trim().toUpperCase();
+
+  const isGeneric =
+    !trimmed ||
+    lower === "internal" ||
+    lower === "test" ||
+    /^test\s*\d+$/i.test(trimmed) ||
+    Boolean(titleLower && lower === titleLower) ||
+    Boolean(codeUpper && trimmed.toUpperCase() === codeUpper);
+
+  if (!isGeneric) {
+    return trimmed;
+  }
+
+  const num = index + 1;
+  return maxMarks <= 5 ? `FT${num}` : `CT ${num}`;
+}
+
+/**
  * The same treatment for the marks half of an import.
  *
  * Replaces the portal's uppercase course title with academia's proper title
  * from the timetable by code, and sanitizes component names so that any legacy
- * cached data (which stored the course name as the test name) doesn't duplicate
- * the subject name in the UI.
+ * cached data (which stored the course name as the test name or "Internal")
+ * displays the honest test name (e.g. "FT1" for 5-mark formative tests).
  *
  * Applied on READ rather than at import, so existing sessions benefit immediately.
  */
@@ -106,13 +143,12 @@ export function enrichMarkTitles(
           (t && cName.toLowerCase() === t.toLowerCase()) ||
           cName.toUpperCase() === s.code.toUpperCase();
 
-        if (matchesSubject) {
-          return {
-            ...c,
-            name: s.components.length === 1 ? "Internal" : `Test ${i + 1}`,
-          };
-        }
-        return c;
+        const nameToUse = matchesSubject ? "" : cName;
+
+        return {
+          ...c,
+          name: inferTestName(nameToUse, c.max, i, subjectTitle, s.code),
+        };
       });
 
       return {

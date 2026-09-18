@@ -526,7 +526,9 @@ export function SessionProvider({ children }: { children: React.ReactNode }) {
       clearImportedAttendance,
       marks: portalMarks
         ? enrichMarkTitles(portalMarks, courseTitles)
-        : (snapshot?.marks ?? null),
+        : snapshot?.marks
+        ? enrichMarkTitles(snapshot.marks, courseTitles)
+        : null,
       marksState: usePortalMarks ? "ready" : sectionState(snapshot?.marksStatus),
       marksMessage: usePortalMarks ? null : (snapshot?.marksMessage ?? null),
       marksSource: academiaMarksReady ? "academia" : usePortalMarks ? "portal" : null,

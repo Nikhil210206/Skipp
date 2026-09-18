@@ -178,10 +178,13 @@ def parse_marks(html: str) -> Marks:
         elif not subject.title and desc:
             subject.title = desc
 
-        # Final fallback for test name: never use the subject description!
-        if not test_name or test_name.lower() == desc.lower():
+        # Final fallback for test name: never use the subject description or generic "Internal"!
+        if not test_name or test_name.lower() in (desc.lower(), "internal", "test"):
             test_num = len(subject.components) + 1
-            test_name = f"Test {test_num}" if test_num > 1 else "Internal"
+            if maximum <= 5:
+                test_name = f"FT{test_num}"
+            else:
+                test_name = f"CT {test_num}"
 
         subject.components.append(
             MarkComponent(

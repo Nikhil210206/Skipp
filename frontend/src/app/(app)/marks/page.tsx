@@ -17,6 +17,7 @@ import {
   ImportAttendanceAction,
   PortalSourceNote,
 } from "@/components/ImportAttendance";
+import { inferTestName } from "@/lib/portalAttendance";
 
 const pct = (a: number, b: number) => (b > 0 ? (a / b) * 100 : 0);
 const round = (n: number) => Math.round(n * 100) / 100;
@@ -241,6 +242,7 @@ export default function MarksPage() {
                               percent={pct(s.scoredTotal, s.maxTotal)}
                               forecast={forecast}
                               subjectTitle={s.title}
+                              courseCode={s.code}
                             />
                           </Panel>
                         )}
@@ -267,26 +269,19 @@ export default function MarksPage() {
  * line and the count is the honest summary, with the list itself one tap away.
  */
 function assessmentLabel(
-  components: { name: string }[],
+  components: { name: string; max?: number }[],
   subjectTitle?: string | null,
   courseCode?: string | null,
 ): string | null {
-  const names = components.map((c) => c.name.trim()).filter(Boolean);
-  if (names.length === 0) return null;
-  if (names.length === 1) {
-    const name = names[0];
-    if (
-      (subjectTitle && name.toLowerCase() === subjectTitle.trim().toLowerCase()) ||
-      (courseCode && name.toUpperCase() === courseCode.trim().toUpperCase())
-    ) {
-      return "Internal";
-    }
-    return name;
+  if (!components || components.length === 0) return null;
+  if (components.length === 1) {
+    const c = components[0];
+    return inferTestName(c.name, c.max ?? 5, 0, subjectTitle, courseCode);
   }
   // Two names joined was tried and truncated to "CLA-1 ..." in the card themes
   // at 320, which names nothing while taking the room of a name. A count always
   // fits, and the names themselves are one tap away.
-  return `${names.length} tests`;
+  return `${components.length} tests`;
 }
 
 /**
@@ -454,18 +449,16 @@ function Detail({
   percent,
   forecast,
   subjectTitle,
+  courseCode,
 }: {
   components: { name: string; scored: number; max: number }[];
   percent: number;
   forecast: SubjectForecast | null;
   subjectTitle?: string | null;
+  courseCode?: string | null;
 }) {
-  const getTestDisplayName = (name: string, index: number) => {
-    const trimmed = name.trim();
-    if (subjectTitle && trimmed.toLowerCase() === subjectTitle.trim().toLowerCase()) {
-      return components.length === 1 ? "Internal" : `Test ${index + 1}`;
-    }
-    return trimmed;
+  const getTestDisplayName = (name: string, max: number, index: number) => {
+    return inferTestName(name, max, index, subjectTitle, courseCode);
   };
 
   return (
@@ -480,7 +473,7 @@ function Detail({
       {components.length === 1 ? (
         <p className="mt-3.5 text-body text-text-2">
           <span className="tnum text-text-1">{percent.toFixed(0)}%</span> in{" "}
-          {getTestDisplayName(components[0].name, 0)}
+          {getTestDisplayName(components[0].name, components[0].max, 0)}
         </p>
       ) : (
         <>
@@ -506,7 +499,7 @@ function Detail({
                 {/* The test name is content, so it wraps and is set at the
                     level of text you read rather than skim past. */}
                 <span className="min-w-0 shrink text-text-2">
-                  {getTestDisplayName(c.name, i)}
+                  {getTestDisplayName(c.name, c.max, i)}
                 </span>
                 <span
                   aria-hidden
