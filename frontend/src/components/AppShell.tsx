@@ -15,12 +15,13 @@ import AttendanceBackSheet from "./AttendanceBackSheet";
 import MarksBackSheet from "./MarksBackSheet";
 import { CREATOR } from "@/lib/creator";
 import { Skeleton } from "./ui";
-import { pageIn, prefersReducedMotion, revealWord } from "@/lib/motion";
+import { pageIn } from "@/lib/motion";
 import { useSwipeNav } from "@/lib/useSwipeNav";
 import { NOTICE, useSeenNotice } from "@/lib/whatsNew";
 import { ensureFeedbackSchedule, useFeedbackDue } from "@/lib/feedback";
 import { FeedbackPrompt } from "./FeedbackSheet";
 import { actionSlotRef } from "./ShellAction";
+import MastheadTitle from "./MastheadTitle";
 import { prettyDate, todayISO } from "@/lib/schedule";
 
 /**
@@ -64,13 +65,8 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
   // for the screen. Everything else is simply what the tab is called.
   const section =
     pathname === "/dashboard" ? prettyDate(todayISO()) : (SECTIONS[pathname] ?? "Skipp");
-  // Keyed on the section rather than on the mount, now that the mount happens
-  // once: the label still rises fresh each time the screen changes, which is
-  // the masthead's echo of the onboarding deck's chapter word.
-  const label = useRef<HTMLSpanElement>(null);
-  useLayoutEffect(() => {
-    revealWord(label.current, prefersReducedMotion());
-  }, [section]);
+  // Written on fresh each time the screen changes (see MastheadTitle), the
+  // masthead's echo of the onboarding deck's chapter word.
 
   // The install offer, for a student already signed in through a browser. The
   // entry screen offers it first and more cheaply (see InstallGate), so by the
@@ -181,11 +177,7 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
                   // reveal did not run. The animation now sets its own start
                   // state, so the worst it can do is not play.
                   <span className="flex items-center gap-2.5">
-                    <span className="inline-block overflow-hidden pb-[0.06em] align-bottom">
-                      <span ref={label} className="inline-block will-change-transform">
-                        {section}
-                      </span>
-                    </span>
+                    <MastheadTitle text={section} />
                     {isAutoSyncing && (
                       <span className="flex items-center gap-1.5 rounded-full bg-risk/10 px-2 py-0.5 shadow-[0_0_10px_rgba(var(--risk),0.15)] transition-all duration-300">
                         <svg className="h-3 w-3 animate-spin text-risk" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">

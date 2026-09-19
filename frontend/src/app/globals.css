@@ -89,6 +89,12 @@
   --text-label--letter-spacing: 0.075em;
   --text-label--font-weight: 600;
 
+  /* The masthead's handwritten screen name, in --font-hand. A heading only:
+     the hand has no tabular figures, so it never sets a figure. */
+  --text-scrawl: 2.5rem;
+  --text-scrawl--line-height: 1;
+  --text-scrawl--font-weight: 700;
+
   /* --- Radius --- */
   --radius-control: 12px;
   --radius-card: 18px;
@@ -1922,4 +1928,27 @@ html[data-theme="arcade"] [data-optional] {
 }
 html[data-theme="clay"] [data-optional] {
   border: var(--border-w) dashed var(--color-line-strong);
+}
+
+/* The handwritten masthead title (MastheadTitle), handed back to the small caps
+   label in the two themes whose identity IS their face: a pen script in a
+   phosphor terminal or on an arcade cabinet reads as a different app. */
+html[data-theme="terminal"] [data-hand-title],
+html[data-theme="arcade"] [data-hand-title] {
+  rotate: none;
+  padding-bottom: 0;
+}
+html[data-theme="terminal"] [data-hand-title] > span,
+html[data-theme="arcade"] [data-hand-title] > span {
+  font-family: inherit;
+  font-size: var(--text-label);
+  line-height: var(--text-label--line-height);
+  font-weight: var(--text-label--font-weight);
+  letter-spacing: var(--text-label--letter-spacing);
+  text-transform: uppercase;
+  color: var(--color-text-3);
+}
+html[data-theme="terminal"] [data-hand-swash],
+html[data-theme="arcade"] [data-hand-swash] {
+  display: none;
 }

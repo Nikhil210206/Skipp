@@ -345,6 +345,31 @@ is deployment and true push notifications.
 Entries below are newest first. **When something breaks, read the relevant entry first**: most
 oddities here (login shell, empty calendar, 429s, duplicated course codes) are already diagnosed.
 
+### DONE: The masthead title is handwritten (2026-09-19)
+
+Reported as the screen name ("ATTENDANCE", an 11px small caps label) being too
+small to read. It is `components/MastheadTitle.tsx` now: the screen name written
+in the notebook's pen (`--font-hand`, Caveat 700, which was already loaded) at
+the new `text-scrawl` token (40px), lowercase and tilted -2 degrees, with a
+loose accent swash under it. Home's title is still the date ("sat, sep 19").
+
+- **It is written on each time the screen changes**: a left to right
+  `clip-path` wipe paced by the word's length, then the swash drawn with
+  `pathLength={1}` so no path has to be measured. The tween sets its own start
+  state and there is no CSS hiding rule, so a skipped or reverted animation
+  leaves the title visible. Reduced motion skips it.
+- **It fits the existing 56px bar**, so `ScrollEdge` and everything measured
+  against the masthead are unchanged.
+- **Terminal and Arcade keep the small caps label** (`[data-hand-title]` rules
+  at the end of `globals.css`), because their face is the identity of the theme.
+- `revealWord` in `lib/motion.ts` had no other caller and was deleted.
+- **The swash is accent coloured on a screen that may also have an accent
+  button.** That bends the one accent per screen rule, on request.
+
+Verified at 390 against `?fixture=1` in Brutal, Ink and Arcade: Caveat at 40px,
+the wipe sampled from 99.9% to 0 inset, no horizontal overflow, `tsc` clean.
+Not seen on a phone.
+
 ### DONE: The haze was Arcade's own glass, and it was LIFTING the black (2026-09-16)
 
 Third report of "blur at the top", after the scroll fade and the profile ring
