@@ -201,8 +201,8 @@ export function useSwipeNav(
       const dx = e.changedTouches[0].clientX - startX;
       const next = targetFor(dx);
       if (Math.abs(dx) >= COMMIT && inRange(next)) {
-        // Snapshot where the finger left it and navigate at once, so the
-        // arriving screen picks the movement up rather than starting over.
+        // Carry the screen on out from where the finger left it and navigate
+        // at once; the arriving screen fades up as soon as the route commits.
         captureOutgoing(dragEl, dx < 0 ? 1 : -1);
         router.push(TAB_HREFS[next]);
         return;

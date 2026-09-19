@@ -345,6 +345,34 @@ is deployment and true push notifications.
 Entries below are newest first. **When something breaks, read the relevant entry first**: most
 oddities here (login shell, empty calendar, 429s, duplicated course codes) are already diagnosed.
 
+### DONE: Tabs switch, they no longer slide (2026-09-19, later)
+
+Reported as laggy on every device, tap and swipe alike, after six passes of
+tuning the push. Chosen with the user: **an instant switch with a short fade**,
+like a native tab bar. The full screen slide is gone; do not rebuild it unless
+asked. The older entries below that tune `PAGE`, the parallax and the snapshot
+describe code that no longer exists.
+
+- **No snapshot.** `captureOutgoing` no longer clones `main` into the body (a
+  full DOM copy and a fresh raster on the tap frame). It records the direction
+  and, for a swipe only, carries the dragged screen on 40px and fades it to 0.3
+  (not 0, so a slow route commit never shows a blank page).
+- **`pageIn` fades `main` up from a 14px nudge** in the direction of travel,
+  0.2s `power3.out`, `force3D`. `main` carries `will-change: transform, opacity`.
+- **Screen entrances settle on a tab change.** `revealIn`, `revealRows` and
+  `countTo` read `settleEntrance()`, so the page fade is the only entrance and
+  nothing trickles in afterwards. They still play on the first arrival after
+  launch. **The flag is held open 600ms past `pageIn`** because the route's page
+  content commits a frame or more AFTER the shell sees the new pathname: cleared
+  in `pageIn`, every Attendance row still faded in on its own.
+
+Measured at 390 with 4x CPU throttle against `?fixture=1`: the new screen's
+content lands on the same frame as the route change with zero hidden elements,
+the fade completes in ~170ms, frame times equal the idle baseline, and the swipe
+follows, carries on and hands over with one long frame (the route commit). The
+~200ms from tap to route commit is dev mode Next rendering at 4x; not measured on
+a production build or a real phone.
+
 ### DONE: The masthead title is handwritten (2026-09-19)
 
 Reported as the screen name ("ATTENDANCE", an 11px small caps label) being too

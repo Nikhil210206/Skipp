@@ -225,8 +225,8 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
             // sized to a phone column on purpose, and stretching that column
             // across a 1440px window would not read as "more app", it would
             // read as the same page zoomed past its own scale.
-            // `will-change-transform` is standing, not per gesture, and that is
-            // deliberate. This element is translated on EVERY navigation and
+            // `will-change` is standing, not per gesture, and that is
+            // deliberate. This element is faded on EVERY navigation and
             // on every swipe, so promoting it on the way in and demoting it on
             // the way out would re-rasterise a screenful of text twice per tab
             // change, at the two moments the eye is most on it. One permanent
@@ -235,7 +235,7 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
             // holds nothing `position: fixed`: every overlay in the app is
             // already portalled to the body, for the neighbouring reason that
             // PullToRefresh's transform would otherwise contain it.
-            className="relative z-[2] flex flex-1 flex-col bg-ink-0 px-[var(--gutter)] pb-10 will-change-transform lg:px-10 xl:px-16"
+            className="relative z-[2] flex flex-1 flex-col bg-ink-0 px-[var(--gutter)] pb-10 will-change-[transform,opacity] lg:px-10 xl:px-16"
           >
             {children}
           </main>

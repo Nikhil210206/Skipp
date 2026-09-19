@@ -64,21 +64,24 @@ if (typeof window !== "undefined") {
 }
 
 /**
- * How long a page change takes.
+ * How long the arriving screen takes to fade up on a tab change.
  *
- * **0.62 was right for the old structure and is wrong for this one.** A shorter
- * transition was tried at 0.46 and measured worse, because the arriving screen
- * was rebuilding the entire chrome (masthead, tab bar, pull to refresh, three
- * sheets) on the same frames, and compressing that fixed lump of work into
- * fewer frames simply drops more of them. The length was buying the mount
- * somewhere to hide.
+ * **Tabs switch, they do not slide.** Six passes went into tuning a full screen
+ * push (a snapshot of the old screen cloned into the body, parallax, springs,
+ * 0.62s then 0.3s) and it was still reported as laggy on every device. That is
+ * structural rather than a matter of timing: a push moves two whole screens
+ * across the display on the exact frames the new one is mounting and running
+ * its entrance, and cloning the old screen is itself a full DOM copy and a
+ * fresh raster on the tap frame. Native tab bars on iOS and Android do not
+ * slide at all, they swap, which is why they feel instant.
  *
- * The shell is a layout now and mounts once, so there is no lump left to hide
- * and the duration is free to be what it should always have been. 0.3 is about
- * what iOS spends pushing a view, and it is the difference between an app that
- * responds and one you wait for.
+ * So the new screen is in place on its first frame and fades up from a short
+ * nudge in the direction of travel: one opacity and one small translate on a
+ * layer that already exists, and nothing else moving.
  */
-const PAGE = 0.3;
+const PAGE = 0.2;
+/** How far the arriving screen is nudged, in px, so the switch still has a direction. */
+const NUDGE = 14;
 
 /** Durations, in seconds (GSAP's unit). */
 export const DUR = {
@@ -176,7 +179,7 @@ export function revealIn(
   const { selector = "[data-reveal]", y = 16, stagger = 0.14, delay = 0.05 } = opts;
   const targets = gsap.utils.toArray<HTMLElement>(scope.querySelectorAll(selector));
   if (targets.length === 0) return;
-  if (reduced) {
+  if (settleEntrance(reduced)) {
     gsap.set(targets, { opacity: 1, y: 0, clearProps: "transform" });
     return;
   }
@@ -205,7 +208,7 @@ export function countTo(
   reduced: boolean,
   format: (n: number) => string,
 ): void {
-  if (reduced || value === 0) {
+  if (settleEntrance(reduced) || value === 0) {
     el.textContent = format(value);
     return;
   }
@@ -309,7 +312,7 @@ export function revealRows(
 ): void {
   const rows = gsap.utils.toArray<HTMLElement>(scope.querySelectorAll(selector));
   if (rows.length === 0) return;
-  if (reduced) {
+  if (settleEntrance(reduced)) {
     gsap.set(rows, { opacity: 1, y: 0 });
     return;
   }
@@ -340,128 +343,104 @@ export function revealRows(
 
 /**
  * Which way the last navigation travelled: 1 to the right, -1 to the left, 0
- * when it was not a move along the tab bar. Module scope because the outgoing
- * screen sets it and the incoming screen, a different mount entirely, reads it.
+ * when it was not a move along the tab bar. Module scope because the tab bar or
+ * the swipe sets it and `pageIn`, run by the shell once the route commits,
+ * reads it.
  */
 let navDirection = 0;
 
 /**
- * A still of the screen being left, held in the DOM so both surfaces can move
- * together.
+ * True from the moment a tab change is asked for until the new screen has
+ * arrived.
  *
- * Animating the old screen out, then navigating, then animating the new one in
- * cannot glide: nothing is ever moving at the same time, and the mount sits in
- * the gap. React only ever has one screen mounted, so the other one has to be a
- * snapshot.
+ * The screens' own entrances (`revealIn`, `revealRows`, `countTo`) read it and
+ * settle instantly instead of animating. On a tab change the page fade IS the
+ * entrance: stacking a staggered reveal of seventeen elements and a counter
+ * running up from zero on top of it is what made every switch trickle in over
+ * half a second after the screen had already arrived, which reads as lag
+ * however smooth each frame is. They still play on the first arrival after
+ * launch, where there is no page fade.
+ *
+ * **It is held open briefly PAST the arrival, not cleared by it.** The shell
+ * sees the new pathname a commit or two before the route's page content
+ * commits, so a screen's entrance can run after `pageIn` has already fired.
+ * Measured: with the flag cleared in `pageIn`, every row on Attendance still
+ * faded in on its own after the screen had arrived.
  */
-let outgoing: HTMLElement | null = null;
+let switching = false;
+let switchingUntil = 0;
+const SETTLE_WINDOW = 600;
 
-/**
- * Freeze the screen being left exactly where it is, including any distance the
- * finger has already dragged it, and navigate immediately. `pageIn` moves this
- * and the arriving screen as one gesture.
- */
-export function captureOutgoing(el: HTMLElement | null, dir: number): void {
-  navDirection = dir;
-  outgoing?.remove();
-  outgoing = null;
-  if (!el || dir === 0 || prefersReducedMotion()) return;
-
-  // The rect already includes the drag offset, so pinning to it and clearing
-  // the transform continues from wherever the finger let go.
-  const r = el.getBoundingClientRect();
-  const clone = el.cloneNode(true) as HTMLElement;
-  clone.setAttribute("aria-hidden", "true");
-  clone.style.cssText =
-    `position:fixed;left:${r.left}px;top:${r.top}px;` +
-    `width:${r.width}px;height:${r.height}px;margin:0;` +
-    // BEHIND the arriving screen, and opaque. At z-index 25 over a static
-    // `main` the snapshot painted ON TOP of the page you had just asked for,
-    // hung there at 45% for the whole transition and then vanished when it was
-    // removed. That is the ghost that read as lag: the old screen was never
-    // leaving, it was sitting over the new one.
-    `overflow:hidden;pointer-events:none;z-index:1;` +
-    `background:var(--color-ink-0);` +
-    // `contain` walls the clone off: it is a dead snapshot, so the browser
-    // never needs to reflow or repaint the live page on its account.
-    `transform:translateZ(0);will-change:transform,opacity;contain:layout paint;`;
-  document.body.appendChild(clone);
-  outgoing = clone;
+/** Whether a screen's entrance should settle rather than play. */
+function settleEntrance(reduced: boolean): boolean {
+  return reduced || switching || performance.now() < switchingUntil;
 }
 
 /**
- * The screen you leave drops back; the screen you asked for slides over it.
+ * A tab change has been asked for. Records the direction and, for a swipe,
+ * carries the dragged screen on out of the way while the route commits.
  *
- * The flat version, both surfaces translating side by side at the same rate,
- * was honest and completely without depth: two pictures sliding past a window.
- * Here they are on different planes. The old screen scales back to 0.92, dims,
- * and moves only a THIRD of the distance, so it reads as receding rather than
- * leaving, while the new one comes the whole way over it on a spring.
- *
- * Parallax is the whole trick. Two things travelling different distances is
- * what the eye reads as depth, and it costs nothing extra: still transforms,
- * still on the compositor.
+ * There is deliberately no snapshot any more. The old screen used to be cloned
+ * into the body so it could slide off while the new one slid in; cloning a
+ * full screen of DOM on the tap frame and rasterising it as a fresh layer was
+ * the single most expensive thing a tap did. The live screen simply stays put
+ * until React swaps its contents, which for a prefetched tab is a frame or two.
+ */
+export function captureOutgoing(el: HTMLElement | null, dir: number): void {
+  navDirection = dir;
+  switching = dir !== 0;
+  if (!el || dir === 0 || prefersReducedMotion()) return;
+
+  // Only a swipe leaves the screen off centre. Finish that gesture: keep it
+  // travelling the way the finger was going and fade it, so the handover from
+  // "following my finger" to "the next screen" never stops dead. A tap has no
+  // offset, and the old screen just holds still until it is replaced.
+  const x = Number(gsap.getProperty(el, "x")) || 0;
+  if (x === 0) return;
+  gsap.to(el, {
+    x: x - dir * 40,
+    // Not to zero: if the route is slow to commit (a cold dev compile, a tab
+    // that was never prefetched) a fully faded screen would sit there blank.
+    opacity: 0.3,
+    duration: 0.12,
+    ease: EASE.in,
+    force3D: true,
+    overwrite: "auto",
+  });
+}
+
+/**
+ * The screen you asked for fades up from a short nudge. Runs once the route has
+ * committed, against `main`, whose children have just been swapped.
  */
 export function pageIn(el: HTMLElement | null): void {
   const dir = navDirection;
-  const prev = outgoing;
   navDirection = 0;
-  outgoing = null;
+  if (switching) switchingUntil = performance.now() + SETTLE_WINDOW;
+  switching = false;
+  if (!el) return;
 
-  if (!el || dir === 0 || prefersReducedMotion()) {
-    prev?.remove();
-    if (el) gsap.set(el, { x: 0, opacity: 1, scale: 1 });
+  if (dir === 0 || prefersReducedMotion()) {
+    gsap.set(el, { x: 0, opacity: 1, clearProps: "opacity" });
     return;
   }
 
-  const width = el.getBoundingClientRect().width || window.innerWidth;
-  const travel = width * dir;
-
-  if (prev) {
-    prev.style.transformOrigin = "50% 42%";
-    gsap.to(prev, {
-      // A third of the distance, so it falls behind rather than keeping pace.
-      x: -travel * 0.32,
-      scale: 0.92,
-      // **No opacity tween.** It stays fully opaque and is simply covered by
-      // the arriving screen, the way a pushed view is on iOS. Fading it was
-      // the only part of this transition still on the paint path, and removing
-      // it is what took the dropped frames out. It is invisible by the time it
-      // is removed because the new screen is opaque and on top.
-      duration: PAGE,
-      ease: EASE.emphasis,
-      onComplete: () => prev.remove(),
-    });
-  }
-  // The arriving screen translates only. Scaling it too was tried and cost a
-  // frame or two per change at 4x throttle: it is LIVE content, so every step
-  // re-rasterises real text, where the leaver is a dead snapshot that rasters
-  // once. The depth reads from the parallax and the leaver's scale anyway.
   gsap.fromTo(
     el,
-    { x: travel },
+    { x: NUDGE * dir, opacity: 0 },
     {
       x: 0,
-      // Pinned to 3D for the whole tween rather than left on `auto`.
-      //
-      // On `auto` GSAP renders a 2D translate at ratio 0 and ratio 1 and a 3D
-      // one in between, so every navigation builds a compositor layer on its
-      // first frame and throws it away on its last. Those two frames are a
-      // full re-rasterisation of the screen, at the two moments the eye is
-      // most likely to be looking: the start of the movement and the landing.
-      // `main` carries a standing `will-change: transform` for the same
-      // reason, so the layer simply already exists and nothing has to be built
-      // or torn down to move it.
-      force3D: true,
-      // `expo.out` rather than the spring, and that follows from the shorter
-      // duration rather than contradicting it. `back.out(1.7)` spends its last
-      // third overshooting and settling, which reads as weight over 620ms and
-      // as a twitch over 300. Expo puts almost all of its travel in the opening
-      // frames, so the screen is essentially in place immediately and then
-      // eases the final pixels: decisive, and it lands rather than wobbling.
+      opacity: 1,
       duration: PAGE,
-      ease: EASE.emphasis,
+      ease: EASE.out,
+      // Pinned to 3D so the layer `main` already carries is reused: on `auto`
+      // GSAP drops to a 2D translate at both ends of the tween and the screen
+      // is re-rasterised on its first and last frames.
+      force3D: true,
       overwrite: "auto",
+      // Leave no inline opacity behind: a later effect writing opacity to
+      // `main` must not have to fight a stale 1.
+      clearProps: "opacity",
     },
   );
 }

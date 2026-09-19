@@ -327,12 +327,11 @@ export default function BottomNav() {
       // Opaque, with NO backdrop-filter, and that is a bug fix rather than a
       // taste change. A `backdrop-filter` element has to sample everything
       // painted behind it, so it depends on the compositing structure of the
-      // page staying still. `captureOutgoing` appends a `position: fixed`
-      // composited clone to the body the instant a swipe commits and removes it
-      // when the transition ends, which changes the backdrop root twice per
-      // navigation. Chrome on Android drops the blurred layer while that
-      // happens, so the whole bar disappeared for the length of the swipe and
-      // came back on landing.
+      // page staying still. The old page transition appended a
+      // `position: fixed` composited clone to the body on every navigation,
+      // which changed the backdrop root twice per change, and Chrome on
+      // Android dropped the blurred layer while that happened, so the whole
+      // bar disappeared for the length of the swipe.
       //
       // Nothing is lost: the app is flat and hairline based, and glassmorphism
       // was already considered and rejected here on the grounds that a near
@@ -403,9 +402,9 @@ export default function BottomNav() {
                     const box = tabBoxes(list)[i];
                     if (box) placeIndicator(marker, block, box.box, true);
                   }
-                  // Freeze the current screen and navigate in the same frame.
-                  // Waiting for an exit to finish first is what put a hole in
-                  // the middle of the transition.
+                  // Record the direction and navigate in the same frame. The
+                  // new screen fades up the moment it commits; waiting for an
+                  // exit first would only put a hole before it.
                   captureOutgoing(document.querySelector<HTMLElement>("main"), dir);
                   router.push(href);
                 }}
