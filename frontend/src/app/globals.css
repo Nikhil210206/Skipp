@@ -1930,25 +1930,198 @@ html[data-theme="clay"] [data-optional] {
   border: var(--border-w) dashed var(--color-line-strong);
 }
 
-/* The handwritten masthead title (MastheadTitle), handed back to the small caps
-   label in the two themes whose identity IS their face: a pen script in a
-   phosphor terminal or on an arcade cabinet reads as a different app. */
-html[data-theme="terminal"] [data-hand-title],
-html[data-theme="arcade"] [data-hand-title] {
-  rotate: none;
-  padding-bottom: 0;
+/* ============================================================
+   THE MASTHEAD TITLE (MastheadTitle), one look per full theme.
+
+   Ink, the skins, Paper and Sand share the hand; Brutal, Stone, Clay,
+   Terminal and Arcade each get their own, keyed by `data-mt` on the title
+   rather than by the theme, so the component decides which look is in force
+   and the stylesheet only draws it. Every look fits the 56px bar level.
+
+   The masthead button is `text-label uppercase`, so every look resets the
+   tracking, weight and case it would otherwise inherit.
+   ============================================================ */
+[data-mt] {
+  position: relative;
+  display: inline-flex;
+  align-items: baseline;
+  letter-spacing: normal;
+  text-transform: none;
+  line-height: 1;
 }
-html[data-theme="terminal"] [data-hand-title] > span,
-html[data-theme="arcade"] [data-hand-title] > span {
-  font-family: inherit;
-  font-size: var(--text-label);
-  line-height: var(--text-label--line-height);
-  font-weight: var(--text-label--font-weight);
-  letter-spacing: var(--text-label--letter-spacing);
-  text-transform: uppercase;
+[data-mt-word] {
+  position: relative;
+  display: block;
+  white-space: nowrap;
+}
+
+/* HAND: the notebook's pen, underlined in the accent. */
+[data-mt="hand"] {
+  padding-bottom: 0.25rem;
+}
+[data-mt="hand"] [data-mt-word] {
+  font-family: var(--font-hand);
+  font-size: var(--text-scrawl);
+  font-weight: 700;
+  text-transform: lowercase;
+  color: var(--color-text-1);
+}
+[data-mt-swash] {
+  position: absolute;
+  bottom: -0.125rem;
+  left: 0;
+  width: 92%;
+  height: 0.5rem;
+  overflow: visible;
+}
+
+/* BRUTAL: the same hand on a strip of accent tape, with the hard offset
+   slab every other Brutal block carries. Tilted a single degree: the strip
+   is 36px tall in a 56px bar, so its high end still clears the top. */
+[data-mt="brutal"] {
+  padding: 0.25rem 0.625rem 0.3125rem;
+  rotate: -1deg;
+}
+[data-mt-tape] {
+  position: absolute;
+  inset: 0;
+  background: var(--color-accent);
+  border: 2px solid var(--color-text-1);
+  box-shadow: 3px 3px 0 var(--color-text-1);
+}
+[data-mt="brutal"] [data-mt-word] {
+  font-family: var(--font-hand);
+  font-size: 1.75rem;
+  font-weight: 700;
+  text-transform: lowercase;
+  color: var(--color-accent-ink);
+}
+
+/* STONE: struck into place a letter at a time, in the wall's plaster white,
+   with the current screen's colour as a bar beneath (the same device as the
+   section labels). Razor flat, like all Stone type.
+
+   A carved version came first and FAILED, and the reason is worth keeping:
+   a groove on a dark wall is darker than the wall, and a dark word on a dark
+   ground cannot be read at a glance however strong the lit lip is. Two
+   passes at it (#1a1a17, then #0d0d0b with a brighter lip) were both reported
+   as black and invisible on a phone. Engraving only reads on a light stone.
+   The chisel survives as the MOTION, a stepped wipe that lands each letter
+   whole; the letters themselves are the theme's text-1. */
+[data-mt="stone"] {
+  padding-top: 0.25rem;
+  padding-bottom: 0.5rem;
+}
+[data-mt="stone"] [data-mt-word] {
+  font-family: var(--font-geist-sans);
+  font-size: 1.75rem;
+  font-weight: 800;
+  letter-spacing: -0.03em;
+  text-transform: lowercase;
+  color: var(--color-text-1);
+}
+[data-mt-bar] {
+  position: absolute;
+  left: 0;
+  bottom: 0;
+  width: 1.75rem;
+  height: 4px;
+  background: var(--ms-screen, var(--color-accent));
+}
+
+/* CLAY: puffy and inflated. The accent body, a deeper tone of it underneath
+   for thickness, a pale rim along the top where the light catches, and the
+   theme's own soft violet shadow on the surface below. */
+[data-mt="clay"] [data-mt-word] {
+  font-family: var(--font-puffy-src), var(--font-geist-sans), sans-serif;
+  font-size: 1.875rem;
+  font-weight: 700;
+  text-transform: lowercase;
+  color: var(--color-accent);
+  text-shadow:
+    0 -1px 0 rgb(255 255 255 / 0.55),
+    0 2px 0 color-mix(in srgb, var(--color-accent) 72%, #120a40),
+    0 3px 0 color-mix(in srgb, var(--color-accent) 60%, #120a40),
+    0 10px 16px rgb(70 60 160 / 0.32);
+}
+
+/* TERMINAL: a shell path with a block cursor that keeps blinking. */
+[data-mt="terminal"] {
+  font-family: var(--font-geist-mono);
+  font-size: 1.375rem;
+  font-weight: 500;
+  align-items: center;
+}
+[data-mt-path] {
   color: var(--color-text-3);
 }
-html[data-theme="terminal"] [data-hand-swash],
-html[data-theme="arcade"] [data-hand-swash] {
-  display: none;
+[data-mt="terminal"] [data-mt-word] {
+  color: var(--color-accent);
+  text-shadow: 0 0 8px color-mix(in srgb, var(--color-accent) 45%, transparent);
+}
+[data-mt-cursor] {
+  display: inline-block;
+  width: 0.6em;
+  height: 1.05em;
+  margin-left: 0.12em;
+  background: var(--color-accent);
+  box-shadow: 0 0 8px color-mix(in srgb, var(--color-accent) 45%, transparent);
+}
+@media (prefers-reduced-motion: no-preference) {
+  [data-mt-cursor] {
+    animation: mt-blink 1.06s steps(1) infinite;
+  }
+}
+@keyframes mt-blink {
+  50% {
+    opacity: 0;
+  }
+}
+
+/* ARCADE: the pixel figure face, in the current screen's ghost colour, lit
+   like the neon on the cabinet. The page's own cap height normalisation is
+   turned off here: this is a title, not a column of figures, and at the
+   normalised size it would be a caption again. */
+[data-mt="arcade"] {
+  padding: 0.375rem 0;
+  align-items: center;
+}
+[data-mt="arcade"] [data-mt-word] {
+  font-family: var(--font-pixel-src), var(--font-geist-mono), monospace;
+  font-size-adjust: none;
+  font-size: 1.125rem;
+  text-transform: uppercase;
+  color: var(--screen, var(--color-accent));
+  padding-right: 2px;
+  /* One tight halo and no wide bloom. A 16px bloom was tried and it smeared
+     the pixel strokes into each other, which on this theme is precisely the
+     "blur" that has been reported three times: pixel type has to stay crisp,
+     so the neon lives in a halo no wider than a stroke. */
+  text-shadow: 0 0 3px color-mix(in srgb, var(--screen, var(--color-accent)) 70%, transparent);
+}
+/* The dots and the chomper exist only for the entrance, so they REST hidden:
+   the dots fully eaten, the chomper transparent. A skipped entrance then
+   leaves the word and nothing else. */
+[data-mt-dots] {
+  position: absolute;
+  inset: 0;
+  background: radial-gradient(circle, var(--pellet, #ffb8ae) 0 2px, transparent 2.5px) 3px 50% / 14px 14px repeat-x;
+  clip-path: inset(0 0 0 100%);
+  pointer-events: none;
+}
+[data-mt-chomper] {
+  position: absolute;
+  left: 0;
+  top: 50%;
+  width: 18px;
+  height: 18px;
+  margin-top: -9px;
+  background: var(--chomp) center / contain no-repeat;
+  opacity: 0;
+  pointer-events: none;
+}
+@media (prefers-reduced-motion: no-preference) {
+  [data-mt-chomper] {
+    animation: arcade-chomp 0.22s steps(1) infinite;
+  }
 }

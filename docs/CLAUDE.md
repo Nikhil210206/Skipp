@@ -366,15 +366,44 @@ inside a bar of 59 to 115 and the swash ends 7px clear of the bar's foot. Home's
   leaves the title visible. Reduced motion skips it.
 - **It fits the existing 56px bar**, so `ScrollEdge` and everything measured
   against the masthead are unchanged.
-- **Terminal and Arcade keep the small caps label** (`[data-hand-title]` rules
-  at the end of `globals.css`), because their face is the identity of the theme.
+- **Each full look has its own title** (`lookFor()` in the component, drawn by
+  the `[data-mt]` block at the end of `globals.css`); Ink, the skins, Paper and
+  Sand keep the hand:
+  - **Brutal**: the hand in `accent-ink` on a strip of accent tape with a 2px
+    border and a hard 3px slab, tilted 1 degree. The tape lays down, then the
+    word is written on it.
+  - **Stone**: Geist 800 in `text-1`, flat, struck a letter at a time with a
+    `steps()` wipe, then a `--ms-screen` bar. **A carved version (near black
+    groove, lit lower lip) was built twice and reported as black and
+    invisible on a phone**: a groove on a dark wall is darker than the wall,
+    so engraving cannot read there however strong the lip. Do not retry it.
+  - **Clay**: Fredoka 700 (`--font-puffy-src`, `preload: false`, so only Clay
+    fetches it) in the accent, with stacked shadows for thickness, and it
+    squishes up from a flattened blob on `elastic.out`.
+  - **Terminal**: `~/attendance` in Geist Mono, typed a character at a time
+    straight into the text node (restored in full on cleanup, since a revert
+    restores styles, not text), with a block cursor blinking on `steps(1)`.
+    Home's date becomes `~/sat-sep-19`.
+  - **Arcade**: Press Start 2P in the screen's ghost colour. The chomper runs
+    along a row of pellets on one linear clock with the word's clip, so the
+    word is what it leaves behind. The page's `font-size-adjust` is turned off
+    for the title, or it would shrink back to a caption. **The halo is 3px and
+    nothing wider**: a 16px bloom smeared the pixel strokes, which is the blur
+    this theme has been reported for three times. Dots and chomper REST hidden,
+    so a skipped entrance leaves only the word.
+- **Theme switching is live** through `useTheme()`, and the title is keyed by
+  look so one look's markup is never reconciled into another's. Setting
+  `data-theme` by hand in a test does NOT notify it; go through `setTheme` or
+  reload.
 - `revealWord` in `lib/motion.ts` had no other caller and was deleted.
 - **The swash is accent coloured on a screen that may also have an accent
   button.** That bends the one accent per screen rule, on request.
 
-Verified at 390 against `?fixture=1` in Brutal, Ink and Arcade: Caveat at 40px,
-the wipe sampled from 99.9% to 0 inset, no horizontal overflow, `tsc` clean.
-Not seen on a phone.
+Verified at 390 against `?fixture=1` in every look: each title sits 8px or
+more clear of the bar's top and bottom, the typing, the chomp (dots, word and
+chomper measured at the same 62.8% at one instant) and the squish all run,
+Home's date fits in Arcade (ends at 222px of 390), no horizontal overflow,
+`tsc` clean. Not seen on a phone.
 
 ### DONE: The haze was Arcade's own glass, and it was LIFTING the black (2026-09-16)
 

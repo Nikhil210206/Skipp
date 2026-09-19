@@ -2,6 +2,7 @@ import type { Metadata, Viewport } from "next";
 import {
   Bricolage_Grotesque,
   Caveat,
+  Fredoka,
   Geist,
   Geist_Mono,
   Press_Start_2P,
@@ -59,6 +60,17 @@ const display = Bricolage_Grotesque({
 });
 
 /**
+ * Clay's puffy masthead title, and nothing else. `preload: false` for the same
+ * reason as the pixel faces below: only a student on Clay ever fetches it.
+ */
+const puffy = Fredoka({
+  variable: "--font-puffy-src",
+  subsets: ["latin"],
+  weight: ["600", "700"],
+  preload: false,
+});
+
+/**
  * Arcade's two pixel faces. Figures in Press Start 2P (monospaced by
  * construction, so columns cannot drift), everything else in Silkscreen.
  *
@@ -113,7 +125,7 @@ export default function RootLayout({
     <html
       lang="en"
       suppressHydrationWarning
-      className={`${geistSans.variable} ${geistMono.variable} ${signature.variable} ${display.variable} ${hand.variable} ${pixel.variable} ${pixelName.variable} h-full antialiased`}
+      className={`${geistSans.variable} ${geistMono.variable} ${signature.variable} ${display.variable} ${hand.variable} ${puffy.variable} ${pixel.variable} ${pixelName.variable} h-full antialiased`}
     >
       <head>
         {/* Applies the saved theme before paint so there is no flash. */}
