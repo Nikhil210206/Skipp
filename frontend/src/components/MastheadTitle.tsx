@@ -9,8 +9,13 @@ import { prefersReducedMotion } from "@/lib/motion";
  *
  * It replaced an 11px small caps label that was too small to read at a glance,
  * and it borrows the entry notebook's pen (`--font-hand`) so the app and the
- * way in read as one hand. Lowercase, to match the voice, and tilted a couple
- * of degrees, like a heading scribbled into a margin.
+ * way in read as one hand. Lowercase, to match the voice.
+ *
+ * **Sized to the 56px bar, and level.** A first pass was 40px and tilted -2
+ * degrees: the tilt lifted the end of the word into the top edge of the bar and
+ * shaved its ascenders off on a phone, and the glyphs filled the bar so fully
+ * that the swash was squeezed against the page. 34px, untilted, leaves room
+ * above the ascenders and a clear gap for the swash.
  *
  * **It is written on each time the screen changes**: the word is wiped in left
  * to right at a steady speed, the way a pen moves, and the swash under it is
@@ -56,7 +61,7 @@ export default function MastheadTitle({ text }: { text: string }) {
   }, [text]);
 
   return (
-    <span data-hand-title className="relative inline-block -rotate-2 pb-1.5">
+    <span data-hand-title className="relative inline-block pb-1">
       <span
         ref={word}
         className="block font-hand text-scrawl lowercase tracking-normal whitespace-nowrap text-text-1"
@@ -66,20 +71,21 @@ export default function MastheadTitle({ text }: { text: string }) {
       <svg
         data-hand-swash
         aria-hidden
-        viewBox="0 0 200 14"
+        viewBox="0 0 200 8"
         preserveAspectRatio="none"
-        className="absolute -bottom-0.5 -left-[3%] h-3 w-[106%] overflow-visible"
+        className="absolute -bottom-0.5 left-0 h-2 w-[92%] overflow-visible"
       >
         {/* pathLength 1 lets the draw run from 1 to 0 without measuring the
-            path, whatever width the word stretches it to. */}
+            path, whatever width the word stretches it to. One stroke: a
+            second loop at the end read as a scribble at this size. */}
         <path
           ref={swash}
-          d="M4 9 C 46 4, 98 11, 150 6 S 186 3, 197 7 M 160 11 C 176 9, 188 10, 196 8"
+          d="M3 5 C 50 2, 110 7, 197 3"
           pathLength={1}
           strokeDasharray="1"
           fill="none"
           stroke="var(--color-accent)"
-          strokeWidth="2.6"
+          strokeWidth="2"
           strokeLinecap="round"
         />
       </svg>

@@ -350,8 +350,14 @@ oddities here (login shell, empty calendar, 429s, duplicated course codes) are a
 Reported as the screen name ("ATTENDANCE", an 11px small caps label) being too
 small to read. It is `components/MastheadTitle.tsx` now: the screen name written
 in the notebook's pen (`--font-hand`, Caveat 700, which was already loaded) at
-the new `text-scrawl` token (40px), lowercase and tilted -2 degrees, with a
-loose accent swash under it. Home's title is still the date ("sat, sep 19").
+the new `text-scrawl` token (34px), lowercase and level, with a single accent
+swash under it.
+
+**The first pass was 40px and tilted -2 degrees, and on a phone it did not
+fit**: the tilt lifted the end of the word into the top of the bar and shaved
+the ascenders, and the glyphs filled the bar so fully the swash was squeezed.
+At 34px and level, measured with a 59px notch inset, the ink runs 74 to 97
+inside a bar of 59 to 115 and the swash ends 7px clear of the bar's foot. Home's title is still the date ("sat, sep 19").
 
 - **It is written on each time the screen changes**: a left to right
   `clip-path` wipe paced by the word's length, then the swash drawn with

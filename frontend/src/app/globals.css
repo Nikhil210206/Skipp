@@ -91,7 +91,7 @@
 
   /* The masthead's handwritten screen name, in --font-hand. A heading only:
      the hand has no tabular figures, so it never sets a figure. */
-  --text-scrawl: 2.5rem;
+  --text-scrawl: 2.125rem;
   --text-scrawl--line-height: 1;
   --text-scrawl--font-weight: 700;
 
