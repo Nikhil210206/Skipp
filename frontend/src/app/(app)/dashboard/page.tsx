@@ -92,7 +92,7 @@ export default function DashboardPage() {
     ({ self, reduced }) => {
       revealIn(self, reduced, { y: 18, stagger: 0.08 });
       if (pct.current && attendanceState === "ready") {
-        countTo(pct.current, overall, reduced, (n) => n.toFixed(2));
+        countTo(pct.current, overall, reduced, (n) => n.toFixed(1));
       }
       // The day-order numeral drifts as the page moves under it, so the cover
       // has depth without any shadow or gradient.
@@ -199,7 +199,7 @@ export default function DashboardPage() {
               <div className="mt-5 flex items-end justify-between gap-4">
                 <span className="flex items-baseline">
                   <span ref={pct} className="tnum text-display">
-                    {overall.toFixed(2)}
+                    {overall.toFixed(1)}
                   </span>
                   <span data-unit className="text-title text-text-3">%</span>
                 </span>

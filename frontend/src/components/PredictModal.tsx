@@ -267,7 +267,7 @@ function Forecast({
   useGsap(
     ({ reduced }) => {
       if (figure.current) {
-        countTo(figure.current, after, reduced, (n) => n.toFixed(2));
+        countTo(figure.current, after, reduced, (n) => n.toFixed(1));
       }
     },
     [after],
@@ -289,7 +289,7 @@ function Forecast({
         <Amount
           size="poster"
           className={`mt-4 ${after >= TARGET ? "text-text-1" : "text-accent"}`}
-          value={<span ref={figure}>{after.toFixed(2)}</span>}
+          value={<span ref={figure}>{after.toFixed(1)}</span>}
           unit="%"
         />
 
@@ -302,9 +302,9 @@ function Forecast({
 
         <div className="mt-4 flex items-baseline justify-between gap-4">
           <span className="tnum text-callout text-text-3">
-            {projection.overallBefore.toFixed(2)}% to {after.toFixed(2)}%
-            {Math.abs(delta) >= 0.005
-              ? ` · ${delta > 0 ? "up" : "down"} ${Math.abs(delta).toFixed(2)}`
+            {projection.overallBefore.toFixed(1)}% to {after.toFixed(1)}%
+            {Math.abs(delta) >= 0.05
+              ? ` · ${delta > 0 ? "up" : "down"} ${Math.abs(delta).toFixed(1)}`
               : " · no change"}
           </span>
           <Chip tone={after >= TARGET ? "safe" : "risk"}>
@@ -363,7 +363,7 @@ function Forecast({
                     <div className="min-w-0 flex-1 pt-1">
                       <p className="truncate text-headline">{s.title}</p>
                       <p className="tnum mt-1.5 truncate text-callout text-text-3">
-                        {s.attendedAfter}/{s.conductedAfter} · {s.pctAfter.toFixed(2)}%
+                        {s.attendedAfter}/{s.conductedAfter} · {s.pctAfter.toFixed(1)}%
                         {s.missed > 0 ? (
                           <>
                             {" · "}

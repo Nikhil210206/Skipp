@@ -217,7 +217,7 @@ export async function notifyAttendanceChanges(
       : "Attendance updated";
   const body =
     changes.length === 1
-      ? `${changes[0].held} class${changes[0].held === 1 ? "" : "es"} recorded, now at ${changes[0].percentage.toFixed(2)}%`
+      ? `${changes[0].held} class${changes[0].held === 1 ? "" : "es"} recorded, now at ${changes[0].percentage.toFixed(1)}%`
       : `${changes.length} subjects updated since you last looked`;
 
   const shown = await show(title, {

@@ -165,7 +165,7 @@ export function buildReminders(opts: {
         missed > 0
           ? `${short(c.title)}: ${missed} of ${c.held} marked absent`
           : `${short(c.title)}: ${c.held} marked present`,
-      meta: `Now at ${c.percentage.toFixed(2)}%`,
+      meta: `Now at ${c.percentage.toFixed(1)}%`,
     });
   }
 
@@ -178,7 +178,7 @@ export function buildReminders(opts: {
           id: `risk-${s.code}-${s.category}`,
           kind: "risk",
           tone: "danger",
-          title: `${short(s.title || s.code)} is at ${s.percentage.toFixed(2)}%`,
+          title: `${short(s.title || s.code)} is at ${s.percentage.toFixed(1)}%`,
           meta: `Attend ${s.mustAttend} in a row to clear ${threshold}%`,
         });
       } else if (s.canSkip === 0) {
