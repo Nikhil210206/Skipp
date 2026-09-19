@@ -35,15 +35,15 @@ from models.attendance import Attendance, Subject
 
 from .predictor import predict
 
-#: Subject field -> substring identifying its column header. Matched by text so
-#: a reordered or renamed column does not silently shift every value one across.
-_COLUMNS = {
-    "code": "code",
-    "title": "description",
-    "conducted": "max",
-    "attended": "att",
-    "absent": "absent",
-    "percentage": "percentage",
+#: Subject field -> list of candidate substrings identifying its column header.
+#: Matched in preference order so specific headers match before generic ones.
+_COLUMNS: dict[str, list[str]] = {
+    "code": ["code"],
+    "title": ["description", "title", "course"],
+    "conducted": ["max", "conducted"],
+    "attended": ["att"],
+    "absent": ["absent"],
+    "percentage": ["total percentage", "total %", "attn %", "att %", "percentage", "%"],
 }
 
 #: The report states the window it covers, e.g.
@@ -92,14 +92,20 @@ def parse_attendance(html: str, threshold: float = 75.0) -> Attendance:
         )
 
     index: dict[str, int] = {}
-    for field, needle in _COLUMNS.items():
-        for i, head in enumerate(headers):
-            if needle in head:
-                # "att. hours" also contains "att", and so does nothing else,
-                # but "absent hours" must not be claimed by the "att" probe.
-                if field == "attended" and "absent" in head:
-                    continue
-                index.setdefault(field, i)
+    for field, needles in _COLUMNS.items():
+        for needle in needles:
+            for i, head in enumerate(headers):
+                if needle in head:
+                    # "att. hours" also contains "att", and so does nothing else,
+                    # but "absent hours" must not be claimed by the "att" probe.
+                    if field == "attended" and "absent" in head:
+                        continue
+                    # "absent percentage" or "absent %" must not be claimed by "percentage".
+                    if field == "percentage" and "absent" in head:
+                        continue
+                    index.setdefault(field, i)
+                    break
+            if field in index:
                 break
 
     if "code" not in index or "conducted" not in index:
@@ -114,8 +120,18 @@ def parse_attendance(html: str, threshold: float = 75.0) -> Attendance:
             i = index.get(field)
             return cells[i] if i is not None and i < len(cells) else ""
 
-        code = cell("code")
+        code = cell("code").strip()
         if not code or "no record" in code.lower():
+            continue
+
+        # Skip summary rows (e.g. "Total", "Grand Total", or rows where first cell is Total)
+        code_lower = code.lower()
+        title_lower = cell("title").strip().lower()
+        first_cell = cells[0].strip().lower() if cells else ""
+        if any(
+            t in code_lower or t in title_lower or t in first_cell
+            for t in ("total", "grand total", "sub total", "overall")
+        ):
             continue
 
         conducted = _to_int(cell("conducted"))
@@ -131,6 +147,18 @@ def parse_attendance(html: str, threshold: float = 75.0) -> Attendance:
 
         p = predict(attended, conducted, threshold)
         stated = _to_float(cell("percentage"))
+
+        # Validate stated percentage against mathematically calculated percentage.
+        # If stated is present and close to p.percentage (within 1% rounding margin), keep stated.
+        # Otherwise, trust the computed p.percentage (preventing cases where portal prints 0.0
+        # for a course with 16/16 attended classes).
+        if conducted > 0 and stated is not None and abs(stated - p.percentage) <= 1.0:
+            percentage = stated
+        elif conducted > 0:
+            percentage = p.percentage
+        else:
+            percentage = stated if stated is not None else 0.0
+
         subjects.append(
             Subject(
                 code=code,
@@ -143,7 +171,7 @@ def parse_attendance(html: str, threshold: float = 75.0) -> Attendance:
                 category="",
                 conducted=conducted,
                 attended=attended,
-                percentage=stated if stated is not None else p.percentage,
+                percentage=percentage,
                 can_skip=p.can_skip,
                 must_attend=p.must_attend,
                 is_safe=p.is_safe,

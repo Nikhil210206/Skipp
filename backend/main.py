@@ -514,6 +514,20 @@ def sp_captcha() -> StudentPortalCaptchaResponse:
         raise _fail(502, "upstream_error", str(e))
 
 
+def _get_fallback_calendar() -> list[CalendarDay]:
+    """Provide the university-wide academic planner calendar (AY 2026-27 ODD)."""
+    try:
+        from pathlib import Path
+        planner_path = Path(__file__).parent / "captures" / "page_Academic_Planner_2026_27_ODD.html"
+        if planner_path.exists():
+            year, month = semester_anchor(PAGE_ACADEMIC_PLANNER)
+            raw = planner_path.read_text(encoding="utf-8")
+            return [CalendarDay(**d) for d in parse_planner(raw, year, month)]
+    except Exception as e:
+        log.warning("failed to load fallback academic calendar: %s", e)
+    return []
+
+
 @app.post("/sp/login", response_model=StudentPortalSnapshot)
 def sp_login(req: StudentPortalLoginRequest, request: Request) -> StudentPortalSnapshot:
     """Submit credentials and captcha, simulate anti-bot payload, and fetch attendance."""
@@ -577,6 +591,7 @@ def sp_login(req: StudentPortalLoginRequest, request: Request) -> StudentPortalS
         marks_status=marks_status,
         marks_message=marks_msg,
         reported_period=period,
+        calendar=_get_fallback_calendar(),
         fetched_at=datetime.now(timezone.utc).isoformat(),
     )
 
@@ -639,6 +654,7 @@ def sp_auto_login(req: LoginRequest, request: Request) -> StudentPortalSnapshot:
         marks_status=marks_status,
         marks_message=marks_msg,
         reported_period=period,
+        calendar=_get_fallback_calendar(),
         fetched_at=datetime.now(timezone.utc).isoformat(),
     )
 

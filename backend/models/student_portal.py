@@ -14,6 +14,7 @@ from pydantic.alias_generators import to_camel
 
 from models.attendance import Attendance
 from models.marks import Marks
+from models.timetable import CalendarDay
 
 SectionStatus = Literal["ready", "gated", "error"]
 
@@ -75,4 +76,8 @@ class StudentPortalSnapshot(_CamelModel):
     #: and a student who just sat a class needs to know that before concluding
     #: their attendance is wrong.
     reported_period: str | None = None
+    calendar: list[CalendarDay] = Field(
+        default_factory=list,
+        description="University academic calendar days for the semester",
+    )
     fetched_at: str = Field(description="ISO timestamp of this parse")

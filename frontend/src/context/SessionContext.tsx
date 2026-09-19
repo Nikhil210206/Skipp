@@ -140,7 +140,12 @@ function synthesizePortalSnapshot(
     faculty: s.faculty,
     slot: s.slot,
     room: null,
-    academicYear: null,
+    academicYear: "AY2026-27-ODD",
+  }));
+
+  const dayOrders: DayOrderSchedule[] = [1, 2, 3, 4, 5].map((doNum) => ({
+    dayOrder: doNum,
+    classes: [],
   }));
 
   return {
@@ -151,14 +156,14 @@ function synthesizePortalSnapshot(
         program: null,
         department: null,
         section: null,
-        semester: null,
+        semester: "1",
         batch: null,
         mobile: null,
       },
       courses,
-      academicYear: null,
-      dayOrders: [],
-      calendar: [],
+      academicYear: "AY2026-27-ODD",
+      dayOrders,
+      calendar: sp.calendar ?? [],
     },
     attendance: sp.attendance,
     attendanceStatus: sp.attendanceStatus,
@@ -282,18 +287,38 @@ export function SessionProvider({ children }: { children: React.ReactNode }) {
    * last looked" is computed exactly once, at the moment it becomes true.
    */
   const installSnapshot = useCallback((snap: Snapshot) => {
-    const id = snap.timetable.student.registrationNumber;
+    let effectiveSnap = snap;
+    if (
+      effectiveSnap.timetable &&
+      (!effectiveSnap.timetable.dayOrders ||
+        effectiveSnap.timetable.dayOrders.length === 0)
+    ) {
+      effectiveSnap = {
+        ...effectiveSnap,
+        timetable: {
+          ...effectiveSnap.timetable,
+          dayOrders: [1, 2, 3, 4, 5].map((doNum) => ({
+            dayOrder: doNum,
+            classes: [],
+          })),
+        },
+      };
+    }
+    const id = effectiveSnap.timetable.student.registrationNumber;
     if (id) {
-      const diffed = diffAttendance(snap.attendance, loadSeenAttendance(id));
+      const diffed = diffAttendance(
+        effectiveSnap.attendance,
+        loadSeenAttendance(id),
+      );
       setChanges(diffed);
       // The same diff, raised as a real notification rather than only as a line
       // in the Reminders feed. Local, and raised here because this is the single
       // door fresh data enters by, so it fires once per genuine change rather
       // than once per glance at the app.
       void notifyAttendanceChanges(diffed);
-      saveSeenAttendance(id, snap.attendance);
+      saveSeenAttendance(id, effectiveSnap.attendance);
     }
-    setSnapshot(snap);
+    setSnapshot(effectiveSnap);
   }, []);
 
   // Rehydrate from a prior visit. If we have an encrypted cached snapshot, show
@@ -330,8 +355,25 @@ export function SessionProvider({ children }: { children: React.ReactNode }) {
 
       if (cached) {
         // Instant: show cached data, then quietly refresh if it's gone stale.
+        let snapToUse = cached;
+        if (
+          snapToUse.timetable &&
+          (!snapToUse.timetable.dayOrders ||
+            snapToUse.timetable.dayOrders.length === 0)
+        ) {
+          snapToUse = {
+            ...snapToUse,
+            timetable: {
+              ...snapToUse.timetable,
+              dayOrders: [1, 2, 3, 4, 5].map((doNum) => ({
+                dayOrder: doNum,
+                classes: [],
+              })),
+            },
+          };
+        }
         setCreds(saved);
-        setSnapshot(cached);
+        setSnapshot(snapToUse);
         // Seed the baseline from what is on screen. Without this the first
         // refresh of a session has nothing to compare against and silently
         // reports no change, however much the portal marked in between.
