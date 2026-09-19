@@ -18,6 +18,7 @@ import {
   shortDate,
   termHolidays,
 } from "@/lib/holidays";
+import { FALLBACK_ACADEMIC_CALENDAR } from "@/lib/academicCalendar";
 import type { CalendarDay } from "@/types";
 
 const WEEKDAYS = ["M", "T", "W", "T", "F", "S", "S"];
@@ -28,7 +29,10 @@ const WEEKDAYS = ["M", "T", "W", "T", "F", "S", "S"];
  */
 export default function CalendarPage() {
   const { timetable } = useSession();
-  const cal = useMemo(() => timetable?.calendar ?? [], [timetable]);
+  const cal = useMemo(() => {
+    const raw = timetable?.calendar ?? [];
+    return raw.length > 0 ? raw : FALLBACK_ACADEMIC_CALENDAR;
+  }, [timetable]);
 
   const byDate = useMemo(() => {
     const m = new Map<string, CalendarDay>();

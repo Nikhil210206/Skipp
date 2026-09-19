@@ -125,6 +125,7 @@ import {
   saveDisplayName,
   saveOptionalCourses,
 } from "@/lib/customClasses";
+import { FALLBACK_ACADEMIC_CALENDAR } from "@/lib/academicCalendar";
 
 function synthesizePortalSnapshot(
   sp: StudentPortalSnapshot,
@@ -163,7 +164,7 @@ function synthesizePortalSnapshot(
       courses,
       academicYear: "AY2026-27-ODD",
       dayOrders,
-      calendar: sp.calendar ?? [],
+      calendar: sp.calendar && sp.calendar.length > 0 ? sp.calendar : FALLBACK_ACADEMIC_CALENDAR,
     },
     attendance: sp.attendance,
     attendanceStatus: sp.attendanceStatus,
@@ -288,21 +289,31 @@ export function SessionProvider({ children }: { children: React.ReactNode }) {
    */
   const installSnapshot = useCallback((snap: Snapshot) => {
     let effectiveSnap = snap;
-    if (
-      effectiveSnap.timetable &&
-      (!effectiveSnap.timetable.dayOrders ||
-        effectiveSnap.timetable.dayOrders.length === 0)
-    ) {
-      effectiveSnap = {
-        ...effectiveSnap,
-        timetable: {
-          ...effectiveSnap.timetable,
-          dayOrders: [1, 2, 3, 4, 5].map((doNum) => ({
-            dayOrder: doNum,
-            classes: [],
-          })),
-        },
-      };
+    if (effectiveSnap.timetable) {
+      const needsDayOrders =
+        !effectiveSnap.timetable.dayOrders ||
+        effectiveSnap.timetable.dayOrders.length === 0;
+      const needsCalendar =
+        !effectiveSnap.timetable.calendar ||
+        effectiveSnap.timetable.calendar.length === 0;
+
+      if (needsDayOrders || needsCalendar) {
+        effectiveSnap = {
+          ...effectiveSnap,
+          timetable: {
+            ...effectiveSnap.timetable,
+            dayOrders: needsDayOrders
+              ? [1, 2, 3, 4, 5].map((doNum) => ({
+                  dayOrder: doNum,
+                  classes: [],
+                }))
+              : effectiveSnap.timetable.dayOrders,
+            calendar: needsCalendar
+              ? FALLBACK_ACADEMIC_CALENDAR
+              : effectiveSnap.timetable.calendar,
+          },
+        };
+      }
     }
     const id = effectiveSnap.timetable.student.registrationNumber;
     if (id) {
@@ -356,21 +367,31 @@ export function SessionProvider({ children }: { children: React.ReactNode }) {
       if (cached) {
         // Instant: show cached data, then quietly refresh if it's gone stale.
         let snapToUse = cached;
-        if (
-          snapToUse.timetable &&
-          (!snapToUse.timetable.dayOrders ||
-            snapToUse.timetable.dayOrders.length === 0)
-        ) {
-          snapToUse = {
-            ...snapToUse,
-            timetable: {
-              ...snapToUse.timetable,
-              dayOrders: [1, 2, 3, 4, 5].map((doNum) => ({
-                dayOrder: doNum,
-                classes: [],
-              })),
-            },
-          };
+        if (snapToUse.timetable) {
+          const needsDayOrders =
+            !snapToUse.timetable.dayOrders ||
+            snapToUse.timetable.dayOrders.length === 0;
+          const needsCalendar =
+            !snapToUse.timetable.calendar ||
+            snapToUse.timetable.calendar.length === 0;
+
+          if (needsDayOrders || needsCalendar) {
+            snapToUse = {
+              ...snapToUse,
+              timetable: {
+                ...snapToUse.timetable,
+                dayOrders: needsDayOrders
+                  ? [1, 2, 3, 4, 5].map((doNum) => ({
+                      dayOrder: doNum,
+                      classes: [],
+                    }))
+                  : snapToUse.timetable.dayOrders,
+                calendar: needsCalendar
+                  ? FALLBACK_ACADEMIC_CALENDAR
+                  : snapToUse.timetable.calendar,
+              },
+            };
+          }
         }
         setCreds(saved);
         setSnapshot(snapToUse);

@@ -517,12 +517,8 @@ def sp_captcha() -> StudentPortalCaptchaResponse:
 def _get_fallback_calendar() -> list[CalendarDay]:
     """Provide the university-wide academic planner calendar (AY 2026-27 ODD)."""
     try:
-        from pathlib import Path
-        planner_path = Path(__file__).parent / "captures" / "page_Academic_Planner_2026_27_ODD.html"
-        if planner_path.exists():
-            year, month = semester_anchor(PAGE_ACADEMIC_PLANNER)
-            raw = planner_path.read_text(encoding="utf-8")
-            return [CalendarDay(**d) for d in parse_planner(raw, year, month)]
+        from services.academic_calendar_data import CALENDAR_DATA
+        return [CalendarDay(**d) for d in CALENDAR_DATA]
     except Exception as e:
         log.warning("failed to load fallback academic calendar: %s", e)
     return []
