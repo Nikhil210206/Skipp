@@ -50,7 +50,7 @@ export default function AttendancePage() {
     ({ self, reduced }) => {
       revealIn(self, reduced, { y: 16, stagger: 0.07 });
       revealRows(self, reduced);
-      if (figure.current) countTo(figure.current, overall, reduced, (n) => n.toFixed(1));
+      if (figure.current) countTo(figure.current, overall, reduced, (n) => n.toFixed(2));
       if (masthead.current) recedeOnScroll(masthead.current, reduced);
     },
     [overall, attendanceState],
@@ -103,7 +103,7 @@ export default function AttendancePage() {
               <Amount
                 size="poster"
                 className="mt-5"
-                value={<span ref={figure}>{overall.toFixed(1)}</span>}
+                value={<span ref={figure}>{overall.toFixed(2)}</span>}
                 unit="%"
               />
               <TrackRule
@@ -219,7 +219,7 @@ function Ledger({ s, tone = "neutral" }: { s: Subject; tone?: "neutral" | "accen
               s.code,
               s.category,
               none ? null : `${s.attended}/${s.conducted}`,
-              none ? null : `${s.percentage.toFixed(0)}%`,
+              none ? null : `${s.percentage.toFixed(2)}%`,
             ]
               .filter(Boolean)
               .join(" · ")}

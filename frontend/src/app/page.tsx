@@ -103,7 +103,7 @@ export default function LoginPage() {
     if (attendance) {
       facts.push({
         label: "Attendance",
-        value: `${attendance.overallPercentage.toFixed(1)}%`,
+        value: `${attendance.overallPercentage.toFixed(2)}%`,
       });
     }
     facts.push({ label: "Term days", value: String(timetable.calendar.length) });

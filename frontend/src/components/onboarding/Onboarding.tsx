@@ -383,7 +383,7 @@ function TheLine({
     const n = num.current;
     if (!n) return;
     if (prefersReducedMotion()) {
-      n.textContent = meter.percentage.toFixed(1);
+      n.textContent = meter.percentage.toFixed(2);
       return;
     }
     const o = { v: Number(n.textContent) || 93.3 };
@@ -392,7 +392,7 @@ function TheLine({
       duration: 0.7,
       ease: "expo.out",
       onUpdate: () => {
-        n.textContent = o.v.toFixed(1);
+        n.textContent = o.v.toFixed(2);
       },
     });
     return () => {
