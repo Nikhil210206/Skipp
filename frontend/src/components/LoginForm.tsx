@@ -2,8 +2,15 @@
 
 import { useRef, useState } from "react";
 import { useSession } from "@/context/SessionContext";
-import { AuthError, PortalError, type FailureCode } from "@/lib/api";
-import { Button } from "@/components/ui";
+import {
+  AuthError,
+  PortalError,
+  initStudentPortalLogin,
+  type FailureCode,
+} from "@/lib/api";
+import { Button, Segmented } from "@/components/ui";
+import type { LoginPortalMode } from "@/lib/crypto";
+import type { StudentPortalCaptchaResponse } from "@/types";
 
 type Failure = { title: string; advice: string };
 
@@ -70,17 +77,35 @@ export default function LoginForm({
   /** How many of the two fields have something in them, 0 to 2. */
   onFilled?: (n: number) => void;
 }) {
-  const { login } = useSession();
+  const { login, loginPortal } = useSession();
+  const [mode, setMode] = useState<LoginPortalMode>("academia");
   const [username, setUsername] = useState("");
   const [password, setPassword] = useState("");
   const [failure, setFailure] = useState<Failure | null>(null);
   const [busy, setBusy] = useState(false);
 
-  // Reported from the change handlers rather than an effect: the parent draws
-  // a progress rule from it, and setState in an effect is rejected by the
-  // compiler lint.
+  // Manual captcha state if OCR fails or is needed
+  const [captchaSession, setCaptchaSession] =
+    useState<StudentPortalCaptchaResponse | null>(null);
+  const [captchaInput, setCaptchaInput] = useState("");
+  const [loadingCaptcha, setLoadingCaptcha] = useState(false);
+
   const report = (u: string, p: string) =>
     onFilled?.((u.trim() ? 1 : 0) + (p ? 1 : 0));
+
+  async function loadManualCaptcha() {
+    setLoadingCaptcha(true);
+    setCaptchaSession(null);
+    setCaptchaInput("");
+    try {
+      const data = await initStudentPortalLogin();
+      setCaptchaSession(data);
+    } catch {
+      // Ignored; user can retry
+    } finally {
+      setLoadingCaptcha(false);
+    }
+  }
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
@@ -88,10 +113,29 @@ export default function LoginForm({
     setFailure(null);
     setBusy(true);
     onPhase("working");
+
     try {
-      await login({ username: username.trim(), password });
-      // The page takes it from here: it holds the screen for the landing and
-      // routes when that is finished.
+      if (mode === "portal") {
+        if (captchaSession) {
+          // Manual captcha submission
+          await loginPortal(
+            { username: username.trim(), password },
+            {
+              captcha: captchaInput.trim(),
+              sessionCookie: captchaSession.sessionCookie,
+              domainField: captchaSession.domainField,
+              captchaField: captchaSession.captchaField,
+              randomDelim: captchaSession.randomDelim,
+              honeypotField: captchaSession.honeypotField,
+            },
+          );
+        } else {
+          // Automatic OCR login
+          await loginPortal({ username: username.trim(), password });
+        }
+      } else {
+        await login({ username: username.trim(), password });
+      }
       onPhase("done");
     } catch (err) {
       onPhase("idle");
@@ -99,20 +143,57 @@ export default function LoginForm({
         err instanceof AuthError || err instanceof PortalError
           ? err.code
           : "portal";
-      setFailure(
-        explain(code, err instanceof Error ? err.message : "Sign-in failed."),
-      );
+
+      // If in portal mode and automated captcha failed, fall back to manual captcha
+      if (mode === "portal") {
+        setFailure({
+          title: "Sign-in required attention",
+          advice:
+            err instanceof Error
+              ? err.message
+              : "Verification failed. Please check your credentials or enter the captcha below.",
+        });
+        void loadManualCaptcha();
+      } else {
+        setFailure(
+          explain(code, err instanceof Error ? err.message : "Sign-in failed."),
+        );
+      }
       setBusy(false);
     }
   }
 
   return (
     <form onSubmit={handleSubmit} className="flex flex-col gap-2.5">
+      {/* Portal switcher: Academia vs Student Portal */}
+      <div data-enter className="mb-1">
+        <Segmented<LoginPortalMode>
+          label="Login portal"
+          value={mode}
+          onChange={(m) => {
+            setMode(m);
+            setFailure(null);
+            setCaptchaSession(null);
+            setCaptchaInput("");
+          }}
+          options={[
+            { value: "academia", label: "Academia" },
+            { value: "portal", label: "Student Portal (1st Year)" },
+          ]}
+        />
+        {mode === "portal" && (
+          <p className="mt-2 text-callout text-text-3">
+            For 1st year students who only have SRM Student Portal credentials.
+          </p>
+        )}
+      </div>
+
       <Field
         id="username"
-        label="SRM Net ID"
-        suffix="@srmist.edu.in"
+        label={mode === "portal" ? "SRM Net ID or Reg No." : "SRM Net ID"}
+        suffix={mode === "academia" ? "@srmist.edu.in" : undefined}
         value={username}
+        placeholder={mode === "portal" ? "e.g. ra2411003010001 or net ID" : undefined}
         onChange={(v) => {
           setUsername(v);
           report(v, password);
@@ -132,6 +213,36 @@ export default function LoginForm({
         autoComplete="current-password"
       />
 
+      {/* Manual captcha box if activated */}
+      {mode === "portal" && captchaSession && (
+        <div data-enter className="flex flex-col gap-2 rounded-control border border-line bg-ink-1 p-3">
+          <span className="text-label uppercase text-text-3">Security Check</span>
+          <div className="flex items-center gap-3">
+            <img
+              src={captchaSession.captchaBase64}
+              alt="Captcha"
+              className="h-10 w-auto rounded-md bg-white object-contain px-2 py-0.5"
+            />
+            <button
+              type="button"
+              onClick={() => void loadManualCaptcha()}
+              disabled={loadingCaptcha}
+              className="text-callout text-accent hover:underline disabled:opacity-50"
+            >
+              {loadingCaptcha ? "Reloading..." : "Reload"}
+            </button>
+          </div>
+          <input
+            type="text"
+            value={captchaInput}
+            onChange={(e) => setCaptchaInput(e.target.value)}
+            placeholder="Enter the characters above"
+            className="mt-1 w-full appearance-none bg-transparent text-headline text-text-1 outline-none placeholder:text-text-3"
+            required
+          />
+        </div>
+      )}
+
       {failure && (
         <div role="alert" className="pt-1">
           <p className="text-callout font-semibold text-risk">{failure.title}</p>
@@ -145,18 +256,23 @@ export default function LoginForm({
           Button already owns its own transform through `pressable`, and two
           tweens on one element leave it stuck at whichever ran first. */}
       <div data-enter className="mt-3">
-        {/* Solid, not outline. The greeting owns the accent on this screen now,
-            and two accent objects competing is exactly the muddle the one
-            action per screen rule exists to prevent. A filled button is also
-            simply more inviting than a hairline one. */}
         <Button
           type="submit"
           variant="primary"
           size="lg"
           full
-          disabled={busy || !username || !password}
+          disabled={
+            busy ||
+            !username ||
+            !password ||
+            (mode === "portal" && Boolean(captchaSession) && !captchaInput)
+          }
         >
-          {busy ? "Signing in" : "Continue"}
+          {busy
+            ? mode === "portal"
+              ? "Signing in via Portal…"
+              : "Signing in…"
+            : "Continue"}
         </Button>
       </div>
     </form>

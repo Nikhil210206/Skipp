@@ -29,6 +29,7 @@ export default function ProfilePage() {
     timetable,
     displayName,
     setDisplayName,
+    loginSource,
     customClasses,
     optionalCourses,
     fetchedAt,
@@ -297,6 +298,8 @@ export default function ProfilePage() {
           <SectionHead>Data</SectionHead>
           <div className="flex items-end justify-between gap-4 pt-5">
             <Marginalia>
+              Signed in via {loginSource === "portal" ? "Student Portal" : "Academia"}
+              <br />
               Updated {timeAgo(fetchedAt)}
               <br />
               {customClasses.length} added, {optionalCourses.length} class

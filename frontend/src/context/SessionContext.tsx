@@ -16,6 +16,7 @@ import {
 } from "react";
 import type {
   Attendance,
+  Course,
   Credentials,
   CustomClass,
   DayOrderSchedule,
@@ -45,12 +46,18 @@ import {
 import { notifyAttendanceChanges } from "@/lib/notify";
 import {
   clearCredentials,
+  clearLoginMode,
+  clearPortalCredentials,
   clearSnapshot,
   loadCredentials,
+  loadLoginMode,
   loadPortalCredentials,
   loadSnapshot,
   saveCredentials,
+  saveLoginMode,
+  savePortalCredentials,
   saveSnapshot,
+  type LoginPortalMode,
 } from "@/lib/crypto";
 
 // How old cached data may get before the app quietly goes and looks again.
@@ -119,6 +126,50 @@ import {
   saveOptionalCourses,
 } from "@/lib/customClasses";
 
+function synthesizePortalSnapshot(
+  sp: StudentPortalSnapshot,
+  netId: string,
+): Snapshot {
+  const courses: Course[] = (sp.attendance?.subjects ?? []).map((s) => ({
+    code: s.code,
+    title: s.title || s.code,
+    credit: null,
+    regnType: "Regular",
+    category: s.category || "Theory",
+    courseType: null,
+    faculty: s.faculty,
+    slot: s.slot,
+    room: null,
+    academicYear: null,
+  }));
+
+  return {
+    timetable: {
+      student: {
+        registrationNumber: netId,
+        name: netId,
+        program: null,
+        department: null,
+        section: null,
+        semester: null,
+        batch: null,
+        mobile: null,
+      },
+      courses,
+      academicYear: null,
+      dayOrders: [],
+      calendar: [],
+    },
+    attendance: sp.attendance,
+    attendanceStatus: sp.attendanceStatus,
+    attendanceMessage: sp.attendanceMessage,
+    marks: sp.marks,
+    marksStatus: sp.marksStatus,
+    marksMessage: sp.marksMessage,
+    fetchedAt: sp.fetchedAt,
+  };
+}
+
 type SectionState = SectionStatus | "loading";
 
 type SessionValue = {
@@ -154,6 +205,7 @@ type SessionValue = {
   marksSource: "academia" | "portal" | null;
   fetchedAt: string | null;
   isAuthed: boolean;
+  loginSource: "academia" | "portal";
   restoring: boolean;
   refreshing: boolean;
   isAutoSyncing: boolean;
@@ -175,6 +227,17 @@ type SessionValue = {
   displayName: string; // custom name if set, else official first name
   setDisplayName: (name: string) => void;
   login: (creds: Credentials) => Promise<void>;
+  loginPortal: (
+    creds: Credentials,
+    manual?: {
+      captcha: string;
+      sessionCookie: string;
+      domainField: string;
+      captchaField: string;
+      randomDelim: string;
+      honeypotField: string;
+    },
+  ) => Promise<void>;
   /** Resolves with what actually happened, so the caller can say so. */
   refresh: () => Promise<RefreshOutcome>;
   logout: () => void;
@@ -194,6 +257,7 @@ export function SessionProvider({ children }: { children: React.ReactNode }) {
   const [loadedReg, setLoadedReg] = useState<string | null>(null);
   const [portalAtt, setPortalAtt] = useState<PortalOverride | null>(null);
   const [isAutoSyncing, setIsAutoSyncing] = useState(false);
+  const [loginSource, setLoginSource] = useState<LoginPortalMode>("academia");
 
   const reg = snapshot?.timetable.student.registrationNumber ?? null;
   // The portal shouts names in caps. Present it the way a person writes it.
@@ -259,6 +323,8 @@ export function SessionProvider({ children }: { children: React.ReactNode }) {
         if (!cancelled) setRestoring(false);
         return;
       }
+      const savedMode = loadLoginMode();
+      setLoginSource(savedMode);
       const cached = await loadSnapshot();
       if (cancelled) return;
 
@@ -274,13 +340,19 @@ export function SessionProvider({ children }: { children: React.ReactNode }) {
           cached.attendance,
         );
         setRestoring(false);
-        if (isStale(cached.fetchedAt) && !inCooldown()) void backgroundRefresh(saved);
+        if (isStale(cached.fetchedAt) && !inCooldown()) void backgroundRefresh(saved, savedMode);
         return;
       }
 
       // No cache, so we must fetch (this shows the restoring spinner).
       try {
-        const snap = await fetchSnapshot(saved);
+        let snap: Snapshot;
+        if (savedMode === "portal") {
+          const sp = await autoStudentPortalLogin(saved);
+          snap = synthesizePortalSnapshot(sp, saved.username);
+        } else {
+          snap = await fetchSnapshot(saved);
+        }
         if (!cancelled) {
           setCreds(saved);
           installSnapshot(snap);
@@ -291,15 +363,24 @@ export function SessionProvider({ children }: { children: React.ReactNode }) {
         // wrong. A rate limit also arrives as an AuthError (HTTP 429), and
         // signing the student out over one meant they retyped their password,
         // which spent another sign-in against the very limit they had just hit.
-        if (e instanceof AuthError && isBadCredentials(e)) clearCredentials();
+        if (e instanceof AuthError && isBadCredentials(e)) {
+          clearCredentials();
+          clearLoginMode();
+        }
       } finally {
         if (!cancelled) setRestoring(false);
       }
     })();
 
-    async function backgroundRefresh(withCreds: Credentials) {
+    async function backgroundRefresh(withCreds: Credentials, mode: LoginPortalMode) {
       try {
-        const fresh = await fetchSnapshot(withCreds);
+        let fresh: Snapshot;
+        if (mode === "portal") {
+          const sp = await autoStudentPortalLogin(withCreds);
+          fresh = synthesizePortalSnapshot(sp, withCreds.username);
+        } else {
+          fresh = await fetchSnapshot(withCreds);
+        }
         if (!cancelled) {
           installSnapshot(fresh);
           void saveSnapshot(fresh);
@@ -323,7 +404,13 @@ export function SessionProvider({ children }: { children: React.ReactNode }) {
     if (!isStale(snapshot.fetchedAt) || inCooldown()) return;
     bgRefreshing.current = true;
     try {
-      const fresh = await fetchSnapshot(creds);
+      let fresh: Snapshot;
+      if (loginSource === "portal") {
+        const sp = await autoStudentPortalLogin(creds);
+        fresh = synthesizePortalSnapshot(sp, creds.username);
+      } else {
+        fresh = await fetchSnapshot(creds);
+      }
       installSnapshot(fresh);
       void saveSnapshot(fresh);
     } catch (e) {
@@ -331,7 +418,7 @@ export function SessionProvider({ children }: { children: React.ReactNode }) {
     } finally {
       bgRefreshing.current = false;
     }
-  }, [creds, snapshot, installSnapshot]);
+  }, [creds, snapshot, loginSource, installSnapshot]);
 
   // Refresh when the app is reopened / brought back to the foreground, if the
   // cached data has gone stale, so a class update shows up without any manual
@@ -459,7 +546,13 @@ export function SessionProvider({ children }: { children: React.ReactNode }) {
     if (inCooldown()) return "cooldown";
     setRefreshing(true);
     try {
-      const fresh = await fetchSnapshot(creds);
+      let fresh: Snapshot;
+      if (loginSource === "portal") {
+        const sp = await autoStudentPortalLogin(creds);
+        fresh = synthesizePortalSnapshot(sp, creds.username);
+      } else {
+        fresh = await fetchSnapshot(creds);
+      }
       installSnapshot(fresh);
       void saveSnapshot(fresh);
       return "updated";
@@ -471,7 +564,7 @@ export function SessionProvider({ children }: { children: React.ReactNode }) {
     } finally {
       setRefreshing(false);
     }
-  }, [creds, snapshot, installSnapshot]);
+  }, [creds, snapshot, loginSource, installSnapshot]);
 
   const value = useMemo<SessionValue>(() => {
     const sectionState = (s: SectionStatus | undefined): SectionState =>
@@ -537,6 +630,7 @@ export function SessionProvider({ children }: { children: React.ReactNode }) {
           ? (snapshot?.fetchedAt ?? null)
           : (portalAtt?.fetchedAt ?? snapshot?.fetchedAt ?? null),
       isAuthed: creds != null,
+      loginSource,
       restoring,
       refreshing,
       isAutoSyncing,
@@ -604,16 +698,45 @@ export function SessionProvider({ children }: { children: React.ReactNode }) {
       },
       async login(next) {
         const snap = await fetchSnapshot(next);
+        setLoginSource("academia");
+        saveLoginMode("academia");
         setCreds(next);
         installSnapshot(snap);
         void saveCredentials(next);
         void saveSnapshot(snap);
+      },
+      async loginPortal(next, manual) {
+        let sp: StudentPortalSnapshot;
+        if (manual) {
+          sp = await submitStudentPortalLogin({
+            username: next.username,
+            password: next.password,
+            captcha: manual.captcha,
+            sessionCookie: manual.sessionCookie,
+            domainField: manual.domainField,
+            captchaField: manual.captchaField,
+            randomDelim: manual.randomDelim,
+            honeypotField: manual.honeypotField,
+          });
+        } else {
+          sp = await autoStudentPortalLogin(next);
+        }
+        const snap = synthesizePortalSnapshot(sp, next.username);
+        setLoginSource("portal");
+        saveLoginMode("portal");
+        setCreds(next);
+        installSnapshot(snap);
+        void saveCredentials(next);
+        void saveSnapshot(snap);
+        void savePortalCredentials(next);
       },
       refresh,
       logout() {
         setCreds(null);
         setSnapshot(null);
         clearCredentials();
+        clearPortalCredentials();
+        clearLoginMode();
         clearSnapshot();
       },
     };
@@ -621,6 +744,7 @@ export function SessionProvider({ children }: { children: React.ReactNode }) {
     installSnapshot,
     creds,
     snapshot,
+    loginSource,
     restoring,
     refreshing,
     customClasses,

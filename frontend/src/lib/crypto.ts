@@ -14,6 +14,34 @@ const KEY_ID = "cred-key";
 const BLOB_KEY = "skipp.cred";
 const PORTAL_BLOB_KEY = "skipp.portal_cred";
 const SNAP_KEY = "skipp.snap";
+const LOGIN_MODE_KEY = "skipp.login_mode";
+
+export type LoginPortalMode = "academia" | "portal";
+
+export function saveLoginMode(mode: LoginPortalMode): void {
+  try {
+    localStorage.setItem(LOGIN_MODE_KEY, mode);
+  } catch {
+    /* non-fatal */
+  }
+}
+
+export function loadLoginMode(): LoginPortalMode {
+  try {
+    const mode = localStorage.getItem(LOGIN_MODE_KEY);
+    return mode === "portal" ? "portal" : "academia";
+  } catch {
+    return "academia";
+  }
+}
+
+export function clearLoginMode(): void {
+  try {
+    localStorage.removeItem(LOGIN_MODE_KEY);
+  } catch {
+    /* non-fatal */
+  }
+}
 
 function openDB(): Promise<IDBDatabase> {
   return new Promise((resolve, reject) => {

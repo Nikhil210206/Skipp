@@ -96,17 +96,21 @@ export default function LoginPage() {
   const facts: Fact[] = [];
   if (timetable) {
     facts.push({ label: "Courses", value: String(timetable.courses.length) });
-    facts.push({
-      label: "Day orders",
-      value: String(timetable.dayOrders.length),
-    });
+    if (timetable.dayOrders.length > 0) {
+      facts.push({
+        label: "Day orders",
+        value: String(timetable.dayOrders.length),
+      });
+    }
     if (attendance) {
       facts.push({
         label: "Attendance",
         value: `${attendance.overallPercentage.toFixed(1)}%`,
       });
     }
-    facts.push({ label: "Term days", value: String(timetable.calendar.length) });
+    if (timetable.calendar.length > 0) {
+      facts.push({ label: "Term days", value: String(timetable.calendar.length) });
+    }
   }
 
   if (restoring || (isAuthed && phase === "idle")) {
