@@ -16,6 +16,7 @@ import {
 } from "react";
 import type {
   Attendance,
+  CalendarDay,
   Course,
   Credentials,
   CustomClass,
@@ -127,6 +128,16 @@ import {
 } from "@/lib/customClasses";
 import { FALLBACK_ACADEMIC_CALENDAR } from "@/lib/academicCalendar";
 
+function getValidCalendar(cal?: CalendarDay[] | null): CalendarDay[] {
+  if (!cal || cal.length === 0) return FALLBACK_ACADEMIC_CALENDAR;
+  const sep21 = cal.find((d) => d.date === "2026-09-21");
+  const sep11 = cal.find((d) => d.date === "2026-09-11");
+  if (!sep21 || sep21.dayOrder !== 1 || !sep11 || sep11.dayOrder !== 1) {
+    return FALLBACK_ACADEMIC_CALENDAR;
+  }
+  return cal;
+}
+
 function synthesizePortalSnapshot(
   sp: StudentPortalSnapshot,
   netId: string,
@@ -162,15 +173,19 @@ function synthesizePortalSnapshot(
     mobile: null,
   };
 
+  const calendarToUse = getValidCalendar(
+    sp.timetable?.calendar && sp.timetable.calendar.length > 0
+      ? sp.timetable.calendar
+      : sp.calendar,
+  );
+
   return {
     timetable: {
       student,
       courses,
       academicYear: sp.timetable?.academicYear || "AY2026-27-ODD",
       dayOrders,
-      calendar: (sp.timetable?.calendar && sp.timetable.calendar.length > 0)
-        ? sp.timetable.calendar
-        : (sp.calendar && sp.calendar.length > 0 ? sp.calendar : FALLBACK_ACADEMIC_CALENDAR),
+      calendar: calendarToUse,
     },
     attendance: sp.attendance,
     attendanceStatus: sp.attendanceStatus,
@@ -299,11 +314,10 @@ export function SessionProvider({ children }: { children: React.ReactNode }) {
       const needsDayOrders =
         !effectiveSnap.timetable.dayOrders ||
         effectiveSnap.timetable.dayOrders.length === 0;
-      const needsCalendar =
-        !effectiveSnap.timetable.calendar ||
-        effectiveSnap.timetable.calendar.length === 0;
+      const validCal = getValidCalendar(effectiveSnap.timetable.calendar);
+      const needsCalendarUpdate = effectiveSnap.timetable.calendar !== validCal;
 
-      if (needsDayOrders || needsCalendar) {
+      if (needsDayOrders || needsCalendarUpdate) {
         effectiveSnap = {
           ...effectiveSnap,
           timetable: {
@@ -314,9 +328,7 @@ export function SessionProvider({ children }: { children: React.ReactNode }) {
                   classes: [],
                 }))
               : effectiveSnap.timetable.dayOrders,
-            calendar: needsCalendar
-              ? FALLBACK_ACADEMIC_CALENDAR
-              : effectiveSnap.timetable.calendar,
+            calendar: validCal,
           },
         };
       }
@@ -377,9 +389,8 @@ export function SessionProvider({ children }: { children: React.ReactNode }) {
           const needsDayOrders =
             !snapToUse.timetable.dayOrders ||
             snapToUse.timetable.dayOrders.length === 0;
-          const needsCalendar =
-            !snapToUse.timetable.calendar ||
-            snapToUse.timetable.calendar.length === 0;
+          const validCal = getValidCalendar(snapToUse.timetable.calendar);
+          const needsCalendar = snapToUse.timetable.calendar !== validCal;
 
           if (needsDayOrders || needsCalendar) {
             snapToUse = {
@@ -392,11 +403,10 @@ export function SessionProvider({ children }: { children: React.ReactNode }) {
                       classes: [],
                     }))
                   : snapToUse.timetable.dayOrders,
-                calendar: needsCalendar
-                  ? FALLBACK_ACADEMIC_CALENDAR
-                  : snapToUse.timetable.calendar,
+                calendar: validCal,
               },
             };
+            void saveSnapshot(snapToUse);
           }
         }
         setCreds(saved);

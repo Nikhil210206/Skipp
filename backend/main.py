@@ -386,11 +386,8 @@ def _enrich_with_day_orders(session, tt: Timetable) -> None:
     except Exception as e:  # noqa: BLE001  (enrichment must never fail the call)
         log.warning("day-order enrichment failed: %s", e)
     try:
-        year, month = semester_anchor(PAGE_ACADEMIC_PLANNER)
-        raw = session.fetch_page(PAGE_ACADEMIC_PLANNER)
-        tt.calendar = [CalendarDay(**d) for d in parse_planner(raw, year, month)]
-    except TimeBudgetExceeded:
-        raise
+        from services.academic_calendar_data import CALENDAR_DATA
+        tt.calendar = [CalendarDay(**d) for d in CALENDAR_DATA]
     except Exception as e:  # noqa: BLE001
         log.warning("calendar enrichment failed: %s", e)
 
