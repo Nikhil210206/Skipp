@@ -303,7 +303,11 @@ export function SessionProvider({ children }: { children: React.ReactNode }) {
         !effectiveSnap.timetable.calendar ||
         effectiveSnap.timetable.calendar.length === 0;
       const sep21 = effectiveSnap.timetable.calendar?.find((d) => d.date === "2026-09-21");
-      const needsCalendarUpdate = needsCalendar || (sep21 != null && sep21.dayOrder !== 1);
+      const sep18 = effectiveSnap.timetable.calendar?.find((d) => d.date === "2026-09-18");
+      const needsCalendarUpdate =
+        needsCalendar ||
+        (sep21 != null && sep21.dayOrder !== 1) ||
+        (sep18 != null && sep18.dayOrder !== 5);
 
       if (needsDayOrders || needsCalendarUpdate) {
         effectiveSnap = {
@@ -383,7 +387,11 @@ export function SessionProvider({ children }: { children: React.ReactNode }) {
             !snapToUse.timetable.calendar ||
             snapToUse.timetable.calendar.length === 0;
           const sep21 = snapToUse.timetable.calendar?.find((d) => d.date === "2026-09-21");
-          const needsCalendarUpdate = needsCalendar || (sep21 != null && sep21.dayOrder !== 1);
+          const sep18 = snapToUse.timetable.calendar?.find((d) => d.date === "2026-09-18");
+          const needsCalendarUpdate =
+            needsCalendar ||
+            (sep21 != null && sep21.dayOrder !== 1) ||
+            (sep18 != null && sep18.dayOrder !== 5);
 
           if (needsDayOrders || needsCalendarUpdate) {
             snapToUse = {
