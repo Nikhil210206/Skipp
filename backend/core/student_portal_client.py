@@ -13,6 +13,7 @@ LOGIN_PAGE_URL = f"{SP_BASE_URL}/srmiststudentportal/students/loginManager/youLo
 LOGIN_SUBMIT_URL = f"{SP_BASE_URL}/srmiststudentportal/LoginServlet"
 ATTENDANCE_URL = f"{SP_BASE_URL}/srmiststudentportal/students/report/studentAttendanceDetails.jsp"
 MARKS_URL = f"{SP_BASE_URL}/srmiststudentportal/students/report/studentInternalMarkDetails.jsp"
+TIMETABLE_URL = f"{SP_BASE_URL}/srmiststudentportal/students/report/studentTimeTableDetails.jsp"
 
 UA = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/127.0.0.0 Safari/537.36"
 
@@ -271,9 +272,10 @@ def submit_login_and_fetch(req_data: StudentPortalLoginRequest) -> Tuple[str, Op
         'User-Agent': UA,
         'Referer': LOGIN_PAGE_URL
     })
+    hrd_html = ""
     try:
         res_hrd = opener.open(req_hrd)
-        
+        hrd_html = res_hrd.read().decode('utf-8', errors='ignore')
     except urllib.error.HTTPError as e:
         print(f"HRDSystem fetch failed: {e}")
         pass
@@ -299,5 +301,20 @@ def submit_login_and_fetch(req_data: StudentPortalLoginRequest) -> Tuple[str, Op
         marks_html = res_marks.read().decode('utf-8', errors='ignore')
     except urllib.error.HTTPError:
         marks_html = None
+
+    # Timetable
+    req_tt = urllib.request.Request(TIMETABLE_URL, headers={
+        'User-Agent': UA,
+        'Referer': f"{SP_BASE_URL}/srmiststudentportal/students/template/HRDSystem.jsp"
+    })
+    try:
+        res_tt = opener.open(req_tt)
+        tt_html = res_tt.read().decode('utf-8', errors='ignore')
+    except urllib.error.HTTPError:
+        tt_html = None
+
+    # Fallback to hrd_html if tt_html is empty or doesn't have the timetable table
+    if (not tt_html or "day 1" not in tt_html.lower()) and "day 1" in hrd_html.lower():
+        tt_html = hrd_html
         
-    return att_html, marks_html
+    return att_html, marks_html, tt_html

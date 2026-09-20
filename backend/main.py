@@ -51,6 +51,7 @@ from services.sp_marks import (
     MarksUnavailable as SPMarksUnavailable,
     parse_marks as parse_sp_marks,
 )
+from services.sp_timetable import parse_sp_timetable
 from core.session import (
     AppSessionError,
     CaptchaRequired,
@@ -530,7 +531,7 @@ def sp_login(req: StudentPortalLoginRequest, request: Request) -> StudentPortalS
     _sp_rate_check(request)
 
     try:
-        att_html, marks_html = submit_login_and_fetch(req)
+        att_html, marks_html, tt_html = submit_login_and_fetch(req)
     except StudentPortalClientError as e:
         msg = str(e)
         print(f"DEBUG: StudentPortalClientError raised with msg: {msg}")
@@ -544,6 +545,15 @@ def sp_login(req: StudentPortalLoginRequest, request: Request) -> StudentPortalS
         traceback.print_exc()
         print(f"DEBUG: Unhandled exception: {e}")
         raise _fail(500, "internal_error", f"Internal server error: {str(e)}")
+
+    if tt_html:
+        log.info("student portal timetable html fetched, length: %d", len(tt_html))
+        try:
+            from pathlib import Path
+            p = Path(__file__).parent / "captures" / "last_sp_timetable.html"
+            p.write_text(tt_html, encoding="utf-8")
+        except Exception:
+            pass
 
     if sp_looks_signed_out(att_html):
         print(f"DEBUG: Session expired trigger! att_html length: {len(att_html)}", flush=True)
@@ -577,7 +587,29 @@ def sp_login(req: StudentPortalLoginRequest, request: Request) -> StudentPortalS
     else:
         marks_status, marks_msg = "gated", "Marks were not fetched."
 
-    log.info("student portal parsed: attendance=%s marks=%s", att_status, marks_status)
+    timetable = None
+    if tt_html and not sp_looks_signed_out(tt_html):
+        try:
+            known = None
+            if attendance and attendance.subjects:
+                from models.timetable import Course
+                known = [
+                    Course(
+                        code=s.code,
+                        title=s.title,
+                        faculty=s.faculty,
+                        slot=s.slot,
+                        category=s.category or "Theory",
+                        regn_type="Regular",
+                        academic_year="AY2026-27-ODD",
+                    )
+                    for s in attendance.subjects
+                ]
+            timetable = parse_sp_timetable(tt_html, default_netid=req.username, known_courses=known)
+        except Exception as e:
+            log.warning("Failed to parse student portal timetable: %s", e)
+
+    log.info("student portal parsed: attendance=%s marks=%s timetable=%s", att_status, marks_status, bool(timetable))
 
     return StudentPortalSnapshot(
         attendance=attendance,
@@ -587,6 +619,7 @@ def sp_login(req: StudentPortalLoginRequest, request: Request) -> StudentPortalS
         marks_status=marks_status,
         marks_message=marks_msg,
         reported_period=period,
+        timetable=timetable,
         calendar=_get_fallback_calendar(),
         fetched_at=datetime.now(timezone.utc).isoformat(),
     )
@@ -598,7 +631,7 @@ def sp_auto_login(req: LoginRequest, request: Request) -> StudentPortalSnapshot:
     _sp_rate_check(request)
 
     try:
-        att_html, marks_html = auto_login_and_fetch(req.username, req.password)
+        att_html, marks_html, tt_html = auto_login_and_fetch(req.username, req.password)
     except StudentPortalClientError as e:
         msg = str(e)
         if "Invalid captcha" in msg or "Failed to solve CAPTCHA" in msg:
@@ -610,6 +643,15 @@ def sp_auto_login(req: LoginRequest, request: Request) -> StudentPortalSnapshot:
         import traceback
         traceback.print_exc()
         raise _fail(500, "internal_error", f"Internal server error: {str(e)}")
+
+    if tt_html:
+        log.info("student portal timetable html fetched, length: %d", len(tt_html))
+        try:
+            from pathlib import Path
+            p = Path(__file__).parent / "captures" / "last_sp_timetable.html"
+            p.write_text(tt_html, encoding="utf-8")
+        except Exception:
+            pass
 
     if sp_looks_signed_out(att_html):
         raise _fail(
@@ -640,7 +682,29 @@ def sp_auto_login(req: LoginRequest, request: Request) -> StudentPortalSnapshot:
     else:
         marks_status, marks_msg = "gated", "Marks were not fetched."
 
-    log.info("student portal auto-parsed: attendance=%s marks=%s", att_status, marks_status)
+    timetable = None
+    if tt_html and not sp_looks_signed_out(tt_html):
+        try:
+            known = None
+            if attendance and attendance.subjects:
+                from models.timetable import Course
+                known = [
+                    Course(
+                        code=s.code,
+                        title=s.title,
+                        faculty=s.faculty,
+                        slot=s.slot,
+                        category=s.category or "Theory",
+                        regn_type="Regular",
+                        academic_year="AY2026-27-ODD",
+                    )
+                    for s in attendance.subjects
+                ]
+            timetable = parse_sp_timetable(tt_html, default_netid=req.username, known_courses=known)
+        except Exception as e:
+            log.warning("Failed to parse student portal timetable: %s", e)
+
+    log.info("student portal auto-parsed: attendance=%s marks=%s timetable=%s", att_status, marks_status, bool(timetable))
 
     return StudentPortalSnapshot(
         attendance=attendance,
@@ -650,6 +714,7 @@ def sp_auto_login(req: LoginRequest, request: Request) -> StudentPortalSnapshot:
         marks_status=marks_status,
         marks_message=marks_msg,
         reported_period=period,
+        timetable=timetable,
         calendar=_get_fallback_calendar(),
         fetched_at=datetime.now(timezone.utc).isoformat(),
     )

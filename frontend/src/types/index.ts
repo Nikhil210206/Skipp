@@ -152,6 +152,7 @@ export type StudentPortalSnapshot = {
   // 14/Aug/2026". The portal lags a few days, so a class you just sat may not
   // be in it yet. Surface it so that reads as "not yet" rather than "wrong".
   reportedPeriod: string | null;
+  timetable?: Timetable | null;
   calendar?: CalendarDay[];
   fetchedAt: string;
 };

@@ -131,7 +131,7 @@ function synthesizePortalSnapshot(
   sp: StudentPortalSnapshot,
   netId: string,
 ): Snapshot {
-  const courses: Course[] = (sp.attendance?.subjects ?? []).map((s) => ({
+  const fallbackCourses: Course[] = (sp.attendance?.subjects ?? []).map((s) => ({
     code: s.code,
     title: s.title || s.code,
     credit: null,
@@ -144,27 +144,33 @@ function synthesizePortalSnapshot(
     academicYear: "AY2026-27-ODD",
   }));
 
-  const dayOrders: DayOrderSchedule[] = [1, 2, 3, 4, 5].map((doNum) => ({
+  const fallbackDayOrders: DayOrderSchedule[] = [1, 2, 3, 4, 5].map((doNum) => ({
     dayOrder: doNum,
     classes: [],
   }));
 
+  const courses = sp.timetable?.courses?.length ? sp.timetable.courses : fallbackCourses;
+  const dayOrders = sp.timetable?.dayOrders?.length ? sp.timetable.dayOrders : fallbackDayOrders;
+  const student = sp.timetable?.student?.registrationNumber ? sp.timetable.student : {
+    registrationNumber: netId,
+    name: netId,
+    program: null,
+    department: null,
+    section: null,
+    semester: "1",
+    batch: null,
+    mobile: null,
+  };
+
   return {
     timetable: {
-      student: {
-        registrationNumber: netId,
-        name: netId,
-        program: null,
-        department: null,
-        section: null,
-        semester: "1",
-        batch: null,
-        mobile: null,
-      },
+      student,
       courses,
-      academicYear: "AY2026-27-ODD",
+      academicYear: sp.timetable?.academicYear || "AY2026-27-ODD",
       dayOrders,
-      calendar: sp.calendar && sp.calendar.length > 0 ? sp.calendar : FALLBACK_ACADEMIC_CALENDAR,
+      calendar: (sp.timetable?.calendar && sp.timetable.calendar.length > 0)
+        ? sp.timetable.calendar
+        : (sp.calendar && sp.calendar.length > 0 ? sp.calendar : FALLBACK_ACADEMIC_CALENDAR),
     },
     attendance: sp.attendance,
     attendanceStatus: sp.attendanceStatus,
