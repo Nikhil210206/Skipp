@@ -107,9 +107,45 @@ export default function LoginForm({
     }
   }
 
-  async function handleSubmit(e: React.FormEvent) {
+  async function handleSubmit(e: React.FormEvent<HTMLFormElement>) {
     e.preventDefault();
     if (busy) return;
+
+    const form = e.currentTarget;
+    const usernameInput =
+      (form.elements.namedItem("username") as HTMLInputElement | null) ||
+      form.querySelector<HTMLInputElement>("#username");
+    const passwordInput =
+      (form.elements.namedItem("password") as HTMLInputElement | null) ||
+      form.querySelector<HTMLInputElement>("#password");
+
+    const domUsername = usernameInput?.value ?? "";
+    const domPassword = passwordInput?.value ?? "";
+
+    const rawUsername = (domUsername || username).trim();
+    const cleanUsername = rawUsername.includes("@")
+      ? rawUsername.split("@")[0].trim()
+      : rawUsername;
+    const effectivePassword = domPassword || password;
+
+    if (!cleanUsername) {
+      setFailure({
+        title: "Net ID required",
+        advice: "Please enter your SRM Net ID or registration number.",
+      });
+      return;
+    }
+    if (!effectivePassword) {
+      setFailure({
+        title: "Password required",
+        advice: "Please enter your password.",
+      });
+      return;
+    }
+
+    if (cleanUsername !== username) setUsername(cleanUsername);
+    if (effectivePassword !== password) setPassword(effectivePassword);
+
     setFailure(null);
     setBusy(true);
     onPhase("working");
@@ -119,7 +155,7 @@ export default function LoginForm({
         if (captchaSession) {
           // Manual captcha submission
           await loginPortal(
-            { username: username.trim(), password },
+            { username: cleanUsername, password: effectivePassword },
             {
               captcha: captchaInput.trim(),
               sessionCookie: captchaSession.sessionCookie,
@@ -131,10 +167,10 @@ export default function LoginForm({
           );
         } else {
           // Automatic OCR login
-          await loginPortal({ username: username.trim(), password });
+          await loginPortal({ username: cleanUsername, password: effectivePassword });
         }
       } else {
-        await login({ username: username.trim(), password });
+        await login({ username: cleanUsername, password: effectivePassword });
       }
       onPhase("done");
     } catch (err) {
@@ -146,14 +182,17 @@ export default function LoginForm({
 
       // If in portal mode and automated captcha failed, fall back to manual captcha
       if (mode === "portal") {
+        const isWrongCreds = code === "wrong_password";
         setFailure({
-          title: "Sign-in required attention",
+          title: isWrongCreds ? "Check your credentials" : "Sign-in required attention",
           advice:
             err instanceof Error
               ? err.message
               : "Verification failed. Please check your credentials or enter the captcha below.",
         });
-        void loadManualCaptcha();
+        if (!isWrongCreds) {
+          void loadManualCaptcha();
+        }
       } else {
         setFailure(
           explain(code, err instanceof Error ? err.message : "Sign-in failed."),
@@ -321,21 +360,26 @@ function Field({
           <input
             ref={input}
             id={id}
+            name={id}
             type={type}
             value={value}
             autoComplete={autoComplete}
             onChange={(e) => onChange(e.target.value)}
+            onInput={(e) => onChange(e.currentTarget.value)}
             className="min-w-0 flex-1 appearance-none bg-transparent text-headline text-text-1 outline-none focus:outline-none focus-visible:outline-none placeholder:text-text-3"
           />
           <span className="shrink-0 text-headline text-text-3">{suffix}</span>
         </div>
       ) : (
         <input
+          ref={input}
           id={id}
+          name={id}
           type={type}
           value={value}
           autoComplete={autoComplete}
           onChange={(e) => onChange(e.target.value)}
+          onInput={(e) => onChange(e.currentTarget.value)}
           placeholder={placeholder}
           className="mt-1.5 w-full appearance-none bg-transparent text-headline text-text-1 outline-none focus:outline-none focus-visible:outline-none placeholder:text-text-3"
         />

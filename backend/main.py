@@ -386,13 +386,17 @@ def _enrich_with_day_orders(session, tt: Timetable) -> None:
     except Exception as e:  # noqa: BLE001  (enrichment must never fail the call)
         log.warning("day-order enrichment failed: %s", e)
     try:
-        year, month = semester_anchor(PAGE_ACADEMIC_PLANNER)
-        raw = session.fetch_page(PAGE_ACADEMIC_PLANNER)
-        tt.calendar = [CalendarDay(**d) for d in parse_planner(raw, year, month)]
-    except TimeBudgetExceeded:
-        raise
-    except Exception as e:  # noqa: BLE001
-        log.warning("calendar enrichment failed: %s", e)
+        from services.academic_calendar_data import CALENDAR_DATA
+        tt.calendar = [CalendarDay(**d) for d in CALENDAR_DATA]
+    except Exception:
+        try:
+            year, month = semester_anchor(PAGE_ACADEMIC_PLANNER)
+            raw = session.fetch_page(PAGE_ACADEMIC_PLANNER)
+            tt.calendar = [CalendarDay(**d) for d in parse_planner(raw, year, month)]
+        except TimeBudgetExceeded:
+            raise
+        except Exception as e:  # noqa: BLE001
+            log.warning("calendar enrichment failed: %s", e)
 
 
 @app.post("/attendance", response_model=Attendance)
@@ -530,6 +534,17 @@ def sp_login(req: StudentPortalLoginRequest, request: Request) -> StudentPortalS
     """Submit credentials and captcha, simulate anti-bot payload, and fetch attendance."""
     _sp_rate_check(request)
 
+    clean_username = req.username.strip()
+    if "@" in clean_username:
+        clean_username = clean_username.split("@")[0].strip()
+
+    if not clean_username:
+        raise _fail(400, "invalid_credentials", "Net ID should not be empty.")
+    if not req.password:
+        raise _fail(400, "invalid_credentials", "Password should not be empty.")
+
+    req.username = clean_username
+
     try:
         att_html, marks_html, tt_html = submit_login_and_fetch(req)
     except StudentPortalClientError as e:
@@ -605,7 +620,7 @@ def sp_login(req: StudentPortalLoginRequest, request: Request) -> StudentPortalS
                     )
                     for s in attendance.subjects
                 ]
-            timetable = parse_sp_timetable(tt_html, default_netid=req.username, known_courses=known)
+            timetable = parse_sp_timetable(tt_html, default_netid=clean_username, known_courses=known)
         except Exception as e:
             log.warning("Failed to parse student portal timetable: %s", e)
 
@@ -630,8 +645,17 @@ def sp_auto_login(req: LoginRequest, request: Request) -> StudentPortalSnapshot:
     """Submit credentials and use OCR to bypass captcha automatically."""
     _sp_rate_check(request)
 
+    clean_username = req.username.strip()
+    if "@" in clean_username:
+        clean_username = clean_username.split("@")[0].strip()
+
+    if not clean_username:
+        raise _fail(400, "invalid_credentials", "Net ID should not be empty.")
+    if not req.password:
+        raise _fail(400, "invalid_credentials", "Password should not be empty.")
+
     try:
-        att_html, marks_html, tt_html = auto_login_and_fetch(req.username, req.password)
+        att_html, marks_html, tt_html = auto_login_and_fetch(clean_username, req.password)
     except StudentPortalClientError as e:
         msg = str(e)
         if "Invalid captcha" in msg or "Failed to solve CAPTCHA" in msg:
@@ -700,7 +724,7 @@ def sp_auto_login(req: LoginRequest, request: Request) -> StudentPortalSnapshot:
                     )
                     for s in attendance.subjects
                 ]
-            timetable = parse_sp_timetable(tt_html, default_netid=req.username, known_courses=known)
+            timetable = parse_sp_timetable(tt_html, default_netid=clean_username, known_courses=known)
         except Exception as e:
             log.warning("Failed to parse student portal timetable: %s", e)
 

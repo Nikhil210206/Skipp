@@ -302,8 +302,10 @@ export function SessionProvider({ children }: { children: React.ReactNode }) {
       const needsCalendar =
         !effectiveSnap.timetable.calendar ||
         effectiveSnap.timetable.calendar.length === 0;
+      const sep21 = effectiveSnap.timetable.calendar?.find((d) => d.date === "2026-09-21");
+      const needsCalendarUpdate = needsCalendar || (sep21 != null && sep21.dayOrder !== 1);
 
-      if (needsDayOrders || needsCalendar) {
+      if (needsDayOrders || needsCalendarUpdate) {
         effectiveSnap = {
           ...effectiveSnap,
           timetable: {
@@ -314,7 +316,7 @@ export function SessionProvider({ children }: { children: React.ReactNode }) {
                   classes: [],
                 }))
               : effectiveSnap.timetable.dayOrders,
-            calendar: needsCalendar
+            calendar: needsCalendarUpdate
               ? FALLBACK_ACADEMIC_CALENDAR
               : effectiveSnap.timetable.calendar,
           },
@@ -380,8 +382,10 @@ export function SessionProvider({ children }: { children: React.ReactNode }) {
           const needsCalendar =
             !snapToUse.timetable.calendar ||
             snapToUse.timetable.calendar.length === 0;
+          const sep21 = snapToUse.timetable.calendar?.find((d) => d.date === "2026-09-21");
+          const needsCalendarUpdate = needsCalendar || (sep21 != null && sep21.dayOrder !== 1);
 
-          if (needsDayOrders || needsCalendar) {
+          if (needsDayOrders || needsCalendarUpdate) {
             snapToUse = {
               ...snapToUse,
               timetable: {
@@ -392,7 +396,7 @@ export function SessionProvider({ children }: { children: React.ReactNode }) {
                       classes: [],
                     }))
                   : snapToUse.timetable.dayOrders,
-                calendar: needsCalendar
+                calendar: needsCalendarUpdate
                   ? FALLBACK_ACADEMIC_CALENDAR
                   : snapToUse.timetable.calendar,
               },
