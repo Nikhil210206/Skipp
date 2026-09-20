@@ -78,9 +78,34 @@ function toTitleCase(s: string): string {
     .replace(/\b(sql|ii|iii|iv|vi|vii|viii|ix)\b/gi, (m) => m.toUpperCase());
 }
 
+const GENERIC_TEST_NAMES = new Set([
+  "",
+  "internal",
+  "internals",
+  "internal mark",
+  "internal marks",
+  "test",
+  "tests",
+  "view details",
+  "view detail",
+  "viewdetails",
+  "view",
+  "details",
+  "detail",
+  "view marks",
+  "view mark",
+  "action",
+  "nil",
+  "na",
+  "n/a",
+  "none",
+  "-",
+  "--",
+]);
+
 /**
  * Infers an assessment's test name (e.g. "FT1", "CT 1") when the portal
- * only provided the course title or a generic "Internal" placeholder.
+ * only provided the course title or a generic "Internal" / "View Details" button text.
  *
  * In SRMIST regulations:
  * - 5-mark continuous evaluations are Formative Tests (FT1, FT2, FT3...).
@@ -100,9 +125,10 @@ export function inferTestName(
   const codeUpper = (courseCode || "").trim().toUpperCase();
 
   const isGeneric =
-    !trimmed ||
-    lower === "internal" ||
-    lower === "test" ||
+    GENERIC_TEST_NAMES.has(lower) ||
+    lower.includes("view detail") ||
+    lower.includes("view mark") ||
+    lower.includes("view_detail") ||
     /^test\s*\d+$/i.test(trimmed) ||
     Boolean(titleLower && lower === titleLower) ||
     Boolean(codeUpper && trimmed.toUpperCase() === codeUpper);
@@ -120,8 +146,8 @@ export function inferTestName(
  *
  * Replaces the portal's uppercase course title with academia's proper title
  * from the timetable by code, and sanitizes component names so that any legacy
- * cached data (which stored the course name as the test name or "Internal")
- * displays the honest test name (e.g. "FT1" for 5-mark formative tests).
+ * cached data (which stored the course name as the test name, "Internal", or "View Details")
+ * displays the honest test name (e.g. "FT1" for 5-mark formative tests, "CT 1" for cycle tests).
  *
  * Applied on READ rather than at import, so existing sessions benefit immediately.
  */
@@ -136,7 +162,9 @@ export function enrichMarkTitles(
       const t = s.title.trim();
       const subjectTitle = proper || (t === t.toUpperCase() ? toTitleCase(t) : t);
 
-      const components = (s.components ?? []).map((c, i) => {
+      let ftCount = 0;
+      let ctCount = 0;
+      const components = (s.components ?? []).map((c) => {
         const cName = c.name.trim();
         const matchesSubject =
           (subjectTitle && cName.toLowerCase() === subjectTitle.toLowerCase()) ||
@@ -144,10 +172,11 @@ export function enrichMarkTitles(
           cName.toUpperCase() === s.code.toUpperCase();
 
         const nameToUse = matchesSubject ? "" : cName;
+        const testIdx = c.max <= 5 ? ftCount++ : ctCount++;
 
         return {
           ...c,
-          name: inferTestName(nameToUse, c.max, i, subjectTitle, s.code),
+          name: inferTestName(nameToUse, c.max, testIdx, subjectTitle, s.code),
         };
       });
 

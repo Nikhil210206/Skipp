@@ -457,8 +457,11 @@ function Detail({
   subjectTitle?: string | null;
   courseCode?: string | null;
 }) {
-  const getTestDisplayName = (name: string, max: number, index: number) => {
-    return inferTestName(name, max, index, subjectTitle, courseCode);
+  let ftCount = 0;
+  let ctCount = 0;
+  const getTestDisplayName = (name: string, max: number) => {
+    const idx = max <= 5 ? ftCount++ : ctCount++;
+    return inferTestName(name, max, idx, subjectTitle, courseCode);
   };
 
   return (
@@ -473,7 +476,7 @@ function Detail({
       {components.length === 1 ? (
         <p className="mt-3.5 text-body text-text-2">
           <span className="tnum text-text-1">{percent.toFixed(0)}%</span> in{" "}
-          {getTestDisplayName(components[0].name, components[0].max, 0)}
+          {getTestDisplayName(components[0].name, components[0].max)}
         </p>
       ) : (
         <>
@@ -499,7 +502,7 @@ function Detail({
                 {/* The test name is content, so it wraps and is set at the
                     level of text you read rather than skim past. */}
                 <span className="min-w-0 shrink text-text-2">
-                  {getTestDisplayName(c.name, c.max, i)}
+                  {getTestDisplayName(c.name, c.max)}
                 </span>
                 <span
                   aria-hidden

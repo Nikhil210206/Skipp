@@ -29,6 +29,34 @@ _PAIR_RE = re.compile(r"(-?\d+(?:\.\d+)?)\s*/\s*(-?\d+(?:\.\d+)?)")
 _CODE_RE = re.compile(r"^\d{2}[A-Z]{2,4}\d{3}[A-Z]?$")
 
 
+_GENERIC_NAMES = {
+    "",
+    "view",
+    "details",
+    "detail",
+    "view details",
+    "view detail",
+    "viewdetails",
+    "view marks",
+    "view mark",
+    "action",
+    "nil",
+    "-",
+    "--",
+    "na",
+    "n/a",
+    "none",
+    "internal",
+    "internals",
+    "internal mark",
+    "internal marks",
+    "test",
+    "tests",
+    "exam",
+    "exams",
+}
+
+
 class MarksUnavailable(Exception):
     """The page loaded but published no marks (the ordinary case mid-term)."""
 
@@ -134,7 +162,7 @@ def parse_marks(html: str) -> Marks:
         # Strategy A: Explicit test column from header
         if test_col is not None and test_col < len(cells) and test_col not in (actual_code_idx, actual_mark_idx, actual_desc_idx):
             val = cells[test_col].strip()
-            if val:
+            if val and val.lower() not in _GENERIC_NAMES and "view detail" not in val.lower():
                 test_name = val
 
         # Strategy B: Any remaining cell that is not code, marks, or description
@@ -148,9 +176,16 @@ def parse_marks(html: str) -> Marks:
                     inp = tds[i].find(["input", "button", "a", "span"])
                     if inp:
                         candidate = _clean(inp.get("value") or inp.get_text() or inp.get("title") or "")
-                # Skip S.No / pure numbers and portal navigation keywords
-                if candidate and not re.match(r"^\d+$", candidate) and candidate.lower() not in ("view", "details", "nil", "-", "na", "n/a"):
-                    if candidate.lower() != desc.lower():
+                cand_lower = candidate.lower()
+                # Skip S.No / pure numbers and portal navigation keywords (e.g. "View Details" button)
+                if (
+                    candidate
+                    and not re.match(r"^\d+$", candidate)
+                    and cand_lower not in _GENERIC_NAMES
+                    and "view detail" not in cand_lower
+                    and "view mark" not in cand_lower
+                ):
+                    if cand_lower != desc.lower():
                         test_name = candidate
                         break
 
@@ -158,15 +193,23 @@ def parse_marks(html: str) -> Marks:
         if not test_name:
             mark_text = cells[actual_mark_idx]
             leftover = mark_text.replace(pair.group(0), "").strip(" :-/()")
-            if leftover and len(leftover) >= 2 and re.search(r"[A-Za-z]", leftover) and leftover.lower() != desc.lower():
+            if (
+                leftover
+                and len(leftover) >= 2
+                and re.search(r"[A-Za-z]", leftover)
+                and leftover.lower() not in _GENERIC_NAMES
+                and leftover.lower() != desc.lower()
+            ):
                 test_name = leftover
 
         # Strategy D: Check if test name was appended to the description (e.g. "DISCRETE MATHEMATICS - FT1")
         if not test_name and desc:
             m = re.search(r"[-–/]\s*([A-Za-z0-9\s]{2,15})$", desc)
             if m:
-                test_name = m.group(1).strip()
-                desc = desc[: m.start()].strip(" -–/")
+                cand = m.group(1).strip()
+                if cand.lower() not in _GENERIC_NAMES:
+                    test_name = cand
+                    desc = desc[: m.start()].strip(" -–/")
 
         subject = by_code.get(code)
         if subject is None:
@@ -178,13 +221,20 @@ def parse_marks(html: str) -> Marks:
         elif not subject.title and desc:
             subject.title = desc
 
-        # Final fallback for test name: never use the subject description or generic "Internal"!
-        if not test_name or test_name.lower() in (desc.lower(), "internal", "test"):
-            test_num = len(subject.components) + 1
+        # Final fallback for test name: never use the subject description or generic navigation words!
+        cand_lower = (test_name or "").lower().strip()
+        if (
+            not test_name
+            or cand_lower in _GENERIC_NAMES
+            or "view detail" in cand_lower
+            or cand_lower == desc.lower()
+        ):
             if maximum <= 5:
-                test_name = f"FT{test_num}"
+                ft_num = sum(1 for comp in subject.components if comp.max <= 5) + 1
+                test_name = f"FT{ft_num}"
             else:
-                test_name = f"CT {test_num}"
+                ct_num = sum(1 for comp in subject.components if comp.max > 5) + 1
+                test_name = f"CT {ct_num}"
 
         subject.components.append(
             MarkComponent(

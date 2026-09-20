@@ -27,6 +27,34 @@ from .creator import extract_page_html
 _NUM = re.compile(r"-?\d+(?:\.\d+)?")
 
 
+_GENERIC_NAMES = {
+    "",
+    "view",
+    "details",
+    "detail",
+    "view details",
+    "view detail",
+    "viewdetails",
+    "view marks",
+    "view mark",
+    "action",
+    "nil",
+    "-",
+    "--",
+    "na",
+    "n/a",
+    "none",
+    "internal",
+    "internals",
+    "internal mark",
+    "internal marks",
+    "test",
+    "tests",
+    "exam",
+    "exams",
+}
+
+
 class MarksUnavailable(Exception):
     """The page loaded but held no recognizable marks table."""
 
@@ -107,8 +135,21 @@ def _parse_components(nested: Tag) -> list[MarkComponent]:
             for h, b in zip(head, body):
                 name, mx = _name_and_max(h)
                 score = _first_num(b.get_text())
-                if name and mx is not None:
-                    out.append(MarkComponent(name=name, scored=score or 0.0, max=mx))
+                if mx is not None:
+                    name_clean = (name or "").strip()
+                    if (
+                        not name_clean
+                        or name_clean.lower() in _GENERIC_NAMES
+                        or "view detail" in name_clean.lower()
+                        or "view mark" in name_clean.lower()
+                    ):
+                        if mx <= 5:
+                            ft_num = sum(1 for c in out if c.max <= 5) + 1
+                            name_clean = f"FT{ft_num}"
+                        else:
+                            ct_num = sum(1 for c in out if c.max > 5) + 1
+                            name_clean = f"CT {ct_num}"
+                    out.append(MarkComponent(name=name_clean, scored=score or 0.0, max=mx))
             if out:
                 return out
 
@@ -117,9 +158,22 @@ def _parse_components(nested: Tag) -> list[MarkComponent]:
     for td in nested.find_all("td"):
         name, mx = _name_and_max(td)
         nums = _NUM.findall(td.get_text())
-        if name and mx is not None and nums:
+        if mx is not None and nums:
             score = float(nums[-1])
-            out.append(MarkComponent(name=name, scored=score, max=mx))
+            name_clean = (name or "").strip()
+            if (
+                not name_clean
+                or name_clean.lower() in _GENERIC_NAMES
+                or "view detail" in name_clean.lower()
+                or "view mark" in name_clean.lower()
+            ):
+                if mx <= 5:
+                    ft_num = sum(1 for c in out if c.max <= 5) + 1
+                    name_clean = f"FT{ft_num}"
+                else:
+                    ct_num = sum(1 for c in out if c.max > 5) + 1
+                    name_clean = f"CT {ct_num}"
+            out.append(MarkComponent(name=name_clean, scored=score, max=mx))
     return out
 
 
