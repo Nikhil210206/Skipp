@@ -6,11 +6,11 @@ import { Sheet } from "@/components/ui/Overlay";
 import { IconTrash } from "@/components/Icons";
 import { useSession } from "@/context/SessionContext";
 import { initStudentPortalLogin } from "@/lib/api";
-import { savePortalCredentials, loadPortalCredentials } from "@/lib/crypto";
+import { savePortalCredentials, loadPortalCredentials, loadCredentials } from "@/lib/crypto";
 import type { StudentPortalCaptchaResponse } from "@/types";
 
 export function ImportAttendanceAction({ type = "attendance" }: { type?: "attendance" | "marks" }) {
-  const { importAttendance, autoImportAttendance } = useSession();
+  const { creds: sessionCreds, importAttendance, autoImportAttendance } = useSession();
   const [open, setOpen] = useState(false);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -36,26 +36,27 @@ export function ImportAttendanceAction({ type = "attendance" }: { type?: "attend
   };
 
   const handleOpen = async () => {
-    setOpen(true);
-    const creds = await loadPortalCredentials();
+    const creds = sessionCreds || (await loadPortalCredentials()) || (await loadCredentials());
     if (creds) {
       setBusy(true);
       setError(null);
       try {
         await autoImportAttendance(creds);
-        setOpen(false);
+        void savePortalCredentials(creds);
         setBusy(false);
         return;
       } catch (err) {
+        setBusy(false);
+        setOpen(true);
         setError(err instanceof Error ? err.message : "Auto-update failed. Please sign in manually.");
         setUsername(creds.username);
         setPassword(creds.password);
         await loadCaptcha(true);
-        // loadCaptcha sets busy=false when done
         return;
       }
     }
     
+    setOpen(true);
     if (!sessionData) {
       loadCaptcha();
     }
@@ -227,7 +228,7 @@ function Field({
 }
 
 export function PortalSourceNote({ type = "attendance" }: { type?: "attendance" | "marks" }) {
-  const { reportedPeriod, importAttendance, autoImportAttendance, clearImportedAttendance, isAutoSyncing } = useSession();
+  const { creds: sessionCreds, reportedPeriod, importAttendance, autoImportAttendance, clearImportedAttendance, isAutoSyncing } = useSession();
   const [busy, setBusy] = useState(false);
   const [open, setOpen] = useState(false);
   const [sessionData, setSessionData] = useState<StudentPortalCaptchaResponse | null>(null);
@@ -267,17 +268,18 @@ export function PortalSourceNote({ type = "attendance" }: { type?: "attendance" 
   };
 
   const handleOpen = async () => {
-    setOpen(true);
-    const creds = await loadPortalCredentials();
+    const creds = sessionCreds || (await loadPortalCredentials()) || (await loadCredentials());
     if (creds) {
       setBusy(true);
       setError(null);
       try {
         await autoImportAttendance(creds);
-        setOpen(false);
+        void savePortalCredentials(creds);
         setBusy(false);
         return;
       } catch (err) {
+        setBusy(false);
+        setOpen(true);
         setError(err instanceof Error ? err.message : "Auto-update failed. Please sign in manually.");
         setUsername(creds.username);
         setPassword(creds.password);
@@ -287,6 +289,7 @@ export function PortalSourceNote({ type = "attendance" }: { type?: "attendance" 
       }
     }
 
+    setOpen(true);
     setCaptcha("");
     loadCaptcha();
   };
@@ -352,7 +355,7 @@ export function PortalSourceNote({ type = "attendance" }: { type?: "attendance" 
             disabled={busy || isAutoSyncing}
             className="inline-flex min-h-11 select-none items-center justify-center rounded-control bg-risk px-5 text-body font-semibold tracking-[-0.01em] text-ink-0 transition-colors duration-150 ease-out hover:bg-risk/90 active:bg-risk/80 disabled:pointer-events-none disabled:opacity-35"
           >
-            {isAutoSyncing ? "Syncing..." : "Update"}
+            {busy || isAutoSyncing ? "Updating..." : "Update"}
           </button>
           {/* A faint dustbin, found only by someone looking for it. Clear throws
               the imported attendance away and is wanted about once ever, so it

@@ -569,37 +569,38 @@ export function SessionProvider({ children }: { children: React.ReactNode }) {
   }, [snapshot, reg]);
 
   // Silently sync with the portal in the background if academia is down
-  // and the user has saved portal credentials.
+  // or the user is using portal attendance, and credentials are available.
   useEffect(() => {
     if (!snapshot) return;
     
     const academiaReady = snapshot.attendanceStatus === "ready" && !!snapshot.attendance;
     const academiaMarksReady = snapshot.marksStatus === "ready" && !!snapshot.marks;
     
-    // If academia has everything, no need for the portal
-    if (academiaReady && academiaMarksReady) return;
+    // If academia has everything and there is no portal override, no need for the portal
+    if (academiaReady && academiaMarksReady && !portalAtt) return;
     
-    // Skip if we recently synced portal (within the last hour)
-    if (portalAtt?.fetchedAt && (Date.now() - Date.parse(portalAtt.fetchedAt) < 3600000)) return;
+    // Skip if we recently synced portal (within the last 15 minutes)
+    if (portalAtt?.fetchedAt && (Date.now() - Date.parse(portalAtt.fetchedAt) < 900000)) return;
 
     let isMounted = true;
     const silentSync = async () => {
       try {
-        const creds = await loadPortalCredentials();
-        if (creds && isMounted) {
+        const portalCreds = creds || (await loadPortalCredentials()) || (await loadCredentials());
+        if (portalCreds && isMounted) {
           setIsAutoSyncing(true);
-          await autoImportAttendance(creds);
+          await autoImportAttendance(portalCreds);
+          void savePortalCredentials(portalCreds);
         }
       } catch (e) {
         console.error("Background portal sync failed:", e);
       } finally {
-        setIsAutoSyncing(false);
+        if (isMounted) setIsAutoSyncing(false);
       }
     };
     
     void silentSync();
     return () => { isMounted = false; };
-  }, [snapshot?.fetchedAt, portalAtt?.fetchedAt, autoImportAttendance]);
+  }, [snapshot, portalAtt, autoImportAttendance, creds]);
 
   // Drop the imported attendance and go back to academia (which may still be
   // gated). The escape hatch for when academia recovers but the app is showing
@@ -783,6 +784,7 @@ export function SessionProvider({ children }: { children: React.ReactNode }) {
         installSnapshot(snap);
         void saveCredentials(next);
         void saveSnapshot(snap);
+        void savePortalCredentials(next);
       },
       async loginPortal(next, manual) {
         let sp: StudentPortalSnapshot;
