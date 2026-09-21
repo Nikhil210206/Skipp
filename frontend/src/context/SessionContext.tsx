@@ -288,6 +288,7 @@ export function SessionProvider({ children }: { children: React.ReactNode }) {
   const [portalAtt, setPortalAtt] = useState<PortalOverride | null>(null);
   const [isAutoSyncing, setIsAutoSyncing] = useState(false);
   const [loginSource, setLoginSource] = useState<LoginPortalMode>("academia");
+  const hasAttemptedSilentSync = useRef(false);
 
   const reg = snapshot?.timetable.student.registrationNumber ?? null;
   // The portal shouts names in caps. Present it the way a person writes it.
@@ -300,6 +301,7 @@ export function SessionProvider({ children }: { children: React.ReactNode }) {
   // in an effect, so the loaded prefs are available on the first paint.
   if (reg !== loadedReg) {
     setLoadedReg(reg);
+    hasAttemptedSilentSync.current = false;
     setCustomClasses(reg ? loadCustomClasses(reg) : []);
     setOptionalCourses(reg ? loadOptionalCourses(reg) : []);
     setCustomName(reg ? loadDisplayName(reg) : null);
@@ -525,30 +527,44 @@ export function SessionProvider({ children }: { children: React.ReactNode }) {
     if (reg) savePortalOverride(reg, override);
   }, [snapshot, reg]);
 
+  const autoImportInFlight = useRef<Promise<void> | null>(null);
   const autoImportAttendance = useCallback(async (req: Credentials): Promise<void> => {
-    const sp = await autoStudentPortalLogin(req);
-    if (sp.attendanceStatus !== "ready" || !sp.attendance) {
-      throw new Error(
-        sp.attendanceMessage ??
-          "The student portal did not return attendance this time.",
-      );
+    if (autoImportInFlight.current) {
+      return autoImportInFlight.current;
     }
-    const titles = new Map(
-      (snapshot?.timetable.courses ?? []).map((c) => [
-        c.code.toUpperCase(),
-        c.title,
-      ]),
-    );
-    const override: PortalOverride = {
-      attendance: enrichTitles(sp.attendance, titles),
-      marks: sp.marksStatus === "ready" ? sp.marks : null,
-      reportedPeriod: sp.reportedPeriod,
-      fetchedAt: sp.fetchedAt,
-    };
-    setPortalAtt(override);
-    if (reg) savePortalOverride(reg, override);
-    setPortalCreds(req);
-    void savePortalCredentials(req);
+
+    const task = (async () => {
+      const sp = await autoStudentPortalLogin(req);
+      if (sp.attendanceStatus !== "ready" || !sp.attendance) {
+        throw new Error(
+          sp.attendanceMessage ??
+            "The student portal did not return attendance this time.",
+        );
+      }
+      const titles = new Map(
+        (snapshot?.timetable.courses ?? []).map((c) => [
+          c.code.toUpperCase(),
+          c.title,
+        ]),
+      );
+      const override: PortalOverride = {
+        attendance: enrichTitles(sp.attendance, titles),
+        marks: sp.marksStatus === "ready" ? sp.marks : null,
+        reportedPeriod: sp.reportedPeriod,
+        fetchedAt: sp.fetchedAt,
+      };
+      setPortalAtt(override);
+      if (reg) savePortalOverride(reg, override);
+      setPortalCreds(req);
+      void savePortalCredentials(req);
+    })();
+
+    autoImportInFlight.current = task;
+    try {
+      await task;
+    } finally {
+      autoImportInFlight.current = null;
+    }
   }, [snapshot, reg]);
 
   // Silent background refresh (used by focus + pull-to-refresh's stale checks).
@@ -634,6 +650,9 @@ export function SessionProvider({ children }: { children: React.ReactNode }) {
     
     // Skip if we recently synced portal (within the last 15 minutes)
     if (portalAtt?.fetchedAt && (Date.now() - Date.parse(portalAtt.fetchedAt) < 15 * 60 * 1000)) return;
+
+    if (hasAttemptedSilentSync.current) return;
+    hasAttemptedSilentSync.current = true;
 
     let isMounted = true;
     const silentSync = async () => {
@@ -890,6 +909,7 @@ export function SessionProvider({ children }: { children: React.ReactNode }) {
         clearPortalCredentials();
         clearLoginMode();
         clearSnapshot();
+        hasAttemptedSilentSync.current = false;
       },
     };
   }, [

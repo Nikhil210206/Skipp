@@ -18,9 +18,9 @@ ocr = ddddocr.DdddOcr(show_ad=False)
 def auto_login_and_fetch(username: str, password: str) -> Tuple[str, Optional[str], Optional[str]]:
     """
     Attempts to login to the student portal automatically by solving the CAPTCHA.
-    Retries up to 5 times if the CAPTCHA is invalid.
+    Retries up to 2 times if the CAPTCHA is invalid.
     """
-    max_retries = 5
+    max_retries = 2
     last_error = None
 
     for attempt in range(max_retries):

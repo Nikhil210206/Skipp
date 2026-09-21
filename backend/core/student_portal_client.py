@@ -49,9 +49,9 @@ def _get_opener(cj=None, force_proxy=None):
 
 def init_login_session() -> StudentPortalCaptchaResponse:
     req = urllib.request.Request(LOGIN_PAGE_URL, headers={'User-Agent': UA})
+    opener, chosen_proxy = _get_opener()
     try:
-        opener, chosen_proxy = _get_opener()
-        res = opener.open(req)
+        res = opener.open(req, timeout=7)
     except urllib.error.URLError as e:
         raise StudentPortalClientError(f"Network error connecting to student portal: {e}")
     html = res.read().decode('utf-8', errors='ignore')
@@ -98,7 +98,7 @@ def init_login_session() -> StudentPortalCaptchaResponse:
     })
     
     try:
-        c_res = opener.open(req_c)
+        c_res = opener.open(req_c, timeout=7)
         if c_res.info().get_all('Set-Cookie'):
             for c in c_res.info().get_all('Set-Cookie'):
                 cookies.append(c.split(';')[0])
@@ -202,12 +202,14 @@ def submit_login_and_fetch(req_data: StudentPortalLoginRequest) -> Tuple[str, Op
     })
     
     try:
-        res_post = opener.open(req_post)
+        res_post = opener.open(req_post, timeout=7)
         result_html = res_post.read().decode('utf-8', errors='ignore')
         
         set_cookies = res_post.info().get_all('Set-Cookie')
     except urllib.error.HTTPError as e:
         raise StudentPortalClientError(f"Login request failed: {e.code}") from e
+    except Exception as e:
+        raise StudentPortalClientError(f"Login request error: {e}") from e
         
 
                 
@@ -220,8 +222,6 @@ def submit_login_and_fetch(req_data: StudentPortalLoginRequest) -> Tuple[str, Op
                 ck = http.cookiejar.Cookie(version=0, name=k, value=v, port=None, port_specified=False, domain='sp.srmist.edu.in', domain_specified=False, domain_initial_dot=False, path='/', path_specified=False, secure=False, expires=None, discard=True, comment=None, comment_url=None, rest={'HttpOnly': None}, rfc2109=False)
                 cj.set_cookie(ck)
         
-    # Debugging HTML dump removed to avoid Read-Only filesystem errors in production
-    
     if "invalid credentials" in result_html.lower() or "invalid login credentials" in result_html.lower():
         print("Login failed: Invalid credentials found in HTML")
         raise StudentPortalClientError("Invalid username or password.")
@@ -233,7 +233,6 @@ def submit_login_and_fetch(req_data: StudentPortalLoginRequest) -> Tuple[str, Op
         raise StudentPortalClientError("Account temporarily locked due to multiple unsuccessful attempts. Please try again after 5 minutes.")
         
     if "alert-danger" in result_html:
-        # Extract the text content by finding alert-icon-content
         start_idx = result_html.find('alert-icon-content')
         if start_idx != -1:
             end_idx = result_html.find('</div>', start_idx)
@@ -243,7 +242,6 @@ def submit_login_and_fetch(req_data: StudentPortalLoginRequest) -> Tuple[str, Op
             print(f"Login failed: Server returned error: {error_msg}")
             raise StudentPortalClientError(f"Login failed: {error_msg}")
     if "theGR8LoginLoader" in result_html:
-        # This is a successful login! The server wants us to POST to youLogin.jsp
         print("Login successful, following theGR8LoginLoader redirect...")
         req_redirect = urllib.request.Request(
             f"{SP_BASE_URL}/srmiststudentportal/students/loginManager/youLogin.jsp",
@@ -255,17 +253,18 @@ def submit_login_and_fetch(req_data: StudentPortalLoginRequest) -> Tuple[str, Op
             }
         )
         try:
-            res_redirect = opener.open(req_redirect)
+            res_redirect = opener.open(req_redirect, timeout=7)
             result_html = res_redirect.read().decode('utf-8', errors='ignore')
-            
-            
         except urllib.error.HTTPError as e:
             raise StudentPortalClientError(f"Login redirect failed: {e.code}") from e
+        except Exception as e:
+            raise StudentPortalClientError(f"Login redirect error: {e}") from e
 
     if "welcome" not in result_html.lower() and "attendance" not in result_html.lower() and "dashboard" not in result_html.lower() and "thegr8loginloader" not in result_html.lower():
         print(f"Login failed: Unknown response, size {len(result_html)}")
-        # Debugging HTML dump removed to avoid Read-Only filesystem errors in production
         raise StudentPortalClientError("Failed to login, unknown response.")
+
+    import concurrent.futures
 
     # Fetch HRDSystem.jsp first to initialize dashboard session
     req_hrd = urllib.request.Request(f"{SP_BASE_URL}/srmiststudentportal/students/template/HRDSystem.jsp", headers={
@@ -274,44 +273,45 @@ def submit_login_and_fetch(req_data: StudentPortalLoginRequest) -> Tuple[str, Op
     })
     hrd_html = ""
     try:
-        res_hrd = opener.open(req_hrd)
+        res_hrd = opener.open(req_hrd, timeout=7)
         hrd_html = res_hrd.read().decode('utf-8', errors='ignore')
-    except urllib.error.HTTPError as e:
+    except Exception as e:
         print(f"HRDSystem fetch failed: {e}")
-        pass
-        
-    # If successful, fetch reports
-    req_att = urllib.request.Request(ATTENDANCE_URL, headers={
-        'User-Agent': UA,
-        'Referer': f"{SP_BASE_URL}/srmiststudentportal/students/template/HRDSystem.jsp"
-    })
-    try:
-        res_att = opener.open(req_att)
-        att_html = res_att.read().decode('utf-8', errors='ignore')
-    except urllib.error.HTTPError as e:
-        raise StudentPortalClientError(f"Failed to fetch attendance: {e.code}") from e
-        
-    # Marks
-    req_marks = urllib.request.Request(MARKS_URL, headers={
-        'User-Agent': UA,
-        'Referer': f"{SP_BASE_URL}/srmiststudentportal/students/template/HRDSystem.jsp"
-    })
-    try:
-        res_marks = opener.open(req_marks)
-        marks_html = res_marks.read().decode('utf-8', errors='ignore')
-    except urllib.error.HTTPError:
-        marks_html = None
 
-    # Timetable
-    req_tt = urllib.request.Request(TIMETABLE_URL, headers={
-        'User-Agent': UA,
-        'Referer': f"{SP_BASE_URL}/srmiststudentportal/students/template/HRDSystem.jsp"
-    })
-    try:
-        res_tt = opener.open(req_tt)
-        tt_html = res_tt.read().decode('utf-8', errors='ignore')
-    except urllib.error.HTTPError:
-        tt_html = None
+    hrd_referer = f"{SP_BASE_URL}/srmiststudentportal/students/template/HRDSystem.jsp"
+
+    def _fetch_page(url: str) -> str:
+        req = urllib.request.Request(url, headers={
+            'User-Agent': UA,
+            'Referer': hrd_referer
+        })
+        res = opener.open(req, timeout=7)
+        return res.read().decode('utf-8', errors='ignore')
+
+    att_html: Optional[str] = None
+    marks_html: Optional[str] = None
+    tt_html: Optional[str] = None
+
+    # Fetch attendance, marks, and timetable concurrently for ultra-fast response (< 2s)
+    with concurrent.futures.ThreadPoolExecutor(max_workers=3) as executor:
+        f_att = executor.submit(_fetch_page, ATTENDANCE_URL)
+        f_marks = executor.submit(_fetch_page, MARKS_URL)
+        f_tt = executor.submit(_fetch_page, TIMETABLE_URL)
+
+        try:
+            att_html = f_att.result(timeout=8)
+        except Exception as e:
+            raise StudentPortalClientError(f"Failed to fetch attendance: {e}") from e
+
+        try:
+            marks_html = f_marks.result(timeout=8)
+        except Exception:
+            marks_html = None
+
+        try:
+            tt_html = f_tt.result(timeout=8)
+        except Exception:
+            tt_html = None
 
     # Fallback to hrd_html if tt_html is empty or doesn't have the timetable table
     if (not tt_html or "day 1" not in tt_html.lower()) and "day 1" in hrd_html.lower():

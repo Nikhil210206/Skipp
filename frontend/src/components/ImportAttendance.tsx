@@ -237,7 +237,7 @@ export function PortalSourceNote({ type = "attendance" }: { type?: "attendance" 
   };
 
   const handleUpdate = async () => {
-    if (busy || isAutoSyncing) return;
+    if (busy || status === "updating") return;
 
     // Look for credentials that are suitable for portal (i.e. NOT a registration number)
     let creds = portalCreds && !isRegistrationNumber(portalCreds.username) ? portalCreds : null;
@@ -329,14 +329,14 @@ export function PortalSourceNote({ type = "attendance" }: { type?: "attendance" 
             data-btn
             data-update
             onClick={handleUpdate}
-            disabled={busy || isAutoSyncing}
+            disabled={busy || status === "updating"}
             className={`inline-flex min-h-11 select-none items-center justify-center rounded-control px-5 text-body font-semibold tracking-[-0.01em] transition-all duration-150 ease-out disabled:pointer-events-none disabled:opacity-35 ${
               status === "updated"
                 ? "bg-safe text-ink-0"
                 : "bg-risk text-ink-0 hover:bg-risk/90 active:bg-risk/80"
             }`}
           >
-            {status === "updating" || isAutoSyncing
+            {status === "updating"
               ? "Updating..."
               : status === "updated"
               ? "Updated!"
