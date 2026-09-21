@@ -35,7 +35,9 @@ def auto_login_and_fetch(username: str, password: str) -> Tuple[str, Optional[st
             image_bytes = base64.b64decode(b64_str)
             
             # 3. Solve the captcha
-            captcha_text = ocr.classification(image_bytes)
+            raw_captcha = ocr.classification(image_bytes)
+            import re
+            captcha_text = re.sub(r"[^a-zA-Z0-9]", "", raw_captcha).strip()
             
             # 4. Submit login
             req = StudentPortalLoginRequest(
@@ -53,8 +55,8 @@ def auto_login_and_fetch(username: str, password: str) -> Tuple[str, Optional[st
             
         except StudentPortalClientError as e:
             error_msg = str(e).lower()
-            if "captcha" in error_msg:
-                log.info(f"CAPTCHA solve failed on attempt {attempt + 1}")
+            if "captcha" in error_msg or "unknown response" in error_msg:
+                log.info(f"CAPTCHA solve / portal response failed on attempt {attempt + 1}: {e}")
                 last_error = e
                 continue
             else:

@@ -123,8 +123,8 @@ def init_login_session() -> StudentPortalCaptchaResponse:
         captcha_base64=captcha_b64
     )
 
-def submit_login_and_fetch(req_data: StudentPortalLoginRequest) -> Tuple[str, Optional[str]]:
-    """Submits login and returns (attendance_html, marks_html). Raises on invalid login."""
+def submit_login_and_fetch(req_data: StudentPortalLoginRequest) -> Tuple[str, Optional[str], Optional[str]]:
+    """Submits login and returns (attendance_html, marks_html, tt_html). Raises on invalid login."""
     domain_value = base64.b64encode("ni.ude.tsimrs.ps".encode()).decode()
     
     # Simulate time elapsed and interactions

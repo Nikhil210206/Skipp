@@ -9,7 +9,7 @@ import {
   type FailureCode,
 } from "@/lib/api";
 import { Button, Segmented } from "@/components/ui";
-import type { LoginPortalMode } from "@/lib/crypto";
+import { isRegistrationNumber, type LoginPortalMode } from "@/lib/crypto";
 import type { StudentPortalCaptchaResponse } from "@/types";
 
 type Failure = { title: string; advice: string };
@@ -135,6 +135,13 @@ export default function LoginForm({
       });
       return;
     }
+    if (mode === "portal" && isRegistrationNumber(cleanUsername)) {
+      setFailure({
+        title: "Net ID required",
+        advice: "Student Portal requires your SRM Net ID (e.g. ab1234), not your registration number (RA...). Use the Academia tab to log in with your registration number.",
+      });
+      return;
+    }
     if (!effectivePassword) {
       setFailure({
         title: "Password required",
@@ -229,10 +236,10 @@ export default function LoginForm({
 
       <Field
         id="username"
-        label={mode === "portal" ? "SRM Net ID or Reg No." : "SRM Net ID"}
-        suffix={mode === "academia" ? "@srmist.edu.in" : undefined}
+        label={mode === "portal" ? "SRM Net ID" : "SRM Net ID or Reg No."}
+        suffix={mode === "portal" || !isRegistrationNumber(username) ? "@srmist.edu.in" : undefined}
         value={username}
-        placeholder={mode === "portal" ? "e.g. ra2411003010001 or net ID" : undefined}
+        placeholder={mode === "portal" ? "e.g. ab1234" : "e.g. ab1234 or RA24..."}
         onChange={(v) => {
           setUsername(v);
           report(v, password);

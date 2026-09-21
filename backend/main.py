@@ -641,9 +641,17 @@ def sp_auto_login(req: LoginRequest, request: Request) -> StudentPortalSnapshot:
     clean_username = req.username.strip()
     if "@" in clean_username:
         clean_username = clean_username.split("@")[0].strip()
+    clean_username = clean_username.lower()
 
     if not clean_username:
         raise _fail(400, "invalid_credentials", "Net ID should not be empty.")
+    import re
+    if len(clean_username) > 8 or re.match(r"^[a-z]{2}\d{8,}", clean_username):
+        raise _fail(
+            400,
+            "invalid_credentials",
+            "The student portal requires your SRM Net ID (e.g. ab1234), not your registration number.",
+        )
     if not req.password:
         raise _fail(400, "invalid_credentials", "Password should not be empty.")
 

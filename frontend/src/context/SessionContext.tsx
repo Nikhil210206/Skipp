@@ -50,6 +50,7 @@ import {
   clearLoginMode,
   clearPortalCredentials,
   clearSnapshot,
+  isRegistrationNumber,
   loadCredentials,
   loadLoginMode,
   loadPortalCredentials,
@@ -201,6 +202,7 @@ type SectionState = SectionStatus | "loading";
 
 type SessionValue = {
   creds: Credentials | null;
+  portalCreds: Credentials | null;
   student: StudentInfo | null;
   timetable: Timetable | null;
   /**
@@ -274,6 +276,7 @@ const SessionContext = createContext<SessionValue | null>(null);
 
 export function SessionProvider({ children }: { children: React.ReactNode }) {
   const [creds, setCreds] = useState<Credentials | null>(null);
+  const [portalCreds, setPortalCreds] = useState<Credentials | null>(null);
   const [snapshot, setSnapshot] = useState<Snapshot | null>(null);
   const [restoring, setRestoring] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
@@ -373,6 +376,8 @@ export function SessionProvider({ children }: { children: React.ReactNode }) {
     }
     (async () => {
       const saved = await loadCredentials();
+      const savedPortal = await loadPortalCredentials();
+      if (savedPortal && !cancelled) setPortalCreds(savedPortal);
       if (!saved) {
         if (!cancelled) setRestoring(false);
         return;
@@ -476,43 +481,19 @@ export function SessionProvider({ children }: { children: React.ReactNode }) {
     };
   }, [installSnapshot]);
 
-  // Silent background refresh (used by focus + pull-to-refresh's stale checks).
-  const bgRefreshing = useRef(false);
-  const refreshIfStale = useCallback(async () => {
-    if (!creds || !snapshot || bgRefreshing.current) return;
-    if (!isStale(snapshot.fetchedAt) || inCooldown()) return;
-    bgRefreshing.current = true;
-    try {
-      let fresh: Snapshot;
-      if (loginSource === "portal") {
-        const sp = await autoStudentPortalLogin(creds);
-        fresh = synthesizePortalSnapshot(sp, creds.username);
-      } else {
-        fresh = await fetchSnapshot(creds);
-      }
-      installSnapshot(fresh);
-      void saveSnapshot(fresh);
-    } catch (e) {
-      noteFailure(e); // keep cache, and stop knocking
-    } finally {
-      bgRefreshing.current = false;
+  // Helper to reliably find non-registration credentials suitable for Student Portal
+  const getPortalCredentials = useCallback(async (): Promise<Credentials | null> => {
+    if (portalCreds && !isRegistrationNumber(portalCreds.username)) return portalCreds;
+    const savedPortal = await loadPortalCredentials();
+    if (savedPortal && !isRegistrationNumber(savedPortal.username)) {
+      setPortalCreds(savedPortal);
+      return savedPortal;
     }
-  }, [creds, snapshot, loginSource, installSnapshot]);
-
-  // Refresh when the app is reopened / brought back to the foreground, if the
-  // cached data has gone stale, so a class update shows up without any manual
-  // action, while the 15-min guard keeps sign-ins rare.
-  useEffect(() => {
-    const onFocus = () => {
-      if (document.visibilityState === "visible") void refreshIfStale();
-    };
-    document.addEventListener("visibilitychange", onFocus);
-    window.addEventListener("focus", onFocus);
-    return () => {
-      document.removeEventListener("visibilitychange", onFocus);
-      window.removeEventListener("focus", onFocus);
-    };
-  }, [refreshIfStale]);
+    if (creds && !isRegistrationNumber(creds.username)) return creds;
+    const saved = await loadCredentials();
+    if (saved && !isRegistrationNumber(saved.username)) return saved;
+    return null;
+  }, [portalCreds, creds]);
 
   // Import attendance from the student portal, via a REAL in-app WebView login
   // (native only, see lib/studentPortal.ts). Kept apart from `refresh` on
@@ -566,7 +547,79 @@ export function SessionProvider({ children }: { children: React.ReactNode }) {
     };
     setPortalAtt(override);
     if (reg) savePortalOverride(reg, override);
+    setPortalCreds(req);
+    void savePortalCredentials(req);
   }, [snapshot, reg]);
+
+  // Silent background refresh (used by focus + pull-to-refresh's stale checks).
+  const bgRefreshing = useRef(false);
+  const refreshIfStale = useCallback(async () => {
+    if (bgRefreshing.current) return;
+    const isAcademiaStale = snapshot ? isStale(snapshot.fetchedAt) : false;
+    const isPortalStale = portalAtt?.fetchedAt
+      ? Date.now() - Date.parse(portalAtt.fetchedAt) > 15 * 60 * 1000
+      : false;
+
+    const needsAcademia = creds && isAcademiaStale && !inCooldown();
+    const needsPortal =
+      (portalAtt !== null || (snapshot && snapshot.attendanceStatus !== "ready")) &&
+      (!portalAtt?.fetchedAt || isPortalStale);
+
+    if (!needsAcademia && !needsPortal) return;
+
+    bgRefreshing.current = true;
+    try {
+      if (needsAcademia && creds) {
+        let fresh: Snapshot;
+        if (loginSource === "portal") {
+          const sp = await autoStudentPortalLogin(creds);
+          fresh = synthesizePortalSnapshot(sp, creds.username);
+        } else {
+          fresh = await fetchSnapshot(creds);
+        }
+        installSnapshot(fresh);
+        void saveSnapshot(fresh);
+      }
+
+      if (needsPortal) {
+        const pCreds = await getPortalCredentials();
+        if (pCreds) {
+          try {
+            await autoImportAttendance(pCreds);
+          } catch (portalErr) {
+            console.error("Portal attendance background update failed:", portalErr);
+          }
+        }
+      }
+    } catch (e) {
+      noteFailure(e); // keep cache, and stop knocking
+    } finally {
+      bgRefreshing.current = false;
+    }
+  }, [creds, snapshot, loginSource, installSnapshot, portalAtt, getPortalCredentials, autoImportAttendance]);
+
+  // Refresh when the app is reopened / brought back to the foreground, if the
+  // cached data has gone stale, so a class update shows up without any manual
+  // action, while the 15-min guard keeps sign-ins rare.
+  useEffect(() => {
+    const onFocus = () => {
+      if (document.visibilityState === "visible") void refreshIfStale();
+    };
+    document.addEventListener("visibilitychange", onFocus);
+    window.addEventListener("focus", onFocus);
+    return () => {
+      document.removeEventListener("visibilitychange", onFocus);
+      window.removeEventListener("focus", onFocus);
+    };
+  }, [refreshIfStale]);
+
+  // Periodic background check every 15 minutes when app remains open
+  useEffect(() => {
+    const interval = setInterval(() => {
+      void refreshIfStale();
+    }, 15 * 60 * 1000);
+    return () => clearInterval(interval);
+  }, [refreshIfStale]);
 
   // Silently sync with the portal in the background if academia is down
   // or the user is using portal attendance, and credentials are available.
@@ -580,16 +633,15 @@ export function SessionProvider({ children }: { children: React.ReactNode }) {
     if (academiaReady && academiaMarksReady && !portalAtt) return;
     
     // Skip if we recently synced portal (within the last 15 minutes)
-    if (portalAtt?.fetchedAt && (Date.now() - Date.parse(portalAtt.fetchedAt) < 900000)) return;
+    if (portalAtt?.fetchedAt && (Date.now() - Date.parse(portalAtt.fetchedAt) < 15 * 60 * 1000)) return;
 
     let isMounted = true;
     const silentSync = async () => {
       try {
-        const portalCreds = creds || (await loadPortalCredentials()) || (await loadCredentials());
-        if (portalCreds && isMounted) {
+        const pCreds = await getPortalCredentials();
+        if (pCreds && isMounted) {
           setIsAutoSyncing(true);
-          await autoImportAttendance(portalCreds);
-          void savePortalCredentials(portalCreds);
+          await autoImportAttendance(pCreds);
         }
       } catch (e) {
         console.error("Background portal sync failed:", e);
@@ -600,7 +652,7 @@ export function SessionProvider({ children }: { children: React.ReactNode }) {
     
     void silentSync();
     return () => { isMounted = false; };
-  }, [snapshot, portalAtt, autoImportAttendance, creds]);
+  }, [snapshot, portalAtt, autoImportAttendance, getPortalCredentials]);
 
   // Drop the imported attendance and go back to academia (which may still be
   // gated). The escape hatch for when academia recovers but the app is showing
@@ -616,35 +668,52 @@ export function SessionProvider({ children }: { children: React.ReactNode }) {
   // handler was being unregistered and re-registered during its own refresh.
   const refresh = useCallback(async (): Promise<RefreshOutcome> => {
     if (!creds) return "failed";
-    // A pull is deliberate, so it is honoured ahead of the hourly window, but
-    // it still cannot reach the portal more than once every few minutes. The
-    // caller is told which happened so it can say "up to date" rather than
-    // pretending to have fetched.
-    if (snapshot && Date.now() - Date.parse(snapshot.fetchedAt) < MANUAL_MIN_MS) {
+    const academiaRecent = snapshot && Date.now() - Date.parse(snapshot.fetchedAt) < MANUAL_MIN_MS;
+    const portalRecent = portalAtt?.fetchedAt && Date.now() - Date.parse(portalAtt.fetchedAt) < MANUAL_MIN_MS;
+
+    if (inCooldown()) return "cooldown";
+    if (academiaRecent && (portalAtt === null || portalRecent)) {
       return "fresh";
     }
-    if (inCooldown()) return "cooldown";
+
     setRefreshing(true);
+    let updatedAnything = false;
     try {
-      let fresh: Snapshot;
-      if (loginSource === "portal") {
-        const sp = await autoStudentPortalLogin(creds);
-        fresh = synthesizePortalSnapshot(sp, creds.username);
-      } else {
-        fresh = await fetchSnapshot(creds);
+      if (!academiaRecent) {
+        let fresh: Snapshot;
+        if (loginSource === "portal") {
+          const sp = await autoStudentPortalLogin(creds);
+          fresh = synthesizePortalSnapshot(sp, creds.username);
+        } else {
+          fresh = await fetchSnapshot(creds);
+        }
+        installSnapshot(fresh);
+        void saveSnapshot(fresh);
+        updatedAnything = true;
       }
-      installSnapshot(fresh);
-      void saveSnapshot(fresh);
-      return "updated";
+
+      // If user had portal attendance active OR academia attendance is not ready, sync portal too!
+      const shouldSyncPortal = (portalAtt !== null || snapshot?.attendanceStatus !== "ready") && !portalRecent;
+      if (shouldSyncPortal) {
+        const pCreds = await getPortalCredentials();
+        if (pCreds) {
+          try {
+            await autoImportAttendance(pCreds);
+            updatedAnything = true;
+          } catch (portalErr) {
+            console.error("Portal attendance sync during refresh failed:", portalErr);
+          }
+        }
+      }
+
+      return updatedAnything ? "updated" : "fresh";
     } catch (e) {
-      // Rate-limited or offline: keep showing the cached snapshot rather than
-      // erroring. (A daily-cap hit just means "no update right now".)
       noteFailure(e);
       return e instanceof AuthError ? "cooldown" : "failed";
     } finally {
       setRefreshing(false);
     }
-  }, [creds, snapshot, loginSource, installSnapshot]);
+  }, [creds, snapshot, loginSource, installSnapshot, portalAtt, getPortalCredentials, autoImportAttendance]);
 
   const value = useMemo<SessionValue>(() => {
     const sectionState = (s: SectionStatus | undefined): SectionState =>
@@ -678,6 +747,7 @@ export function SessionProvider({ children }: { children: React.ReactNode }) {
 
     return {
       creds,
+      portalCreds,
       student: snapshot?.timetable.student ?? null,
       timetable: snapshot?.timetable ?? null,
       attendingDayOrders: attendingOnly(
@@ -814,6 +884,7 @@ export function SessionProvider({ children }: { children: React.ReactNode }) {
       refresh,
       logout() {
         setCreds(null);
+        setPortalCreds(null);
         setSnapshot(null);
         clearCredentials();
         clearPortalCredentials();
@@ -824,6 +895,7 @@ export function SessionProvider({ children }: { children: React.ReactNode }) {
   }, [
     installSnapshot,
     creds,
+    portalCreds,
     snapshot,
     loginSource,
     restoring,
@@ -837,6 +909,7 @@ export function SessionProvider({ children }: { children: React.ReactNode }) {
     refresh,
     portalAtt,
     importAttendance,
+    autoImportAttendance,
     clearImportedAttendance,
   ]);
 

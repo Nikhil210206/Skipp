@@ -224,10 +224,21 @@ export function clearCredentials(): void {
   }
 }
 
+/**
+ * Detects if a username is an SRM registration number (e.g. RA2411003011574)
+ * rather than an SRM NetID (e.g. nb2102). The Student Portal strictly rejects
+ * registration numbers and requires the NetID.
+ */
+export function isRegistrationNumber(id: string | null | undefined): boolean {
+  if (!id) return false;
+  const clean = id.trim().toLowerCase();
+  return /^[a-z]{2}\d{8,}/.test(clean) || clean.length > 8;
+}
+
 export async function savePortalCredentials(creds: Credentials): Promise<void> {
   try {
-    localStorage.removeItem(PORTAL_BLOB_KEY);
-    localStorage.setItem(PORTAL_BLOB_KEY, await encryptJSON(creds));
+    const encrypted = await encryptJSON(creds);
+    localStorage.setItem(PORTAL_BLOB_KEY, encrypted);
   } catch {
     // Crypto/IDB unavailable, so degrade to in-memory only (re-login on reload).
   }

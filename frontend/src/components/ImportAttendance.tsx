@@ -5,38 +5,40 @@ import { Button } from "@/components/ui";
 import { Sheet } from "@/components/ui/Overlay";
 import { IconTrash } from "@/components/Icons";
 import { useSession } from "@/context/SessionContext";
-import { initStudentPortalLogin } from "@/lib/api";
-import { savePortalCredentials, loadPortalCredentials, loadCredentials } from "@/lib/crypto";
-import type { StudentPortalCaptchaResponse } from "@/types";
+import {
+  savePortalCredentials,
+  loadPortalCredentials,
+  loadCredentials,
+  isRegistrationNumber,
+} from "@/lib/crypto";
 
 export function ImportAttendanceAction({ type = "attendance" }: { type?: "attendance" | "marks" }) {
-  const { creds: sessionCreds, importAttendance, autoImportAttendance } = useSession();
+  const { creds: sessionCreds, portalCreds, autoImportAttendance } = useSession();
   const [open, setOpen] = useState(false);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  
-  const [sessionData, setSessionData] = useState<StudentPortalCaptchaResponse | null>(null);
   const [username, setUsername] = useState("");
   const [password, setPassword] = useState("");
-  const [captcha, setCaptcha] = useState("");
-
-  const loadCaptcha = async (keepError = false) => {
-    setBusy(true);
-    if (!keepError) setError(null);
-    setSessionData(null);
-    setCaptcha("");
-    try {
-      const data = await initStudentPortalLogin();
-      setSessionData(data);
-    } catch (e) {
-      setError(e instanceof Error ? e.message : "Failed to load captcha.");
-    } finally {
-      setBusy(false);
-    }
-  };
 
   const handleOpen = async () => {
-    const creds = sessionCreds || (await loadPortalCredentials()) || (await loadCredentials());
+    // Look for credentials that are suitable for portal (i.e. NOT a registration number)
+    let creds = portalCreds && !isRegistrationNumber(portalCreds.username) ? portalCreds : null;
+    if (!creds) {
+      const savedPortal = await loadPortalCredentials();
+      if (savedPortal && !isRegistrationNumber(savedPortal.username)) {
+        creds = savedPortal;
+      }
+    }
+    if (!creds && sessionCreds && !isRegistrationNumber(sessionCreds.username)) {
+      creds = sessionCreds;
+    }
+    if (!creds) {
+      const saved = await loadCredentials();
+      if (saved && !isRegistrationNumber(saved.username)) {
+        creds = saved;
+      }
+    }
+
     if (creds) {
       setBusy(true);
       setError(null);
@@ -48,50 +50,50 @@ export function ImportAttendanceAction({ type = "attendance" }: { type?: "attend
       } catch (err) {
         setBusy(false);
         setOpen(true);
-        setError(err instanceof Error ? err.message : "Auto-update failed. Please sign in manually.");
+        setError(err instanceof Error ? err.message : "Auto-import failed. Please verify your credentials.");
         setUsername(creds.username);
         setPassword(creds.password);
-        await loadCaptcha(true);
         return;
       }
     }
-    
+
+    // No credentials saved yet, open modal for Net ID and Password
+    setError(null);
     setOpen(true);
-    if (!sessionData) {
-      loadCaptcha();
-    }
   };
 
   const run = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!sessionData || !username || !password || !captcha) return;
-    
+    const rawUsername = username.trim();
+    const cleanUsername = rawUsername.includes("@")
+      ? rawUsername.split("@")[0].trim()
+      : rawUsername;
+
+    if (!cleanUsername || !password) return;
+
+    if (isRegistrationNumber(cleanUsername)) {
+      setError("Student Portal requires your SRM Net ID (e.g. ab1234), not your registration number.");
+      return;
+    }
+
     setBusy(true);
     setError(null);
     try {
-      await importAttendance({
-        username: username.trim(),
-        password,
-        captcha,
-        ...sessionData
-      });
-      await savePortalCredentials({ username: username.trim(), password });
+      const creds = { username: cleanUsername, password };
+      await autoImportAttendance(creds);
+      await savePortalCredentials(creds);
       setOpen(false);
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Import failed. Try again.");
-      // Refresh captcha on failure
-      await loadCaptcha(true);
+      setError(err instanceof Error ? err.message : "Import failed. Please check your credentials.");
     } finally {
-      // Don't set busy to false if we just triggered loadCaptcha, which manages its own busy state
-      // Actually, since we awaited loadCaptcha, busy is already false at the end of loadCaptcha.
       setBusy(false);
     }
   };
 
   return (
     <>
-      <Button variant="outline" onClick={handleOpen}>
-        Import from student portal
+      <Button variant="outline" onClick={handleOpen} disabled={busy}>
+        {busy ? "Importing…" : "Import from student portal"}
       </Button>
 
       <Sheet
@@ -107,64 +109,36 @@ export function ImportAttendanceAction({ type = "attendance" }: { type?: "attend
             from the SRM student portal instead.
           </p>
 
-          {!sessionData && busy ? (
-            <div className="flex items-center justify-center p-6">
-              <span className="text-callout text-text-3">Loading portal...</span>
-            </div>
-          ) : sessionData ? (
-            <form onSubmit={run} className="flex flex-col gap-3">
-              <Field
-                id="username"
-                label="SRM Net ID"
-                suffix="@srmist.edu.in"
-                value={username}
-                onChange={setUsername}
-                autoComplete="username"
-              />
-              <Field
-                id="password"
-                label="Password"
-                value={password}
-                onChange={setPassword}
-                type="password"
-                placeholder="••••••••"
-                autoComplete="current-password"
-              />
-              
-              <div className="flex flex-col gap-2 rounded-control border border-line bg-ink-1 p-3">
-                <span className="text-label uppercase text-text-3">Captcha</span>
-                <img 
-                  src={sessionData.captchaBase64} 
-                  alt="Captcha" 
-                  className="h-auto w-full max-w-[220px] rounded-md bg-white object-contain" 
-                />
-                <input
-                  type="text"
-                  value={captcha}
-                  onChange={(e) => setCaptcha(e.target.value)}
-                  placeholder="Type characters above"
-                  className="mt-1 w-full appearance-none bg-transparent text-headline text-text-1 outline-none placeholder:text-text-3"
-                  required
-                />
-              </div>
+          <form onSubmit={run} className="flex flex-col gap-3">
+            <Field
+              id="username"
+              label="SRM Net ID"
+              suffix="@srmist.edu.in"
+              value={username}
+              onChange={setUsername}
+              autoComplete="username"
+            />
+            <Field
+              id="password"
+              label="Password"
+              value={password}
+              onChange={setPassword}
+              type="password"
+              placeholder="••••••••"
+              autoComplete="current-password"
+            />
 
-              {error && <p className="text-callout text-risk mt-1">{error}</p>}
-              
-              <div className="mt-2">
-                <Button type="submit" variant="primary" size="lg" full disabled={busy || !username || !password || !captcha}>
-                  {busy ? "Signing in…" : "Import"}
-                </Button>
-              </div>
-            </form>
-          ) : (
-            <div className="flex flex-col items-center gap-3 p-4">
-              {error && <p className="text-callout text-risk">{error}</p>}
-              <Button onClick={loadCaptcha} variant="secondary">Try Again</Button>
+            {error && <p className="text-callout text-risk mt-1">{error}</p>}
+
+            <div className="mt-2">
+              <Button type="submit" variant="primary" size="lg" full disabled={busy || !username || !password}>
+                {busy ? "Signing in…" : "Import"}
+              </Button>
             </div>
-          )}
+          </form>
 
           <p className="text-callout text-text-3 mt-2">
-            Your credentials are securely encrypted and saved on your device for automatic updates.
+            Your credentials are encrypted on-device. Verification checks are handled automatically.
           </p>
         </div>
       </Sheet>
@@ -228,19 +202,27 @@ function Field({
 }
 
 export function PortalSourceNote({ type = "attendance" }: { type?: "attendance" | "marks" }) {
-  const { creds: sessionCreds, reportedPeriod, importAttendance, autoImportAttendance, clearImportedAttendance, isAutoSyncing } = useSession();
+  const {
+    creds: sessionCreds,
+    portalCreds,
+    reportedPeriod,
+    autoImportAttendance,
+    clearImportedAttendance,
+    isAutoSyncing,
+  } = useSession();
   const [busy, setBusy] = useState(false);
+  const [status, setStatus] = useState<"idle" | "updating" | "updated">("idle");
   const [open, setOpen] = useState(false);
-  const [sessionData, setSessionData] = useState<StudentPortalCaptchaResponse | null>(null);
   const [username, setUsername] = useState("");
   const [password, setPassword] = useState("");
-  const [captcha, setCaptcha] = useState("");
   const [error, setError] = useState<string | null>(null);
   const [armed, setArmed] = useState(false);
   const disarmTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const updatedTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   useEffect(() => () => {
     if (disarmTimer.current) clearTimeout(disarmTimer.current);
+    if (updatedTimer.current) clearTimeout(updatedTimer.current);
   }, []);
 
   const handleClear = () => {
@@ -254,66 +236,82 @@ export function PortalSourceNote({ type = "attendance" }: { type?: "attendance" 
     disarmTimer.current = setTimeout(() => setArmed(false), 3000);
   };
 
-  const loadCaptcha = async (keepError = false) => {
-    setBusy(true);
-    if (!keepError) setError(null);
-    try {
-      const data = await initStudentPortalLogin();
-      setSessionData(data);
-    } catch (e) {
-      setError(e instanceof Error ? e.message : "Failed to load captcha.");
-    } finally {
-      setBusy(false);
-    }
-  };
+  const handleUpdate = async () => {
+    if (busy || isAutoSyncing) return;
 
-  const handleOpen = async () => {
-    const creds = sessionCreds || (await loadPortalCredentials()) || (await loadCredentials());
+    // Look for credentials that are suitable for portal (i.e. NOT a registration number)
+    let creds = portalCreds && !isRegistrationNumber(portalCreds.username) ? portalCreds : null;
+    if (!creds) {
+      const savedPortal = await loadPortalCredentials();
+      if (savedPortal && !isRegistrationNumber(savedPortal.username)) {
+        creds = savedPortal;
+      }
+    }
+    if (!creds && sessionCreds && !isRegistrationNumber(sessionCreds.username)) {
+      creds = sessionCreds;
+    }
+    if (!creds) {
+      const saved = await loadCredentials();
+      if (saved && !isRegistrationNumber(saved.username)) {
+        creds = saved;
+      }
+    }
+
     if (creds) {
       setBusy(true);
+      setStatus("updating");
       setError(null);
       try {
         await autoImportAttendance(creds);
         void savePortalCredentials(creds);
-        setBusy(false);
+        setStatus("updated");
+        if (updatedTimer.current) clearTimeout(updatedTimer.current);
+        updatedTimer.current = setTimeout(() => setStatus("idle"), 2500);
         return;
       } catch (err) {
-        setBusy(false);
+        setStatus("idle");
         setOpen(true);
-        setError(err instanceof Error ? err.message : "Auto-update failed. Please sign in manually.");
+        setError(err instanceof Error ? err.message : "Auto-update failed. Please check your credentials.");
         setUsername(creds.username);
         setPassword(creds.password);
-        setCaptcha("");
-        await loadCaptcha(true);
         return;
+      } finally {
+        setBusy(false);
       }
     }
 
+    // No valid credentials found, open modal
     setOpen(true);
-    setCaptcha("");
-    loadCaptcha();
+    setError(null);
   };
 
   const run = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!sessionData || !username || !password || !captcha) return;
-    
+    const rawUsername = username.trim();
+    const cleanUsername = rawUsername.includes("@")
+      ? rawUsername.split("@")[0].trim()
+      : rawUsername;
+
+    if (!cleanUsername || !password) return;
+
+    if (isRegistrationNumber(cleanUsername)) {
+      setError("Student Portal requires your SRM Net ID (e.g. ab1234), not your registration number.");
+      return;
+    }
+
     setBusy(true);
     setError(null);
     try {
-      await importAttendance({
-        username: username.trim(),
-        password,
-        captcha,
-        ...sessionData
-      });
-      await savePortalCredentials({ username: username.trim(), password });
+      const creds = { username: cleanUsername, password };
+      await autoImportAttendance(creds);
+      await savePortalCredentials(creds);
       setOpen(false);
+      setStatus("updated");
+      if (updatedTimer.current) clearTimeout(updatedTimer.current);
+      updatedTimer.current = setTimeout(() => setStatus("idle"), 2500);
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Update failed. Try again.");
-      await loadCaptcha(true);
+      setError(err instanceof Error ? err.message : "Update failed. Please check your credentials.");
     } finally {
-      // Don't set busy to false if we just triggered loadCaptcha, which manages its own busy state
       setBusy(false);
     }
   };
@@ -326,45 +324,24 @@ export function PortalSourceNote({ type = "attendance" }: { type?: "attendance" 
           {reportedPeriod ? ` · ${reportedPeriod}` : ""}
         </p>
         <div className="flex shrink-0 items-center gap-4">
-          {/* Update has a SHAPE now, and it is filled rather than tinted.
-              Two earlier versions were read straight past: a `text-text-2`
-              underline, then the same underline at the top text level in the
-              emphasis weight. Both were still just a word in a row of words,
-              and a word is what the eye skips. A filled block is an object, and
-              an object in a page of type is the one thing that cannot be
-              skimmed over.
-
-              Red on request. Worth knowing what it costs: this app reserves
-              `risk` for a subject below the line (section 7.5, colour marks
-              trouble), so a red control here is the loudest thing on a screen
-              whose whole point is that a healthy student sees no colour at all.
-              It is the one exception, and it is deliberate.
-
-              `text-ink-0` rather than a fixed white: ink-0 is the page colour,
-              so it flips with the theme and stays legible on both the light
-              red the dark themes use and the dark red the light ones do.
-
-              `data-btn`, so the material themes treat it as a button (Brutal's
-              hard offset, Clay's soft shadow, Stone's lit edge) instead of it
-              being the one control in the app they cannot see. */}
           <button
             type="button"
             data-btn
             data-update
-            onClick={handleOpen}
+            onClick={handleUpdate}
             disabled={busy || isAutoSyncing}
-            className="inline-flex min-h-11 select-none items-center justify-center rounded-control bg-risk px-5 text-body font-semibold tracking-[-0.01em] text-ink-0 transition-colors duration-150 ease-out hover:bg-risk/90 active:bg-risk/80 disabled:pointer-events-none disabled:opacity-35"
+            className={`inline-flex min-h-11 select-none items-center justify-center rounded-control px-5 text-body font-semibold tracking-[-0.01em] transition-all duration-150 ease-out disabled:pointer-events-none disabled:opacity-35 ${
+              status === "updated"
+                ? "bg-safe text-ink-0"
+                : "bg-risk text-ink-0 hover:bg-risk/90 active:bg-risk/80"
+            }`}
           >
-            {busy || isAutoSyncing ? "Updating..." : "Update"}
+            {status === "updating" || isAutoSyncing
+              ? "Updating..."
+              : status === "updated"
+              ? "Updated!"
+              : "Update"}
           </button>
-          {/* A faint dustbin, found only by someone looking for it. Clear throws
-              the imported attendance away and is wanted about once ever, so it
-              must not compete with Update. No word, no border, the dimmest
-              text level; the 44px target is padding pulled back out as
-              negative margin, so it is hittable without taking up room.
-              It asks once: the first tap tips the lid open and turns it red
-              with a small "Sure?", the second clears, and it disarms by itself
-              after a few seconds. */}
           <button
             type="button"
             onClick={handleClear}
@@ -381,55 +358,39 @@ export function PortalSourceNote({ type = "attendance" }: { type?: "attendance" 
       
       <Sheet open={open} onClose={() => { if (!busy) setOpen(false); }} title={`Update ${type}`}>
         <div className="flex flex-col gap-5 pb-2">
-          {!sessionData && busy ? (
-            <div className="flex items-center justify-center p-6">
-              <span className="text-callout text-text-3">Loading portal...</span>
+          <p className="text-body text-text-2">
+            Enter your SRM Net ID and password. Skipp solves verification checks automatically.
+          </p>
+
+          <form onSubmit={run} className="flex flex-col gap-3">
+            <Field
+              id="re-username"
+              label="SRM Net ID"
+              suffix="@srmist.edu.in"
+              value={username}
+              onChange={setUsername}
+              autoComplete="username"
+            />
+            <Field
+              id="re-password"
+              label="Password"
+              value={password}
+              onChange={setPassword}
+              type="password"
+              placeholder="••••••••"
+              autoComplete="current-password"
+            />
+            {error && <p className="text-callout text-risk mt-1">{error}</p>}
+            <div className="mt-2">
+              <Button type="submit" variant="primary" size="lg" full disabled={busy || !username || !password}>
+                {busy ? "Signing in…" : "Update"}
+              </Button>
             </div>
-          ) : sessionData ? (
-            <form onSubmit={run} className="flex flex-col gap-3">
-              <Field
-                id="re-username"
-                label="SRM Net ID"
-                suffix="@srmist.edu.in"
-                value={username}
-                onChange={setUsername}
-              />
-              <Field
-                id="re-password"
-                label="Password"
-                value={password}
-                onChange={setPassword}
-                type="password"
-              />
-              <div className="flex flex-col gap-2 rounded-control border border-line bg-ink-1 p-3">
-                <span className="text-label uppercase text-text-3">Captcha</span>
-                <img 
-                  src={sessionData.captchaBase64} 
-                  alt="Captcha" 
-                  className="h-auto w-full max-w-[220px] rounded-md bg-white object-contain" 
-                />
-                <input
-                  type="text"
-                  value={captcha}
-                  onChange={(e) => setCaptcha(e.target.value)}
-                  placeholder="Type characters above"
-                  className="mt-1 w-full appearance-none bg-transparent text-headline text-text-1 outline-none placeholder:text-text-3"
-                  required
-                />
-              </div>
-              {error && <p className="text-callout text-risk mt-1">{error}</p>}
-              <div className="mt-2">
-                <Button type="submit" variant="primary" size="lg" full disabled={busy || !username || !password || !captcha}>
-                  {busy ? "Signing in…" : "Update"}
-                </Button>
-              </div>
-            </form>
-          ) : (
-            <div className="flex flex-col items-center gap-3 p-4">
-              {error && <p className="text-callout text-risk">{error}</p>}
-              <Button onClick={loadCaptcha} variant="secondary">Try Again</Button>
-            </div>
-          )}
+          </form>
+
+          <p className="text-callout text-text-3 mt-2">
+            Your credentials are encrypted on-device.
+          </p>
         </div>
       </Sheet>
     </>
