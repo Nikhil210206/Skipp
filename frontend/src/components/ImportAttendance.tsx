@@ -52,13 +52,14 @@ export function ImportAttendanceAction({ type = "attendance" }: { type?: "attend
         setOpen(true);
         setError(err instanceof Error ? err.message : "Auto-import failed. Please verify your credentials.");
         setUsername(creds.username);
-        setPassword(creds.password);
+        setPassword("");
         return;
       }
     }
 
     // No credentials saved yet, open modal for Net ID and Password
     setError(null);
+    setPassword("");
     setOpen(true);
   };
 
@@ -82,8 +83,10 @@ export function ImportAttendanceAction({ type = "attendance" }: { type?: "attend
       const creds = { username: cleanUsername, password };
       await autoImportAttendance(creds);
       await savePortalCredentials(creds);
+      setPassword("");
       setOpen(false);
     } catch (err) {
+      setPassword("");
       setError(err instanceof Error ? err.message : "Import failed. Please check your credentials.");
     } finally {
       setBusy(false);
@@ -104,10 +107,9 @@ export function ImportAttendanceAction({ type = "attendance" }: { type?: "attend
         title={type === "marks" ? "Get your marks" : "Get your attendance"}
       >
         <div className="flex flex-col gap-5 pb-2">
-          <p className="text-body text-text-2">
-            Academia has not published {type} yet, so Skipp reads {type === "marks" ? "them" : "it"} straight
-            from the SRM student portal instead.
-          </p>
+          <div className="rounded-control border border-line bg-ink-1/60 p-3 text-callout text-text-2">
+            Enter your <strong>SRM Student Portal password</strong> (your NetID / email password). Note that this is often different from your Academia password.
+          </div>
 
           <form onSubmit={run} className="flex flex-col gap-3">
             <Field
@@ -124,7 +126,7 @@ export function ImportAttendanceAction({ type = "attendance" }: { type?: "attend
               value={password}
               onChange={setPassword}
               type="password"
-              placeholder="••••••••"
+              placeholder="Student portal password"
               autoComplete="current-password"
             />
 
@@ -209,6 +211,7 @@ export function PortalSourceNote({ type = "attendance" }: { type?: "attendance" 
     autoImportAttendance,
     clearImportedAttendance,
     isAutoSyncing,
+    refresh,
   } = useSession();
   const [busy, setBusy] = useState(false);
   const [status, setStatus] = useState<"idle" | "updating" | "updated">("idle");
@@ -239,7 +242,7 @@ export function PortalSourceNote({ type = "attendance" }: { type?: "attendance" 
   const handleUpdate = async () => {
     if (busy || status === "updating") return;
 
-    // Look for credentials that are suitable for portal (i.e. NOT a registration number)
+    // Look for verified portal credentials
     let creds = portalCreds && !isRegistrationNumber(portalCreds.username) ? portalCreds : null;
     if (!creds) {
       const savedPortal = await loadPortalCredentials();
@@ -247,42 +250,48 @@ export function PortalSourceNote({ type = "attendance" }: { type?: "attendance" 
         creds = savedPortal;
       }
     }
-    if (!creds && sessionCreds && !isRegistrationNumber(sessionCreds.username)) {
-      creds = sessionCreds;
-    }
-    if (!creds) {
-      const saved = await loadCredentials();
-      if (saved && !isRegistrationNumber(saved.username)) {
-        creds = saved;
-      }
-    }
+
+    const defaultUser =
+      creds?.username ||
+      (portalCreds && !isRegistrationNumber(portalCreds.username) ? portalCreds.username : "") ||
+      (sessionCreds && !isRegistrationNumber(sessionCreds.username) ? sessionCreds.username : "");
 
     if (creds) {
       setBusy(true);
       setStatus("updating");
       setError(null);
       try {
-        await autoImportAttendance(creds);
-        void savePortalCredentials(creds);
-        setStatus("updated");
-        if (updatedTimer.current) clearTimeout(updatedTimer.current);
-        updatedTimer.current = setTimeout(() => setStatus("idle"), 2500);
-        return;
+        const outcome = await refresh(true);
+        if (outcome === "updated" || outcome === "fresh") {
+          setStatus("updated");
+          if (updatedTimer.current) clearTimeout(updatedTimer.current);
+          updatedTimer.current = setTimeout(() => setStatus("idle"), 2500);
+          return;
+        } else {
+          setStatus("idle");
+          setUsername(defaultUser);
+          setPassword("");
+          setError("Failed to update from student portal. Please check your credentials.");
+          setOpen(true);
+          return;
+        }
       } catch (err) {
         setStatus("idle");
+        setUsername(defaultUser);
+        setPassword("");
+        setError(err instanceof Error ? err.message : "Update failed. Please check your credentials.");
         setOpen(true);
-        setError(err instanceof Error ? err.message : "Auto-update failed. Please check your credentials.");
-        setUsername(creds.username);
-        setPassword(creds.password);
         return;
       } finally {
         setBusy(false);
       }
     }
 
-    // No valid credentials found, open modal
-    setOpen(true);
+    // No valid credentials found, open modal with empty password
+    setUsername(defaultUser);
+    setPassword("");
     setError(null);
+    setOpen(true);
   };
 
   const run = async (e: React.FormEvent) => {
@@ -305,11 +314,13 @@ export function PortalSourceNote({ type = "attendance" }: { type?: "attendance" 
       const creds = { username: cleanUsername, password };
       await autoImportAttendance(creds);
       await savePortalCredentials(creds);
+      setPassword("");
       setOpen(false);
       setStatus("updated");
       if (updatedTimer.current) clearTimeout(updatedTimer.current);
       updatedTimer.current = setTimeout(() => setStatus("idle"), 2500);
     } catch (err) {
+      setPassword("");
       setError(err instanceof Error ? err.message : "Update failed. Please check your credentials.");
     } finally {
       setBusy(false);
@@ -358,9 +369,9 @@ export function PortalSourceNote({ type = "attendance" }: { type?: "attendance" 
       
       <Sheet open={open} onClose={() => { if (!busy) setOpen(false); }} title={`Update ${type}`}>
         <div className="flex flex-col gap-5 pb-2">
-          <p className="text-body text-text-2">
-            Enter your SRM Net ID and password. Skipp solves verification checks automatically.
-          </p>
+          <div className="rounded-control border border-line bg-ink-1/60 p-3 text-callout text-text-2">
+            Enter your <strong>SRM Student Portal password</strong> (your NetID / email password). Note that this is often different from your Academia password.
+          </div>
 
           <form onSubmit={run} className="flex flex-col gap-3">
             <Field
@@ -377,7 +388,7 @@ export function PortalSourceNote({ type = "attendance" }: { type?: "attendance" 
               value={password}
               onChange={setPassword}
               type="password"
-              placeholder="••••••••"
+              placeholder="Student portal password"
               autoComplete="current-password"
             />
             {error && <p className="text-callout text-risk mt-1">{error}</p>}
@@ -389,7 +400,7 @@ export function PortalSourceNote({ type = "attendance" }: { type?: "attendance" 
           </form>
 
           <p className="text-callout text-text-3 mt-2">
-            Your credentials are encrypted on-device.
+            Your credentials are encrypted on-device. Verification checks are handled automatically.
           </p>
         </div>
       </Sheet>

@@ -73,7 +73,7 @@ const STALE_MS = 60 * 60 * 1000; // 1 hour
  * the finger and expensive to the account: ten pulls is ten real portal
  * sign-ins, which is roughly what it takes to earn a CAPTCHA.
  */
-const MANUAL_MIN_MS = 5 * 60 * 1000; // 5 minutes
+const MANUAL_MIN_MS = 15 * 1000; // 15 seconds
 
 /**
  * How long to leave the portal alone once it has said no.
@@ -268,7 +268,7 @@ type SessionValue = {
     },
   ) => Promise<void>;
   /** Resolves with what actually happened, so the caller can say so. */
-  refresh: () => Promise<RefreshOutcome>;
+  refresh: (force?: boolean) => Promise<RefreshOutcome>;
   logout: () => void;
 };
 
@@ -289,6 +289,7 @@ export function SessionProvider({ children }: { children: React.ReactNode }) {
   const [isAutoSyncing, setIsAutoSyncing] = useState(false);
   const [loginSource, setLoginSource] = useState<LoginPortalMode>("academia");
   const hasAttemptedSilentSync = useRef(false);
+  const portalAuthFailed = useRef(false);
 
   const reg = snapshot?.timetable.student.registrationNumber ?? null;
   // The portal shouts names in caps. Present it the way a person writes it.
@@ -491,9 +492,10 @@ export function SessionProvider({ children }: { children: React.ReactNode }) {
       setPortalCreds(savedPortal);
       return savedPortal;
     }
-    if (creds && !isRegistrationNumber(creds.username)) return creds;
+    // Only fall back to creds if we haven't failed portal auth with them
+    if (!portalAuthFailed.current && creds && !isRegistrationNumber(creds.username)) return creds;
     const saved = await loadCredentials();
-    if (saved && !isRegistrationNumber(saved.username)) return saved;
+    if (!portalAuthFailed.current && saved && !isRegistrationNumber(saved.username)) return saved;
     return null;
   }, [portalCreds, creds]);
 
@@ -521,7 +523,7 @@ export function SessionProvider({ children }: { children: React.ReactNode }) {
       attendance: enrichTitles(sp.attendance, titles),
       marks: sp.marksStatus === "ready" ? sp.marks : null,
       reportedPeriod: sp.reportedPeriod,
-      fetchedAt: sp.fetchedAt,
+      fetchedAt: sp.fetchedAt || new Date().toISOString(),
     };
     setPortalAtt(override);
     if (reg) savePortalOverride(reg, override);
@@ -534,29 +536,39 @@ export function SessionProvider({ children }: { children: React.ReactNode }) {
     }
 
     const task = (async () => {
-      const sp = await autoStudentPortalLogin(req);
-      if (sp.attendanceStatus !== "ready" || !sp.attendance) {
-        throw new Error(
-          sp.attendanceMessage ??
-            "The student portal did not return attendance this time.",
+      try {
+        const sp = await autoStudentPortalLogin(req);
+        if (sp.attendanceStatus !== "ready" || !sp.attendance) {
+          throw new Error(
+            sp.attendanceMessage ??
+              "The student portal did not return attendance this time.",
+          );
+        }
+        const titles = new Map(
+          (snapshot?.timetable.courses ?? []).map((c) => [
+            c.code.toUpperCase(),
+            c.title,
+          ]),
         );
+        const override: PortalOverride = {
+          attendance: enrichTitles(sp.attendance, titles),
+          marks: sp.marksStatus === "ready" ? sp.marks : null,
+          reportedPeriod: sp.reportedPeriod,
+          fetchedAt: sp.fetchedAt || new Date().toISOString(),
+        };
+        setPortalAtt(override);
+        if (reg) savePortalOverride(reg, override);
+        setPortalCreds(req);
+        void savePortalCredentials(req);
+        portalAuthFailed.current = false;
+      } catch (err) {
+        if (err instanceof AuthError && isBadCredentials(err)) {
+          portalAuthFailed.current = true;
+          clearPortalCredentials();
+          setPortalCreds(null);
+        }
+        throw err;
       }
-      const titles = new Map(
-        (snapshot?.timetable.courses ?? []).map((c) => [
-          c.code.toUpperCase(),
-          c.title,
-        ]),
-      );
-      const override: PortalOverride = {
-        attendance: enrichTitles(sp.attendance, titles),
-        marks: sp.marksStatus === "ready" ? sp.marks : null,
-        reportedPeriod: sp.reportedPeriod,
-        fetchedAt: sp.fetchedAt,
-      };
-      setPortalAtt(override);
-      if (reg) savePortalOverride(reg, override);
-      setPortalCreds(req);
-      void savePortalCredentials(req);
     })();
 
     autoImportInFlight.current = task;
@@ -571,10 +583,11 @@ export function SessionProvider({ children }: { children: React.ReactNode }) {
   const bgRefreshing = useRef(false);
   const refreshIfStale = useCallback(async () => {
     if (bgRefreshing.current) return;
+    const now = Date.now();
     const isAcademiaStale = snapshot ? isStale(snapshot.fetchedAt) : false;
     const isPortalStale = portalAtt?.fetchedAt
-      ? Date.now() - Date.parse(portalAtt.fetchedAt) > 15 * 60 * 1000
-      : false;
+      ? now - Date.parse(portalAtt.fetchedAt) > 2 * 60 * 1000
+      : true;
 
     const needsAcademia = creds && isAcademiaStale && !inCooldown();
     const needsPortal =
@@ -585,6 +598,20 @@ export function SessionProvider({ children }: { children: React.ReactNode }) {
 
     bgRefreshing.current = true;
     try {
+      if (needsPortal) {
+        const pCreds = await getPortalCredentials();
+        if (pCreds) {
+          try {
+            setIsAutoSyncing(true);
+            await autoImportAttendance(pCreds);
+          } catch (portalErr) {
+            console.error("Portal attendance background update failed:", portalErr);
+          } finally {
+            setIsAutoSyncing(false);
+          }
+        }
+      }
+
       if (needsAcademia && creds) {
         let fresh: Snapshot;
         if (loginSource === "portal") {
@@ -595,17 +622,6 @@ export function SessionProvider({ children }: { children: React.ReactNode }) {
         }
         installSnapshot(fresh);
         void saveSnapshot(fresh);
-      }
-
-      if (needsPortal) {
-        const pCreds = await getPortalCredentials();
-        if (pCreds) {
-          try {
-            await autoImportAttendance(pCreds);
-          } catch (portalErr) {
-            console.error("Portal attendance background update failed:", portalErr);
-          }
-        }
       }
     } catch (e) {
       noteFailure(e); // keep cache, and stop knocking
@@ -629,11 +645,11 @@ export function SessionProvider({ children }: { children: React.ReactNode }) {
     };
   }, [refreshIfStale]);
 
-  // Periodic background check every 15 minutes when app remains open
+  // Periodic background check every 5 minutes when app remains open
   useEffect(() => {
     const interval = setInterval(() => {
       void refreshIfStale();
-    }, 15 * 60 * 1000);
+    }, 5 * 60 * 1000);
     return () => clearInterval(interval);
   }, [refreshIfStale]);
 
@@ -648,8 +664,8 @@ export function SessionProvider({ children }: { children: React.ReactNode }) {
     // If academia has everything and there is no portal override, no need for the portal
     if (academiaReady && academiaMarksReady && !portalAtt) return;
     
-    // Skip if we recently synced portal (within the last 15 minutes)
-    if (portalAtt?.fetchedAt && (Date.now() - Date.parse(portalAtt.fetchedAt) < 15 * 60 * 1000)) return;
+    // Skip if we recently synced portal (within the last 2 minutes)
+    if (portalAtt?.fetchedAt && (Date.now() - Date.parse(portalAtt.fetchedAt) < 2 * 60 * 1000)) return;
 
     if (hasAttemptedSilentSync.current) return;
     hasAttemptedSilentSync.current = true;
@@ -685,10 +701,11 @@ export function SessionProvider({ children }: { children: React.ReactNode }) {
   // identity changed whenever anything in the session did, including the
   // `refreshing` flag it sets itself. PullToRefresh depends on it, so the pull
   // handler was being unregistered and re-registered during its own refresh.
-  const refresh = useCallback(async (): Promise<RefreshOutcome> => {
-    if (!creds) return "failed";
-    const academiaRecent = snapshot && Date.now() - Date.parse(snapshot.fetchedAt) < MANUAL_MIN_MS;
-    const portalRecent = portalAtt?.fetchedAt && Date.now() - Date.parse(portalAtt.fetchedAt) < MANUAL_MIN_MS;
+  const refresh = useCallback(async (force = false): Promise<RefreshOutcome> => {
+    if (!creds && !portalCreds) return "failed";
+    const now = Date.now();
+    const academiaRecent = !force && snapshot && (now - Date.parse(snapshot.fetchedAt) < MANUAL_MIN_MS);
+    const portalRecent = !force && portalAtt?.fetchedAt && (now - Date.parse(portalAtt.fetchedAt) < MANUAL_MIN_MS);
 
     if (inCooldown()) return "cooldown";
     if (academiaRecent && (portalAtt === null || portalRecent)) {
@@ -697,23 +714,14 @@ export function SessionProvider({ children }: { children: React.ReactNode }) {
 
     setRefreshing(true);
     let updatedAnything = false;
-    try {
-      if (!academiaRecent) {
-        let fresh: Snapshot;
-        if (loginSource === "portal") {
-          const sp = await autoStudentPortalLogin(creds);
-          fresh = synthesizePortalSnapshot(sp, creds.username);
-        } else {
-          fresh = await fetchSnapshot(creds);
-        }
-        installSnapshot(fresh);
-        void saveSnapshot(fresh);
-        updatedAnything = true;
-      }
+    let authFailed = false;
 
-      // If user had portal attendance active OR academia attendance is not ready, sync portal too!
-      const shouldSyncPortal = (portalAtt !== null || snapshot?.attendanceStatus !== "ready") && !portalRecent;
-      if (shouldSyncPortal) {
+    try {
+      const academiaReady = snapshot?.attendanceStatus === "ready" && !!snapshot?.attendance;
+      const isPortalPrimary = !academiaReady || portalAtt !== null;
+
+      // 1. If portal is primary for attendance, sync portal first!
+      if (isPortalPrimary && (!portalRecent || force)) {
         const pCreds = await getPortalCredentials();
         if (pCreds) {
           try {
@@ -721,18 +729,57 @@ export function SessionProvider({ children }: { children: React.ReactNode }) {
             updatedAnything = true;
           } catch (portalErr) {
             console.error("Portal attendance sync during refresh failed:", portalErr);
+            if (portalErr instanceof AuthError && isBadCredentials(portalErr)) {
+              authFailed = true;
+            }
           }
         }
       }
 
-      return updatedAnything ? "updated" : "fresh";
+      // 2. Refresh academia if creds exist
+      if (creds && (!academiaRecent || force) && !inCooldown()) {
+        try {
+          let fresh: Snapshot;
+          if (loginSource === "portal") {
+            const sp = await autoStudentPortalLogin(creds);
+            fresh = synthesizePortalSnapshot(sp, creds.username);
+          } else {
+            fresh = await fetchSnapshot(creds);
+          }
+          installSnapshot(fresh);
+          void saveSnapshot(fresh);
+          updatedAnything = true;
+        } catch (acadErr) {
+          console.warn("Academia refresh soft fail during refresh:", acadErr);
+          if (!updatedAnything) {
+            noteFailure(acadErr);
+          }
+        }
+      }
+
+      // 3. If academia was primary but failed or didn't return attendance, sync portal as backup
+      if (!isPortalPrimary && (!updatedAnything || snapshot?.attendanceStatus !== "ready")) {
+        const pCreds = await getPortalCredentials();
+        if (pCreds && (!portalRecent || force)) {
+          try {
+            await autoImportAttendance(pCreds);
+            updatedAnything = true;
+          } catch (portalErr) {
+            console.error("Secondary portal attendance sync during refresh failed:", portalErr);
+          }
+        }
+      }
+
+      if (updatedAnything) return "updated";
+      if (authFailed) return "failed";
+      return "fresh";
     } catch (e) {
       noteFailure(e);
       return e instanceof AuthError ? "cooldown" : "failed";
     } finally {
       setRefreshing(false);
     }
-  }, [creds, snapshot, loginSource, installSnapshot, portalAtt, getPortalCredentials, autoImportAttendance]);
+  }, [creds, portalCreds, snapshot, loginSource, installSnapshot, portalAtt, getPortalCredentials, autoImportAttendance]);
 
   const value = useMemo<SessionValue>(() => {
     const sectionState = (s: SectionStatus | undefined): SectionState =>
@@ -794,10 +841,9 @@ export function SessionProvider({ children }: { children: React.ReactNode }) {
       marksState: usePortalMarks ? "ready" : sectionState(snapshot?.marksStatus),
       marksMessage: usePortalMarks ? null : (snapshot?.marksMessage ?? null),
       marksSource: academiaMarksReady ? "academia" : usePortalMarks ? "portal" : null,
-      fetchedAt:
-        academiaReady || academiaMarksReady
-          ? (snapshot?.fetchedAt ?? null)
-          : (portalAtt?.fetchedAt ?? snapshot?.fetchedAt ?? null),
+      fetchedAt: usePortal
+        ? (portalAtt?.fetchedAt ?? snapshot?.fetchedAt ?? null)
+        : (snapshot?.fetchedAt ?? portalAtt?.fetchedAt ?? null),
       isAuthed: creds != null,
       loginSource,
       restoring,
@@ -873,7 +919,6 @@ export function SessionProvider({ children }: { children: React.ReactNode }) {
         installSnapshot(snap);
         void saveCredentials(next);
         void saveSnapshot(snap);
-        void savePortalCredentials(next);
       },
       async loginPortal(next, manual) {
         let sp: StudentPortalSnapshot;
