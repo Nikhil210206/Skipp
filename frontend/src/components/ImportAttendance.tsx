@@ -228,6 +228,20 @@ export function PortalSourceNote({ type = "attendance" }: { type?: "attendance" 
     if (updatedTimer.current) clearTimeout(updatedTimer.current);
   }, []);
 
+  useEffect(() => {
+    const handleRequestLogin = () => {
+      const defaultUser =
+        (portalCreds && !isRegistrationNumber(portalCreds.username) ? portalCreds.username : "") ||
+        (sessionCreds && !isRegistrationNumber(sessionCreds.username) ? sessionCreds.username : "");
+      setUsername(defaultUser);
+      setPassword("");
+      setError("Please sign in to update attendance from the student portal.");
+      setOpen(true);
+    };
+    window.addEventListener("skipp:request-portal-login", handleRequestLogin);
+    return () => window.removeEventListener("skipp:request-portal-login", handleRequestLogin);
+  }, [portalCreds, sessionCreds]);
+
   const handleClear = () => {
     if (disarmTimer.current) clearTimeout(disarmTimer.current);
     if (armed) {
@@ -249,6 +263,9 @@ export function PortalSourceNote({ type = "attendance" }: { type?: "attendance" 
       if (savedPortal && !isRegistrationNumber(savedPortal.username)) {
         creds = savedPortal;
       }
+    }
+    if (!creds && sessionCreds && !isRegistrationNumber(sessionCreds.username)) {
+      creds = sessionCreds;
     }
 
     const defaultUser =

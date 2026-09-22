@@ -668,13 +668,13 @@ export function SessionProvider({ children }: { children: React.ReactNode }) {
     if (portalAtt?.fetchedAt && (Date.now() - Date.parse(portalAtt.fetchedAt) < 2 * 60 * 1000)) return;
 
     if (hasAttemptedSilentSync.current) return;
-    hasAttemptedSilentSync.current = true;
 
     let isMounted = true;
     const silentSync = async () => {
       try {
         const pCreds = await getPortalCredentials();
         if (pCreds && isMounted) {
+          hasAttemptedSilentSync.current = true;
           setIsAutoSyncing(true);
           await autoImportAttendance(pCreds);
         }
@@ -702,10 +702,9 @@ export function SessionProvider({ children }: { children: React.ReactNode }) {
   // `refreshing` flag it sets itself. PullToRefresh depends on it, so the pull
   // handler was being unregistered and re-registered during its own refresh.
   const refresh = useCallback(async (force = false): Promise<RefreshOutcome> => {
-    if (!creds && !portalCreds) return "failed";
     const now = Date.now();
-    const academiaRecent = !force && snapshot && (now - Date.parse(snapshot.fetchedAt) < MANUAL_MIN_MS);
-    const portalRecent = !force && portalAtt?.fetchedAt && (now - Date.parse(portalAtt.fetchedAt) < MANUAL_MIN_MS);
+    const academiaRecent = !force && !!snapshot?.fetchedAt && (now - Date.parse(snapshot.fetchedAt) < MANUAL_MIN_MS);
+    const portalRecent = !force && !!portalAtt?.fetchedAt && (now - Date.parse(portalAtt.fetchedAt) < MANUAL_MIN_MS);
 
     if (inCooldown()) return "cooldown";
     if (academiaRecent && (portalAtt === null || portalRecent)) {
@@ -731,8 +730,12 @@ export function SessionProvider({ children }: { children: React.ReactNode }) {
             console.error("Portal attendance sync during refresh failed:", portalErr);
             if (portalErr instanceof AuthError && isBadCredentials(portalErr)) {
               authFailed = true;
+              window.dispatchEvent(new CustomEvent("skipp:request-portal-login"));
             }
           }
+        } else {
+          // No portal credentials available! Request portal login from the UI
+          window.dispatchEvent(new CustomEvent("skipp:request-portal-login"));
         }
       }
 
@@ -772,6 +775,9 @@ export function SessionProvider({ children }: { children: React.ReactNode }) {
 
       if (updatedAnything) return "updated";
       if (authFailed) return "failed";
+      if (!academiaRecent || (portalAtt !== null && !portalRecent)) {
+        return "failed";
+      }
       return "fresh";
     } catch (e) {
       noteFailure(e);

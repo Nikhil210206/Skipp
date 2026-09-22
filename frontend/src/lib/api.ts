@@ -197,13 +197,16 @@ export async function submitStudentPortalLogin(
     if (code === "session_expired") {
       throw new AuthError(detail ?? "Sign in to the student portal again.", "wrong_password");
     }
-    throw new AuthError(detail ?? "Sign-in failed.", "wrong_password");
+    throw new PortalError(detail ?? "Student portal sign-in failed.", "portal");
   }
   if (res.status === 429) {
     throw new AuthError(
       detail ?? "The portal is rate limiting sign-ins right now.",
       "captcha",
     );
+  }
+  if (res.status === 503) {
+    throw new PortalError(detail ?? "Student portal is currently unreachable.", "unreachable");
   }
   throw new PortalError(detail ?? `Something went wrong (${res.status}).`, "portal");
 }
@@ -244,13 +247,16 @@ export async function autoStudentPortalLogin(
     if (code === "session_expired") {
       throw new AuthError(detail ?? "Sign in to the student portal again.", "wrong_password");
     }
-    throw new AuthError(detail ?? "Sign-in failed.", "wrong_password");
+    throw new PortalError(detail ?? "Student portal sign-in failed.", "portal");
   }
   if (res.status === 429) {
     throw new AuthError(
       detail ?? "The portal is rate limiting sign-ins right now.",
       "captcha",
     );
+  }
+  if (res.status === 503) {
+    throw new PortalError(detail ?? "Student portal is currently unreachable.", "unreachable");
   }
   throw new PortalError(detail ?? `Something went wrong (${res.status}).`, "portal");
 }

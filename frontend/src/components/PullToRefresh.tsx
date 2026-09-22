@@ -283,8 +283,12 @@ export default function PullToRefresh({
           setArmed(false);
         }
         if (outcome === "updated") {
-          busy.current = false;
-          settle(0);
+          setNote({ title: "Updated", detail: "checked just now", ok: true });
+          setTimeout(() => {
+            busy.current = false;
+            setNote(null);
+            settle(0);
+          }, 900);
         } else {
           // Nothing was fetched, so say what is true and hold it long enough
           // to be read before retracting.

@@ -545,8 +545,10 @@ def sp_login(req: StudentPortalLoginRequest, request: Request) -> StudentPortalS
         print(f"DEBUG: StudentPortalClientError raised with msg: {msg}")
         if "Invalid captcha" in msg:
             raise _fail(401, "invalid_captcha", "Incorrect captcha. Please try again.")
-        if "Invalid username or password" in msg:
+        if "Invalid username or password" in msg or "invalid credentials" in msg.lower():
             raise _fail(401, "invalid_credentials", "Incorrect NetID or password.")
+        if "network error" in msg.lower() or "timeout" in msg.lower() or "failed to fetch" in msg.lower() or "proxy" in msg.lower():
+            raise _fail(503, "portal_unreachable", msg)
         raise _fail(401, "login_failed", msg)
     except Exception as e:
         import traceback
@@ -661,8 +663,10 @@ def sp_auto_login(req: LoginRequest, request: Request) -> StudentPortalSnapshot:
         msg = str(e)
         if "Invalid captcha" in msg or "Failed to solve CAPTCHA" in msg:
             raise _fail(401, "invalid_captcha", "Incorrect captcha. Please try again.")
-        if "Invalid username or password" in msg:
+        if "Invalid username or password" in msg or "invalid credentials" in msg.lower():
             raise _fail(401, "invalid_credentials", "Incorrect NetID or password.")
+        if "network error" in msg.lower() or "timeout" in msg.lower() or "failed to fetch" in msg.lower() or "proxy" in msg.lower():
+            raise _fail(503, "portal_unreachable", msg)
         raise _fail(401, "login_failed", msg)
     except Exception as e:
         import traceback

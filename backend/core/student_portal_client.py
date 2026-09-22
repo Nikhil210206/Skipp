@@ -22,7 +22,10 @@ class StudentPortalClientError(Exception):
 
 import random
 
+_prefer_direct = False
+
 def _get_opener(cj=None, force_proxy=None):
+    global _prefer_direct
     handlers = []
     
     # Disable SSL verification due to portal's self-signed certificates or local network interception
@@ -35,7 +38,9 @@ def _get_opener(cj=None, force_proxy=None):
         handlers.append(urllib.request.HTTPCookieProcessor(cj))
         
     proxy_url = force_proxy
-    if not proxy_url:
+    if proxy_url == "DIRECT" or (force_proxy is None and _prefer_direct):
+        proxy_url = None
+    elif not proxy_url:
         proxy_env = os.environ.get("SKIPP_PROXY") or os.environ.get("HTTPS_PROXY")
         if proxy_env:
             # If multiple proxies are provided (comma separated), pick one randomly
@@ -48,12 +53,22 @@ def _get_opener(cj=None, force_proxy=None):
     return urllib.request.build_opener(*handlers), proxy_url
 
 def init_login_session() -> StudentPortalCaptchaResponse:
+    global _prefer_direct
     req = urllib.request.Request(LOGIN_PAGE_URL, headers={'User-Agent': UA})
     opener, chosen_proxy = _get_opener()
     try:
-        res = opener.open(req, timeout=7)
-    except urllib.error.URLError as e:
-        raise StudentPortalClientError(f"Network error connecting to student portal: {e}")
+        res = opener.open(req, timeout=5)
+    except Exception as e:
+        if chosen_proxy and chosen_proxy != "DIRECT":
+            print(f"Proxy {chosen_proxy} failed with {e}. Falling back to direct connection...")
+            _prefer_direct = True
+            opener, chosen_proxy = _get_opener(force_proxy="DIRECT")
+            try:
+                res = opener.open(req, timeout=5)
+            except Exception as direct_err:
+                raise StudentPortalClientError(f"Network error connecting to student portal: {direct_err}") from direct_err
+        else:
+            raise StudentPortalClientError(f"Network error connecting to student portal: {e}") from e
     html = res.read().decode('utf-8', errors='ignore')
     
     # Extract session cookies
@@ -98,15 +113,30 @@ def init_login_session() -> StudentPortalCaptchaResponse:
     })
     
     try:
-        c_res = opener.open(req_c, timeout=7)
+        c_res = opener.open(req_c, timeout=5)
         if c_res.info().get_all('Set-Cookie'):
             for c in c_res.info().get_all('Set-Cookie'):
                 cookies.append(c.split(';')[0])
         
         captcha_bytes = c_res.read()
         captcha_b64 = "data:image/png;base64," + base64.b64encode(captcha_bytes).decode()
-    except urllib.error.HTTPError as e:
-        raise StudentPortalClientError(f"Failed to fetch captcha: {e.code}") from e
+    except Exception as e:
+        if chosen_proxy and chosen_proxy != "DIRECT":
+            print(f"Proxy failed on captcha ({e}). Falling back to direct...")
+            _prefer_direct = True
+            direct_opener, chosen_proxy = _get_opener(force_proxy="DIRECT")
+            opener = direct_opener
+            try:
+                c_res = opener.open(req_c, timeout=5)
+                if c_res.info().get_all('Set-Cookie'):
+                    for c in c_res.info().get_all('Set-Cookie'):
+                        cookies.append(c.split(';')[0])
+                captcha_bytes = c_res.read()
+                captcha_b64 = "data:image/png;base64," + base64.b64encode(captcha_bytes).decode()
+            except Exception as direct_err:
+                raise StudentPortalClientError(f"Failed to fetch captcha: {direct_err}") from direct_err
+        else:
+            raise StudentPortalClientError(f"Failed to fetch captcha: {e}") from e
 
     cookie_str = "; ".join(cookies)
 
@@ -193,7 +223,7 @@ def submit_login_and_fetch(req_data: StudentPortalLoginRequest) -> Tuple[str, Op
                 ck = http.cookiejar.Cookie(version=0, name=k, value=v, port=None, port_specified=False, domain='sp.srmist.edu.in', domain_specified=False, domain_initial_dot=False, path='/', path_specified=False, secure=False, expires=None, discard=True, comment=None, comment_url=None, rest={'HttpOnly': None}, rfc2109=False)
                 cj.set_cookie(ck)
     
-    opener, _ = _get_opener(cj, force_proxy=chosen_proxy)
+    opener, chosen_proxy = _get_opener(cj, force_proxy=chosen_proxy)
     req_post = urllib.request.Request(LOGIN_SUBMIT_URL, data=encoded_data, headers={
         'User-Agent': UA,
         'Content-Type': 'application/x-www-form-urlencoded',
@@ -202,14 +232,23 @@ def submit_login_and_fetch(req_data: StudentPortalLoginRequest) -> Tuple[str, Op
     })
     
     try:
-        res_post = opener.open(req_post, timeout=7)
+        res_post = opener.open(req_post, timeout=5)
         result_html = res_post.read().decode('utf-8', errors='ignore')
-        
         set_cookies = res_post.info().get_all('Set-Cookie')
-    except urllib.error.HTTPError as e:
-        raise StudentPortalClientError(f"Login request failed: {e.code}") from e
     except Exception as e:
-        raise StudentPortalClientError(f"Login request error: {e}") from e
+        if chosen_proxy and chosen_proxy != "DIRECT":
+            print(f"Proxy failed on POST ({e}). Falling back to direct connection...")
+            _prefer_direct = True
+            direct_opener, chosen_proxy = _get_opener(cj, force_proxy="DIRECT")
+            opener = direct_opener
+            try:
+                res_post = opener.open(req_post, timeout=5)
+                result_html = res_post.read().decode('utf-8', errors='ignore')
+                set_cookies = res_post.info().get_all('Set-Cookie')
+            except Exception as direct_err:
+                raise StudentPortalClientError(f"Login request error: {direct_err}") from direct_err
+        else:
+            raise StudentPortalClientError(f"Login request error: {e}") from e
         
 
                 
