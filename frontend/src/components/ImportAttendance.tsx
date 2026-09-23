@@ -5,6 +5,7 @@ import { Button } from "@/components/ui";
 import { Sheet } from "@/components/ui/Overlay";
 import { IconTrash } from "@/components/Icons";
 import { useSession } from "@/context/SessionContext";
+import { AuthError } from "@/lib/api";
 import {
   savePortalCredentials,
   loadPortalCredentials,
@@ -50,9 +51,14 @@ export function ImportAttendanceAction({ type = "attendance" }: { type?: "attend
       } catch (err) {
         setBusy(false);
         setOpen(true);
-        setError(err instanceof Error ? err.message : "Auto-import failed. Please verify your credentials.");
-        setUsername(creds.username);
-        setPassword("");
+        if (err instanceof AuthError && (err.code === "wrong_password" || err.code === "user_not_found")) {
+          setError(err.message || "Incorrect NetID or password. Please update your credentials.");
+          setUsername(creds.username);
+          setPassword("");
+        } else {
+          setError(err instanceof Error ? err.message : "Import failed. Please try again.");
+          setUsername(creds.username);
+        }
         return;
       }
     }
@@ -229,14 +235,17 @@ export function PortalSourceNote({ type = "attendance" }: { type?: "attendance" 
   }, []);
 
   useEffect(() => {
-    const handleRequestLogin = () => {
-      const defaultUser =
-        (portalCreds && !isRegistrationNumber(portalCreds.username) ? portalCreds.username : "") ||
-        (sessionCreds && !isRegistrationNumber(sessionCreds.username) ? sessionCreds.username : "");
-      setUsername(defaultUser);
-      setPassword("");
-      setError("Please sign in to update attendance from the student portal.");
-      setOpen(true);
+    const handleRequestLogin = async () => {
+      // Only prompt if credentials do not exist
+      const saved = await loadPortalCredentials();
+      if (!saved && !portalCreds && (!sessionCreds || isRegistrationNumber(sessionCreds.username))) {
+        const defaultUser =
+          sessionCreds && !isRegistrationNumber(sessionCreds.username) ? sessionCreds.username : "";
+        setUsername(defaultUser);
+        setPassword("");
+        setError("Please sign in with your NetID to update attendance from the student portal.");
+        setOpen(true);
+      }
     };
     window.addEventListener("skipp:request-portal-login", handleRequestLogin);
     return () => window.removeEventListener("skipp:request-portal-login", handleRequestLogin);
@@ -285,26 +294,26 @@ export function PortalSourceNote({ type = "attendance" }: { type?: "attendance" 
           updatedTimer.current = setTimeout(() => setStatus("idle"), 2500);
           return;
         } else {
+          // Sync failed or cooldown: remain idle without annoying the user with password prompts
           setStatus("idle");
-          setUsername(defaultUser);
-          setPassword("");
-          setError("Failed to update from student portal. Please check your credentials.");
-          setOpen(true);
           return;
         }
       } catch (err) {
         setStatus("idle");
-        setUsername(defaultUser);
-        setPassword("");
-        setError(err instanceof Error ? err.message : "Update failed. Please check your credentials.");
-        setOpen(true);
+        // Only open modal if auth genuinely failed (wrong password)
+        if (err instanceof AuthError && (err.code === "wrong_password" || err.code === "user_not_found")) {
+          setUsername(defaultUser);
+          setPassword("");
+          setError(err.message || "Incorrect NetID or password. Please update your credentials.");
+          setOpen(true);
+        }
         return;
       } finally {
         setBusy(false);
       }
     }
 
-    // No valid credentials found, open modal with empty password
+    // No valid credentials found, open modal for initial setup
     setUsername(defaultUser);
     setPassword("");
     setError(null);
@@ -338,7 +347,8 @@ export function PortalSourceNote({ type = "attendance" }: { type?: "attendance" 
       updatedTimer.current = setTimeout(() => setStatus("idle"), 2500);
     } catch (err) {
       setPassword("");
-      setError(err instanceof Error ? err.message : "Update failed. Please check your credentials.");
+      const msg = err instanceof Error ? err.message : "Update failed. Please check your credentials.";
+      setError(msg);
     } finally {
       setBusy(false);
     }

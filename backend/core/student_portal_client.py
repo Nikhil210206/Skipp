@@ -22,10 +22,7 @@ class StudentPortalClientError(Exception):
 
 import random
 
-_prefer_direct = False
-
 def _get_opener(cj=None, force_proxy=None):
-    global _prefer_direct
     handlers = []
     
     # Disable SSL verification due to portal's self-signed certificates or local network interception
@@ -38,35 +35,32 @@ def _get_opener(cj=None, force_proxy=None):
         handlers.append(urllib.request.HTTPCookieProcessor(cj))
         
     proxy_url = force_proxy
-    if proxy_url == "DIRECT" or (force_proxy is None and _prefer_direct):
+    if proxy_url == "DIRECT" or force_proxy is None:
         proxy_url = None
-    elif not proxy_url:
-        proxy_env = os.environ.get("SKIPP_PROXY") or os.environ.get("HTTPS_PROXY")
-        if proxy_env:
-            # If multiple proxies are provided (comma separated), pick one randomly
-            proxies = [p.strip() for p in proxy_env.split(',') if p.strip()]
-            if proxies:
-                proxy_url = random.choice(proxies)
-                
-    if proxy_url:
+    elif proxy_url:
         handlers.append(urllib.request.ProxyHandler({'http': proxy_url, 'https': proxy_url}))
+        
     return urllib.request.build_opener(*handlers), proxy_url
 
 def init_login_session() -> StudentPortalCaptchaResponse:
-    global _prefer_direct
     req = urllib.request.Request(LOGIN_PAGE_URL, headers={'User-Agent': UA})
-    opener, chosen_proxy = _get_opener()
+    opener, chosen_proxy = _get_opener(force_proxy="DIRECT")
     try:
         res = opener.open(req, timeout=5)
     except Exception as e:
-        if chosen_proxy and chosen_proxy != "DIRECT":
-            print(f"Proxy {chosen_proxy} failed with {e}. Falling back to direct connection...")
-            _prefer_direct = True
-            opener, chosen_proxy = _get_opener(force_proxy="DIRECT")
-            try:
-                res = opener.open(req, timeout=5)
-            except Exception as direct_err:
-                raise StudentPortalClientError(f"Network error connecting to student portal: {direct_err}") from direct_err
+        # If direct fails (e.g. when hosted outside India), try proxy if configured
+        proxy_env = os.environ.get("SKIPP_PROXY") or os.environ.get("HTTPS_PROXY")
+        if proxy_env:
+            proxies = [p.strip() for p in proxy_env.split(',') if p.strip()]
+            if proxies:
+                chosen_proxy = random.choice(proxies)
+                opener, chosen_proxy = _get_opener(force_proxy=chosen_proxy)
+                try:
+                    res = opener.open(req, timeout=5)
+                except Exception as p_err:
+                    raise StudentPortalClientError(f"Network error connecting to student portal: {p_err}") from p_err
+            else:
+                raise StudentPortalClientError(f"Network error connecting to student portal: {e}") from e
         else:
             raise StudentPortalClientError(f"Network error connecting to student portal: {e}") from e
     html = res.read().decode('utf-8', errors='ignore')
@@ -123,7 +117,6 @@ def init_login_session() -> StudentPortalCaptchaResponse:
     except Exception as e:
         if chosen_proxy and chosen_proxy != "DIRECT":
             print(f"Proxy failed on captcha ({e}). Falling back to direct...")
-            _prefer_direct = True
             direct_opener, chosen_proxy = _get_opener(force_proxy="DIRECT")
             opener = direct_opener
             try:
@@ -238,7 +231,6 @@ def submit_login_and_fetch(req_data: StudentPortalLoginRequest) -> Tuple[str, Op
     except Exception as e:
         if chosen_proxy and chosen_proxy != "DIRECT":
             print(f"Proxy failed on POST ({e}). Falling back to direct connection...")
-            _prefer_direct = True
             direct_opener, chosen_proxy = _get_opener(cj, force_proxy="DIRECT")
             opener = direct_opener
             try:
@@ -284,9 +276,7 @@ def submit_login_and_fetch(req_data: StudentPortalLoginRequest) -> Tuple[str, Op
         print("Login successful, following theGR8LoginLoader redirect...")
         req_redirect = urllib.request.Request(
             f"{SP_BASE_URL}/srmiststudentportal/students/loginManager/youLogin.jsp",
-            data=b"",
             headers={
-                'Content-Type': 'application/x-www-form-urlencoded',
                 'User-Agent': UA,
                 'Referer': LOGIN_PAGE_URL
             }

@@ -188,21 +188,24 @@ export async function submitStudentPortalLogin(
   const code: string | undefined = typeof raw === "object" ? raw?.code : undefined;
   
   if (res.status === 401) {
-    if (code === "invalid_captcha") {
-      throw new AuthError(detail ?? "Incorrect captcha. Please try again.", "captcha");
-    }
     if (code === "invalid_credentials") {
-      throw new AuthError(detail ?? "Wrong SRM net id or password.", "wrong_password");
+      throw new AuthError(detail ?? "Wrong SRM NetID or password.", "wrong_password");
     }
     if (code === "session_expired") {
       throw new AuthError(detail ?? "Sign in to the student portal again.", "wrong_password");
     }
     throw new PortalError(detail ?? "Student portal sign-in failed.", "portal");
   }
+  if (res.status === 400) {
+    if (code === "invalid_credentials") {
+      throw new AuthError(detail ?? "Wrong SRM NetID or password.", "wrong_password");
+    }
+    throw new PortalError(detail ?? "Invalid portal request.", "portal");
+  }
   if (res.status === 429) {
-    throw new AuthError(
-      detail ?? "The portal is rate limiting sign-ins right now.",
-      "captcha",
+    throw new PortalError(
+      detail ?? "Account temporarily locked or rate limited by the portal. Please wait 5 minutes.",
+      "portal",
     );
   }
   if (res.status === 503) {
@@ -238,21 +241,24 @@ export async function autoStudentPortalLogin(
   const code: string | undefined = typeof raw === "object" ? raw?.code : undefined;
   
   if (res.status === 401) {
-    if (code === "invalid_captcha") {
-      throw new AuthError(detail ?? "Automated login failed. Please try again manually.", "captcha");
-    }
     if (code === "invalid_credentials") {
-      throw new AuthError(detail ?? "Wrong SRM net id or password.", "wrong_password");
+      throw new AuthError(detail ?? "Wrong SRM NetID or password.", "wrong_password");
     }
     if (code === "session_expired") {
       throw new AuthError(detail ?? "Sign in to the student portal again.", "wrong_password");
     }
     throw new PortalError(detail ?? "Student portal sign-in failed.", "portal");
   }
+  if (res.status === 400) {
+    if (code === "invalid_credentials") {
+      throw new AuthError(detail ?? "Wrong SRM NetID or password.", "wrong_password");
+    }
+    throw new PortalError(detail ?? "Failed to solve portal CAPTCHA. Tap Update to try again.", "portal");
+  }
   if (res.status === 429) {
-    throw new AuthError(
-      detail ?? "The portal is rate limiting sign-ins right now.",
-      "captcha",
+    throw new PortalError(
+      detail ?? "Account temporarily locked or rate limited by the portal. Please wait 5 minutes.",
+      "portal",
     );
   }
   if (res.status === 503) {

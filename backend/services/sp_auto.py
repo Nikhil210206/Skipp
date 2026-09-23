@@ -18,9 +18,9 @@ ocr = ddddocr.DdddOcr(show_ad=False)
 def auto_login_and_fetch(username: str, password: str) -> Tuple[str, Optional[str], Optional[str]]:
     """
     Attempts to login to the student portal automatically by solving the CAPTCHA.
-    Retries up to 2 times if the CAPTCHA is invalid.
+    Retries up to 5 times if the CAPTCHA is invalid.
     """
-    max_retries = 2
+    max_retries = 5
     last_error = None
 
     for attempt in range(max_retries):
@@ -38,6 +38,12 @@ def auto_login_and_fetch(username: str, password: str) -> Tuple[str, Optional[st
             raw_captcha = ocr.classification(image_bytes)
             import re
             captcha_text = re.sub(r"[^a-zA-Z0-9]", "", raw_captcha).strip()
+            
+            # SRM student portal captchas are strictly 6 alphanumeric characters.
+            # If OCR returned anything other than 6 characters, do not submit a guaranteed failure.
+            if len(captcha_text) != 6:
+                log.info(f"Attempt {attempt + 1}: OCR returned invalid length {len(captcha_text)} ({captcha_text}), retrying with fresh captcha...")
+                continue
             
             # 4. Submit login
             req = StudentPortalLoginRequest(
@@ -60,7 +66,7 @@ def auto_login_and_fetch(username: str, password: str) -> Tuple[str, Optional[st
                 last_error = e
                 continue
             else:
-                # Other errors (e.g., invalid credentials) should fail immediately
+                # Other errors (e.g., invalid credentials, account locked) should fail immediately
                 raise
 
-    raise StudentPortalClientError(f"Failed to solve CAPTCHA after {max_retries} attempts.")
+    raise StudentPortalClientError(f"Failed to solve CAPTCHA after {max_retries} attempts. Please try again.")
