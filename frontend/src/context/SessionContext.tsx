@@ -427,7 +427,13 @@ export function SessionProvider({ children }: { children: React.ReactNode }) {
           cached.attendance,
         );
         setRestoring(false);
-        if (isStale(cached.fetchedAt) && !inCooldown()) void backgroundRefresh(saved, savedMode);
+        // Quietly check for fresh data on reload/app start in background if not in cooldown
+        // and not fetched in the last 60 seconds
+        const recentlyFetched =
+          cached.fetchedAt && Date.now() - Date.parse(cached.fetchedAt) < 60 * 1000;
+        if (!recentlyFetched && !inCooldown()) {
+          void backgroundRefresh(saved, savedMode);
+        }
         return;
       }
 
@@ -476,6 +482,16 @@ export function SessionProvider({ children }: { children: React.ReactNode }) {
         // Keep showing the cached snapshot; a rate-limit or blip is non-fatal.
         // Recording it is what stops the next launch knocking again.
         noteFailure(e);
+      }
+
+      // If portal credentials exist, also refresh portal attendance in the background
+      try {
+        const pCreds = await getPortalCredentials();
+        if (pCreds && !cancelled) {
+          await autoImportAttendance(pCreds);
+        }
+      } catch (e) {
+        console.warn("Portal background refresh failed:", e);
       }
     }
 
@@ -586,7 +602,7 @@ export function SessionProvider({ children }: { children: React.ReactNode }) {
     const now = Date.now();
     const isAcademiaStale = snapshot ? isStale(snapshot.fetchedAt) : false;
     const isPortalStale = portalAtt?.fetchedAt
-      ? now - Date.parse(portalAtt.fetchedAt) > 2 * 60 * 1000
+      ? now - Date.parse(portalAtt.fetchedAt) > 60 * 1000
       : true;
 
     const needsAcademia = creds && isAcademiaStale && !inCooldown();
@@ -658,23 +674,17 @@ export function SessionProvider({ children }: { children: React.ReactNode }) {
   useEffect(() => {
     if (!snapshot) return;
     
-    const academiaReady = snapshot.attendanceStatus === "ready" && !!snapshot.attendance;
-    const academiaMarksReady = snapshot.marksStatus === "ready" && !!snapshot.marks;
-    
-    // If academia has everything and there is no portal override, no need for the portal
-    if (academiaReady && academiaMarksReady && !portalAtt) return;
-    
-    // Skip if we recently synced portal (within the last 2 minutes)
-    if (portalAtt?.fetchedAt && (Date.now() - Date.parse(portalAtt.fetchedAt) < 2 * 60 * 1000)) return;
+    // Skip if we recently synced portal (within the last 60 seconds)
+    if (portalAtt?.fetchedAt && (Date.now() - Date.parse(portalAtt.fetchedAt) < 60 * 1000)) return;
 
     if (hasAttemptedSilentSync.current) return;
+    hasAttemptedSilentSync.current = true;
 
     let isMounted = true;
     const silentSync = async () => {
       try {
         const pCreds = await getPortalCredentials();
         if (pCreds && isMounted) {
-          hasAttemptedSilentSync.current = true;
           setIsAutoSyncing(true);
           await autoImportAttendance(pCreds);
         }
@@ -687,7 +697,7 @@ export function SessionProvider({ children }: { children: React.ReactNode }) {
     
     void silentSync();
     return () => { isMounted = false; };
-  }, [snapshot, portalAtt, autoImportAttendance, getPortalCredentials]);
+  }, [snapshot, portalAtt?.fetchedAt, autoImportAttendance, getPortalCredentials]);
 
   // Drop the imported attendance and go back to academia (which may still be
   // gated). The escape hatch for when academia recovers but the app is showing
@@ -791,19 +801,17 @@ export function SessionProvider({ children }: { children: React.ReactNode }) {
     const sectionState = (s: SectionStatus | undefined): SectionState =>
       creds && !snapshot ? "loading" : (s ?? "loading");
 
-    // Academia is the default and self-heals: the imported portal override is
-    // only consulted while academia attendance is NOT ready, so the day
-    // academia publishes real attendance again it silently takes back over.
+    // The imported portal override takes precedence when present, since the
+    // student explicitly linked their student portal credentials or imported
+    // attendance. If cleared, it falls back cleanly to academia.
     const academiaReady =
       snapshot?.attendanceStatus === "ready" && !!snapshot.attendance;
-    const usePortal = !academiaReady && portalAtt !== null;
+    const usePortal = portalAtt !== null;
 
-    // Marks likewise: prefer academia's, fall back to the portal's only when
-    // academia's are not ready and the import carried some.
+    // Marks likewise: prefer portal marks if present, else academia.
     const academiaMarksReady =
       snapshot?.marksStatus === "ready" && !!snapshot.marks;
-    const usePortalMarks =
-      !academiaMarksReady && portalAtt?.marks != null;
+    const usePortalMarks = portalAtt?.marks != null;
 
     // The portal's marks table has no course-name column, so imported marks
     // arrive with an empty title and the app printed the course CODE where the
@@ -833,7 +841,7 @@ export function SessionProvider({ children }: { children: React.ReactNode }) {
         ? "ready"
         : sectionState(snapshot?.attendanceStatus),
       attendanceMessage: usePortal ? null : (snapshot?.attendanceMessage ?? null),
-      attendanceSource: academiaReady ? "academia" : usePortal ? "portal" : null,
+      attendanceSource: usePortal ? "portal" : academiaReady ? "academia" : null,
       reportedPeriod: usePortal ? portalAtt.reportedPeriod : null,
       canImportAttendance: true, // we can always try to import via OCR
       importAttendance,
@@ -846,10 +854,10 @@ export function SessionProvider({ children }: { children: React.ReactNode }) {
         : null,
       marksState: usePortalMarks ? "ready" : sectionState(snapshot?.marksStatus),
       marksMessage: usePortalMarks ? null : (snapshot?.marksMessage ?? null),
-      marksSource: academiaMarksReady ? "academia" : usePortalMarks ? "portal" : null,
+      marksSource: usePortalMarks ? "portal" : academiaMarksReady ? "academia" : null,
       fetchedAt: usePortal
-        ? (portalAtt?.fetchedAt ?? snapshot?.fetchedAt ?? null)
-        : (snapshot?.fetchedAt ?? portalAtt?.fetchedAt ?? null),
+        ? (portalAtt.fetchedAt ?? snapshot?.fetchedAt ?? null)
+        : (snapshot?.fetchedAt ?? null),
       isAuthed: creds != null,
       loginSource,
       restoring,

@@ -312,7 +312,10 @@ def submit_login_and_fetch(req_data: StudentPortalLoginRequest) -> Tuple[str, Op
     def _fetch_page(url: str) -> str:
         req = urllib.request.Request(url, headers={
             'User-Agent': UA,
-            'Referer': hrd_referer
+            'Referer': hrd_referer,
+            'Cache-Control': 'no-cache, no-store, must-revalidate',
+            'Pragma': 'no-cache',
+            'Expires': '0'
         })
         res = opener.open(req, timeout=7)
         return res.read().decode('utf-8', errors='ignore')
