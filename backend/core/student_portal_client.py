@@ -35,32 +35,35 @@ def _get_opener(cj=None, force_proxy=None):
         handlers.append(urllib.request.HTTPCookieProcessor(cj))
         
     proxy_url = force_proxy
-    if proxy_url == "DIRECT" or force_proxy is None:
+    if proxy_url == "DIRECT":
         proxy_url = None
-    elif proxy_url:
+    elif not proxy_url:
+        proxy_env = os.environ.get("SKIPP_PROXY") or os.environ.get("HTTPS_PROXY")
+        if proxy_env:
+            # If multiple proxies are provided (comma separated), pick one randomly
+            proxies = [p.strip() for p in proxy_env.split(',') if p.strip()]
+            if proxies:
+                proxy_url = random.choice(proxies)
+                
+    if proxy_url:
         handlers.append(urllib.request.ProxyHandler({'http': proxy_url, 'https': proxy_url}))
         
     return urllib.request.build_opener(*handlers), proxy_url
 
 def init_login_session() -> StudentPortalCaptchaResponse:
+    page_load_time = time.time()
     req = urllib.request.Request(LOGIN_PAGE_URL, headers={'User-Agent': UA})
-    opener, chosen_proxy = _get_opener(force_proxy="DIRECT")
+    opener, chosen_proxy = _get_opener()
     try:
         res = opener.open(req, timeout=5)
     except Exception as e:
-        # If direct fails (e.g. when hosted outside India), try proxy if configured
-        proxy_env = os.environ.get("SKIPP_PROXY") or os.environ.get("HTTPS_PROXY")
-        if proxy_env:
-            proxies = [p.strip() for p in proxy_env.split(',') if p.strip()]
-            if proxies:
-                chosen_proxy = random.choice(proxies)
-                opener, chosen_proxy = _get_opener(force_proxy=chosen_proxy)
-                try:
-                    res = opener.open(req, timeout=5)
-                except Exception as p_err:
-                    raise StudentPortalClientError(f"Network error connecting to student portal: {p_err}") from p_err
-            else:
-                raise StudentPortalClientError(f"Network error connecting to student portal: {e}") from e
+        if chosen_proxy and chosen_proxy != "DIRECT":
+            print(f"Proxy {chosen_proxy} failed with {e}. Falling back to direct connection...")
+            opener, chosen_proxy = _get_opener(force_proxy="DIRECT")
+            try:
+                res = opener.open(req, timeout=5)
+            except Exception as direct_err:
+                raise StudentPortalClientError(f"Network error connecting to student portal: {direct_err}") from direct_err
         else:
             raise StudentPortalClientError(f"Network error connecting to student portal: {e}") from e
     html = res.read().decode('utf-8', errors='ignore')
@@ -143,23 +146,29 @@ def init_login_session() -> StudentPortalCaptchaResponse:
         captcha_field=captcha_field,
         random_delim=random_delim,
         honeypot_field=honeypot_field,
-        captcha_base64=captcha_b64
+        captcha_base64=captcha_b64,
+        page_load_time=page_load_time
     )
 
 def submit_login_and_fetch(req_data: StudentPortalLoginRequest) -> Tuple[str, Optional[str], Optional[str]]:
     """Submits login and returns (attendance_html, marks_html, tt_html). Raises on invalid login."""
     domain_value = base64.b64encode("ni.ude.tsimrs.ps".encode()).decode()
     
-    # Simulate time elapsed and interactions
-    trap_payload = f"12{req_data.random_delim}5"
-    captcha_trap_value = base64.b64encode(trap_payload.encode()).decode()
-    
-    # Generate telemetryPayload
+    # Calculate actual time elapsed since page load to pass anti-bot telemetry
     import time
     import json
     t_now = int(time.time() * 1000)
+    
+    # If the elapsed time is too short (e.g. fast proxies + OCR), the portal might block it.
+    # TimeElapsed should at least be 1-2 seconds. 
+    time_elapsed_ms = max(2000, t_now - int(req_data.page_load_time * 1000))
+    time_elapsed_sec = time_elapsed_ms // 1000
+    
+    trap_payload = f"{time_elapsed_sec}{req_data.random_delim}5"
+    captcha_trap_value = base64.b64encode(trap_payload.encode()).decode()
+    
     payload_json = json.dumps({
-        "startTime": t_now - 12000,
+        "startTime": int(req_data.page_load_time * 1000),
         "currentDomain": "sp.srmist.edu.in",
         "timezoneOffset": -330,
         "screenWidth": 1440,
@@ -179,7 +188,7 @@ def submit_login_and_fetch(req_data: StudentPortalLoginRequest) -> Tuple[str, Op
         "typingSpeedMs": 1500,
         "canvasHash": "58bc8d31",
         "submitTime": t_now,
-        "timeOnPageMs": 12000
+        "timeOnPageMs": time_elapsed_ms
     }, separators=(',', ':'))
     telemetry_payload = base64.b64encode(payload_json.encode('utf-8')).decode('utf-8')
     
