@@ -21,6 +21,7 @@ class StudentPortalClientError(Exception):
     pass
 
 import random
+import time
 
 def _get_opener(cj=None, force_proxy=None):
     handlers = []
