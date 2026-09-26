@@ -22,11 +22,12 @@ from models.marks import MarkComponent, Marks, SubjectMarks
 #: "No Record found." is the portal's empty state, not an error page.
 _EMPTY_MARKERS = ("no record found", "no records found")
 
-#: A "scored / max" pair, e.g. "18.50/25.00" or "18.5 / 25" or "5/5".
-_PAIR_RE = re.compile(r"(-?\d+(?:\.\d+)?)\s*/\s*(-?\d+(?:\.\d+)?)")
+#: A "scored / max" pair, e.g. "18.50/25.00" or "18.5 / 25" or "5/5" or "Ab / 15".
+_PAIR_RE = re.compile(r"([A-Za-z-]*\d*(?:\.\d+)?)\s*/\s*(-?\d+(?:\.\d+)?)")
 
-#: Standard course code pattern, e.g. 21MAB302T, 21ASO301T.
-_CODE_RE = re.compile(r"^\d{2}[A-Z]{2,4}\d{3}[A-Z]?$")
+#: Standard course code pattern, e.g. 21MAB302T, 21ASO301T, MOOC101, 18-CS-201.
+#: We require it to be at least 5 characters to avoid colliding with test names like "FT1".
+_CODE_RE = re.compile(r"^[A-Z0-9-]{5,20}$", re.I)
 
 
 _GENERIC_NAMES = {
@@ -109,7 +110,7 @@ def parse_marks(html: str) -> Marks:
         # 1. Identify course code
         actual_code_idx: int | None = None
         code: str = ""
-        if code_col is not None and code_col < len(cells) and _CODE_RE.match(cells[code_col]):
+        if code_col is not None and code_col < len(cells) and len(cells[code_col]) >= 4 and "/" not in cells[code_col]:
             actual_code_idx = code_col
             code = cells[code_col]
         else:
@@ -142,7 +143,12 @@ def parse_marks(html: str) -> Marks:
         if not pair or actual_mark_idx is None:
             continue
 
-        scored, maximum = float(pair.group(1)), float(pair.group(2))
+        raw_scored = pair.group(1).strip()
+        try:
+            scored = float(raw_scored) if raw_scored and raw_scored != "-" else 0.0
+        except ValueError:
+            scored = 0.0
+        maximum = float(pair.group(2))
 
         # 3. Identify course description / title
         actual_desc_idx: int | None = None

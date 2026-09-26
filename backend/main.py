@@ -721,12 +721,8 @@ def sp_auto_login(req: LoginRequest, request: Request) -> StudentPortalSnapshot:
             marks_status = "ready"
         except SPMarksUnavailable as e:
             marks_status, marks_msg = "gated", str(e)
-            raise _fail(400, "marks_debug", f"DEBUG MARKS: SPMarksUnavailable: {str(e)}")
-        except Exception as e:
-            raise _fail(400, "marks_debug", f"DEBUG MARKS: Parse Exception: {str(e)}")
     else:
         marks_status, marks_msg = "gated", "Marks were not fetched."
-        raise _fail(400, "marks_debug", f"DEBUG MARKS: HTML missing or signed out. HTML snippet: {marks_html[:100] if marks_html else 'None'}")
 
     timetable = None
     if tt_html and not sp_looks_signed_out(tt_html):
