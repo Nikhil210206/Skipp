@@ -72,37 +72,38 @@ def parse_marks(html: str) -> Marks:
     if any(m in soup.get_text().lower() for m in _EMPTY_MARKERS):
         raise MarksUnavailable("The student portal has not published marks yet.")
 
-    table = _find_marks_table(soup)
-    if table is None:
+    tables = _find_marks_tables(soup)
+    if not tables:
         raise MarksUnavailable("No marks table on the student portal page.")
-
-    first = table.find("tr")
-    headers = (
-        [_clean(c.get_text()).lower() for c in first.find_all(["th", "td"])]
-        if first
-        else []
-    )
-
-    code_col: int | None = None
-    desc_col: int | None = None
-    mark_col: int | None = None
-    test_col: int | None = None
-
-    for i, head in enumerate(headers):
-        if "code" in head and code_col is None:
-            code_col = i
-        elif any(k in head for k in ("desc", "course", "subject", "title")) and desc_col is None:
-            desc_col = i
-        elif "mark" in head and mark_col is None:
-            mark_col = i
-        elif any(k in head for k in ("test", "exam", "assess", "component", "eval", "type")) and test_col is None:
-            test_col = i
 
     by_code: dict[str, SubjectMarks] = {}
     order: list[str] = []
 
-    for tr in table.find_all("tr"):
-        tds = tr.find_all("td")
+    for table in tables:
+        first = table.find("tr")
+        headers = (
+            [_clean(c.get_text()).lower() for c in first.find_all(["th", "td"])]
+            if first
+            else []
+        )
+
+        code_col: int | None = None
+        desc_col: int | None = None
+        mark_col: int | None = None
+        test_col: int | None = None
+
+        for i, head in enumerate(headers):
+            if "code" in head and code_col is None:
+                code_col = i
+            elif any(k in head for k in ("desc", "course", "subject", "title")) and desc_col is None:
+                desc_col = i
+            elif "mark" in head and mark_col is None:
+                mark_col = i
+            elif any(k in head for k in ("test", "exam", "assess", "component", "eval", "type")) and test_col is None:
+                test_col = i
+
+        for tr in table.find_all("tr"):
+            tds = tr.find_all("td")
         if not tds:
             continue
         cells = [_clean(c.get_text()) for c in tds]
@@ -261,7 +262,8 @@ def parse_marks(html: str) -> Marks:
     )
 
 
-def _find_marks_table(soup: BeautifulSoup) -> Tag | None:
+def _find_marks_tables(soup: BeautifulSoup) -> list[Tag]:
+    tables = []
     for table in soup.find_all("table"):
         first = table.find("tr")
         if not first:
@@ -270,5 +272,5 @@ def _find_marks_table(soup: BeautifulSoup) -> Tag | None:
             _clean(c.get_text()).lower() for c in first.find_all(["th", "td"])
         )
         if "code" in head and "mark" in head:
-            return table
-    return None
+            tables.append(table)
+    return tables
