@@ -686,6 +686,15 @@ def sp_auto_login(req: LoginRequest, request: Request) -> StudentPortalSnapshot:
         except Exception:
             pass
 
+    if marks_html:
+        log.info("student portal marks html fetched, length: %d", len(marks_html))
+        try:
+            from pathlib import Path
+            p = Path(__file__).parent / "captures" / "last_sp_marks.html"
+            p.write_text(marks_html, encoding="utf-8")
+        except Exception:
+            pass
+
     if sp_looks_signed_out(att_html):
         raise _fail(
             401,

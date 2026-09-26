@@ -326,7 +326,7 @@ def submit_login_and_fetch(req_data: StudentPortalLoginRequest) -> Tuple[str, Op
             'Cache-Control': 'no-cache, no-store, must-revalidate',
             'Pragma': 'no-cache',
             'Expires': '0'
-        })
+        }, method="POST")
         res = opener.open(req, timeout=7)
         return res.read().decode('utf-8', errors='ignore')
 
@@ -334,26 +334,21 @@ def submit_login_and_fetch(req_data: StudentPortalLoginRequest) -> Tuple[str, Op
     marks_html: Optional[str] = None
     tt_html: Optional[str] = None
 
-    # Fetch attendance, marks, and timetable concurrently for ultra-fast response (< 2s)
-    with concurrent.futures.ThreadPoolExecutor(max_workers=3) as executor:
-        f_att = executor.submit(_fetch_page, ATTENDANCE_URL)
-        f_marks = executor.submit(_fetch_page, MARKS_URL)
-        f_tt = executor.submit(_fetch_page, TIMETABLE_URL)
+    # Fetch attendance, marks, and timetable sequentially to avoid dropping connections
+    try:
+        att_html = _fetch_page(ATTENDANCE_URL)
+    except Exception as e:
+        raise StudentPortalClientError(f"Failed to fetch attendance: {e}") from e
 
-        try:
-            att_html = f_att.result(timeout=8)
-        except Exception as e:
-            raise StudentPortalClientError(f"Failed to fetch attendance: {e}") from e
+    try:
+        marks_html = _fetch_page(MARKS_URL)
+    except Exception:
+        marks_html = None
 
-        try:
-            marks_html = f_marks.result(timeout=8)
-        except Exception:
-            marks_html = None
-
-        try:
-            tt_html = f_tt.result(timeout=8)
-        except Exception:
-            tt_html = None
+    try:
+        tt_html = _fetch_page(TIMETABLE_URL)
+    except Exception:
+        tt_html = None
 
     # Fallback to hrd_html if tt_html is empty or doesn't have the timetable table
     if (not tt_html or "day 1" not in tt_html.lower()) and "day 1" in hrd_html.lower():
