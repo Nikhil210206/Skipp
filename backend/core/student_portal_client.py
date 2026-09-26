@@ -320,7 +320,7 @@ def submit_login_and_fetch(req_data: StudentPortalLoginRequest) -> Tuple[str, Op
     hrd_referer = f"{SP_BASE_URL}/srmiststudentportal/students/template/HRDSystem.jsp"
 
     def _fetch_page(url: str) -> str:
-        req = urllib.request.Request(url, headers={
+        req = urllib.request.Request(url, data=b"", headers={
             'User-Agent': UA,
             'Referer': hrd_referer,
             'Cache-Control': 'no-cache, no-store, must-revalidate',
