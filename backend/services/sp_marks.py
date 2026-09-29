@@ -104,154 +104,154 @@ def parse_marks(html: str) -> Marks:
 
         for tr in table.find_all("tr"):
             tds = tr.find_all("td")
-        if not tds:
-            continue
-        cells = [_clean(c.get_text()) for c in tds]
+            if not tds:
+                continue
+            cells = [_clean(c.get_text()) for c in tds]
 
-        # 1. Identify course code
-        actual_code_idx: int | None = None
-        code: str = ""
-        if code_col is not None and code_col < len(cells) and len(cells[code_col]) >= 4 and "/" not in cells[code_col]:
-            actual_code_idx = code_col
-            code = cells[code_col]
-        else:
-            for i, c in enumerate(cells):
-                if _CODE_RE.match(c):
-                    actual_code_idx = i
-                    code = c
-                    break
-
-        if not code or any(m in code.lower() for m in _EMPTY_MARKERS):
-            continue
-
-        # 2. Identify mark (scored / max)
-        actual_mark_idx: int | None = None
-        pair: re.Match[str] | None = None
-        if mark_col is not None and mark_col < len(cells):
-            pair = _PAIR_RE.search(cells[mark_col])
-            if pair:
-                actual_mark_idx = mark_col
-
-        if not pair:
-            for i, c in enumerate(cells):
-                if i == actual_code_idx:
-                    continue
-                pair = _PAIR_RE.search(c)
-                if pair:
-                    actual_mark_idx = i
-                    break
-
-        if not pair or actual_mark_idx is None:
-            continue
-
-        raw_scored = pair.group(1).strip()
-        try:
-            scored = float(raw_scored) if raw_scored and raw_scored != "-" else 0.0
-        except ValueError:
-            scored = 0.0
-        maximum = float(pair.group(2))
-
-        # 3. Identify course description / title
-        actual_desc_idx: int | None = None
-        if desc_col is not None and desc_col < len(cells) and desc_col not in (actual_code_idx, actual_mark_idx):
-            actual_desc_idx = desc_col
-        else:
-            for i, c in enumerate(cells):
-                if i not in (actual_code_idx, actual_mark_idx) and len(c) > 3:
-                    actual_desc_idx = i
-                    break
-
-        desc = cells[actual_desc_idx] if actual_desc_idx is not None and actual_desc_idx < len(cells) else ""
-
-        # 4. Identify test / assessment name (e.g. "FT1", "CT 1", "CLA-1")
-        test_name: str = ""
-
-        # Strategy A: Explicit test column from header
-        if test_col is not None and test_col < len(cells) and test_col not in (actual_code_idx, actual_mark_idx, actual_desc_idx):
-            val = cells[test_col].strip()
-            if val and val.lower() not in _GENERIC_NAMES and "view detail" not in val.lower():
-                test_name = val
-
-        # Strategy B: Any remaining cell that is not code, marks, or description
-        # (in the portal report, this is the 4th column whose header is often unlabelled)
-        if not test_name:
-            excluded = {actual_code_idx, actual_mark_idx, actual_desc_idx}
-            other_indices = [i for i in range(len(cells)) if i not in excluded]
-            for i in other_indices:
-                candidate = cells[i].strip()
-                if not candidate and i < len(tds):
-                    inp = tds[i].find(["input", "button", "a", "span"])
-                    if inp:
-                        candidate = _clean(inp.get("value") or inp.get_text() or inp.get("title") or "")
-                cand_lower = candidate.lower()
-                # Skip S.No / pure numbers and portal navigation keywords (e.g. "View Details" button)
-                if (
-                    candidate
-                    and not re.match(r"^\d+$", candidate)
-                    and cand_lower not in _GENERIC_NAMES
-                    and "view detail" not in cand_lower
-                    and "view mark" not in cand_lower
-                ):
-                    if cand_lower != desc.lower():
-                        test_name = candidate
+            # 1. Identify course code
+            actual_code_idx: int | None = None
+            code: str = ""
+            if code_col is not None and code_col < len(cells) and len(cells[code_col]) >= 4 and "/" not in cells[code_col]:
+                actual_code_idx = code_col
+                code = cells[code_col]
+            else:
+                for i, c in enumerate(cells):
+                    if _CODE_RE.match(c):
+                        actual_code_idx = i
+                        code = c
                         break
 
-        # Strategy C: Check if test name was prefixed/suffixed inside the mark cell (e.g. "FT1: 5/5")
-        if not test_name:
-            mark_text = cells[actual_mark_idx]
-            leftover = mark_text.replace(pair.group(0), "").strip(" :-/()")
-            if (
-                leftover
-                and len(leftover) >= 2
-                and re.search(r"[A-Za-z]", leftover)
-                and leftover.lower() not in _GENERIC_NAMES
-                and leftover.lower() != desc.lower()
-            ):
-                test_name = leftover
+            if not code or any(m in code.lower() for m in _EMPTY_MARKERS):
+                continue
 
-        # Strategy D: Check if test name was appended to the description (e.g. "DISCRETE MATHEMATICS - FT1")
-        if not test_name and desc:
-            m = re.search(r"[-–/]\s*([A-Za-z0-9\s]{2,15})$", desc)
-            if m:
-                cand = m.group(1).strip()
-                if cand.lower() not in _GENERIC_NAMES:
-                    test_name = cand
-                    desc = desc[: m.start()].strip(" -–/")
+            # 2. Identify mark (scored / max)
+            actual_mark_idx: int | None = None
+            pair: re.Match[str] | None = None
+            if mark_col is not None and mark_col < len(cells):
+                pair = _PAIR_RE.search(cells[mark_col])
+                if pair:
+                    actual_mark_idx = mark_col
 
-        subject = by_code.get(code)
-        if subject is None:
-            # Store the course description from the portal (e.g. "DISCRETE MATHEMATICS")
-            # so s.title is never blank, and can be title-cased or enriched from timetable.
-            subject = SubjectMarks(code=code, title=desc)
-            by_code[code] = subject
-            order.append(code)
-        elif not subject.title and desc:
-            subject.title = desc
+            if not pair:
+                for i, c in enumerate(cells):
+                    if i == actual_code_idx:
+                        continue
+                    pair = _PAIR_RE.search(c)
+                    if pair:
+                        actual_mark_idx = i
+                        break
 
-        # Final fallback for test name: never use the subject description or generic navigation words!
-        cand_lower = (test_name or "").lower().strip()
-        if (
-            not test_name
-            or cand_lower in _GENERIC_NAMES
-            or "view detail" in cand_lower
-            or cand_lower == desc.lower()
-        ):
-            if maximum <= 5:
-                ft_num = sum(1 for comp in subject.components if comp.max <= 5) + 1
-                test_name = f"FT{ft_num}"
+            if not pair or actual_mark_idx is None:
+                continue
+
+            raw_scored = pair.group(1).strip()
+            try:
+                scored = float(raw_scored) if raw_scored and raw_scored != "-" else 0.0
+            except ValueError:
+                scored = 0.0
+            maximum = float(pair.group(2))
+
+            # 3. Identify course description / title
+            actual_desc_idx: int | None = None
+            if desc_col is not None and desc_col < len(cells) and desc_col not in (actual_code_idx, actual_mark_idx):
+                actual_desc_idx = desc_col
             else:
-                ct_num = sum(1 for comp in subject.components if comp.max > 5) + 1
-                test_name = f"CT {ct_num}"
+                for i, c in enumerate(cells):
+                    if i not in (actual_code_idx, actual_mark_idx) and len(c) > 3:
+                        actual_desc_idx = i
+                        break
 
-        subject.components.append(
-            MarkComponent(
-                name=test_name,
-                scored=scored,
-                max=maximum,
+            desc = cells[actual_desc_idx] if actual_desc_idx is not None and actual_desc_idx < len(cells) else ""
+
+            # 4. Identify test / assessment name (e.g. "FT1", "CT 1", "CLA-1")
+            test_name: str = ""
+
+            # Strategy A: Explicit test column from header
+            if test_col is not None and test_col < len(cells) and test_col not in (actual_code_idx, actual_mark_idx, actual_desc_idx):
+                val = cells[test_col].strip()
+                if val and val.lower() not in _GENERIC_NAMES and "view detail" not in val.lower():
+                    test_name = val
+
+            # Strategy B: Any remaining cell that is not code, marks, or description
+            # (in the portal report, this is the 4th column whose header is often unlabelled)
+            if not test_name:
+                excluded = {actual_code_idx, actual_mark_idx, actual_desc_idx}
+                other_indices = [i for i in range(len(cells)) if i not in excluded]
+                for i in other_indices:
+                    candidate = cells[i].strip()
+                    if not candidate and i < len(tds):
+                        inp = tds[i].find(["input", "button", "a", "span"])
+                        if inp:
+                            candidate = _clean(inp.get("value") or inp.get_text() or inp.get("title") or "")
+                    cand_lower = candidate.lower()
+                    # Skip S.No / pure numbers and portal navigation keywords (e.g. "View Details" button)
+                    if (
+                        candidate
+                        and not re.match(r"^\d+$", candidate)
+                        and cand_lower not in _GENERIC_NAMES
+                        and "view detail" not in cand_lower
+                        and "view mark" not in cand_lower
+                    ):
+                        if cand_lower != desc.lower():
+                            test_name = candidate
+                            break
+
+            # Strategy C: Check if test name was prefixed/suffixed inside the mark cell (e.g. "FT1: 5/5")
+            if not test_name:
+                mark_text = cells[actual_mark_idx]
+                leftover = mark_text.replace(pair.group(0), "").strip(" :-/()")
+                if (
+                    leftover
+                    and len(leftover) >= 2
+                    and re.search(r"[A-Za-z]", leftover)
+                    and leftover.lower() not in _GENERIC_NAMES
+                    and leftover.lower() != desc.lower()
+                ):
+                    test_name = leftover
+
+            # Strategy D: Check if test name was appended to the description (e.g. "DISCRETE MATHEMATICS - FT1")
+            if not test_name and desc:
+                m = re.search(r"[-–/]\s*([A-Za-z0-9\s]{2,15})$", desc)
+                if m:
+                    cand = m.group(1).strip()
+                    if cand.lower() not in _GENERIC_NAMES:
+                        test_name = cand
+                        desc = desc[: m.start()].strip(" -–/")
+
+            subject = by_code.get(code)
+            if subject is None:
+                # Store the course description from the portal (e.g. "DISCRETE MATHEMATICS")
+                # so s.title is never blank, and can be title-cased or enriched from timetable.
+                subject = SubjectMarks(code=code, title=desc)
+                by_code[code] = subject
+                order.append(code)
+            elif not subject.title and desc:
+                subject.title = desc
+
+            # Final fallback for test name: never use the subject description or generic navigation words!
+            cand_lower = (test_name or "").lower().strip()
+            if (
+                not test_name
+                or cand_lower in _GENERIC_NAMES
+                or "view detail" in cand_lower
+                or cand_lower == desc.lower()
+            ):
+                if maximum <= 5:
+                    ft_num = sum(1 for comp in subject.components if comp.max <= 5) + 1
+                    test_name = f"FT{ft_num}"
+                else:
+                    ct_num = sum(1 for comp in subject.components if comp.max > 5) + 1
+                    test_name = f"CT {ct_num}"
+
+            subject.components.append(
+                MarkComponent(
+                    name=test_name,
+                    scored=scored,
+                    max=maximum,
+                )
             )
-        )
-        subject.scored_total = round(subject.scored_total + scored, 2)
-        subject.max_total = round(subject.max_total + maximum, 2)
+            subject.scored_total = round(subject.scored_total + scored, 2)
+            subject.max_total = round(subject.max_total + maximum, 2)
 
     if not by_code:
         raise MarksUnavailable("Marks table held no readable rows.")

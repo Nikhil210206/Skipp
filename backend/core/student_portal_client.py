@@ -23,6 +23,12 @@ class StudentPortalClientError(Exception):
 import random
 import time
 
+def _get_proxies() -> list[str]:
+    proxy_env = os.environ.get("SKIPP_PROXY") or os.environ.get("HTTPS_PROXY")
+    if proxy_env:
+        return [p.strip() for p in proxy_env.split(',') if p.strip()]
+    return []
+
 def _get_opener(cj=None, force_proxy=None):
     handlers = []
     
@@ -39,34 +45,47 @@ def _get_opener(cj=None, force_proxy=None):
     if proxy_url == "DIRECT":
         proxy_url = None
     elif not proxy_url:
-        proxy_env = os.environ.get("SKIPP_PROXY") or os.environ.get("HTTPS_PROXY")
-        if proxy_env:
-            # If multiple proxies are provided (comma separated), pick one randomly
-            proxies = [p.strip() for p in proxy_env.split(',') if p.strip()]
-            if proxies:
-                proxy_url = random.choice(proxies)
+        proxies = _get_proxies()
+        if proxies:
+            proxy_url = random.choice(proxies)
                 
     if proxy_url:
         handlers.append(urllib.request.ProxyHandler({'http': proxy_url, 'https': proxy_url}))
+    else:
+        # Crucial: pass empty dict to explicitly bypass any environment proxy when going direct
+        handlers.append(urllib.request.ProxyHandler({}))
         
-    return urllib.request.build_opener(*handlers), proxy_url
+    return urllib.request.build_opener(*handlers), proxy_url or "DIRECT"
 
 def init_login_session() -> StudentPortalCaptchaResponse:
     page_load_time = time.time()
     req = urllib.request.Request(LOGIN_PAGE_URL, headers={'User-Agent': UA})
-    opener, chosen_proxy = _get_opener()
-    try:
-        res = opener.open(req, timeout=5)
-    except Exception as e:
-        if chosen_proxy and chosen_proxy != "DIRECT":
-            print(f"Proxy {chosen_proxy} failed with {e}. Falling back to direct connection...")
-            opener, chosen_proxy = _get_opener(force_proxy="DIRECT")
-            try:
-                res = opener.open(req, timeout=5)
-            except Exception as direct_err:
-                raise StudentPortalClientError(f"Network error connecting to student portal: {direct_err}") from direct_err
-        else:
-            raise StudentPortalClientError(f"Network error connecting to student portal: {e}") from e
+    
+    proxies = _get_proxies()
+    # Try configured proxies first (shuffled), then fall back to DIRECT
+    candidates = list(proxies)
+    random.shuffle(candidates)
+    candidates.append("DIRECT")
+    
+    res = None
+    opener = None
+    chosen_proxy = None
+    last_err = None
+    
+    for candidate in candidates:
+        try:
+            curr_opener, curr_proxy = _get_opener(force_proxy=candidate)
+            res = curr_opener.open(req, timeout=7)
+            opener = curr_opener
+            chosen_proxy = curr_proxy
+            break
+        except Exception as e:
+            print(f"Student portal session init via '{candidate}' failed: {e}")
+            last_err = e
+            continue
+            
+    if res is None or opener is None:
+        raise StudentPortalClientError(f"Network error connecting to student portal: {last_err}") from last_err
     html = res.read().decode('utf-8', errors='ignore')
     
     # Extract session cookies
@@ -327,7 +346,7 @@ def submit_login_and_fetch(req_data: StudentPortalLoginRequest) -> Tuple[str, Op
             'Pragma': 'no-cache',
             'Expires': '0'
         }, method="POST")
-        res = opener.open(req, timeout=7)
+        res = opener.open(req, timeout=10)
         return res.read().decode('utf-8', errors='ignore')
 
     att_html: Optional[str] = None
@@ -342,12 +361,14 @@ def submit_login_and_fetch(req_data: StudentPortalLoginRequest) -> Tuple[str, Op
 
     try:
         marks_html = _fetch_page(MARKS_URL)
-    except Exception:
+    except Exception as e:
+        print(f"Failed to fetch marks: {e}")
         marks_html = None
 
     try:
         tt_html = _fetch_page(TIMETABLE_URL)
-    except Exception:
+    except Exception as e:
+        print(f"Failed to fetch timetable: {e}")
         tt_html = None
 
     # Fallback to hrd_html if tt_html is empty or doesn't have the timetable table

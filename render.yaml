@@ -1,0 +1,14 @@
+services:
+  - type: web
+    name: skipp-backend
+    env: docker
+    dockerfilePath: backend/Dockerfile
+    dockerContext: backend
+    region: singapore # Closest to SRM India servers
+    plan: free
+    healthCheckPath: /health
+    envVars:
+      - key: SKIPP_ALLOWED_ORIGINS
+        value: "https://skipp.life,https://www.skipp.life,https://skipp-q1sf.vercel.app,http://localhost:3000"
+      - key: SKIPP_PROXY
+        sync: false # Set in Render Dashboard if using residential/datacenter proxies
