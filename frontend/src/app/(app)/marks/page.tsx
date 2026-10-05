@@ -2,6 +2,8 @@
 
 import { useState } from "react";
 import { useSession } from "@/context/SessionContext";
+import MaintenanceView from "@/components/MaintenanceView";
+import { MAINTENANCE } from "@/lib/maintenance";
 import { revealIn, revealRows, useGsap } from "@/lib/motion";
 import { forecastSubject, type SubjectForecast } from "@/lib/grades";
 import { Skeleton, StateView } from "@/components/ui";
@@ -39,6 +41,12 @@ const round = (n: number) => Math.round(n * 100) / 100;
  * question about ONE subject, so it waits until you tap that subject.
  */
 export default function MarksPage() {
+  // While the scraper is being fixed, the screen says so instead of trying.
+  if (MAINTENANCE.marks) return <MaintenanceView section="marks" pattern="00/00" />;
+  return <MarksScreen />;
+}
+
+function MarksScreen() {
   const { marks, marksState, marksMessage, marksSource, timetable } = useSession();
   const subjects = marks?.subjects ?? [];
 

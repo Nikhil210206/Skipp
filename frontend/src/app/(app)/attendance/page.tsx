@@ -7,6 +7,8 @@ import {
   PortalSourceNote,
 } from "@/components/ImportAttendance";
 import { useSession } from "@/context/SessionContext";
+import MaintenanceView from "@/components/MaintenanceView";
+import { MAINTENANCE } from "@/lib/maintenance";
 import { predict } from "@/lib/predictor";
 import { countTo, recedeOnScroll, revealIn, revealRows, useGsap } from "@/lib/motion";
 import { Button, Skeleton, StateView } from "@/components/ui";
@@ -30,6 +32,12 @@ const THRESHOLD = 75;
  * reads a percentage. No panels, no bars in boxes: the measurement is the layout.
  */
 export default function AttendancePage() {
+  // While the scraper is being fixed, the screen says so instead of trying.
+  if (MAINTENANCE.attendance) return <MaintenanceView section="attendance" pattern="00.0" unit="%" />;
+  return <AttendanceScreen />;
+}
+
+function AttendanceScreen() {
   const { attendance, attendanceState, attendanceMessage, attendanceSource } =
     useSession();
   const [predictOpen, setPredictOpen] = useState(false);

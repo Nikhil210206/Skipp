@@ -345,6 +345,26 @@ is deployment and true push notifications.
 Entries below are newest first. **When something breaks, read the relevant entry first**: most
 oddities here (login shell, empty calendar, 429s, duplicated course codes) are already diagnosed.
 
+### DONE: Attendance and Marks are under maintenance (2026-10-05)
+
+The scraper stopped returning attendance and marks, so both screens show
+`components/MaintenanceView.tsx` instead of trying. **The switch is
+`lib/maintenance.ts`**: set a section to `false` once it reads again and the
+screen's normal states return on their own. The page files wrap their real
+screen (`AttendanceScreen`, `MarksScreen`) so the early return never skips hooks.
+
+The screen keeps its poster figure, ghosted at 30%, with each digit spinning
+like a reel that tries to land, holds, and gives up, under two strips of
+`watch` hazard tape whose lettering crawls. The ghost must never be readable as
+a real figure: it never settles, it sits behind the tape, and under reduced
+motion it parks on mixed digits rather than zeros. A status board lists what
+works and what is being fixed, and the one action goes to Schedule. The import
+action is deliberately not offered while a section is down.
+
+Verified at 390 against `?fixture=1` with the backend down (no sign-in spent),
+in Ink and Paper: reels running, no horizontal overflow, `tsc` and `eslint`
+clean. Not seen on a phone.
+
 ### DONE: Tabs switch, they no longer slide (2026-09-19, later)
 
 Reported as laggy on every device, tap and swipe alike, after six passes of
