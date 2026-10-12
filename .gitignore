@@ -1,1 +1,6 @@
 .vercel
+
+.DS_Store
+.claude/
+__pycache__/
+test_sp.py

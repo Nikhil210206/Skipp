@@ -14,7 +14,7 @@ import {
 } from "@/lib/crypto";
 
 export function ImportAttendanceAction({ type = "attendance" }: { type?: "attendance" | "marks" }) {
-  const { creds: sessionCreds, portalCreds, autoImportAttendance } = useSession();
+  const { creds: sessionCreds, portalCreds, autoImportAttendance, loginSource } = useSession();
   const [open, setOpen] = useState(false);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -22,7 +22,7 @@ export function ImportAttendanceAction({ type = "attendance" }: { type?: "attend
   const [password, setPassword] = useState("");
 
   const handleOpen = async () => {
-    // Look for credentials that are suitable for portal (i.e. NOT a registration number)
+    // Look for credentials that are specifically for the student portal
     let creds = portalCreds && !isRegistrationNumber(portalCreds.username) ? portalCreds : null;
     if (!creds) {
       const savedPortal = await loadPortalCredentials();
@@ -30,14 +30,9 @@ export function ImportAttendanceAction({ type = "attendance" }: { type?: "attend
         creds = savedPortal;
       }
     }
-    if (!creds && sessionCreds && !isRegistrationNumber(sessionCreds.username)) {
+    // Only use sessionCreds if the student signed in via Student Portal
+    if (!creds && loginSource === "portal" && sessionCreds && !isRegistrationNumber(sessionCreds.username)) {
       creds = sessionCreds;
-    }
-    if (!creds) {
-      const saved = await loadCredentials();
-      if (saved && !isRegistrationNumber(saved.username)) {
-        creds = saved;
-      }
     }
 
     if (creds) {
@@ -52,7 +47,7 @@ export function ImportAttendanceAction({ type = "attendance" }: { type?: "attend
         setBusy(false);
         setOpen(true);
         if (err instanceof AuthError && (err.code === "wrong_password" || err.code === "user_not_found")) {
-          setError(err.message || "Incorrect NetID or password. Please update your credentials.");
+          setError(err.message || "Incorrect NetID or password. Note that your Student Portal password is often different from your Academia password.");
           setUsername(creds.username);
           setPassword("");
         } else {
@@ -63,8 +58,10 @@ export function ImportAttendanceAction({ type = "attendance" }: { type?: "attend
       }
     }
 
-    // No credentials saved yet, open modal for Net ID and Password
+    // No portal credentials saved yet, open modal for Net ID and Password
+    // Pre-fill NetID if available from session without throwing premature errors
     setError(null);
+    setUsername(sessionCreds && !isRegistrationNumber(sessionCreds.username) ? sessionCreds.username : "");
     setPassword("");
     setOpen(true);
   };
@@ -93,7 +90,14 @@ export function ImportAttendanceAction({ type = "attendance" }: { type?: "attend
       setOpen(false);
     } catch (err) {
       setPassword("");
-      setError(err instanceof Error ? err.message : "Import failed. Please check your credentials.");
+      const isAuthErr = err instanceof AuthError && (err.code === "wrong_password" || err.code === "user_not_found");
+      setError(
+        isAuthErr
+          ? err.message || "Incorrect NetID or password. Note that your Student Portal password is often different from your Academia password."
+          : err instanceof Error
+          ? err.message
+          : "Import failed. Please check your credentials.",
+      );
     } finally {
       setBusy(false);
     }
@@ -218,6 +222,7 @@ export function PortalSourceNote({ type = "attendance" }: { type?: "attendance" 
     clearImportedAttendance,
     isAutoSyncing,
     refresh,
+    loginSource,
   } = useSession();
   const [busy, setBusy] = useState(false);
   const [status, setStatus] = useState<"idle" | "updating" | "updated">("idle");
@@ -273,7 +278,7 @@ export function PortalSourceNote({ type = "attendance" }: { type?: "attendance" 
         creds = savedPortal;
       }
     }
-    if (!creds && sessionCreds && !isRegistrationNumber(sessionCreds.username)) {
+    if (!creds && loginSource === "portal" && sessionCreds && !isRegistrationNumber(sessionCreds.username)) {
       creds = sessionCreds;
     }
 

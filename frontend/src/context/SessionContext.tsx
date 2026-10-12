@@ -509,12 +509,12 @@ export function SessionProvider({ children }: { children: React.ReactNode }) {
       setPortalCreds(savedPortal);
       return savedPortal;
     }
-    // Only fall back to creds if we haven't failed portal auth with them
-    if (!portalAuthFailed.current && creds && !isRegistrationNumber(creds.username)) return creds;
-    const saved = await loadCredentials();
-    if (!portalAuthFailed.current && saved && !isRegistrationNumber(saved.username)) return saved;
+    // Only use main credentials if the student logged in via Student Portal (never assume Academia password works on Student Portal)
+    if (loginSource === "portal" && !portalAuthFailed.current && creds && !isRegistrationNumber(creds.username)) {
+      return creds;
+    }
     return null;
-  }, [portalCreds, creds]);
+  }, [portalCreds, creds, loginSource]);
 
   // Import attendance from the student portal, via a REAL in-app WebView login
   // (native only, see lib/studentPortal.ts). Kept apart from `refresh` on

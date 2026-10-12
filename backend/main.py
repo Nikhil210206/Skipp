@@ -556,7 +556,7 @@ def sp_login(req: StudentPortalLoginRequest, request: Request) -> StudentPortalS
         if "Invalid captcha" in msg or "Failed to solve CAPTCHA" in msg:
             raise _fail(400, "invalid_captcha", "Incorrect captcha. Please try again.")
         if "Invalid username or password" in msg or "invalid credentials" in msg.lower():
-            raise _fail(401, "invalid_credentials", "Incorrect NetID or password.")
+            raise _fail(401, "invalid_credentials", "Incorrect NetID or password. Note that your Student Portal password is often different from your Academia password.")
         if "network error" in msg.lower() or "timeout" in msg.lower() or "failed to fetch" in msg.lower() or "proxy" in msg.lower():
             raise _fail(503, "portal_unreachable", msg)
         raise _fail(400, "login_failed", msg)
@@ -671,7 +671,7 @@ def sp_auto_login(req: LoginRequest, request: Request) -> StudentPortalSnapshot:
         if "Invalid captcha" in msg or "Failed to solve CAPTCHA" in msg:
             raise _fail(400, "invalid_captcha", "Failed to solve portal CAPTCHA. Please try again.")
         if "Invalid username or password" in msg or "invalid credentials" in msg.lower():
-            raise _fail(401, "invalid_credentials", "Incorrect NetID or password.")
+            raise _fail(401, "invalid_credentials", "Incorrect NetID or password. Note that your Student Portal password is often different from your Academia password.")
         if "network error" in msg.lower() or "timeout" in msg.lower() or "failed to fetch" in msg.lower() or "proxy" in msg.lower():
             raise _fail(503, "portal_unreachable", msg)
         raise _fail(400, "login_failed", msg)

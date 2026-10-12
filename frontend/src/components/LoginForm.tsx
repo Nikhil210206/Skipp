@@ -35,7 +35,7 @@ function explain(code: FailureCode, message: string): Failure {
         advice:
           message && !message.toLowerCase().includes("failed") && !message.toLowerCase().includes("error")
             ? message
-            : "Check it and try again. It is the same one the portal uses.",
+            : "Check your password. If you are trying to use your Student Portal credentials, switch to the 'Student Portal (1st Year)' tab above.",
       };
     case "captcha":
       return {

@@ -17,11 +17,14 @@ TIMETABLE_URL = f"{SP_BASE_URL}/srmiststudentportal/students/report/studentTimeT
 
 UA = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/127.0.0.0 Safari/537.36"
 
-class StudentPortalClientError(Exception):
-    pass
-
+import logging
 import random
 import time
+
+log = logging.getLogger("skipp.api.sp_client")
+
+class StudentPortalClientError(Exception):
+    pass
 
 def _get_proxies() -> list[str]:
     proxy_env = os.environ.get("SKIPP_PROXY") or os.environ.get("HTTPS_PROXY")
@@ -180,14 +183,14 @@ def submit_login_and_fetch(req_data: StudentPortalLoginRequest) -> Tuple[str, Op
     t_now = int(time.time() * 1000)
     
     if req_data.page_load_time and req_data.page_load_time > 0:
-        time_elapsed_ms = max(2000, min(120000, t_now - int(req_data.page_load_time * 1000)))
-        start_time_ms = int(req_data.page_load_time * 1000)
+        time_elapsed_ms = max(3500, min(120000, t_now - int(req_data.page_load_time * 1000)))
     else:
-        # Default realistic human elapsed time on page (e.g. 4-7 seconds)
-        time_elapsed_ms = random.randint(4200, 7800)
-        start_time_ms = t_now - time_elapsed_ms
+        # Default realistic human elapsed time on page (e.g. 4.2 - 7.5 seconds)
+        time_elapsed_ms = random.randint(4200, 7500)
 
+    start_time_ms = t_now - time_elapsed_ms
     time_elapsed_sec = time_elapsed_ms // 1000
+    typing_speed_ms = min(2500, max(800, time_elapsed_ms - random.randint(1200, 2000)))
     
     trap_payload = f"{time_elapsed_sec}{req_data.random_delim}5"
     captcha_trap_value = base64.b64encode(trap_payload.encode()).decode()
@@ -207,10 +210,10 @@ def submit_login_and_fetch(req_data: StudentPortalLoginRequest) -> Tuple[str, Op
         "hardwareConcurrency": 8,
         "touchSupport": False,
         "webdriver": False,
-        "mouseClicks": 1,
-        "mouseMovements": 3,
-        "keystrokeCount": 2,
-        "typingSpeedMs": 1500,
+        "mouseClicks": random.randint(1, 3),
+        "mouseMovements": random.randint(3, 8),
+        "keystrokeCount": random.randint(6, 12),
+        "typingSpeedMs": typing_speed_ms,
         "canvasHash": "58bc8d31",
         "submitTime": t_now,
         "timeOnPageMs": time_elapsed_ms
@@ -293,13 +296,13 @@ def submit_login_and_fetch(req_data: StudentPortalLoginRequest) -> Tuple[str, Op
                 cj.set_cookie(ck)
         
     if "invalid credentials" in result_html.lower() or "invalid login credentials" in result_html.lower():
-        print("Login failed: Invalid credentials found in HTML")
+        log.warning("Login failed: Invalid credentials found in portal HTML response")
         raise StudentPortalClientError("Invalid username or password.")
     if "Invalid Captcha" in result_html or "invalid captcha" in result_html.lower():
-        print("Login failed: Invalid Captcha found in HTML")
+        log.warning("Login failed: Invalid Captcha found in portal HTML response")
         raise StudentPortalClientError("Invalid captcha.")
     if "temporarily locked" in result_html.lower():
-        print("Login failed: Account temporarily locked")
+        log.warning("Login failed: Account temporarily locked by SRM portal")
         raise StudentPortalClientError("Account temporarily locked due to multiple unsuccessful attempts. Please try again after 5 minutes.")
         
     if "alert-danger" in result_html:
@@ -309,11 +312,11 @@ def submit_login_and_fetch(req_data: StudentPortalLoginRequest) -> Tuple[str, Op
             error_html = result_html[start_idx:end_idx]
             import re
             error_msg = re.sub(r'<[^>]+>', '', error_html).replace('alert-icon-content">', '').replace('Alert', '').strip()
-            print(f"Login failed: Server returned error: {error_msg}")
+            log.warning("Login failed: Server returned alert: %s", error_msg)
             raise StudentPortalClientError(f"Login failed: {error_msg}")
 
     if "theGR8LoginLoader" in result_html or "thegr8loginloader" in result_html.lower():
-        print("Login successful, following theGR8LoginLoader redirect...")
+        log.info("Login successful, following theGR8LoginLoader redirect...")
         target_url = f"{SP_BASE_URL}/srmiststudentportal/students/loginManager/youLogin.jsp"
         form_payload = b""
         form_method = "POST"
@@ -380,7 +383,7 @@ def submit_login_and_fetch(req_data: StudentPortalLoginRequest) -> Tuple[str, Op
         "internal",
     )
     if not any(k in res_lower for k in success_indicators):
-        print(f"Login failed: Unknown response, size {len(result_html)}")
+        log.warning("Login failed: Unknown response, size %d", len(result_html))
         raise StudentPortalClientError("Failed to login, unknown response.")
 
     # Fetch HRDSystem.jsp to initialize dashboard session
@@ -393,7 +396,7 @@ def submit_login_and_fetch(req_data: StudentPortalLoginRequest) -> Tuple[str, Op
         res_hrd = opener.open(req_hrd, timeout=10)
         hrd_html = res_hrd.read().decode('utf-8', errors='ignore')
     except Exception as e:
-        print(f"HRDSystem fetch failed: {e}")
+        log.warning("HRDSystem fetch failed: %s", e)
 
     hrd_referer = f"{SP_BASE_URL}/srmiststudentportal/students/template/HRDSystem.jsp"
     from core.student_portal import looks_signed_out
@@ -415,7 +418,7 @@ def submit_login_and_fetch(req_data: StudentPortalLoginRequest) -> Tuple[str, Op
                 if post_html and not looks_signed_out(post_html):
                     return post_html
             except Exception as e:
-                print(f"POST fetch attempt {attempt + 1} failed for {url}: {e}")
+                log.info("POST fetch attempt %d failed for %s: %s", attempt + 1, url, e)
 
             # Fallback to GET
             try:
