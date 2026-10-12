@@ -6,6 +6,6 @@
  * has to change: the screen's normal states take over on the next render.
  */
 export const MAINTENANCE = {
-  attendance: false,
-  marks: false,
+  attendance: true,
+  marks: true,
 } as const;
