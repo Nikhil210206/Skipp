@@ -82,7 +82,18 @@ def parse_attendance(html: str, threshold: float = 75.0) -> Attendance:
             "No attendance table on the student portal page."
         )
 
-    headers = [_clean(c.get_text()).lower() for c in table.find_all("th")]
+    header_tr = None
+    for tr in table.find_all("tr")[:3]:
+        row_text = " ".join(_clean(c.get_text()).lower() for c in tr.find_all(["th", "td"]))
+        if "code" in row_text:
+            header_tr = tr
+            break
+
+    headers = (
+        [_clean(c.get_text()).lower() for c in header_tr.find_all(["th", "td"])]
+        if header_tr
+        else [_clean(c.get_text()).lower() for c in table.find_all("th")]
+    )
     if not headers:
         first = table.find("tr")
         headers = (
@@ -202,17 +213,19 @@ def reported_period(html: str) -> str | None:
 
 
 def _find_attendance_table(soup: BeautifulSoup) -> Tag | None:
-    """The first table whose header names both a code and an hours column.
-
-    The page carries a cumulative month table too, so taking `table[0]` by
-    position would work today and break the day they reorder the cards.
-    """
+    """The first table whose header names both a code and an hours/attendance column."""
     for table in soup.find_all("table"):
-        head = " ".join(
-            _clean(c.get_text()).lower()
-            for c in (table.find("tr").find_all(["th", "td"]) if table.find("tr") else [])
-        )
-        if "code" in head and "hours" in head:
+        ths = table.find_all("th")
+        if ths:
+            head = " ".join(_clean(th.get_text()).lower() for th in ths)
+        else:
+            first_rows = table.find_all("tr")[:2]
+            head = " ".join(
+                _clean(c.get_text()).lower()
+                for tr in first_rows
+                for c in tr.find_all(["th", "td"])
+            )
+        if "code" in head and ("hour" in head or "att" in head or "conducted" in head or "percentage" in head or "%" in head):
             return table
     return None
 

@@ -18,14 +18,19 @@ ocr = ddddocr.DdddOcr(show_ad=False)
 def auto_login_and_fetch(username: str, password: str) -> Tuple[str, Optional[str], Optional[str]]:
     """
     Attempts to login to the student portal automatically by solving the CAPTCHA.
-    Retries up to 5 times if the CAPTCHA is invalid.
+    Limits submissions to at most 2 attempts to ensure we never hit SRM's 3-attempt account lockout.
     """
-    max_retries = 5
+    max_captcha_fetches = 5
+    max_submissions = 2
+    submissions_done = 0
     last_error = None
 
-    for attempt in range(max_retries):
+    for fetch_attempt in range(max_captcha_fetches):
+        if submissions_done >= max_submissions:
+            break
+
         try:
-            log.info(f"Auto-login attempt {attempt + 1} for {username}")
+            log.info(f"Auto-login captcha fetch {fetch_attempt + 1} for {username}")
             
             # 1. Initialize session and get captcha
             session_data = init_login_session()
@@ -42,10 +47,12 @@ def auto_login_and_fetch(username: str, password: str) -> Tuple[str, Optional[st
             # SRM student portal captchas are strictly 6 alphanumeric characters.
             # If OCR returned anything other than 6 characters, do not submit a guaranteed failure.
             if len(captcha_text) != 6:
-                log.info(f"Attempt {attempt + 1}: OCR returned invalid length {len(captcha_text)} ({captcha_text}), retrying with fresh captcha...")
+                log.info(f"Fetch {fetch_attempt + 1}: OCR returned invalid length {len(captcha_text)} ({captcha_text}), refreshing captcha...")
                 continue
             
-            # 4. Submit login
+            # 4. Submit login (counts toward max_submissions)
+            submissions_done += 1
+            log.info(f"Submitting login attempt {submissions_done}/{max_submissions} for {username} with captcha '{captcha_text}'")
             req = StudentPortalLoginRequest(
                 username=username,
                 password=password,
@@ -63,11 +70,13 @@ def auto_login_and_fetch(username: str, password: str) -> Tuple[str, Optional[st
         except StudentPortalClientError as e:
             error_msg = str(e).lower()
             if "captcha" in error_msg or "unknown response" in error_msg:
-                log.info(f"CAPTCHA solve / portal response failed on attempt {attempt + 1}: {e}")
+                log.info(f"CAPTCHA / portal response failed on submission {submissions_done}: {e}")
                 last_error = e
                 continue
             else:
                 # Other errors (e.g., invalid credentials, account locked) should fail immediately
                 raise
 
-    raise StudentPortalClientError(f"Failed to solve CAPTCHA after {max_retries} attempts. Please try again.")
+    if last_error:
+        raise last_error
+    raise StudentPortalClientError("Failed to solve portal CAPTCHA. Please try again or sign in manually.")

@@ -192,13 +192,17 @@ export async function submitStudentPortalLogin(
       throw new AuthError(detail ?? "Wrong SRM NetID or password.", "wrong_password");
     }
     if (code === "session_expired") {
-      throw new AuthError(detail ?? "Sign in to the student portal again.", "wrong_password");
+      throw new PortalError(detail ?? "Student portal session expired. Please try again.", "portal");
     }
     throw new PortalError(detail ?? "Student portal sign-in failed.", "portal");
   }
   if (res.status === 400) {
     if (code === "invalid_credentials") {
-      throw new AuthError(detail ?? "Wrong SRM NetID or password.", "wrong_password");
+      const isNetIdIssue = detail && /net id|registration number/i.test(detail);
+      throw new AuthError(detail ?? "Wrong SRM NetID or password.", isNetIdIssue ? "user_not_found" : "wrong_password");
+    }
+    if (code === "invalid_captcha") {
+      throw new PortalError(detail ?? "Incorrect captcha. Please try again.", "captcha");
     }
     throw new PortalError(detail ?? "Invalid portal request.", "portal");
   }
@@ -245,13 +249,17 @@ export async function autoStudentPortalLogin(
       throw new AuthError(detail ?? "Wrong SRM NetID or password.", "wrong_password");
     }
     if (code === "session_expired") {
-      throw new AuthError(detail ?? "Sign in to the student portal again.", "wrong_password");
+      throw new PortalError(detail ?? "Student portal session expired. Please try again.", "portal");
     }
     throw new PortalError(detail ?? "Student portal sign-in failed.", "portal");
   }
   if (res.status === 400) {
     if (code === "invalid_credentials") {
-      throw new AuthError(detail ?? "Wrong SRM NetID or password.", "wrong_password");
+      const isNetIdIssue = detail && /net id|registration number/i.test(detail);
+      throw new AuthError(detail ?? "Wrong SRM NetID or password.", isNetIdIssue ? "user_not_found" : "wrong_password");
+    }
+    if (code === "invalid_captcha") {
+      throw new PortalError(detail ?? "Failed to solve portal CAPTCHA. Tap Update to try again.", "captcha");
     }
     throw new PortalError(detail ?? "Failed to solve portal CAPTCHA. Tap Update to try again.", "portal");
   }

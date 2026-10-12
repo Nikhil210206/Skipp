@@ -56,7 +56,7 @@ class StudentPortalLoginRequest(_CamelModel):
     captcha_field: str
     random_delim: str
     honeypot_field: str
-    page_load_time: float
+    page_load_time: float = 0.0
 
 
 class StudentPortalSnapshot(_CamelModel):

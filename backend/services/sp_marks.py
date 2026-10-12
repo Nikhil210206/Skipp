@@ -80,11 +80,21 @@ def parse_marks(html: str) -> Marks:
     order: list[str] = []
 
     for table in tables:
-        first = table.find("tr")
+        header_tr = None
+        for tr in table.find_all("tr")[:3]:
+            row_text = " ".join(_clean(c.get_text()).lower() for c in tr.find_all(["th", "td"]))
+            if "code" in row_text:
+                header_tr = tr
+                break
+
         headers = (
-            [_clean(c.get_text()).lower() for c in first.find_all(["th", "td"])]
-            if first
-            else []
+            [_clean(c.get_text()).lower() for c in header_tr.find_all(["th", "td"])]
+            if header_tr
+            else (
+                [_clean(c.get_text()).lower() for c in table.find("tr").find_all(["th", "td"])]
+                if table.find("tr")
+                else []
+            )
         )
 
         code_col: int | None = None
@@ -265,12 +275,16 @@ def parse_marks(html: str) -> Marks:
 def _find_marks_tables(soup: BeautifulSoup) -> list[Tag]:
     tables = []
     for table in soup.find_all("table"):
-        first = table.find("tr")
-        if not first:
-            continue
-        head = " ".join(
-            _clean(c.get_text()).lower() for c in first.find_all(["th", "td"])
-        )
-        if "code" in head and "mark" in head:
+        ths = table.find_all("th")
+        if ths:
+            head = " ".join(_clean(th.get_text()).lower() for th in ths)
+        else:
+            first_rows = table.find_all("tr")[:2]
+            head = " ".join(
+                _clean(c.get_text()).lower()
+                for tr in first_rows
+                for c in tr.find_all(["th", "td"])
+            )
+        if "code" in head and ("mark" in head or "internal" in head or "component" in head or "test" in head):
             tables.append(table)
     return tables

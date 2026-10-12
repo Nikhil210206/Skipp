@@ -179,16 +179,21 @@ def submit_login_and_fetch(req_data: StudentPortalLoginRequest) -> Tuple[str, Op
     import json
     t_now = int(time.time() * 1000)
     
-    # If the elapsed time is too short (e.g. fast proxies + OCR), the portal might block it.
-    # TimeElapsed should at least be 1-2 seconds. 
-    time_elapsed_ms = max(2000, t_now - int(req_data.page_load_time * 1000))
+    if req_data.page_load_time and req_data.page_load_time > 0:
+        time_elapsed_ms = max(2000, min(120000, t_now - int(req_data.page_load_time * 1000)))
+        start_time_ms = int(req_data.page_load_time * 1000)
+    else:
+        # Default realistic human elapsed time on page (e.g. 4-7 seconds)
+        time_elapsed_ms = random.randint(4200, 7800)
+        start_time_ms = t_now - time_elapsed_ms
+
     time_elapsed_sec = time_elapsed_ms // 1000
     
     trap_payload = f"{time_elapsed_sec}{req_data.random_delim}5"
     captcha_trap_value = base64.b64encode(trap_payload.encode()).decode()
     
     payload_json = json.dumps({
-        "startTime": int(req_data.page_load_time * 1000),
+        "startTime": start_time_ms,
         "currentDomain": "sp.srmist.edu.in",
         "timezoneOffset": -330,
         "screenWidth": 1440,
@@ -254,7 +259,7 @@ def submit_login_and_fetch(req_data: StudentPortalLoginRequest) -> Tuple[str, Op
     })
     
     try:
-        res_post = opener.open(req_post, timeout=5)
+        res_post = opener.open(req_post, timeout=12)
         result_html = res_post.read().decode('utf-8', errors='ignore')
         set_cookies = res_post.info().get_all('Set-Cookie')
     except Exception as e:
@@ -263,16 +268,21 @@ def submit_login_and_fetch(req_data: StudentPortalLoginRequest) -> Tuple[str, Op
             direct_opener, chosen_proxy = _get_opener(cj, force_proxy="DIRECT")
             opener = direct_opener
             try:
-                res_post = opener.open(req_post, timeout=5)
+                res_post = opener.open(req_post, timeout=12)
                 result_html = res_post.read().decode('utf-8', errors='ignore')
                 set_cookies = res_post.info().get_all('Set-Cookie')
             except Exception as direct_err:
                 raise StudentPortalClientError(f"Login request error: {direct_err}") from direct_err
         else:
-            raise StudentPortalClientError(f"Login request error: {e}") from e
-        
+            # Retry once after brief pause if connection reset or transient error
+            try:
+                time.sleep(1)
+                res_post = opener.open(req_post, timeout=12)
+                result_html = res_post.read().decode('utf-8', errors='ignore')
+                set_cookies = res_post.info().get_all('Set-Cookie')
+            except Exception as retry_err:
+                raise StudentPortalClientError(f"Login request error: {retry_err}") from retry_err
 
-                
     # Update CookieJar with the cookies from the POST response
     if set_cookies:
         for header in set_cookies:
@@ -301,53 +311,134 @@ def submit_login_and_fetch(req_data: StudentPortalLoginRequest) -> Tuple[str, Op
             error_msg = re.sub(r'<[^>]+>', '', error_html).replace('alert-icon-content">', '').replace('Alert', '').strip()
             print(f"Login failed: Server returned error: {error_msg}")
             raise StudentPortalClientError(f"Login failed: {error_msg}")
-    if "theGR8LoginLoader" in result_html:
+
+    if "theGR8LoginLoader" in result_html or "thegr8loginloader" in result_html.lower():
         print("Login successful, following theGR8LoginLoader redirect...")
-        req_redirect = urllib.request.Request(
-            f"{SP_BASE_URL}/srmiststudentportal/students/loginManager/youLogin.jsp",
-            headers={
-                'User-Agent': UA,
-                'Referer': LOGIN_PAGE_URL
-            }
-        )
+        target_url = f"{SP_BASE_URL}/srmiststudentportal/students/loginManager/youLogin.jsp"
+        form_payload = b""
+        form_method = "POST"
         try:
-            res_redirect = opener.open(req_redirect, timeout=7)
+            from bs4 import BeautifulSoup
+            soup_loader = BeautifulSoup(result_html, "html.parser")
+            loader_form = soup_loader.find("form", id=lambda x: x and "loginloader" in str(x).lower()) or soup_loader.find("form")
+            if loader_form:
+                action = loader_form.get("action")
+                if action:
+                    if action.startswith("http"):
+                        target_url = action
+                    elif action.startswith("/"):
+                        target_url = f"{SP_BASE_URL}{action}"
+                    else:
+                        target_url = f"{SP_BASE_URL}/srmiststudentportal/students/loginManager/{action}"
+                form_method = (loader_form.get("method") or "POST").upper()
+                inputs = {
+                    inp.get("name"): inp.get("value", "")
+                    for inp in loader_form.find_all("input")
+                    if inp.get("name")
+                }
+                if inputs:
+                    form_payload = urllib.parse.urlencode(inputs).encode()
+        except Exception as parse_err:
+            print(f"Could not parse loader form: {parse_err}")
+
+        redirect_headers = {
+            'User-Agent': UA,
+            'Referer': LOGIN_PAGE_URL,
+            'Origin': SP_BASE_URL
+        }
+        if form_method == "POST":
+            redirect_headers['Content-Type'] = 'application/x-www-form-urlencoded'
+            req_redirect = urllib.request.Request(
+                target_url,
+                data=form_payload,
+                headers=redirect_headers,
+                method="POST"
+            )
+        else:
+            req_redirect = urllib.request.Request(target_url, headers=redirect_headers)
+
+        try:
+            res_redirect = opener.open(req_redirect, timeout=10)
             result_html = res_redirect.read().decode('utf-8', errors='ignore')
         except urllib.error.HTTPError as e:
             raise StudentPortalClientError(f"Login redirect failed: {e.code}") from e
         except Exception as e:
             raise StudentPortalClientError(f"Login redirect error: {e}") from e
 
-    if "welcome" not in result_html.lower() and "attendance" not in result_html.lower() and "dashboard" not in result_html.lower() and "thegr8loginloader" not in result_html.lower():
+    res_lower = result_html.lower()
+    success_indicators = (
+        "welcome",
+        "attendance",
+        "dashboard",
+        "thegr8loginloader",
+        "logout",
+        "hrdsystem",
+        "student",
+        "portal",
+        "srmist",
+        "timetable",
+        "internal",
+    )
+    if not any(k in res_lower for k in success_indicators):
         print(f"Login failed: Unknown response, size {len(result_html)}")
         raise StudentPortalClientError("Failed to login, unknown response.")
 
-    import concurrent.futures
-
-    # Fetch HRDSystem.jsp first to initialize dashboard session
+    # Fetch HRDSystem.jsp to initialize dashboard session
     req_hrd = urllib.request.Request(f"{SP_BASE_URL}/srmiststudentportal/students/template/HRDSystem.jsp", headers={
         'User-Agent': UA,
         'Referer': LOGIN_PAGE_URL
     })
     hrd_html = ""
     try:
-        res_hrd = opener.open(req_hrd, timeout=7)
+        res_hrd = opener.open(req_hrd, timeout=10)
         hrd_html = res_hrd.read().decode('utf-8', errors='ignore')
     except Exception as e:
         print(f"HRDSystem fetch failed: {e}")
 
     hrd_referer = f"{SP_BASE_URL}/srmiststudentportal/students/template/HRDSystem.jsp"
+    from core.student_portal import looks_signed_out
 
     def _fetch_page(url: str) -> str:
-        req = urllib.request.Request(url, data=b"", headers={
-            'User-Agent': UA,
-            'Referer': hrd_referer,
-            'Cache-Control': 'no-cache, no-store, must-revalidate',
-            'Pragma': 'no-cache',
-            'Expires': '0'
-        }, method="POST")
-        res = opener.open(req, timeout=10)
-        return res.read().decode('utf-8', errors='ignore')
+        for attempt in range(2):
+            post_html = ""
+            try:
+                req = urllib.request.Request(url, data=b"", headers={
+                    'User-Agent': UA,
+                    'Referer': hrd_referer,
+                    'Content-Type': 'application/x-www-form-urlencoded',
+                    'Cache-Control': 'no-cache, no-store, must-revalidate',
+                    'Pragma': 'no-cache',
+                    'Expires': '0'
+                }, method="POST")
+                res = opener.open(req, timeout=12)
+                post_html = res.read().decode('utf-8', errors='ignore')
+                if post_html and not looks_signed_out(post_html):
+                    return post_html
+            except Exception as e:
+                print(f"POST fetch attempt {attempt + 1} failed for {url}: {e}")
+
+            # Fallback to GET
+            try:
+                req_get = urllib.request.Request(url, headers={
+                    'User-Agent': UA,
+                    'Referer': hrd_referer,
+                    'Cache-Control': 'no-cache, no-store, must-revalidate',
+                    'Pragma': 'no-cache',
+                    'Expires': '0'
+                })
+                res_get = opener.open(req_get, timeout=12)
+                get_html = res_get.read().decode('utf-8', errors='ignore')
+                if get_html and not looks_signed_out(get_html):
+                    return get_html
+                if get_html and not post_html:
+                    post_html = get_html
+            except Exception as e:
+                print(f"GET fetch attempt {attempt + 1} failed for {url}: {e}")
+
+            if attempt == 0:
+                time.sleep(1)
+
+        return post_html
 
     att_html: Optional[str] = None
     marks_html: Optional[str] = None

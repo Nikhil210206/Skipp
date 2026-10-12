@@ -24,14 +24,18 @@ function explain(code: FailureCode, message: string): Failure {
   switch (code) {
     case "user_not_found":
       return {
-        title: "No account with that Net ID",
+        title: "Net ID not recognized",
         advice:
+          message ||
           "Use the Net ID you sign in to the SRM portal with, without the @srmist.edu.in.",
       };
     case "wrong_password":
       return {
         title: "That password did not work",
-        advice: "Check it and try again. It is the same one the portal uses.",
+        advice:
+          message && !message.toLowerCase().includes("failed") && !message.toLowerCase().includes("error")
+            ? message
+            : "Check it and try again. It is the same one the portal uses.",
       };
     case "captcha":
       return {
@@ -170,6 +174,7 @@ export default function LoginForm({
               captchaField: captchaSession.captchaField,
               randomDelim: captchaSession.randomDelim,
               honeypotField: captchaSession.honeypotField,
+              pageLoadTime: captchaSession.pageLoadTime,
             },
           );
         } else {

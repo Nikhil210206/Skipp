@@ -530,9 +530,17 @@ def sp_login(req: StudentPortalLoginRequest, request: Request) -> StudentPortalS
     clean_username = req.username.strip()
     if "@" in clean_username:
         clean_username = clean_username.split("@")[0].strip()
+    clean_username = clean_username.lower()
 
     if not clean_username:
         raise _fail(400, "invalid_credentials", "Net ID should not be empty.")
+    import re
+    if len(clean_username) > 8 or re.match(r"^[a-z]{2}\d{8,}", clean_username):
+        raise _fail(
+            400,
+            "invalid_credentials",
+            "The student portal requires your SRM Net ID (e.g. ab1234), not your registration number.",
+        )
     if not req.password:
         raise _fail(400, "invalid_credentials", "Password should not be empty.")
 
@@ -542,7 +550,7 @@ def sp_login(req: StudentPortalLoginRequest, request: Request) -> StudentPortalS
         att_html, marks_html, tt_html = submit_login_and_fetch(req)
     except StudentPortalClientError as e:
         msg = str(e)
-        print(f"DEBUG: StudentPortalClientError raised with msg: {msg}")
+        log.warning("StudentPortalClientError raised: %s", msg)
         if "temporarily locked" in msg.lower():
             raise _fail(429, "account_locked", "Account temporarily locked by SRM portal due to multiple unsuccessful attempts. Please try again after 5 minutes.")
         if "Invalid captcha" in msg or "Failed to solve CAPTCHA" in msg:
@@ -553,9 +561,7 @@ def sp_login(req: StudentPortalLoginRequest, request: Request) -> StudentPortalS
             raise _fail(503, "portal_unreachable", msg)
         raise _fail(400, "login_failed", msg)
     except Exception as e:
-        import traceback
-        traceback.print_exc()
-        print(f"DEBUG: Unhandled exception: {e}")
+        log.exception("Unhandled exception in sp_login: %s", e)
         raise _fail(500, "internal_error", f"Internal server error: {str(e)}")
 
     if tt_html:
@@ -566,16 +572,6 @@ def sp_login(req: StudentPortalLoginRequest, request: Request) -> StudentPortalS
             p.write_text(tt_html, encoding="utf-8")
         except Exception:
             pass
-
-    if sp_looks_signed_out(att_html):
-        print(f"DEBUG: Session expired trigger! att_html length: {len(att_html)}", flush=True)
-        with open("expired_att.html", "w") as f:
-            f.write(att_html)
-        raise _fail(
-            401,
-            "session_expired",
-            "The student portal session expired immediately after login.",
-        )
 
     attendance = marks = None
     att_status: str = "error"
@@ -588,6 +584,13 @@ def sp_login(req: StudentPortalLoginRequest, request: Request) -> StudentPortalS
         period = sp_reported_period(att_html)
         att_status = "ready"
     except SPAttendanceUnavailable as e:
+        if sp_looks_signed_out(att_html):
+            log.warning("Session expired trigger on attendance fetch, length: %d", len(att_html) if att_html else 0)
+            raise _fail(
+                401,
+                "session_expired",
+                "The student portal session expired immediately after login.",
+            )
         att_status, att_msg = "gated", str(e)
 
     if marks_html and not sp_looks_signed_out(marks_html):
@@ -673,8 +676,7 @@ def sp_auto_login(req: LoginRequest, request: Request) -> StudentPortalSnapshot:
             raise _fail(503, "portal_unreachable", msg)
         raise _fail(400, "login_failed", msg)
     except Exception as e:
-        import traceback
-        traceback.print_exc()
+        log.exception("Unhandled exception in sp_auto_login: %s", e)
         raise _fail(500, "internal_error", f"Internal server error: {str(e)}")
 
     if tt_html:
@@ -695,13 +697,6 @@ def sp_auto_login(req: LoginRequest, request: Request) -> StudentPortalSnapshot:
         except Exception:
             pass
 
-    if sp_looks_signed_out(att_html):
-        raise _fail(
-            401,
-            "session_expired",
-            "The student portal session expired immediately after login.",
-        )
-
     attendance = marks = None
     att_status: str = "error"
     marks_status: str = "error"
@@ -713,6 +708,12 @@ def sp_auto_login(req: LoginRequest, request: Request) -> StudentPortalSnapshot:
         period = sp_reported_period(att_html)
         att_status = "ready"
     except SPAttendanceUnavailable as e:
+        if sp_looks_signed_out(att_html):
+            raise _fail(
+                401,
+                "session_expired",
+                "The student portal session expired immediately after login.",
+            )
         att_status, att_msg = "gated", str(e)
 
     if marks_html and not sp_looks_signed_out(marks_html):

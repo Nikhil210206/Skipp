@@ -37,17 +37,26 @@ REPORT_ATTENDANCE = f"{CONTEXT}/students/report/studentAttendanceDetails.jsp"
 REPORT_MARKS = f"{CONTEXT}/students/report/studentInternalMarkDetails.jsp"
 REPORT_PROFILE = f"{CONTEXT}/students/report/studentProfile.jsp"
 
-#: Markers of a signed-out response. A signed-out report fetch does NOT return
-#: the login form: it returns a tiny "login screen is loading" LOADER page that
-#: self-submits to youLogin.jsp. So the loader markers matter as much as the
-#: login-form ones, or a signed-out fetch reads as "no attendance table"
-#: (nothing to parse) rather than the truthful "sign in again".
+#: Positive markers that prove a page is an authenticated report.
+REPORT_CONTENT_MARKERS = (
+    "course wise attendance",
+    "total percentage",
+    "max. hours",
+    "max hours",
+    "att. hours",
+    "att hours",
+    "internal mark",
+    "test performance",
+    "timetable details",
+    "day order",
+    "course code",
+)
+
+#: Markers of a signed-out response (login form or loader).
 LOGIN_MARKERS = (
     "SCaptchaServlet",
     'name="password"',
     "LoginServlet",
-    "youLogin",
-    "loginManager",
     "login screen is loading",
 )
 
@@ -62,4 +71,16 @@ class SessionExpired(StudentPortalError):
 
 def looks_signed_out(html: str) -> bool:
     """True when this HTML is the login screen rather than a report."""
-    return any(marker in html for marker in LOGIN_MARKERS)
+    if not html or len(html.strip()) < 50:
+        return True
+    lower = html.lower()
+    # Positive signals: if the page contains report tables or headers, it's NOT signed out!
+    if any(marker in lower for marker in REPORT_CONTENT_MARKERS):
+        return False
+    # If it has login form elements or the loader, it is signed out
+    if any(marker.lower() in lower for marker in LOGIN_MARKERS):
+        return True
+    if "youlogin" in lower and "password" in lower:
+        return True
+    return False
+

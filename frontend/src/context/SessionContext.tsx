@@ -265,6 +265,7 @@ type SessionValue = {
       captchaField: string;
       randomDelim: string;
       honeypotField: string;
+      pageLoadTime?: number;
     },
   ) => Promise<void>;
   /** Resolves with what actually happened, so the caller can say so. */
@@ -946,6 +947,7 @@ export function SessionProvider({ children }: { children: React.ReactNode }) {
             captchaField: manual.captchaField,
             randomDelim: manual.randomDelim,
             honeypotField: manual.honeypotField,
+            pageLoadTime: manual.pageLoadTime ?? Date.now() / 1000,
           });
         } else {
           sp = await autoStudentPortalLogin(next);
