@@ -10,6 +10,14 @@ import type {
   StudentPortalLoginRequest,
 } from "@/types";
 
+export type {
+  Credentials,
+  Snapshot,
+  StudentPortalSnapshot,
+  StudentPortalCaptchaResponse,
+  StudentPortalLoginRequest,
+};
+
 // Backend base URL. Prefer an explicit env (prod), else talk to the backend on
 // the SAME host the app was opened from (port 8000), so it works on the laptop
 // (localhost) AND a phone on the LAN (http://<laptop-ip>:3000) with no config.
@@ -201,8 +209,8 @@ export async function submitStudentPortalLogin(
       const isNetIdIssue = detail && /net id|registration number/i.test(detail);
       throw new AuthError(detail ?? "Wrong SRM NetID or password.", isNetIdIssue ? "user_not_found" : "wrong_password");
     }
-    if (code === "invalid_captcha") {
-      throw new PortalError(detail ?? "Incorrect captcha. Please try again.", "captcha");
+    if (code === "invalid_captcha" || code === "security_failed") {
+      throw new PortalError(detail ?? "Verification check failed. Please enter the captcha below.", "captcha");
     }
     throw new PortalError(detail ?? "Invalid portal request.", "portal");
   }
@@ -258,8 +266,8 @@ export async function autoStudentPortalLogin(
       const isNetIdIssue = detail && /net id|registration number/i.test(detail);
       throw new AuthError(detail ?? "Wrong SRM NetID or password.", isNetIdIssue ? "user_not_found" : "wrong_password");
     }
-    if (code === "invalid_captcha") {
-      throw new PortalError(detail ?? "Failed to solve portal CAPTCHA. Tap Update to try again.", "captcha");
+    if (code === "invalid_captcha" || code === "security_failed") {
+      throw new PortalError(detail ?? "Failed to solve portal CAPTCHA. Please enter the captcha manually.", "captcha");
     }
     throw new PortalError(detail ?? "Failed to solve portal CAPTCHA. Tap Update to try again.", "portal");
   }

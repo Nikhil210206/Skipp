@@ -530,12 +530,11 @@ def sp_login(req: StudentPortalLoginRequest, request: Request) -> StudentPortalS
     clean_username = req.username.strip()
     if "@" in clean_username:
         clean_username = clean_username.split("@")[0].strip()
-    clean_username = clean_username.lower()
 
     if not clean_username:
         raise _fail(400, "invalid_credentials", "Net ID should not be empty.")
     import re
-    if len(clean_username) > 8 or re.match(r"^[a-z]{2}\d{8,}", clean_username):
+    if len(clean_username) > 8 or re.match(r"^[a-zA-Z]{2}\d{8,}", clean_username):
         raise _fail(
             400,
             "invalid_credentials",
@@ -555,7 +554,9 @@ def sp_login(req: StudentPortalLoginRequest, request: Request) -> StudentPortalS
             raise _fail(429, "account_locked", "Account temporarily locked by SRM portal due to multiple unsuccessful attempts. Please try again after 5 minutes.")
         if "Invalid captcha" in msg or "Failed to solve CAPTCHA" in msg:
             raise _fail(400, "invalid_captcha", "Incorrect captcha. Please try again.")
-        if "Invalid username or password" in msg or "invalid credentials" in msg.lower():
+        if "security verification failed" in msg.lower() or "security check failed" in msg.lower():
+            raise _fail(400, "security_failed", "Portal security verification required. Please solve the captcha manually.")
+        if "Invalid username or password" in msg:
             raise _fail(401, "invalid_credentials", "Incorrect NetID or password. Note that your Student Portal password is often different from your Academia password.")
         if "network error" in msg.lower() or "timeout" in msg.lower() or "failed to fetch" in msg.lower() or "proxy" in msg.lower():
             raise _fail(503, "portal_unreachable", msg)
@@ -648,12 +649,11 @@ def sp_auto_login(req: LoginRequest, request: Request) -> StudentPortalSnapshot:
     clean_username = req.username.strip()
     if "@" in clean_username:
         clean_username = clean_username.split("@")[0].strip()
-    clean_username = clean_username.lower()
 
     if not clean_username:
         raise _fail(400, "invalid_credentials", "Net ID should not be empty.")
     import re
-    if len(clean_username) > 8 or re.match(r"^[a-z]{2}\d{8,}", clean_username):
+    if len(clean_username) > 8 or re.match(r"^[a-zA-Z]{2}\d{8,}", clean_username):
         raise _fail(
             400,
             "invalid_credentials",
@@ -669,8 +669,10 @@ def sp_auto_login(req: LoginRequest, request: Request) -> StudentPortalSnapshot:
         if "temporarily locked" in msg.lower():
             raise _fail(429, "account_locked", "Account temporarily locked by SRM portal due to multiple unsuccessful attempts. Please try again after 5 minutes.")
         if "Invalid captcha" in msg or "Failed to solve CAPTCHA" in msg:
-            raise _fail(400, "invalid_captcha", "Failed to solve portal CAPTCHA. Please try again.")
-        if "Invalid username or password" in msg or "invalid credentials" in msg.lower():
+            raise _fail(400, "invalid_captcha", "Failed to solve portal CAPTCHA. Please enter the captcha manually.")
+        if "security verification failed" in msg.lower() or "security check failed" in msg.lower():
+            raise _fail(400, "security_failed", "Portal security verification required. Please solve the captcha manually.")
+        if "Invalid username or password" in msg:
             raise _fail(401, "invalid_credentials", "Incorrect NetID or password. Note that your Student Portal password is often different from your Academia password.")
         if "network error" in msg.lower() or "timeout" in msg.lower() or "failed to fetch" in msg.lower() or "proxy" in msg.lower():
             raise _fail(503, "portal_unreachable", msg)

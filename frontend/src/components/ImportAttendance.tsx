@@ -5,7 +5,12 @@ import { Button } from "@/components/ui";
 import { Sheet } from "@/components/ui/Overlay";
 import { IconTrash } from "@/components/Icons";
 import { useSession } from "@/context/SessionContext";
-import { AuthError } from "@/lib/api";
+import {
+  AuthError,
+  PortalError,
+  initStudentPortalLogin,
+  type StudentPortalCaptchaResponse,
+} from "@/lib/api";
 import {
   savePortalCredentials,
   loadPortalCredentials,
@@ -14,12 +19,36 @@ import {
 } from "@/lib/crypto";
 
 export function ImportAttendanceAction({ type = "attendance" }: { type?: "attendance" | "marks" }) {
-  const { creds: sessionCreds, portalCreds, autoImportAttendance, loginSource } = useSession();
+  const {
+    creds: sessionCreds,
+    portalCreds,
+    autoImportAttendance,
+    importAttendance,
+    loginSource,
+  } = useSession();
   const [open, setOpen] = useState(false);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [username, setUsername] = useState("");
   const [password, setPassword] = useState("");
+
+  const [captchaSession, setCaptchaSession] = useState<StudentPortalCaptchaResponse | null>(null);
+  const [captchaInput, setCaptchaInput] = useState("");
+  const [loadingCaptcha, setLoadingCaptcha] = useState(false);
+
+  const loadManualCaptcha = async () => {
+    setLoadingCaptcha(true);
+    setCaptchaSession(null);
+    setCaptchaInput("");
+    try {
+      const data = await initStudentPortalLogin();
+      setCaptchaSession(data);
+    } catch {
+      // Ignored; user can retry
+    } finally {
+      setLoadingCaptcha(false);
+    }
+  };
 
   const handleOpen = async () => {
     // Look for credentials that are specifically for the student portal
@@ -51,8 +80,9 @@ export function ImportAttendanceAction({ type = "attendance" }: { type?: "attend
           setUsername(creds.username);
           setPassword("");
         } else {
-          setError(err instanceof Error ? err.message : "Import failed. Please try again.");
+          setError(err instanceof Error ? err.message : "Import failed. Please solve the captcha below.");
           setUsername(creds.username);
+          void loadManualCaptcha();
         }
         return;
       }
@@ -63,6 +93,8 @@ export function ImportAttendanceAction({ type = "attendance" }: { type?: "attend
     setError(null);
     setUsername(sessionCreds && !isRegistrationNumber(sessionCreds.username) ? sessionCreds.username : "");
     setPassword("");
+    setCaptchaSession(null);
+    setCaptchaInput("");
     setOpen(true);
   };
 
@@ -83,21 +115,47 @@ export function ImportAttendanceAction({ type = "attendance" }: { type?: "attend
     setBusy(true);
     setError(null);
     try {
+      if (captchaSession) {
+        if (!captchaInput.trim()) {
+          setError("Please enter the captcha characters shown.");
+          setBusy(false);
+          return;
+        }
+        await importAttendance({
+          username: cleanUsername,
+          password,
+          captcha: captchaInput.trim(),
+          sessionCookie: captchaSession.sessionCookie,
+          domainField: captchaSession.domainField,
+          captchaField: captchaSession.captchaField,
+          randomDelim: captchaSession.randomDelim,
+          honeypotField: captchaSession.honeypotField,
+          pageLoadTime: captchaSession.pageLoadTime,
+        });
+      } else {
+        const creds = { username: cleanUsername, password };
+        await autoImportAttendance(creds);
+      }
       const creds = { username: cleanUsername, password };
-      await autoImportAttendance(creds);
       await savePortalCredentials(creds);
       setPassword("");
+      setCaptchaSession(null);
+      setCaptchaInput("");
       setOpen(false);
     } catch (err) {
-      setPassword("");
       const isAuthErr = err instanceof AuthError && (err.code === "wrong_password" || err.code === "user_not_found");
-      setError(
-        isAuthErr
-          ? err.message || "Incorrect NetID or password. Note that your Student Portal password is often different from your Academia password."
-          : err instanceof Error
-          ? err.message
-          : "Import failed. Please check your credentials.",
-      );
+      if (isAuthErr) {
+        setPassword("");
+        setCaptchaSession(null);
+        setCaptchaInput("");
+        setError(
+          err.message || "Incorrect NetID or password. Note that your Student Portal password is often different from your Academia password."
+        );
+      } else {
+        // Captcha or security check failed: load manual captcha so student can solve it directly
+        setError(err instanceof Error ? err.message : "Verification check failed. Please enter the captcha below.");
+        void loadManualCaptcha();
+      }
     } finally {
       setBusy(false);
     }
@@ -140,10 +198,57 @@ export function ImportAttendanceAction({ type = "attendance" }: { type?: "attend
               autoComplete="current-password"
             />
 
+            {/* Manual captcha box if activated */}
+            {captchaSession && (
+              <div data-enter className="flex flex-col gap-2 rounded-control border border-line bg-ink-1 p-3">
+                <span className="text-label uppercase text-text-3">Security Check</span>
+                <div className="flex items-center gap-3">
+                  <img
+                    src={captchaSession.captchaBase64}
+                    alt="Captcha"
+                    className="h-10 w-auto rounded-md bg-white object-contain px-2 py-0.5"
+                  />
+                  <button
+                    type="button"
+                    onClick={() => void loadManualCaptcha()}
+                    disabled={loadingCaptcha}
+                    className="text-callout text-accent hover:underline disabled:opacity-50"
+                  >
+                    {loadingCaptcha ? "Reloading..." : "Reload"}
+                  </button>
+                </div>
+                <input
+                  type="text"
+                  value={captchaInput}
+                  onChange={(e) => setCaptchaInput(e.target.value)}
+                  placeholder="Enter the characters above"
+                  className="mt-1 w-full appearance-none bg-transparent text-headline text-text-1 outline-none placeholder:text-text-3"
+                  required
+                />
+              </div>
+            )}
+
+            {!captchaSession && (
+              <button
+                type="button"
+                onClick={() => void loadManualCaptcha()}
+                disabled={loadingCaptcha}
+                className="self-start text-callout text-accent hover:underline disabled:opacity-50"
+              >
+                {loadingCaptcha ? "Loading captcha..." : "Trouble importing? Solve captcha manually"}
+              </button>
+            )}
+
             {error && <p className="text-callout text-risk mt-1">{error}</p>}
 
             <div className="mt-2">
-              <Button type="submit" variant="primary" size="lg" full disabled={busy || !username || !password}>
+              <Button
+                type="submit"
+                variant="primary"
+                size="lg"
+                full
+                disabled={busy || !username || !password || (Boolean(captchaSession) && !captchaInput)}
+              >
                 {busy ? "Signing in…" : "Import"}
               </Button>
             </div>
@@ -219,8 +324,8 @@ export function PortalSourceNote({ type = "attendance" }: { type?: "attendance" 
     portalCreds,
     reportedPeriod,
     autoImportAttendance,
+    importAttendance,
     clearImportedAttendance,
-    isAutoSyncing,
     refresh,
     loginSource,
   } = useSession();
@@ -233,6 +338,24 @@ export function PortalSourceNote({ type = "attendance" }: { type?: "attendance" 
   const [armed, setArmed] = useState(false);
   const disarmTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const updatedTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  const [captchaSession, setCaptchaSession] = useState<StudentPortalCaptchaResponse | null>(null);
+  const [captchaInput, setCaptchaInput] = useState("");
+  const [loadingCaptcha, setLoadingCaptcha] = useState(false);
+
+  const loadManualCaptcha = async () => {
+    setLoadingCaptcha(true);
+    setCaptchaSession(null);
+    setCaptchaInput("");
+    try {
+      const data = await initStudentPortalLogin();
+      setCaptchaSession(data);
+    } catch {
+      // Ignored; user can retry
+    } finally {
+      setLoadingCaptcha(false);
+    }
+  };
 
   useEffect(() => () => {
     if (disarmTimer.current) clearTimeout(disarmTimer.current);
@@ -305,11 +428,17 @@ export function PortalSourceNote({ type = "attendance" }: { type?: "attendance" 
         }
       } catch (err) {
         setStatus("idle");
-        // Only open modal if auth genuinely failed (wrong password)
+        // If auth genuinely failed (wrong password), prompt for credentials
         if (err instanceof AuthError && (err.code === "wrong_password" || err.code === "user_not_found")) {
           setUsername(defaultUser);
           setPassword("");
           setError(err.message || "Incorrect NetID or password. Please update your credentials.");
+          setOpen(true);
+        } else {
+          // If captcha / security failure on background refresh, allow manual solve
+          setUsername(defaultUser);
+          setError(err instanceof Error ? err.message : "Verification check required. Please solve the captcha below.");
+          void loadManualCaptcha();
           setOpen(true);
         }
         return;
@@ -322,6 +451,8 @@ export function PortalSourceNote({ type = "attendance" }: { type?: "attendance" 
     setUsername(defaultUser);
     setPassword("");
     setError(null);
+    setCaptchaSession(null);
+    setCaptchaInput("");
     setOpen(true);
   };
 
@@ -342,18 +473,47 @@ export function PortalSourceNote({ type = "attendance" }: { type?: "attendance" 
     setBusy(true);
     setError(null);
     try {
+      if (captchaSession) {
+        if (!captchaInput.trim()) {
+          setError("Please enter the captcha characters shown.");
+          setBusy(false);
+          return;
+        }
+        await importAttendance({
+          username: cleanUsername,
+          password,
+          captcha: captchaInput.trim(),
+          sessionCookie: captchaSession.sessionCookie,
+          domainField: captchaSession.domainField,
+          captchaField: captchaSession.captchaField,
+          randomDelim: captchaSession.randomDelim,
+          honeypotField: captchaSession.honeypotField,
+          pageLoadTime: captchaSession.pageLoadTime,
+        });
+      } else {
+        const creds = { username: cleanUsername, password };
+        await autoImportAttendance(creds);
+      }
       const creds = { username: cleanUsername, password };
-      await autoImportAttendance(creds);
       await savePortalCredentials(creds);
       setPassword("");
+      setCaptchaSession(null);
+      setCaptchaInput("");
       setOpen(false);
       setStatus("updated");
       if (updatedTimer.current) clearTimeout(updatedTimer.current);
       updatedTimer.current = setTimeout(() => setStatus("idle"), 2500);
     } catch (err) {
-      setPassword("");
-      const msg = err instanceof Error ? err.message : "Update failed. Please check your credentials.";
-      setError(msg);
+      const isAuthErr = err instanceof AuthError && (err.code === "wrong_password" || err.code === "user_not_found");
+      if (isAuthErr) {
+        setPassword("");
+        setCaptchaSession(null);
+        setCaptchaInput("");
+        setError(err.message || "Incorrect NetID or password. Note that your Student Portal password is often different from your Academia password.");
+      } else {
+        setError(err instanceof Error ? err.message : "Verification check failed. Please enter the captcha below.");
+        void loadManualCaptcha();
+      }
     } finally {
       setBusy(false);
     }
@@ -423,9 +583,57 @@ export function PortalSourceNote({ type = "attendance" }: { type?: "attendance" 
               placeholder="Student portal password"
               autoComplete="current-password"
             />
+
+            {/* Manual captcha box if activated */}
+            {captchaSession && (
+              <div data-enter className="flex flex-col gap-2 rounded-control border border-line bg-ink-1 p-3">
+                <span className="text-label uppercase text-text-3">Security Check</span>
+                <div className="flex items-center gap-3">
+                  <img
+                    src={captchaSession.captchaBase64}
+                    alt="Captcha"
+                    className="h-10 w-auto rounded-md bg-white object-contain px-2 py-0.5"
+                  />
+                  <button
+                    type="button"
+                    onClick={() => void loadManualCaptcha()}
+                    disabled={loadingCaptcha}
+                    className="text-callout text-accent hover:underline disabled:opacity-50"
+                  >
+                    {loadingCaptcha ? "Reloading..." : "Reload"}
+                  </button>
+                </div>
+                <input
+                  type="text"
+                  value={captchaInput}
+                  onChange={(e) => setCaptchaInput(e.target.value)}
+                  placeholder="Enter the characters above"
+                  className="mt-1 w-full appearance-none bg-transparent text-headline text-text-1 outline-none placeholder:text-text-3"
+                  required
+                />
+              </div>
+            )}
+
+            {!captchaSession && (
+              <button
+                type="button"
+                onClick={() => void loadManualCaptcha()}
+                disabled={loadingCaptcha}
+                className="self-start text-callout text-accent hover:underline disabled:opacity-50"
+              >
+                {loadingCaptcha ? "Loading captcha..." : "Trouble updating? Solve captcha manually"}
+              </button>
+            )}
+
             {error && <p className="text-callout text-risk mt-1">{error}</p>}
             <div className="mt-2">
-              <Button type="submit" variant="primary" size="lg" full disabled={busy || !username || !password}>
+              <Button
+                type="submit"
+                variant="primary"
+                size="lg"
+                full
+                disabled={busy || !username || !password || (Boolean(captchaSession) && !captchaInput)}
+              >
                 {busy ? "Signing in…" : "Update"}
               </Button>
             </div>

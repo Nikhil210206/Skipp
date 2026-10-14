@@ -295,25 +295,39 @@ def submit_login_and_fetch(req_data: StudentPortalLoginRequest) -> Tuple[str, Op
                 ck = http.cookiejar.Cookie(version=0, name=k, value=v, port=None, port_specified=False, domain='sp.srmist.edu.in', domain_specified=False, domain_initial_dot=False, path='/', path_specified=False, secure=False, expires=None, discard=True, comment=None, comment_url=None, rest={'HttpOnly': None}, rfc2109=False)
                 cj.set_cookie(ck)
         
-    if "invalid credentials" in result_html.lower() or "invalid login credentials" in result_html.lower():
-        log.warning("Login failed: Invalid credentials found in portal HTML response")
+    res_lower = result_html.lower()
+    
+    # 1. Genuine bad username / password:
+    # Portal returns: "Invalid login credentials The user ID or password entered is invalid. The login attempt was unsuccessful. You have X out of 3 login attempts remaining."
+    if "user id or password entered is invalid" in res_lower or "login attempt was unsuccessful" in res_lower or "attempts remaining" in res_lower:
+        log.warning("Login failed: Invalid username or password reported by portal")
         raise StudentPortalClientError("Invalid username or password.")
-    if "Invalid Captcha" in result_html or "invalid captcha" in result_html.lower():
+        
+    # 2. Bad Captcha:
+    # Portal returns: "Invalid captcha."
+    if "invalid captcha" in res_lower:
         log.warning("Login failed: Invalid Captcha found in portal HTML response")
         raise StudentPortalClientError("Invalid captcha.")
-    if "temporarily locked" in result_html.lower():
+        
+    # 3. Account temporarily locked by SRM:
+    if "temporarily locked" in res_lower:
         log.warning("Login failed: Account temporarily locked by SRM portal")
         raise StudentPortalClientError("Account temporarily locked due to multiple unsuccessful attempts. Please try again after 5 minutes.")
         
-    if "alert-danger" in result_html:
-        start_idx = result_html.find('alert-icon-content')
-        if start_idx != -1:
-            end_idx = result_html.find('</div>', start_idx)
-            error_html = result_html[start_idx:end_idx]
-            import re
-            error_msg = re.sub(r'<[^>]+>', '', error_html).replace('alert-icon-content">', '').replace('Alert', '').strip()
-            log.warning("Login failed: Server returned alert: %s", error_msg)
-            raise StudentPortalClientError(f"Login failed: {error_msg}")
+    # 4. Anti-bot / telemetry / security verification rejection:
+    # Portal returns: "Invalid credentials" (without "attempts remaining" or "user ID or password entered is invalid")
+    if "invalid credentials" in res_lower or "invalid login credentials" in res_lower:
+        log.warning("Login failed: Portal anti-bot/security verification rejected request")
+        raise StudentPortalClientError("Portal security verification failed. Please solve the captcha manually.")
+        
+    # 5. Generic alert in portal response:
+    if "alert-danger" in res_lower or "alert-icon-content" in res_lower:
+        from bs4 import BeautifulSoup
+        soup_err = BeautifulSoup(result_html, "html.parser")
+        alert_el = soup_err.find(class_=lambda x: x and ("alert-icon-content" in x or "alert-danger" in x))
+        error_msg = alert_el.get_text(strip=True).replace("Alert", "").strip() if alert_el else "Server returned an alert."
+        log.warning("Login failed: Server returned alert: %s", error_msg)
+        raise StudentPortalClientError(f"Login failed: {error_msg}")
 
     if "theGR8LoginLoader" in result_html or "thegr8loginloader" in result_html.lower():
         log.info("Login successful, following theGR8LoginLoader redirect...")

@@ -69,12 +69,12 @@ def auto_login_and_fetch(username: str, password: str) -> Tuple[str, Optional[st
             
         except StudentPortalClientError as e:
             error_msg = str(e).lower()
-            if "captcha" in error_msg or "unknown response" in error_msg:
-                log.info(f"CAPTCHA / portal response failed on submission {submissions_done}: {e}")
+            if "captcha" in error_msg or "unknown response" in error_msg or "security verification failed" in error_msg or "security check failed" in error_msg:
+                log.info(f"CAPTCHA / portal verification failed on submission {submissions_done}: {e}")
                 last_error = e
                 continue
             else:
-                # Other errors (e.g., invalid credentials, account locked) should fail immediately
+                # Genuine invalid credentials or account locked should fail immediately
                 raise
 
     if last_error:
