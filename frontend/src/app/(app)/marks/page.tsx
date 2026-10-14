@@ -123,9 +123,41 @@ function MarksScreen() {
         {marksState === "error" && (
           <StateView
             tone="risk"
-            title="Could not load marks"
-            message={marksMessage ?? "Pull down to try again."}
-            action={<ImportAttendanceAction type="marks" />}
+            title={
+              marksMessage?.toLowerCase().includes("captcha") ||
+              marksMessage?.toLowerCase().includes("verification")
+                ? "Marks require verification"
+                : "Could not load marks"
+            }
+            message={
+              marksMessage?.toLowerCase().includes("captcha") ||
+              marksMessage?.toLowerCase().includes("verification")
+                ? "The SRM Student Portal requires a quick security check to load your marks. Tap below to solve the captcha."
+                : (marksMessage ?? "Pull down to try again.")
+            }
+            action={
+              <ImportAttendanceAction
+                type="marks"
+                label={
+                  marksMessage?.toLowerCase().includes("captcha") ||
+                  marksMessage?.toLowerCase().includes("verification")
+                    ? "Solve Captcha & Import Marks"
+                    : "Import from student portal"
+                }
+                variant={
+                  marksMessage?.toLowerCase().includes("captcha") ||
+                  marksMessage?.toLowerCase().includes("verification")
+                    ? "primary"
+                    : "outline"
+                }
+                initialLoadCaptcha={
+                  Boolean(
+                    marksMessage?.toLowerCase().includes("captcha") ||
+                    marksMessage?.toLowerCase().includes("verification")
+                  )
+                }
+              />
+            }
           />
         )}
 

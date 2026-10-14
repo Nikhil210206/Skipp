@@ -91,9 +91,40 @@ function AttendanceScreen() {
         {attendanceState === "error" && (
           <StateView
             tone="risk"
-            title="Could not load attendance"
-            message={attendanceMessage ?? "Pull down to try again."}
-            action={<ImportAttendanceAction />}
+            title={
+              attendanceMessage?.toLowerCase().includes("captcha") ||
+              attendanceMessage?.toLowerCase().includes("verification")
+                ? "Attendance requires verification"
+                : "Could not load attendance"
+            }
+            message={
+              attendanceMessage?.toLowerCase().includes("captcha") ||
+              attendanceMessage?.toLowerCase().includes("verification")
+                ? "The SRM Student Portal requires a quick security check to load your attendance. Tap below to solve the captcha."
+                : (attendanceMessage ?? "Pull down to try again.")
+            }
+            action={
+              <ImportAttendanceAction
+                label={
+                  attendanceMessage?.toLowerCase().includes("captcha") ||
+                  attendanceMessage?.toLowerCase().includes("verification")
+                    ? "Solve Captcha & Import Attendance"
+                    : "Import from student portal"
+                }
+                variant={
+                  attendanceMessage?.toLowerCase().includes("captcha") ||
+                  attendanceMessage?.toLowerCase().includes("verification")
+                    ? "primary"
+                    : "outline"
+                }
+                initialLoadCaptcha={
+                  Boolean(
+                    attendanceMessage?.toLowerCase().includes("captcha") ||
+                    attendanceMessage?.toLowerCase().includes("verification")
+                  )
+                }
+              />
+            }
           />
         )}
 

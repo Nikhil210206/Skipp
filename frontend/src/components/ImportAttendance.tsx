@@ -18,7 +18,17 @@ import {
   isRegistrationNumber,
 } from "@/lib/crypto";
 
-export function ImportAttendanceAction({ type = "attendance" }: { type?: "attendance" | "marks" }) {
+export function ImportAttendanceAction({
+  type = "attendance",
+  label,
+  variant = "outline",
+  initialLoadCaptcha = false,
+}: {
+  type?: "attendance" | "marks";
+  label?: string;
+  variant?: "primary" | "outline" | "secondary" | "quiet" | "danger";
+  initialLoadCaptcha?: boolean;
+}) {
   const {
     creds: sessionCreds,
     portalCreds,
@@ -35,16 +45,20 @@ export function ImportAttendanceAction({ type = "attendance" }: { type?: "attend
   const [captchaSession, setCaptchaSession] = useState<StudentPortalCaptchaResponse | null>(null);
   const [captchaInput, setCaptchaInput] = useState("");
   const [loadingCaptcha, setLoadingCaptcha] = useState(false);
+  const [captchaError, setCaptchaError] = useState<string | null>(null);
 
   const loadManualCaptcha = async () => {
     setLoadingCaptcha(true);
-    setCaptchaSession(null);
+    setCaptchaError(null);
     setCaptchaInput("");
     try {
       const data = await initStudentPortalLogin();
       setCaptchaSession(data);
-    } catch {
-      // Ignored; user can retry
+    } catch (e) {
+      console.error("Failed to load captcha:", e);
+      setCaptchaError(
+        e instanceof Error ? e.message : "Failed to load captcha. Tap to try again."
+      );
     } finally {
       setLoadingCaptcha(false);
     }
@@ -64,6 +78,17 @@ export function ImportAttendanceAction({ type = "attendance" }: { type?: "attend
       creds = sessionCreds;
     }
 
+    if (initialLoadCaptcha) {
+      setError(null);
+      setUsername(creds?.username || (sessionCreds && !isRegistrationNumber(sessionCreds.username) ? sessionCreds.username : ""));
+      setPassword("");
+      setCaptchaSession(null);
+      setCaptchaInput("");
+      setOpen(true);
+      void loadManualCaptcha();
+      return;
+    }
+
     if (creds) {
       setBusy(true);
       setError(null);
@@ -80,7 +105,7 @@ export function ImportAttendanceAction({ type = "attendance" }: { type?: "attend
           setUsername(creds.username);
           setPassword("");
         } else {
-          setError(err instanceof Error ? err.message : "Import failed. Please solve the captcha below.");
+          setError(err instanceof Error ? err.message : "Security check required. Please solve the captcha below.");
           setUsername(creds.username);
           void loadManualCaptcha();
         }
@@ -89,13 +114,13 @@ export function ImportAttendanceAction({ type = "attendance" }: { type?: "attend
     }
 
     // No portal credentials saved yet, open modal for Net ID and Password
-    // Pre-fill NetID if available from session without throwing premature errors
     setError(null);
     setUsername(sessionCreds && !isRegistrationNumber(sessionCreds.username) ? sessionCreds.username : "");
     setPassword("");
     setCaptchaSession(null);
     setCaptchaInput("");
     setOpen(true);
+    void loadManualCaptcha();
   };
 
   const run = async (e: React.FormEvent) => {
@@ -117,7 +142,7 @@ export function ImportAttendanceAction({ type = "attendance" }: { type?: "attend
     try {
       if (captchaSession) {
         if (!captchaInput.trim()) {
-          setError("Please enter the captcha characters shown.");
+          setError("Please enter the 6 captcha characters shown.");
           setBusy(false);
           return;
         }
@@ -152,7 +177,6 @@ export function ImportAttendanceAction({ type = "attendance" }: { type?: "attend
           err.message || "Incorrect NetID or password. Note that your Student Portal password is often different from your Academia password."
         );
       } else {
-        // Captcha or security check failed: load manual captcha so student can solve it directly
         setError(err instanceof Error ? err.message : "Verification check failed. Please enter the captcha below.");
         void loadManualCaptcha();
       }
@@ -163,8 +187,8 @@ export function ImportAttendanceAction({ type = "attendance" }: { type?: "attend
 
   return (
     <>
-      <Button variant="outline" onClick={handleOpen} disabled={busy}>
-        {busy ? "Importing…" : "Import from student portal"}
+      <Button variant={variant} onClick={handleOpen} disabled={busy}>
+        {busy ? "Importing…" : label ?? "Import from student portal"}
       </Button>
 
       <Sheet
@@ -198,44 +222,67 @@ export function ImportAttendanceAction({ type = "attendance" }: { type?: "attend
               autoComplete="current-password"
             />
 
-            {/* Manual captcha box if activated */}
-            {captchaSession && (
-              <div data-enter className="flex flex-col gap-2 rounded-control border border-line bg-ink-1 p-3">
+            {/* Captcha Security Check Box */}
+            {loadingCaptcha ? (
+              <div className="flex flex-col gap-2 rounded-control border border-line bg-ink-1 p-3">
                 <span className="text-label uppercase text-text-3">Security Check</span>
-                <div className="flex items-center gap-3">
-                  <img
-                    src={captchaSession.captchaBase64}
-                    alt="Captcha"
-                    className="h-10 w-auto rounded-md bg-white object-contain px-2 py-0.5"
-                  />
+                <div className="flex items-center gap-3 py-1">
+                  <div className="h-10 w-36 animate-pulse rounded-md bg-ink-2" />
+                  <span className="text-callout text-text-3 animate-pulse">Loading captcha image…</span>
+                </div>
+              </div>
+            ) : captchaError ? (
+              <div className="flex flex-col gap-2 rounded-control border border-risk/40 bg-risk/10 p-3">
+                <span className="text-label uppercase text-risk">Security Check</span>
+                <p className="text-callout text-text-2">{captchaError}</p>
+                <button
+                  type="button"
+                  onClick={() => void loadManualCaptcha()}
+                  className="self-start text-callout font-semibold text-accent hover:underline"
+                >
+                  Retry loading captcha
+                </button>
+              </div>
+            ) : captchaSession ? (
+              <div data-enter className="flex flex-col gap-2 rounded-control border border-line bg-ink-1 p-3">
+                <div className="flex items-center justify-between">
+                  <span className="text-label uppercase text-text-3">Security Check</span>
                   <button
                     type="button"
                     onClick={() => void loadManualCaptcha()}
                     disabled={loadingCaptcha}
                     className="text-callout text-accent hover:underline disabled:opacity-50"
                   >
-                    {loadingCaptcha ? "Reloading..." : "Reload"}
+                    {loadingCaptcha ? "Reloading…" : "Reload"}
                   </button>
+                </div>
+                <div className="flex items-center gap-3">
+                  <img
+                    src={captchaSession.captchaBase64}
+                    alt="Captcha security check"
+                    className="h-10 w-auto rounded-md bg-white object-contain px-2 py-0.5 border border-line"
+                  />
                 </div>
                 <input
                   type="text"
                   value={captchaInput}
                   onChange={(e) => setCaptchaInput(e.target.value)}
-                  placeholder="Enter the characters above"
-                  className="mt-1 w-full appearance-none bg-transparent text-headline text-text-1 outline-none placeholder:text-text-3"
+                  placeholder="Enter the 6 characters shown above"
+                  className="mt-1 w-full appearance-none rounded-control border border-line bg-ink-0 px-3 py-2 text-headline text-text-1 outline-none focus:border-accent placeholder:text-text-3"
+                  autoCapitalize="none"
+                  autoCorrect="off"
+                  spellCheck="false"
                   required
                 />
               </div>
-            )}
-
-            {!captchaSession && (
+            ) : (
               <button
                 type="button"
                 onClick={() => void loadManualCaptcha()}
                 disabled={loadingCaptcha}
                 className="self-start text-callout text-accent hover:underline disabled:opacity-50"
               >
-                {loadingCaptcha ? "Loading captcha..." : "Trouble importing? Solve captcha manually"}
+                Solve captcha manually
               </button>
             )}
 
@@ -342,16 +389,20 @@ export function PortalSourceNote({ type = "attendance" }: { type?: "attendance" 
   const [captchaSession, setCaptchaSession] = useState<StudentPortalCaptchaResponse | null>(null);
   const [captchaInput, setCaptchaInput] = useState("");
   const [loadingCaptcha, setLoadingCaptcha] = useState(false);
+  const [captchaError, setCaptchaError] = useState<string | null>(null);
 
   const loadManualCaptcha = async () => {
     setLoadingCaptcha(true);
-    setCaptchaSession(null);
+    setCaptchaError(null);
     setCaptchaInput("");
     try {
       const data = await initStudentPortalLogin();
       setCaptchaSession(data);
-    } catch {
-      // Ignored; user can retry
+    } catch (e) {
+      console.error("Failed to load portal captcha:", e);
+      setCaptchaError(
+        e instanceof Error ? e.message : "Failed to load captcha. Tap to try again."
+      );
     } finally {
       setLoadingCaptcha(false);
     }
@@ -373,6 +424,7 @@ export function PortalSourceNote({ type = "attendance" }: { type?: "attendance" 
         setPassword("");
         setError("Please sign in with your NetID to update attendance from the student portal.");
         setOpen(true);
+        void loadManualCaptcha();
       }
     };
     window.addEventListener("skipp:request-portal-login", handleRequestLogin);
@@ -428,14 +480,12 @@ export function PortalSourceNote({ type = "attendance" }: { type?: "attendance" 
         }
       } catch (err) {
         setStatus("idle");
-        // If auth genuinely failed (wrong password), prompt for credentials
         if (err instanceof AuthError && (err.code === "wrong_password" || err.code === "user_not_found")) {
           setUsername(defaultUser);
           setPassword("");
           setError(err.message || "Incorrect NetID or password. Please update your credentials.");
           setOpen(true);
         } else {
-          // If captcha / security failure on background refresh, allow manual solve
           setUsername(defaultUser);
           setError(err instanceof Error ? err.message : "Verification check required. Please solve the captcha below.");
           void loadManualCaptcha();
@@ -454,6 +504,7 @@ export function PortalSourceNote({ type = "attendance" }: { type?: "attendance" 
     setCaptchaSession(null);
     setCaptchaInput("");
     setOpen(true);
+    void loadManualCaptcha();
   };
 
   const run = async (e: React.FormEvent) => {
@@ -475,7 +526,7 @@ export function PortalSourceNote({ type = "attendance" }: { type?: "attendance" 
     try {
       if (captchaSession) {
         if (!captchaInput.trim()) {
-          setError("Please enter the captcha characters shown.");
+          setError("Please enter the 6 captcha characters shown.");
           setBusy(false);
           return;
         }
@@ -584,44 +635,67 @@ export function PortalSourceNote({ type = "attendance" }: { type?: "attendance" 
               autoComplete="current-password"
             />
 
-            {/* Manual captcha box if activated */}
-            {captchaSession && (
-              <div data-enter className="flex flex-col gap-2 rounded-control border border-line bg-ink-1 p-3">
+            {/* Captcha Security Check Box */}
+            {loadingCaptcha ? (
+              <div className="flex flex-col gap-2 rounded-control border border-line bg-ink-1 p-3">
                 <span className="text-label uppercase text-text-3">Security Check</span>
-                <div className="flex items-center gap-3">
-                  <img
-                    src={captchaSession.captchaBase64}
-                    alt="Captcha"
-                    className="h-10 w-auto rounded-md bg-white object-contain px-2 py-0.5"
-                  />
+                <div className="flex items-center gap-3 py-1">
+                  <div className="h-10 w-36 animate-pulse rounded-md bg-ink-2" />
+                  <span className="text-callout text-text-3 animate-pulse">Loading captcha image…</span>
+                </div>
+              </div>
+            ) : captchaError ? (
+              <div className="flex flex-col gap-2 rounded-control border border-risk/40 bg-risk/10 p-3">
+                <span className="text-label uppercase text-risk">Security Check</span>
+                <p className="text-callout text-text-2">{captchaError}</p>
+                <button
+                  type="button"
+                  onClick={() => void loadManualCaptcha()}
+                  className="self-start text-callout font-semibold text-accent hover:underline"
+                >
+                  Retry loading captcha
+                </button>
+              </div>
+            ) : captchaSession ? (
+              <div data-enter className="flex flex-col gap-2 rounded-control border border-line bg-ink-1 p-3">
+                <div className="flex items-center justify-between">
+                  <span className="text-label uppercase text-text-3">Security Check</span>
                   <button
                     type="button"
                     onClick={() => void loadManualCaptcha()}
                     disabled={loadingCaptcha}
                     className="text-callout text-accent hover:underline disabled:opacity-50"
                   >
-                    {loadingCaptcha ? "Reloading..." : "Reload"}
+                    {loadingCaptcha ? "Reloading…" : "Reload"}
                   </button>
+                </div>
+                <div className="flex items-center gap-3">
+                  <img
+                    src={captchaSession.captchaBase64}
+                    alt="Captcha security check"
+                    className="h-10 w-auto rounded-md bg-white object-contain px-2 py-0.5 border border-line"
+                  />
                 </div>
                 <input
                   type="text"
                   value={captchaInput}
                   onChange={(e) => setCaptchaInput(e.target.value)}
-                  placeholder="Enter the characters above"
-                  className="mt-1 w-full appearance-none bg-transparent text-headline text-text-1 outline-none placeholder:text-text-3"
+                  placeholder="Enter the 6 characters shown above"
+                  className="mt-1 w-full appearance-none rounded-control border border-line bg-ink-0 px-3 py-2 text-headline text-text-1 outline-none focus:border-accent placeholder:text-text-3"
+                  autoCapitalize="none"
+                  autoCorrect="off"
+                  spellCheck="false"
                   required
                 />
               </div>
-            )}
-
-            {!captchaSession && (
+            ) : (
               <button
                 type="button"
                 onClick={() => void loadManualCaptcha()}
                 disabled={loadingCaptcha}
                 className="self-start text-callout text-accent hover:underline disabled:opacity-50"
               >
-                {loadingCaptcha ? "Loading captcha..." : "Trouble updating? Solve captcha manually"}
+                Solve captcha manually
               </button>
             )}
 
