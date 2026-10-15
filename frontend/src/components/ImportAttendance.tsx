@@ -176,6 +176,7 @@ export function ImportAttendanceAction({
         setError(
           err.message || "Incorrect NetID or password. Note that your Student Portal password is often different from your Academia password."
         );
+        void loadManualCaptcha();
       } else {
         setError(err instanceof Error ? err.message : "Verification check failed. Please enter the captcha below.");
         void loadManualCaptcha();
@@ -244,7 +245,7 @@ export function ImportAttendanceAction({
                 </button>
               </div>
             ) : captchaSession ? (
-              <div data-enter className="flex flex-col gap-2 rounded-control border border-line bg-ink-1 p-3">
+              <div className="flex flex-col gap-2 rounded-control border border-line bg-ink-1 p-3">
                 <div className="flex items-center justify-between">
                   <span className="text-label uppercase text-text-3">Security Check</span>
                   <button
@@ -260,7 +261,7 @@ export function ImportAttendanceAction({
                   <img
                     src={captchaSession.captchaBase64}
                     alt="Captcha security check"
-                    className="h-10 w-auto rounded-md bg-white object-contain px-2 py-0.5 border border-line"
+                    className="h-10 w-auto rounded-md bg-white object-contain px-2 py-0.5 border border-line select-none"
                   />
                 </div>
                 <input
@@ -272,6 +273,8 @@ export function ImportAttendanceAction({
                   autoCapitalize="none"
                   autoCorrect="off"
                   spellCheck="false"
+                  autoFocus
+                  maxLength={6}
                   required
                 />
               </div>
@@ -294,9 +297,21 @@ export function ImportAttendanceAction({
                 variant="primary"
                 size="lg"
                 full
-                disabled={busy || !username || !password || (Boolean(captchaSession) && !captchaInput)}
+                disabled={
+                  busy ||
+                  !username.trim() ||
+                  !password ||
+                  loadingCaptcha ||
+                  (Boolean(captchaSession) && !captchaInput.trim())
+                }
               >
-                {busy ? "Signing in…" : "Import"}
+                {busy
+                  ? "Signing in…"
+                  : loadingCaptcha
+                  ? "Loading security check…"
+                  : type === "marks"
+                  ? "Import marks"
+                  : "Import"}
               </Button>
             </div>
           </form>
@@ -561,6 +576,7 @@ export function PortalSourceNote({ type = "attendance" }: { type?: "attendance" 
         setCaptchaSession(null);
         setCaptchaInput("");
         setError(err.message || "Incorrect NetID or password. Note that your Student Portal password is often different from your Academia password.");
+        void loadManualCaptcha();
       } else {
         setError(err instanceof Error ? err.message : "Verification check failed. Please enter the captcha below.");
         void loadManualCaptcha();
@@ -657,7 +673,7 @@ export function PortalSourceNote({ type = "attendance" }: { type?: "attendance" 
                 </button>
               </div>
             ) : captchaSession ? (
-              <div data-enter className="flex flex-col gap-2 rounded-control border border-line bg-ink-1 p-3">
+              <div className="flex flex-col gap-2 rounded-control border border-line bg-ink-1 p-3">
                 <div className="flex items-center justify-between">
                   <span className="text-label uppercase text-text-3">Security Check</span>
                   <button
@@ -673,7 +689,7 @@ export function PortalSourceNote({ type = "attendance" }: { type?: "attendance" 
                   <img
                     src={captchaSession.captchaBase64}
                     alt="Captcha security check"
-                    className="h-10 w-auto rounded-md bg-white object-contain px-2 py-0.5 border border-line"
+                    className="h-10 w-auto rounded-md bg-white object-contain px-2 py-0.5 border border-line select-none"
                   />
                 </div>
                 <input
@@ -685,6 +701,8 @@ export function PortalSourceNote({ type = "attendance" }: { type?: "attendance" 
                   autoCapitalize="none"
                   autoCorrect="off"
                   spellCheck="false"
+                  autoFocus
+                  maxLength={6}
                   required
                 />
               </div>
@@ -706,9 +724,19 @@ export function PortalSourceNote({ type = "attendance" }: { type?: "attendance" 
                 variant="primary"
                 size="lg"
                 full
-                disabled={busy || !username || !password || (Boolean(captchaSession) && !captchaInput)}
+                disabled={
+                  busy ||
+                  !username.trim() ||
+                  !password ||
+                  loadingCaptcha ||
+                  (Boolean(captchaSession) && !captchaInput.trim())
+                }
               >
-                {busy ? "Signing in…" : "Update"}
+                {busy
+                  ? "Signing in…"
+                  : loadingCaptcha
+                  ? "Loading security check…"
+                  : `Update ${type}`}
               </Button>
             </div>
           </form>

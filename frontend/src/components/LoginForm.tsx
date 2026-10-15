@@ -266,13 +266,13 @@ export default function LoginForm({
 
       {/* Manual captcha box if activated */}
       {mode === "portal" && captchaSession && (
-        <div data-enter className="flex flex-col gap-2 rounded-control border border-line bg-ink-1 p-3">
+        <div className="flex flex-col gap-2 rounded-control border border-line bg-ink-1 p-3">
           <span className="text-label uppercase text-text-3">Security Check</span>
           <div className="flex items-center gap-3">
             <img
               src={captchaSession.captchaBase64}
               alt="Captcha"
-              className="h-10 w-auto rounded-md bg-white object-contain px-2 py-0.5"
+              className="h-10 w-auto rounded-md bg-white object-contain px-2 py-0.5 select-none"
             />
             <button
               type="button"
@@ -287,8 +287,13 @@ export default function LoginForm({
             type="text"
             value={captchaInput}
             onChange={(e) => setCaptchaInput(e.target.value)}
-            placeholder="Enter the characters above"
+            placeholder="Enter the 6 characters above"
             className="mt-1 w-full appearance-none bg-transparent text-headline text-text-1 outline-none placeholder:text-text-3"
+            autoCapitalize="none"
+            autoCorrect="off"
+            spellCheck="false"
+            autoFocus
+            maxLength={6}
             required
           />
         </div>
