@@ -127,8 +127,8 @@ export function ImportAttendanceAction({
     e.preventDefault();
     const rawUsername = username.trim();
     const cleanUsername = rawUsername.includes("@")
-      ? rawUsername.split("@")[0].trim()
-      : rawUsername;
+      ? rawUsername.split("@")[0].trim().toLowerCase()
+      : rawUsername.toLowerCase();
 
     if (!cleanUsername || !password) return;
 
@@ -344,23 +344,42 @@ function Field({
   autoComplete?: string;
   suffix?: string;
 }) {
+  const [showPassword, setShowPassword] = useState(false);
   const input = useRef<HTMLInputElement>(null);
+
+  const isPassword = type === "password";
+  const effectiveType = isPassword ? (showPassword ? "text" : "password") : type;
 
   return (
     <label
       htmlFor={id}
       className="block cursor-text rounded-control border border-line bg-ink-1 px-4 py-3 transition-colors focus-within:border-accent"
     >
-      <span className="block text-label uppercase text-text-3">{label}</span>
+      <div className="flex items-center justify-between">
+        <span className="block text-label uppercase text-text-3">{label}</span>
+        {isPassword && (
+          <button
+            type="button"
+            onClick={() => setShowPassword((s) => !s)}
+            className="text-label uppercase text-accent hover:underline focus:outline-none"
+          >
+            {showPassword ? "Hide" : "Show"}
+          </button>
+        )}
+      </div>
       {suffix ? (
         <div className="mt-1.5 flex items-baseline gap-1">
           <input
             ref={input}
             id={id}
-            type={type}
+            type={effectiveType}
             value={value}
             autoComplete={autoComplete}
-            onChange={(e) => onChange(e.target.value)}
+            autoCapitalize="none"
+            autoCorrect="off"
+            spellCheck="false"
+            maxLength={8}
+            onChange={(e) => onChange(e.target.value.toLowerCase())}
             className="min-w-0 flex-1 appearance-none bg-transparent text-headline text-text-1 outline-none placeholder:text-text-3"
           />
           <span className="shrink-0 text-headline text-text-3">{suffix}</span>
@@ -368,9 +387,12 @@ function Field({
       ) : (
         <input
           id={id}
-          type={type}
+          type={effectiveType}
           value={value}
           autoComplete={autoComplete}
+          autoCapitalize="none"
+          autoCorrect="off"
+          spellCheck="false"
           onChange={(e) => onChange(e.target.value)}
           placeholder={placeholder}
           className="mt-1.5 w-full appearance-none bg-transparent text-headline text-text-1 outline-none placeholder:text-text-3"
@@ -526,8 +548,8 @@ export function PortalSourceNote({ type = "attendance" }: { type?: "attendance" 
     e.preventDefault();
     const rawUsername = username.trim();
     const cleanUsername = rawUsername.includes("@")
-      ? rawUsername.split("@")[0].trim()
-      : rawUsername;
+      ? rawUsername.split("@")[0].trim().toLowerCase()
+      : rawUsername.toLowerCase();
 
     if (!cleanUsername || !password) return;
 

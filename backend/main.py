@@ -527,9 +527,9 @@ def sp_login(req: StudentPortalLoginRequest, request: Request) -> StudentPortalS
     """Submit credentials and captcha, simulate anti-bot payload, and fetch attendance."""
     _sp_rate_check(request)
 
-    clean_username = req.username.strip()
+    clean_username = req.username.strip().lower()
     if "@" in clean_username:
-        clean_username = clean_username.split("@")[0].strip()
+        clean_username = clean_username.split("@")[0].strip().lower()
 
     if not clean_username:
         raise _fail(400, "invalid_credentials", "Net ID should not be empty.")
