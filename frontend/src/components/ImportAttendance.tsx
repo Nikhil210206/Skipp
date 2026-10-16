@@ -169,10 +169,9 @@ export function ImportAttendanceAction({
       setOpen(false);
     } catch (err) {
       const isAuthErr = err instanceof AuthError && (err.code === "wrong_password" || err.code === "user_not_found");
+      setCaptchaSession(null);
+      setCaptchaInput("");
       if (isAuthErr) {
-        setPassword("");
-        setCaptchaSession(null);
-        setCaptchaInput("");
         setError(
           err.message || "Incorrect NetID or password. Note that your Student Portal password is often different from your Academia password."
         );
@@ -593,10 +592,9 @@ export function PortalSourceNote({ type = "attendance" }: { type?: "attendance" 
       updatedTimer.current = setTimeout(() => setStatus("idle"), 2500);
     } catch (err) {
       const isAuthErr = err instanceof AuthError && (err.code === "wrong_password" || err.code === "user_not_found");
+      setCaptchaSession(null);
+      setCaptchaInput("");
       if (isAuthErr) {
-        setPassword("");
-        setCaptchaSession(null);
-        setCaptchaInput("");
         setError(err.message || "Incorrect NetID or password. Note that your Student Portal password is often different from your Academia password.");
         void loadManualCaptcha();
       } else {

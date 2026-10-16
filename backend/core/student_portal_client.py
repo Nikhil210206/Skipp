@@ -39,6 +39,10 @@ def _get_opener(cj=None, force_proxy=None):
     ctx = ssl.create_default_context()
     ctx.check_hostname = False
     ctx.verify_mode = ssl.CERT_NONE
+    try:
+        ctx.set_ciphers('ECDHE-RSA-AES128-GCM-SHA256:ECDHE-RSA-AES256-GCM-SHA384:HIGH:!aNULL:!eNULL')
+    except Exception:
+        pass
     handlers.append(urllib.request.HTTPSHandler(context=ctx))
     
     if cj is not None:
@@ -240,22 +244,27 @@ def submit_login_and_fetch(req_data: StudentPortalLoginRequest) -> Tuple[str, Op
 
     
     chosen_proxy = None
-    # Load initial cookies into CookieJar
+    cookie_dict = {}
+    # Parse cookies from session_cookie into a dictionary and CookieJar
     if req_data.session_cookie:
         for part in req_data.session_cookie.split(';'):
             part = part.strip()
+            if not part:
+                continue
             if '=' in part:
                 k, v = part.split('=', 1)
                 if k == 'SKIPP_PROXY_ID':
                     chosen_proxy = v
                     continue
-                k, v = part.split('=', 1)
+                cookie_dict[k] = v
                 ck = http.cookiejar.Cookie(version=0, name=k, value=v, port=None, port_specified=False, domain='sp.srmist.edu.in', domain_specified=False, domain_initial_dot=False, path='/', path_specified=False, secure=False, expires=None, discard=True, comment=None, comment_url=None, rest={'HttpOnly': None}, rfc2109=False)
                 cj.set_cookie(ck)
     
     opener, chosen_proxy = _get_opener(cj, force_proxy=chosen_proxy)
+    cookie_header_val = "; ".join(f"{k}={v}" for k, v in cookie_dict.items())
     req_post = urllib.request.Request(LOGIN_SUBMIT_URL, data=encoded_data, headers={
         'User-Agent': UA,
+        'Cookie': cookie_header_val,
         'Content-Type': 'application/x-www-form-urlencoded',
         'Origin': SP_BASE_URL,
         'Referer': LOGIN_PAGE_URL
@@ -286,12 +295,13 @@ def submit_login_and_fetch(req_data: StudentPortalLoginRequest) -> Tuple[str, Op
             except Exception as retry_err:
                 raise StudentPortalClientError(f"Login request error: {retry_err}") from retry_err
 
-    # Update CookieJar with the cookies from the POST response
+    # Update cookies with the cookies from the POST response
     if set_cookies:
         for header in set_cookies:
             main_part = header.split(';')[0].strip()
             if '=' in main_part:
                 k, v = main_part.split('=', 1)
+                cookie_dict[k] = v
                 ck = http.cookiejar.Cookie(version=0, name=k, value=v, port=None, port_specified=False, domain='sp.srmist.edu.in', domain_specified=False, domain_initial_dot=False, path='/', path_specified=False, secure=False, expires=None, discard=True, comment=None, comment_url=None, rest={'HttpOnly': None}, rfc2109=False)
                 cj.set_cookie(ck)
         
@@ -317,25 +327,29 @@ def submit_login_and_fetch(req_data: StudentPortalLoginRequest) -> Tuple[str, Op
     # 2. Account temporarily locked by SRM:
     if "temporarily locked" in alert_lower or "temporarily locked" in res_lower:
         log.warning("Login failed: Account temporarily locked by SRM portal")
-        raise StudentPortalClientError("Account temporarily locked due to multiple unsuccessful attempts. Please try again after 5 minutes.")
+        raise StudentPortalClientError("Your account has been temporarily locked due to multiple unsuccessful attempts. Please try again after 5 minutes.")
         
-    # 3. Bad username / password / credentials:
+    # 3. Genuine bad username / password (Active Directory / LDAP error with attempts remaining):
     if (
-        "invalid login credentials" in alert_lower
-        or "invalid credentials" in alert_lower
-        or "user id or password entered is invalid" in alert_lower
-        or "login attempt was unsuccessful" in alert_lower
+        "user id or password entered is invalid" in alert_lower
         or "attempts remaining" in alert_lower
-        or "invalid login credentials" in res_lower
-        or "invalid credentials" in res_lower
+        or "login attempt was unsuccessful" in alert_lower
         or "user id or password entered is invalid" in res_lower
-        or "login attempt was unsuccessful" in res_lower
         or "attempts remaining" in res_lower
+        or "login attempt was unsuccessful" in res_lower
     ):
         log.warning("Login failed: Invalid username or password reported by portal: %s", alert_text or "Invalid credentials")
-        raise StudentPortalClientError("Invalid username or password.")
+        if alert_text:
+            raise StudentPortalClientError(f"Incorrect NetID or password ({alert_text}). Note that your Student Portal password is your SRM student email password, often different from your Academia password.")
+        raise StudentPortalClientError("Incorrect NetID or password. Note that your Student Portal password is your SRM student email password, often different from your Academia password.")
+
+    # 4. Anti-bot / security challenge rejection:
+    # Portal returns: "Invalid credentials" (without "attempts remaining" or "user ID or password entered is invalid")
+    if "invalid credentials" in alert_lower or "invalid login credentials" in alert_lower or "invalid credentials" in res_lower or "invalid login credentials" in res_lower:
+        log.warning("Login failed: Portal security verification rejected request: %s", alert_text)
+        raise StudentPortalClientError("Portal security verification required. Please solve the captcha manually.")
         
-    # 4. Any other alert returned by portal:
+    # 5. Any other alert returned by portal:
     if alert_text:
         log.warning("Login failed: Server returned alert: %s", alert_text)
         raise StudentPortalClientError(f"Login failed: {alert_text}")
@@ -369,8 +383,10 @@ def submit_login_and_fetch(req_data: StudentPortalLoginRequest) -> Tuple[str, Op
         except Exception as parse_err:
             print(f"Could not parse loader form: {parse_err}")
 
+        cookie_header_val = "; ".join(f"{k}={v}" for k, v in cookie_dict.items())
         redirect_headers = {
             'User-Agent': UA,
+            'Cookie': cookie_header_val,
             'Referer': LOGIN_PAGE_URL,
             'Origin': SP_BASE_URL
         }
@@ -388,6 +404,15 @@ def submit_login_and_fetch(req_data: StudentPortalLoginRequest) -> Tuple[str, Op
         try:
             res_redirect = opener.open(req_redirect, timeout=10)
             result_html = res_redirect.read().decode('utf-8', errors='ignore')
+            set_cookies_red = res_redirect.info().get_all('Set-Cookie')
+            if set_cookies_red:
+                for header in set_cookies_red:
+                    main_part = header.split(';')[0].strip()
+                    if '=' in main_part:
+                        k, v = main_part.split('=', 1)
+                        cookie_dict[k] = v
+                        ck = http.cookiejar.Cookie(version=0, name=k, value=v, port=None, port_specified=False, domain='sp.srmist.edu.in', domain_specified=False, domain_initial_dot=False, path='/', path_specified=False, secure=False, expires=None, discard=True, comment=None, comment_url=None, rest={'HttpOnly': None}, rfc2109=False)
+                        cj.set_cookie(ck)
         except urllib.error.HTTPError as e:
             raise StudentPortalClientError(f"Login redirect failed: {e.code}") from e
         except Exception as e:
@@ -411,15 +436,24 @@ def submit_login_and_fetch(req_data: StudentPortalLoginRequest) -> Tuple[str, Op
         log.warning("Login failed: Unknown response, size %d", len(result_html))
         raise StudentPortalClientError("Failed to login, unknown response.")
 
+    cookie_header_val = "; ".join(f"{k}={v}" for k, v in cookie_dict.items())
     # Fetch HRDSystem.jsp to initialize dashboard session
     req_hrd = urllib.request.Request(f"{SP_BASE_URL}/srmiststudentportal/students/template/HRDSystem.jsp", headers={
         'User-Agent': UA,
+        'Cookie': cookie_header_val,
         'Referer': LOGIN_PAGE_URL
     })
     hrd_html = ""
     try:
         res_hrd = opener.open(req_hrd, timeout=10)
         hrd_html = res_hrd.read().decode('utf-8', errors='ignore')
+        set_cookies_hrd = res_hrd.info().get_all('Set-Cookie')
+        if set_cookies_hrd:
+            for header in set_cookies_hrd:
+                main_part = header.split(';')[0].strip()
+                if '=' in main_part:
+                    k, v = main_part.split('=', 1)
+                    cookie_dict[k] = v
     except Exception as e:
         log.warning("HRDSystem fetch failed: %s", e)
 
@@ -427,11 +461,13 @@ def submit_login_and_fetch(req_data: StudentPortalLoginRequest) -> Tuple[str, Op
     from core.student_portal import looks_signed_out
 
     def _fetch_page(url: str) -> str:
+        cookie_hdr = "; ".join(f"{k}={v}" for k, v in cookie_dict.items())
         for attempt in range(2):
             post_html = ""
             try:
                 req = urllib.request.Request(url, data=b"", headers={
                     'User-Agent': UA,
+                    'Cookie': cookie_hdr,
                     'Referer': hrd_referer,
                     'Content-Type': 'application/x-www-form-urlencoded',
                     'Cache-Control': 'no-cache, no-store, must-revalidate',
@@ -449,6 +485,7 @@ def submit_login_and_fetch(req_data: StudentPortalLoginRequest) -> Tuple[str, Op
             try:
                 req_get = urllib.request.Request(url, headers={
                     'User-Agent': UA,
+                    'Cookie': cookie_hdr,
                     'Referer': hrd_referer,
                     'Cache-Control': 'no-cache, no-store, must-revalidate',
                     'Pragma': 'no-cache',
