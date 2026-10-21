@@ -196,7 +196,9 @@ def submit_login_and_fetch(req_data: StudentPortalLoginRequest) -> Tuple[str, Op
     time_elapsed_sec = time_elapsed_ms // 1000
     typing_speed_ms = min(2500, max(800, time_elapsed_ms - random.randint(1200, 2000)))
     
-    trap_payload = f"{time_elapsed_sec}{req_data.random_delim}5"
+    # Realistic interaction count (keystrokes + mouse events when filling credentials)
+    interact_count = random.randint(12, 24)
+    trap_payload = f"{time_elapsed_sec}{req_data.random_delim}{interact_count}"
     captcha_trap_value = base64.b64encode(trap_payload.encode()).decode()
     
     payload_json = json.dumps({
@@ -214,9 +216,9 @@ def submit_login_and_fetch(req_data: StudentPortalLoginRequest) -> Tuple[str, Op
         "hardwareConcurrency": 8,
         "touchSupport": False,
         "webdriver": False,
-        "mouseClicks": random.randint(1, 3),
-        "mouseMovements": random.randint(3, 8),
-        "keystrokeCount": random.randint(6, 12),
+        "mouseClicks": random.randint(2, 4),
+        "mouseMovements": random.randint(5, 12),
+        "keystrokeCount": max(8, len(req_data.username) + len(req_data.captcha)),
         "typingSpeedMs": typing_speed_ms,
         "canvasHash": "58bc8d31",
         "submitTime": t_now,
@@ -329,27 +331,25 @@ def submit_login_and_fetch(req_data: StudentPortalLoginRequest) -> Tuple[str, Op
         log.warning("Login failed: Account temporarily locked by SRM portal")
         raise StudentPortalClientError("Your account has been temporarily locked due to multiple unsuccessful attempts. Please try again after 5 minutes.")
         
-    # 3. Genuine bad username / password (Active Directory / LDAP error with attempts remaining):
+    # 3. Bad username / password / credentials (Active Directory / LDAP error):
     if (
-        "user id or password entered is invalid" in alert_lower
+        "invalid login credentials" in alert_lower
+        or "invalid credentials" in alert_lower
+        or "user id or password entered is invalid" in alert_lower
         or "attempts remaining" in alert_lower
         or "login attempt was unsuccessful" in alert_lower
+        or "invalid login credentials" in res_lower
+        or "invalid credentials" in res_lower
         or "user id or password entered is invalid" in res_lower
         or "attempts remaining" in res_lower
         or "login attempt was unsuccessful" in res_lower
     ):
         log.warning("Login failed: Invalid username or password reported by portal: %s", alert_text or "Invalid credentials")
-        if alert_text:
+        if alert_text and ("attempts remaining" in alert_lower or "user id or password" in alert_lower):
             raise StudentPortalClientError(f"Incorrect NetID or password ({alert_text}). Note that your Student Portal password is your SRM student email password, often different from your Academia password.")
         raise StudentPortalClientError("Incorrect NetID or password. Note that your Student Portal password is your SRM student email password, often different from your Academia password.")
 
-    # 4. Anti-bot / security challenge rejection:
-    # Portal returns: "Invalid credentials" (without "attempts remaining" or "user ID or password entered is invalid")
-    if "invalid credentials" in alert_lower or "invalid login credentials" in alert_lower or "invalid credentials" in res_lower or "invalid login credentials" in res_lower:
-        log.warning("Login failed: Portal security verification rejected request: %s", alert_text)
-        raise StudentPortalClientError("Portal security verification required. Please solve the captcha manually.")
-        
-    # 5. Any other alert returned by portal:
+    # 4. Any other alert returned by portal:
     if alert_text:
         log.warning("Login failed: Server returned alert: %s", alert_text)
         raise StudentPortalClientError(f"Login failed: {alert_text}")
