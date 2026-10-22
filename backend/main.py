@@ -528,9 +528,9 @@ def sp_login(req: StudentPortalLoginRequest, request: Request) -> StudentPortalS
     """Submit credentials and captcha, simulate anti-bot payload, and fetch attendance."""
     _sp_rate_check(request)
 
-    clean_username = req.username.strip().lower()
+    clean_username = req.username.strip()
     if "@" in clean_username:
-        clean_username = clean_username.split("@")[0].strip().lower()
+        clean_username = clean_username.split("@")[0].strip()
 
     if not clean_username:
         raise _fail(400, "invalid_credentials", "Net ID should not be empty.")
@@ -541,7 +541,7 @@ def sp_login(req: StudentPortalLoginRequest, request: Request) -> StudentPortalS
             "invalid_credentials",
             "The student portal requires your SRM Net ID (e.g. ab1234), not your registration number.",
         )
-    clean_password = req.password.strip() if req.password else ""
+    clean_password = req.password or ""
     if not clean_password:
         raise _fail(400, "invalid_credentials", "Password should not be empty.")
 
@@ -649,9 +649,9 @@ def sp_auto_login(req: LoginRequest, request: Request) -> StudentPortalSnapshot:
     """Submit credentials and use OCR to bypass captcha automatically."""
     _sp_rate_check(request)
 
-    clean_username = req.username.strip().lower()
+    clean_username = req.username.strip()
     if "@" in clean_username:
-        clean_username = clean_username.split("@")[0].strip().lower()
+        clean_username = clean_username.split("@")[0].strip()
 
     if not clean_username:
         raise _fail(400, "invalid_credentials", "Net ID should not be empty.")
@@ -662,7 +662,7 @@ def sp_auto_login(req: LoginRequest, request: Request) -> StudentPortalSnapshot:
             "invalid_credentials",
             "The student portal requires your SRM Net ID (e.g. ab1234), not your registration number.",
         )
-    clean_password = req.password.strip() if req.password else ""
+    clean_password = req.password or ""
     if not clean_password:
         raise _fail(400, "invalid_credentials", "Password should not be empty.")
 

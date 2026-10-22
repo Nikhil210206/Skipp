@@ -127,8 +127,8 @@ export function ImportAttendanceAction({
     e.preventDefault();
     const rawUsername = username.trim();
     const cleanUsername = rawUsername.includes("@")
-      ? rawUsername.split("@")[0].trim().toLowerCase()
-      : rawUsername.toLowerCase();
+      ? rawUsername.split("@")[0].trim()
+      : rawUsername;
 
     if (!cleanUsername || !password) return;
 
@@ -378,7 +378,7 @@ function Field({
             autoCorrect="off"
             spellCheck="false"
             maxLength={8}
-            onChange={(e) => onChange(e.target.value.toLowerCase())}
+            onChange={(e) => onChange(e.target.value.trim())}
             className="min-w-0 flex-1 appearance-none bg-transparent text-headline text-text-1 outline-none placeholder:text-text-3"
           />
           <span className="shrink-0 text-headline text-text-3">{suffix}</span>
@@ -547,8 +547,8 @@ export function PortalSourceNote({ type = "attendance" }: { type?: "attendance" 
     e.preventDefault();
     const rawUsername = username.trim();
     const cleanUsername = rawUsername.includes("@")
-      ? rawUsername.split("@")[0].trim().toLowerCase()
-      : rawUsername.toLowerCase();
+      ? rawUsername.split("@")[0].trim()
+      : rawUsername;
 
     if (!cleanUsername || !password) return;
 

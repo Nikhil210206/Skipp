@@ -69,10 +69,12 @@ def init_login_session() -> StudentPortalCaptchaResponse:
     req = urllib.request.Request(LOGIN_PAGE_URL, headers={'User-Agent': UA})
     
     proxies = _get_proxies()
-    # Try configured proxies first (shuffled), then fall back to DIRECT
-    candidates = list(proxies)
-    random.shuffle(candidates)
-    candidates.append("DIRECT")
+    # Try DIRECT first for instant response; fall back to proxies if direct fails
+    candidates = ["DIRECT"]
+    if proxies:
+        p_list = list(proxies)
+        random.shuffle(p_list)
+        candidates.extend(p_list)
     
     res = None
     opener = None
