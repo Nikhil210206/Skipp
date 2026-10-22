@@ -78,45 +78,10 @@ export function ImportAttendanceAction({
       creds = sessionCreds;
     }
 
-    if (initialLoadCaptcha) {
-      setError(null);
-      setUsername(creds?.username || (sessionCreds && !isRegistrationNumber(sessionCreds.username) ? sessionCreds.username : ""));
-      setPassword("");
-      setCaptchaSession(null);
-      setCaptchaInput("");
-      setOpen(true);
-      void loadManualCaptcha();
-      return;
-    }
-
-    if (creds) {
-      setBusy(true);
-      setError(null);
-      try {
-        await autoImportAttendance(creds);
-        void savePortalCredentials(creds);
-        setBusy(false);
-        return;
-      } catch (err) {
-        setBusy(false);
-        setOpen(true);
-        if (err instanceof AuthError && (err.code === "wrong_password" || err.code === "user_not_found")) {
-          setError(err.message || "Incorrect NetID or password. Note that your Student Portal password is often different from your Academia password.");
-          setUsername(creds.username);
-          setPassword("");
-        } else {
-          setError(err instanceof Error ? err.message : "Security check required. Please solve the captcha below.");
-          setUsername(creds.username);
-          void loadManualCaptcha();
-        }
-        return;
-      }
-    }
-
-    // No portal credentials saved yet, open modal for Net ID and Password
+    // Open sheet directly so student can inspect credentials and solve the captcha cleanly
     setError(null);
-    setUsername(sessionCreds && !isRegistrationNumber(sessionCreds.username) ? sessionCreds.username : "");
-    setPassword("");
+    setUsername(creds?.username || (sessionCreds && !isRegistrationNumber(sessionCreds.username) ? sessionCreds.username : ""));
+    setPassword(creds?.password || "");
     setCaptchaSession(null);
     setCaptchaInput("");
     setOpen(true);
@@ -219,7 +184,7 @@ export function ImportAttendanceAction({
               onChange={setPassword}
               type="password"
               placeholder="Student portal password"
-              autoComplete="current-password"
+              autoComplete="off"
             />
 
             {/* Captcha Security Check Box */}
@@ -373,12 +338,17 @@ function Field({
             id={id}
             type={effectiveType}
             value={value}
-            autoComplete={autoComplete}
+            autoComplete={autoComplete || "off"}
             autoCapitalize="none"
             autoCorrect="off"
             spellCheck="false"
-            maxLength={8}
-            onChange={(e) => onChange(e.target.value.trim())}
+            onChange={(e) => {
+              let val = e.target.value.trim();
+              if (val.includes("@")) {
+                val = val.split("@")[0].trim();
+              }
+              onChange(val);
+            }}
             className="min-w-0 flex-1 appearance-none bg-transparent text-headline text-text-1 outline-none placeholder:text-text-3"
           />
           <span className="shrink-0 text-headline text-text-3">{suffix}</span>
@@ -388,11 +358,11 @@ function Field({
           id={id}
           type={effectiveType}
           value={value}
-          autoComplete={autoComplete}
+          autoComplete={autoComplete || "off"}
           autoCapitalize="none"
           autoCorrect="off"
           spellCheck="false"
-          onChange={(e) => onChange(e.target.value)}
+          onChange={(e) => onChange(e.target.value.replace(/[\r\n\u200b\ufeff]/g, ""))}
           placeholder={placeholder}
           className="mt-1.5 w-full appearance-none bg-transparent text-headline text-text-1 outline-none placeholder:text-text-3"
         />
@@ -668,7 +638,7 @@ export function PortalSourceNote({ type = "attendance" }: { type?: "attendance" 
               onChange={setPassword}
               type="password"
               placeholder="Student portal password"
-              autoComplete="current-password"
+              autoComplete="off"
             />
 
             {/* Captcha Security Check Box */}

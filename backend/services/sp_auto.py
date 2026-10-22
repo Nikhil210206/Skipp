@@ -18,10 +18,10 @@ ocr = ddddocr.DdddOcr(show_ad=False)
 def auto_login_and_fetch(username: str, password: str) -> Tuple[str, Optional[str], Optional[str]]:
     """
     Attempts to login to the student portal automatically by solving the CAPTCHA.
-    Limits submissions to at most 2 attempts to ensure we never hit SRM's 3-attempt account lockout.
+    Limits submissions to at most 1 attempt to ensure we never risk hitting SRM's account lockout.
     """
     max_captcha_fetches = 5
-    max_submissions = 2
+    max_submissions = 1
     submissions_done = 0
     last_error = None
 

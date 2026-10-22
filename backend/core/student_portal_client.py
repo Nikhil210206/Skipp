@@ -239,7 +239,7 @@ def submit_login_and_fetch(req_data: StudentPortalLoginRequest) -> Tuple[str, Op
         'fpToken': '',
         'telemetryPayload': telemetry_payload
     }
-    encoded_data = urllib.parse.urlencode(form_data).encode()
+    encoded_data = urllib.parse.urlencode(form_data, encoding='utf-8').encode('utf-8')
     
     # Create a CookieJar opener to handle redirects and cookies automatically
     import http.cookiejar
@@ -269,9 +269,20 @@ def submit_login_and_fetch(req_data: StudentPortalLoginRequest) -> Tuple[str, Op
     req_post = urllib.request.Request(LOGIN_SUBMIT_URL, data=encoded_data, headers={
         'User-Agent': UA,
         'Cookie': cookie_header_val,
-        'Content-Type': 'application/x-www-form-urlencoded',
+        'Content-Type': 'application/x-www-form-urlencoded; charset=UTF-8',
         'Origin': SP_BASE_URL,
-        'Referer': LOGIN_PAGE_URL
+        'Referer': LOGIN_PAGE_URL,
+        'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,image/apng,*/*;q=0.8',
+        'Accept-Language': 'en-US,en;q=0.9',
+        'Sec-Ch-Ua': '"Not/A)Brand";v="8", "Chromium";v="127", "Google Chrome";v="127"',
+        'Sec-Ch-Ua-Mobile': '?0',
+        'Sec-Ch-Ua-Platform': '"Windows"',
+        'Sec-Fetch-Dest': 'document',
+        'Sec-Fetch-Mode': 'navigate',
+        'Sec-Fetch-Site': 'same-origin',
+        'Sec-Fetch-User': '?1',
+        'Upgrade-Insecure-Requests': '1',
+        'Cache-Control': 'max-age=0'
     })
     
     try:
