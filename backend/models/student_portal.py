@@ -31,7 +31,7 @@ class StudentPortalParseRequest(_CamelModel):
     carries credentials: they are the report pages a real login produced.
     """
 
-    attendance_html: str = Field(description="studentAttendanceDetails.jsp body")
+    attendance_html: str | None = Field(default=None, description="studentAttendanceDetails.jsp body")
     marks_html: str | None = Field(
         default=None, description="studentInternalMarkDetails.jsp body, if fetched"
     )

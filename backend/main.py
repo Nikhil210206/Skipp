@@ -107,6 +107,8 @@ _allowed = [
     for o in os.environ.get("SKIPP_ALLOWED_ORIGINS", "").split(",")
     if o.strip()
 ]
+if "https://sp.srmist.edu.in" not in _allowed:
+    _allowed.append("https://sp.srmist.edu.in")
 
 app.add_middleware(
     CORSMiddleware,
@@ -521,6 +523,64 @@ def _get_fallback_calendar() -> list[CalendarDay]:
     except Exception as e:
         log.warning("failed to load fallback academic calendar: %s", e)
     return []
+
+
+@app.post("/sp/parse", response_model=StudentPortalSnapshot)
+def sp_parse(req: StudentPortalParseRequest, request: Request) -> StudentPortalSnapshot:
+    """Parse report HTML captured from an authenticated student portal session."""
+    _sp_rate_check(request)
+
+    if not req.attendance_html and not req.marks_html:
+        raise _fail(400, "missing_body", "Provide attendance_html or marks_html.")
+
+    if req.attendance_html and sp_looks_signed_out(req.attendance_html):
+        raise _fail(
+            401,
+            "session_expired",
+            "The student portal session has expired. Open it and sign in again.",
+        )
+
+    attendance = marks = None
+    att_status: str = "error"
+    marks_status: str = "error"
+    att_msg = marks_msg = None
+    period = None
+
+    if req.attendance_html:
+        try:
+            attendance = parse_sp_attendance(req.attendance_html)
+            period = sp_reported_period(req.attendance_html)
+            att_status = "ready"
+        except SPAttendanceUnavailable as e:
+            att_status, att_msg = "gated", str(e)
+    else:
+        att_status, att_msg = "gated", "Attendance was not provided."
+
+    if req.marks_html:
+        if sp_looks_signed_out(req.marks_html):
+            marks_status, marks_msg = "gated", "The marks page session has expired."
+        else:
+            try:
+                marks = parse_sp_marks(req.marks_html)
+                marks_status = "ready"
+            except SPMarksUnavailable as e:
+                marks_status, marks_msg = "gated", str(e)
+    else:
+        marks_status, marks_msg = "gated", "Marks were not fetched."
+
+    log.info("student portal parsed: attendance=%s marks=%s", att_status, marks_status)
+
+    return StudentPortalSnapshot(
+        attendance=attendance,
+        attendance_status=att_status,
+        attendance_message=att_msg,
+        marks=marks,
+        marks_status=marks_status,
+        marks_message=marks_msg,
+        reported_period=period,
+        calendar=_get_fallback_calendar(),
+        fetched_at=datetime.now(timezone.utc).isoformat(),
+    )
 
 
 @app.post("/sp/login", response_model=StudentPortalSnapshot)

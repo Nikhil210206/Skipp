@@ -29,7 +29,7 @@ import type {
   StudentPortalLoginRequest,
   Timetable,
 } from "@/types";
-import { AuthError, fetchSnapshot, submitStudentPortalLogin, autoStudentPortalLogin } from "@/lib/api";
+import { AuthError, fetchSnapshot, submitStudentPortalLogin, autoStudentPortalLogin, parseStudentPortal } from "@/lib/api";
 import {
   clearPortalOverride,
   enrichMarkTitles,
@@ -224,6 +224,8 @@ type SessionValue = {
   canImportAttendance: boolean;
   /** Open the portal login and import attendance. Native only. */
   importAttendance: (req: StudentPortalLoginRequest) => Promise<void>;
+  /** Import attendance or marks directly by parsing authenticated portal HTML. */
+  importAttendanceHtml: (attendanceHtml?: string, marksHtml?: string) => Promise<void>;
   /** Automatically login and import attendance via OCR backend. */
   autoImportAttendance: (req: Credentials) => Promise<void>;
   /** Discard imported attendance and fall back to academia. */
@@ -546,6 +548,46 @@ export function SessionProvider({ children }: { children: React.ReactNode }) {
     if (reg) savePortalOverride(reg, override);
   }, [snapshot, reg]);
 
+  const importAttendanceHtml = useCallback(async (attendanceHtml?: string, marksHtml?: string): Promise<void> => {
+    const sp = await parseStudentPortal(attendanceHtml, marksHtml);
+    if (attendanceHtml && (sp.attendanceStatus !== "ready" || !sp.attendance)) {
+      throw new Error(
+        sp.attendanceMessage ??
+          "The student portal HTML did not contain attendance data.",
+      );
+    }
+    if (marksHtml && (sp.marksStatus !== "ready" || !sp.marks)) {
+      throw new Error(
+        sp.marksMessage ??
+          "The student portal HTML did not contain marks data.",
+      );
+    }
+    const titles = new Map(
+      (snapshot?.timetable.courses ?? []).map((c) => [
+        c.code.toUpperCase(),
+        c.title,
+      ]),
+    );
+    setPortalAtt((prev) => {
+      const attendance = sp.attendance
+        ? enrichTitles(sp.attendance, titles)
+        : prev?.attendance ?? {
+            subjects: [],
+            overallPercentage: 0,
+            threshold: 75.0,
+            lastUpdated: new Date().toISOString(),
+          };
+      const override: PortalOverride = {
+        attendance,
+        marks: sp.marksStatus === "ready" ? sp.marks : (prev?.marks ?? null),
+        reportedPeriod: sp.reportedPeriod || prev?.reportedPeriod || null,
+        fetchedAt: sp.fetchedAt || new Date().toISOString(),
+      };
+      if (reg) savePortalOverride(reg, override);
+      return override;
+    });
+  }, [snapshot, reg]);
+
   const autoImportInFlight = useRef<Promise<void> | null>(null);
   const autoImportAttendance = useCallback(async (req: Credentials): Promise<void> => {
     if (autoImportInFlight.current) {
@@ -846,6 +888,7 @@ export function SessionProvider({ children }: { children: React.ReactNode }) {
       reportedPeriod: usePortal ? portalAtt.reportedPeriod : null,
       canImportAttendance: true, // we can always try to import via OCR
       importAttendance,
+      importAttendanceHtml,
       autoImportAttendance,
       clearImportedAttendance,
       marks: portalMarks
@@ -990,6 +1033,7 @@ export function SessionProvider({ children }: { children: React.ReactNode }) {
     refresh,
     portalAtt,
     importAttendance,
+    importAttendanceHtml,
     autoImportAttendance,
     clearImportedAttendance,
   ]);

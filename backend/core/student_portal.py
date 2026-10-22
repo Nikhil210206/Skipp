@@ -71,7 +71,7 @@ class SessionExpired(StudentPortalError):
 
 def looks_signed_out(html: str) -> bool:
     """True when this HTML is the login screen rather than a report."""
-    if not html or len(html.strip()) < 50:
+    if not html or len(html.strip()) < 30:
         return True
     lower = html.lower()
     # Positive signals: if the page contains report tables or headers, it's NOT signed out!
@@ -82,5 +82,8 @@ def looks_signed_out(html: str) -> bool:
         return True
     if "youlogin" in lower and "password" in lower:
         return True
+    # If it has table structures and no login markers, treat as potential report
+    if "<table" in lower or "<tr" in lower or "attendance" in lower:
+        return False
     return False
 

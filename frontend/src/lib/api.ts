@@ -227,6 +227,41 @@ export async function submitStudentPortalLogin(
 }
 
 /**
+ * Submit report HTML captured from an authenticated student portal session.
+ */
+export async function parseStudentPortal(
+  attendanceHtml?: string,
+  marksHtml?: string,
+): Promise<StudentPortalSnapshot> {
+  const base = apiBase();
+  let res: Response;
+  try {
+    res = await fetch(`${base}/sp/parse`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        attendanceHtml: attendanceHtml ?? null,
+        marksHtml: marksHtml ?? null,
+      }),
+    });
+  } catch (e) {
+    console.error("fetch(/sp/parse) failed:", e);
+    throw new PortalError("Can't reach Skipp. Check your connection.", "unreachable");
+  }
+  if (res.ok) return (await res.json()) as StudentPortalSnapshot;
+
+  const parsed = await res.json().catch(() => undefined);
+  const raw = parsed?.detail;
+  const detail: string | undefined =
+    typeof raw === "string" ? raw : (raw?.message as string | undefined);
+  const code: string | undefined = typeof raw === "object" ? raw?.code : undefined;
+  if (res.status === 401 && code === "session_expired") {
+    throw new AuthError(detail ?? "Student portal session expired. Please sign in again.", "wrong_password");
+  }
+  throw new PortalError(detail ?? `Could not parse student portal (${res.status}).`, "portal");
+}
+
+/**
  * Submit credentials only and let the backend automatically solve the captcha via OCR.
  */
 export async function autoStudentPortalLogin(
