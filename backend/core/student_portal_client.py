@@ -179,10 +179,14 @@ def init_login_session() -> StudentPortalCaptchaResponse:
         page_load_time=page_load_time
     )
 
-def submit_login_and_fetch(req_data: StudentPortalLoginRequest) -> Tuple[str, Optional[str], Optional[str]]:
-    """Submits login and returns (attendance_html, marks_html, tt_html). Raises on invalid login."""
+def submit_login_and_fetch(req_data: StudentPortalLoginRequest) -> Tuple[str, Optional[str], Optional[str], str]:
+    """Submits login and returns (attendance_html, marks_html, tt_html, cookie_str). Raises on invalid login."""
     domain_value = base64.b64encode("ni.ude.tsimrs.ps".encode()).decode()
     
+    clean_username = req_data.username.strip().lower()
+    if "@" in clean_username:
+        clean_username = clean_username.split("@")[0].strip()
+
     # Calculate actual time elapsed since page load to pass anti-bot telemetry
     import time
     import json
@@ -220,7 +224,7 @@ def submit_login_and_fetch(req_data: StudentPortalLoginRequest) -> Tuple[str, Op
         "webdriver": False,
         "mouseClicks": random.randint(2, 4),
         "mouseMovements": random.randint(5, 12),
-        "keystrokeCount": max(8, len(req_data.username) + len(req_data.captcha)),
+        "keystrokeCount": max(8, len(clean_username) + len(req_data.captcha)),
         "typingSpeedMs": typing_speed_ms,
         "canvasHash": "58bc8d31",
         "submitTime": t_now,
@@ -229,9 +233,9 @@ def submit_login_and_fetch(req_data: StudentPortalLoginRequest) -> Tuple[str, Op
     telemetry_payload = base64.b64encode(payload_json.encode('utf-8')).decode('utf-8')
     
     form_data = {
-        'username': req_data.username,
+        'username': clean_username,
         'password': req_data.password,
-        'captcha': req_data.captcha,
+        'captcha': req_data.captcha.strip(),
         req_data.domain_field: domain_value,
         req_data.captcha_field: captcha_trap_value,
         req_data.honeypot_field: '',
@@ -544,4 +548,103 @@ def submit_login_and_fetch(req_data: StudentPortalLoginRequest) -> Tuple[str, Op
     if (not tt_html or "day 1" not in tt_html.lower()) and "day 1" in hrd_html.lower():
         tt_html = hrd_html
         
-    return att_html, marks_html, tt_html
+    cookie_header_val = "; ".join(f"{k}={v}" for k, v in cookie_dict.items())
+    if chosen_proxy:
+        cookie_header_val += f"; SKIPP_PROXY_ID={chosen_proxy}"
+
+    return att_html, marks_html, tt_html, cookie_header_val
+
+
+def refresh_session_and_fetch(session_cookie: str) -> Tuple[str, Optional[str], Optional[str], str]:
+    """Uses an existing authenticated session cookie to fetch fresh attendance and marks without re-login."""
+    if not session_cookie or not session_cookie.strip():
+        raise StudentPortalClientError("session_expired")
+
+    import http.cookiejar
+    cj = http.cookiejar.CookieJar()
+    chosen_proxy = None
+    cookie_dict = {}
+
+    for part in session_cookie.split(';'):
+        part = part.strip()
+        if not part:
+            continue
+        if '=' in part:
+            k, v = part.split('=', 1)
+            if k == 'SKIPP_PROXY_ID':
+                chosen_proxy = v
+                continue
+            cookie_dict[k] = v
+            ck = http.cookiejar.Cookie(
+                version=0, name=k, value=v, port=None, port_specified=False,
+                domain='sp.srmist.edu.in', domain_specified=False, domain_initial_dot=False,
+                path='/', path_specified=False, secure=False, expires=None, discard=True,
+                comment=None, comment_url=None, rest={'HttpOnly': None}, rfc2109=False
+            )
+            cj.set_cookie(ck)
+
+    opener, chosen_proxy = _get_opener(cj, force_proxy=chosen_proxy)
+
+    from core.student_portal import looks_signed_out
+
+    def _fetch_with_cookie(url: str) -> str:
+        cookie_hdr = "; ".join(f"{k}={v}" for k, v in cookie_dict.items())
+        headers = {
+            'User-Agent': UA,
+            'Cookie': cookie_hdr,
+            'Referer': f"{SP_BASE_URL}/srmiststudentportal/students/template/HRDSystem.jsp",
+            'Content-Type': 'application/x-www-form-urlencoded',
+            'Cache-Control': 'no-cache, no-store, must-revalidate',
+            'Pragma': 'no-cache',
+            'Expires': '0'
+        }
+        # First attempt POST with empty payload
+        try:
+            req = urllib.request.Request(url, data=b"", headers=headers, method="POST")
+            res = opener.open(req, timeout=10)
+            html = res.read().decode('utf-8', errors='ignore')
+            set_cookies = res.info().get_all('Set-Cookie')
+            if set_cookies:
+                for sc in set_cookies:
+                    mp = sc.split(';')[0].strip()
+                    if '=' in mp:
+                        k, v = mp.split('=', 1)
+                        cookie_dict[k] = v
+            if html and not looks_signed_out(html):
+                return html
+        except Exception as e:
+            log.warning("POST fetch failed on refresh for %s: %s", url, e)
+
+        # Fallback to GET
+        try:
+            get_headers = dict(headers)
+            get_headers.pop('Content-Type', None)
+            req_get = urllib.request.Request(url, headers=get_headers)
+            res_get = opener.open(req_get, timeout=10)
+            html = res_get.read().decode('utf-8', errors='ignore')
+            set_cookies = res_get.info().get_all('Set-Cookie')
+            if set_cookies:
+                for sc in set_cookies:
+                    mp = sc.split(';')[0].strip()
+                    if '=' in mp:
+                        k, v = mp.split('=', 1)
+                        cookie_dict[k] = v
+            return html
+        except Exception as e:
+            log.warning("GET fetch failed on refresh for %s: %s", url, e)
+            return ""
+
+    att_html = _fetch_with_cookie(ATTENDANCE_URL)
+    if not att_html or looks_signed_out(att_html):
+        log.info("Student portal session expired on refresh")
+        raise StudentPortalClientError("session_expired")
+
+    marks_html = _fetch_with_cookie(MARKS_URL)
+    if marks_html and looks_signed_out(marks_html):
+        marks_html = None
+
+    updated_cookie_str = "; ".join(f"{k}={v}" for k, v in cookie_dict.items())
+    if chosen_proxy:
+        updated_cookie_str += f"; SKIPP_PROXY_ID={chosen_proxy}"
+
+    return att_html, marks_html, None, updated_cookie_str

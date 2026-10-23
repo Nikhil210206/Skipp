@@ -503,8 +503,8 @@ def _sp_rate_check(request: Request) -> None:
 
 
 from services.sp_auto import auto_login_and_fetch
-from core.student_portal_client import init_login_session, submit_login_and_fetch, StudentPortalClientError
-from models.student_portal import StudentPortalCaptchaResponse, StudentPortalLoginRequest
+from core.student_portal_client import init_login_session, submit_login_and_fetch, refresh_session_and_fetch, StudentPortalClientError
+from models.student_portal import StudentPortalCaptchaResponse, StudentPortalLoginRequest, StudentPortalRefreshRequest
 
 @app.get("/sp/captcha", response_model=StudentPortalCaptchaResponse)
 def sp_captcha() -> StudentPortalCaptchaResponse:
@@ -609,7 +609,7 @@ def sp_login(req: StudentPortalLoginRequest, request: Request) -> StudentPortalS
     req.password = clean_password
 
     try:
-        att_html, marks_html, tt_html = submit_login_and_fetch(req)
+        att_html, marks_html, tt_html, cookies = submit_login_and_fetch(req)
     except StudentPortalClientError as e:
         msg = str(e)
         log.warning("StudentPortalClientError raised: %s", msg)
@@ -700,6 +700,66 @@ def sp_login(req: StudentPortalLoginRequest, request: Request) -> StudentPortalS
         reported_period=period,
         timetable=timetable,
         calendar=_get_fallback_calendar(),
+        session_cookie=cookies,
+        fetched_at=datetime.now(timezone.utc).isoformat(),
+    )
+
+
+@app.post("/sp/refresh", response_model=StudentPortalSnapshot)
+def sp_refresh(req: StudentPortalRefreshRequest, request: Request) -> StudentPortalSnapshot:
+    """Use an active session cookie to refresh attendance and marks without re-authenticating."""
+    _sp_rate_check(request)
+
+    if not req.session_cookie or not req.session_cookie.strip():
+        raise _fail(401, "session_expired", "No active portal session found. Please sign in.")
+
+    try:
+        att_html, marks_html, tt_html, updated_cookies = refresh_session_and_fetch(req.session_cookie)
+    except StudentPortalClientError as e:
+        msg = str(e)
+        if "session_expired" in msg.lower() or "expired" in msg.lower():
+            raise _fail(401, "session_expired", "Student portal session expired. Please enter captcha to renew.")
+        if "network error" in msg.lower() or "timeout" in msg.lower() or "failed to fetch" in msg.lower() or "proxy" in msg.lower():
+            raise _fail(503, "portal_unreachable", msg)
+        raise _fail(400, "refresh_failed", msg)
+    except Exception as e:
+        log.exception("Unhandled exception in sp_refresh: %s", e)
+        raise _fail(500, "internal_error", f"Internal server error: {str(e)}")
+
+    attendance = marks = None
+    att_status: str = "error"
+    marks_status: str = "error"
+    att_msg = marks_msg = None
+    period = None
+
+    try:
+        attendance = parse_sp_attendance(att_html)
+        period = sp_reported_period(att_html)
+        att_status = "ready"
+    except SPAttendanceUnavailable as e:
+        if sp_looks_signed_out(att_html):
+            raise _fail(401, "session_expired", "Student portal session expired.")
+        att_status, att_msg = "gated", str(e)
+
+    if marks_html and not sp_looks_signed_out(marks_html):
+        try:
+            marks = parse_sp_marks(marks_html)
+            marks_status = "ready"
+        except SPMarksUnavailable as e:
+            marks_status, marks_msg = "gated", str(e)
+    else:
+        marks_status, marks_msg = "gated", "Marks were not fetched."
+
+    return StudentPortalSnapshot(
+        attendance=attendance,
+        attendance_status=att_status,
+        attendance_message=att_msg,
+        marks=marks,
+        marks_status=marks_status,
+        marks_message=marks_msg,
+        reported_period=period,
+        calendar=_get_fallback_calendar(),
+        session_cookie=updated_cookies,
         fetched_at=datetime.now(timezone.utc).isoformat(),
     )
 
@@ -727,7 +787,7 @@ def sp_auto_login(req: LoginRequest, request: Request) -> StudentPortalSnapshot:
         raise _fail(400, "invalid_credentials", "Password should not be empty.")
 
     try:
-        att_html, marks_html, tt_html = auto_login_and_fetch(clean_username, clean_password)
+        att_html, marks_html, tt_html, cookies = auto_login_and_fetch(clean_username, clean_password)
     except StudentPortalClientError as e:
         msg = str(e)
         if "temporarily locked" in msg.lower():
@@ -825,6 +885,7 @@ def sp_auto_login(req: LoginRequest, request: Request) -> StudentPortalSnapshot:
         reported_period=period,
         timetable=timetable,
         calendar=_get_fallback_calendar(),
+        session_cookie=cookies,
         fetched_at=datetime.now(timezone.utc).isoformat(),
     )
 

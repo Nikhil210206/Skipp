@@ -156,7 +156,12 @@ export type StudentPortalSnapshot = {
   reportedPeriod: string | null;
   timetable?: Timetable | null;
   calendar?: CalendarDay[];
+  sessionCookie?: string | null;
   fetchedAt: string;
+};
+
+export type StudentPortalRefreshRequest = {
+  sessionCookie: string;
 };
 
 export type Snapshot = {

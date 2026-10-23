@@ -15,7 +15,7 @@ log = logging.getLogger("skipp.api.sp_auto")
 # Initialize ddddocr globally so it doesn't reload the model on every request
 ocr = ddddocr.DdddOcr(show_ad=False)
 
-def auto_login_and_fetch(username: str, password: str) -> Tuple[str, Optional[str], Optional[str]]:
+def auto_login_and_fetch(username: str, password: str) -> Tuple[str, Optional[str], Optional[str], str]:
     """
     Attempts to login to the student portal automatically by solving the CAPTCHA.
     Limits submissions to at most 1 attempt to ensure we never risk hitting SRM's account lockout.

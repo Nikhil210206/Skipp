@@ -67,6 +67,35 @@ export function ImportAttendanceAction({
     }
   };
 
+  useEffect(() => {
+    const handleRequestLogin = async () => {
+      let creds = portalCreds && !isRegistrationNumber(portalCreds.username) ? portalCreds : null;
+      if (!creds) {
+        const savedPortal = await loadPortalCredentials();
+        if (savedPortal && !isRegistrationNumber(savedPortal.username)) {
+          creds = savedPortal;
+        }
+      }
+      if (!creds && loginSource === "portal" && sessionCreds && !isRegistrationNumber(sessionCreds.username)) {
+        creds = sessionCreds;
+      }
+
+      const defaultUser =
+        creds?.username ||
+        (sessionCreds && !isRegistrationNumber(sessionCreds.username) ? sessionCreds.username : "");
+
+      setUsername(defaultUser);
+      setPassword(creds?.password || "");
+      setPastedText("");
+      setTab("login");
+      setError("Portal session renewal required. Enter the captcha once to keep attendance synced.");
+      setOpen(true);
+      void loadManualCaptcha();
+    };
+    window.addEventListener("skipp:request-portal-login", handleRequestLogin);
+    return () => window.removeEventListener("skipp:request-portal-login", handleRequestLogin);
+  }, [portalCreds, sessionCreds, loginSource]);
+
   const handleOpen = async () => {
     let creds = portalCreds && !isRegistrationNumber(portalCreds.username) ? portalCreds : null;
     if (!creds) {
@@ -81,7 +110,7 @@ export function ImportAttendanceAction({
 
     setError(null);
     setPastedText("");
-    setTab("paste");
+    setTab("login");
     setUsername(creds?.username || (sessionCreds && !isRegistrationNumber(sessionCreds.username) ? sessionCreds.username : ""));
     setPassword(creds?.password || "");
     setCaptchaSession(null);
@@ -156,7 +185,7 @@ export function ImportAttendanceAction({
       }
       const creds = { username: cleanUsername, password };
       await savePortalCredentials(creds);
-      setPassword("");
+      setPassword(password);
       setCaptchaSession(null);
       setCaptchaInput("");
       setOpen(false);
@@ -200,8 +229,8 @@ export function ImportAttendanceAction({
               setTab(v as "paste" | "login");
             }}
             options={[
-              { value: "paste", label: "Instant Sync" },
-              { value: "login", label: "Sign In" },
+              { value: "login", label: "Sign In (Auto-Sync)" },
+              { value: "paste", label: "Instant Sync (HTML)" },
             ]}
           />
 
@@ -217,7 +246,7 @@ export function ImportAttendanceAction({
           ) : (
             <div className="flex flex-col gap-4">
               <div className="rounded-control border border-line bg-ink-1/60 p-3 text-callout text-text-2">
-                Enter your <strong>SRM Student Portal password</strong> (your NetID / email password). Note that this is often different from your Academia password.
+                Solve the captcha once to establish your session. Skipp will automatically keep your attendance synced every class in the background.
               </div>
 
               <form onSubmit={runLogin} className="flex flex-col gap-3">
@@ -326,8 +355,8 @@ export function ImportAttendanceAction({
                       : loadingCaptcha
                       ? "Loading security check…"
                       : type === "marks"
-                      ? "Import marks"
-                      : "Import"}
+                      ? "Sign In & Get Marks"
+                      : "Sign In & Auto-Sync"}
                   </Button>
                 </div>
               </form>
@@ -610,22 +639,32 @@ export function PortalSourceNote({ type = "attendance" }: { type?: "attendance" 
 
   useEffect(() => {
     const handleRequestLogin = async () => {
-      const saved = await loadPortalCredentials();
-      if (!saved && !portalCreds && (!sessionCreds || isRegistrationNumber(sessionCreds.username))) {
-        const defaultUser =
-          sessionCreds && !isRegistrationNumber(sessionCreds.username) ? sessionCreds.username : "";
-        setUsername(defaultUser);
-        setPassword("");
-        setPastedText("");
-        setTab("paste");
-        setError("Please update your attendance from the student portal.");
-        setOpen(true);
-        void loadManualCaptcha();
+      let creds = portalCreds && !isRegistrationNumber(portalCreds.username) ? portalCreds : null;
+      if (!creds) {
+        const savedPortal = await loadPortalCredentials();
+        if (savedPortal && !isRegistrationNumber(savedPortal.username)) {
+          creds = savedPortal;
+        }
       }
+      if (!creds && loginSource === "portal" && sessionCreds && !isRegistrationNumber(sessionCreds.username)) {
+        creds = sessionCreds;
+      }
+
+      const defaultUser =
+        creds?.username ||
+        (sessionCreds && !isRegistrationNumber(sessionCreds.username) ? sessionCreds.username : "");
+
+      setUsername(defaultUser);
+      setPassword(creds?.password || "");
+      setPastedText("");
+      setTab("login");
+      setError("Portal session renewal required. Enter the captcha once to keep attendance synced.");
+      setOpen(true);
+      void loadManualCaptcha();
     };
     window.addEventListener("skipp:request-portal-login", handleRequestLogin);
     return () => window.removeEventListener("skipp:request-portal-login", handleRequestLogin);
-  }, [portalCreds, sessionCreds]);
+  }, [portalCreds, sessionCreds, loginSource]);
 
   const handleClear = () => {
     if (disarmTimer.current) clearTimeout(disarmTimer.current);
@@ -704,14 +743,16 @@ export function PortalSourceNote({ type = "attendance" }: { type?: "attendance" 
       } catch (err) {
         setStatus("idle");
         setUsername(defaultUser);
+        setPassword(creds?.password || "");
         setPastedText("");
-        setTab("paste");
+        setTab("login");
         if (err instanceof AuthError && (err.code === "wrong_password" || err.code === "user_not_found")) {
           setPassword("");
-          setError(err.message || "Incorrect NetID or password. Use Instant Sync or update your credentials.");
+          setError(err.message || "Incorrect NetID or password. Please update your credentials.");
           setOpen(true);
+          void loadManualCaptcha();
         } else {
-          setError(err instanceof Error ? err.message : "Verification check required. Use Instant Sync or enter the captcha.");
+          setError(err instanceof Error ? err.message : "Verification check required. Enter the captcha once to sync.");
           void loadManualCaptcha();
           setOpen(true);
         }
@@ -724,7 +765,7 @@ export function PortalSourceNote({ type = "attendance" }: { type?: "attendance" 
     setUsername(defaultUser);
     setPassword("");
     setPastedText("");
-    setTab("paste");
+    setTab("login");
     setError(null);
     setCaptchaSession(null);
     setCaptchaInput("");
@@ -772,7 +813,7 @@ export function PortalSourceNote({ type = "attendance" }: { type?: "attendance" 
       }
       const creds = { username: cleanUsername, password };
       await savePortalCredentials(creds);
-      setPassword("");
+      setPassword(password);
       setCaptchaSession(null);
       setCaptchaInput("");
       setOpen(false);
@@ -845,8 +886,8 @@ export function PortalSourceNote({ type = "attendance" }: { type?: "attendance" 
               setTab(v as "paste" | "login");
             }}
             options={[
-              { value: "paste", label: "Instant Sync" },
-              { value: "login", label: "Sign In" },
+              { value: "login", label: "Sign In (Auto-Sync)" },
+              { value: "paste", label: "Instant Sync (HTML)" },
             ]}
           />
 
@@ -862,7 +903,7 @@ export function PortalSourceNote({ type = "attendance" }: { type?: "attendance" 
           ) : (
             <div className="flex flex-col gap-4">
               <div className="rounded-control border border-line bg-ink-1/60 p-3 text-callout text-text-2">
-                Enter your <strong>SRM Student Portal password</strong> (your NetID / email password). Note that this is often different from your Academia password.
+                Solve the captcha once to establish your session. Skipp will automatically keep your attendance synced every class in the background.
               </div>
 
               <form onSubmit={runLogin} className="flex flex-col gap-3">
@@ -967,9 +1008,9 @@ export function PortalSourceNote({ type = "attendance" }: { type?: "attendance" 
                   >
                     {busy
                       ? "Signing in…"
-                      : loadingCaptcha
-                      ? "Loading security check…"
-                      : `Update ${type}`}
+                      : type === "marks"
+                      ? "Sign In & Get Marks"
+                      : "Sign In & Auto-Sync"}
                   </Button>
                 </div>
               </form>

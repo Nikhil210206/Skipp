@@ -59,6 +59,11 @@ class StudentPortalLoginRequest(_CamelModel):
     page_load_time: float = 0.0
 
 
+class StudentPortalRefreshRequest(_CamelModel):
+    """A stored session cookie used to refresh attendance without entering captcha."""
+    session_cookie: str
+
+
 class StudentPortalSnapshot(_CamelModel):
     """What one signed-in WebView session yields, parsed.
 
@@ -82,5 +87,9 @@ class StudentPortalSnapshot(_CamelModel):
     calendar: list[CalendarDay] = Field(
         default_factory=list,
         description="University academic calendar days for the semester",
+    )
+    session_cookie: str | None = Field(
+        default=None,
+        description="Active JSESSIONID cookie string for background automatic sync",
     )
     fetched_at: str = Field(description="ISO timestamp of this parse")

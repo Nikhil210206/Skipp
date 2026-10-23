@@ -8,6 +8,7 @@ import type {
   StudentPortalSnapshot,
   StudentPortalCaptchaResponse,
   StudentPortalLoginRequest,
+  StudentPortalRefreshRequest,
 } from "@/types";
 
 export type {
@@ -16,6 +17,7 @@ export type {
   StudentPortalSnapshot,
   StudentPortalCaptchaResponse,
   StudentPortalLoginRequest,
+  StudentPortalRefreshRequest,
 };
 
 // Backend base URL. Prefer an explicit env (prod), else talk to the backend on
@@ -76,6 +78,13 @@ export class PortalError extends Error {
     readonly code: FailureCode = "portal",
   ) {
     super(message);
+  }
+}
+
+/** Student portal session has expired (HTTP 401 session_expired). */
+export class SessionExpiredError extends PortalError {
+  constructor(message = "Student portal session expired. Please enter captcha to renew.") {
+    super(message, "portal");
   }
 }
 
@@ -259,6 +268,47 @@ export async function parseStudentPortal(
     throw new AuthError(detail ?? "Student portal session expired. Please sign in again.", "wrong_password");
   }
   throw new PortalError(detail ?? `Could not parse student portal (${res.status}).`, "portal");
+}
+
+/**
+ * Refresh attendance and marks using an active student portal session cookie.
+ */
+export async function refreshStudentPortal(
+  sessionCookie: string,
+): Promise<StudentPortalSnapshot> {
+  const base = apiBase();
+  let res: Response;
+  try {
+    res = await fetch(`${base}/sp/refresh`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ sessionCookie }),
+    });
+  } catch (e) {
+    console.error("fetch(/sp/refresh) failed:", e);
+    throw new PortalError("Can't reach Skipp. Check your connection.", "unreachable");
+  }
+  if (res.ok) return (await res.json()) as StudentPortalSnapshot;
+
+  const parsed = await res.json().catch(() => undefined);
+  const raw = parsed?.detail;
+  const detail: string | undefined =
+    typeof raw === "string" ? raw : (raw?.message as string | undefined);
+  const code: string | undefined = typeof raw === "object" ? raw?.code : undefined;
+
+  if (res.status === 401 || code === "session_expired") {
+    throw new SessionExpiredError(detail ?? "Student portal session expired. Please enter captcha to renew.");
+  }
+  if (res.status === 429) {
+    throw new PortalError(
+      detail ?? "Too many requests. Please wait a bit before refreshing.",
+      "portal",
+    );
+  }
+  if (res.status === 503) {
+    throw new PortalError(detail ?? "Student portal is currently unreachable.", "unreachable");
+  }
+  throw new PortalError(detail ?? `Failed to refresh portal attendance (${res.status}).`, "portal");
 }
 
 /**

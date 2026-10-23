@@ -15,6 +15,7 @@ export type PortalOverride = {
   marks: Marks | null;
   // The window the portal report covers, e.g. "21/Jul/2026 To 14/Aug/2026".
   reportedPeriod: string | null;
+  sessionCookie?: string | null;
   fetchedAt: string;
 };
 
