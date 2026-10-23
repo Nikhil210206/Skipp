@@ -643,19 +643,22 @@ async def sp_login(req: StudentPortalLoginRequest, request: Request) -> StudentP
     att_msg = marks_msg = None
     period = None
 
-    try:
-        attendance = parse_sp_attendance(att_html)
-        period = sp_reported_period(att_html)
-        att_status = "ready"
-    except SPAttendanceUnavailable as e:
-        if sp_looks_signed_out(att_html):
-            log.warning("Session expired trigger on attendance fetch, length: %d", len(att_html) if att_html else 0)
-            raise _fail(
-                401,
-                "session_expired",
-                "The student portal session expired immediately after login.",
-            )
-        att_status, att_msg = "gated", str(e)
+    if att_html:
+        try:
+            attendance = parse_sp_attendance(att_html)
+            period = sp_reported_period(att_html)
+            att_status = "ready"
+        except SPAttendanceUnavailable as e:
+            if sp_looks_signed_out(att_html):
+                log.warning("Session expired trigger on attendance fetch, length: %d", len(att_html))
+                raise _fail(
+                    401,
+                    "session_expired",
+                    "The student portal session expired immediately after login.",
+                )
+            att_status, att_msg = "gated", str(e)
+    else:
+        att_status, att_msg = "gated", _GATED_MSG
 
     if marks_html and not sp_looks_signed_out(marks_html):
         try:
@@ -732,14 +735,17 @@ async def sp_refresh(req: StudentPortalRefreshRequest, request: Request) -> Stud
     att_msg = marks_msg = None
     period = None
 
-    try:
-        attendance = parse_sp_attendance(att_html)
-        period = sp_reported_period(att_html)
-        att_status = "ready"
-    except SPAttendanceUnavailable as e:
-        if sp_looks_signed_out(att_html):
-            raise _fail(401, "session_expired", "Student portal session expired.")
-        att_status, att_msg = "gated", str(e)
+    if att_html:
+        try:
+            attendance = parse_sp_attendance(att_html)
+            period = sp_reported_period(att_html)
+            att_status = "ready"
+        except SPAttendanceUnavailable as e:
+            if sp_looks_signed_out(att_html):
+                raise _fail(401, "session_expired", "Student portal session expired.")
+            att_status, att_msg = "gated", str(e)
+    else:
+        att_status, att_msg = "gated", _GATED_MSG
 
     if marks_html and not sp_looks_signed_out(marks_html):
         try:
@@ -829,18 +835,21 @@ async def sp_auto_login(req: LoginRequest, request: Request) -> StudentPortalSna
     att_msg = marks_msg = None
     period = None
 
-    try:
-        attendance = parse_sp_attendance(att_html)
-        period = sp_reported_period(att_html)
-        att_status = "ready"
-    except SPAttendanceUnavailable as e:
-        if sp_looks_signed_out(att_html):
-            raise _fail(
-                401,
-                "session_expired",
-                "The student portal session expired immediately after login.",
-            )
-        att_status, att_msg = "gated", str(e)
+    if att_html:
+        try:
+            attendance = parse_sp_attendance(att_html)
+            period = sp_reported_period(att_html)
+            att_status = "ready"
+        except SPAttendanceUnavailable as e:
+            if sp_looks_signed_out(att_html):
+                raise _fail(
+                    401,
+                    "session_expired",
+                    "The student portal session expired immediately after login.",
+                )
+            att_status, att_msg = "gated", str(e)
+    else:
+        att_status, att_msg = "gated", _GATED_MSG
 
     if marks_html and not sp_looks_signed_out(marks_html):
         try:

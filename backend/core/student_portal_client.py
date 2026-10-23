@@ -196,8 +196,6 @@ class PortalSession:
         })
         fp_body[self.domain_field_name] = dtoken
         fp_body[self.captcha_field_name] = cptoken
-        if self.honeypot_field:
-            fp_body[self.honeypot_field] = ""
 
         resp = await self.client.post(LOGIN_SUBMIT_URL, data=fp_body)
         body = resp.text or ""
@@ -209,7 +207,7 @@ class PortalSession:
             loader_form = soup_loader.find("form", id=lambda x: x and "loginloader" in str(x).lower()) or soup_loader.find("form")
             if loader_form:
                 action = loader_form.get("action")
-                target_url = f"{BASE_URL}/students/loginManager/youLogin.jsp"
+                target_url = HRD_URL
                 if action:
                     if action.startswith("http"):
                         target_url = action
@@ -222,19 +220,27 @@ class PortalSession:
                     for inp in loader_form.find_all("input")
                     if inp.get("name")
                 }
-                resp = await self.client.post(target_url, data=inputs)
+                resp = await self.client.post(target_url, data=inputs, headers={"Referer": LOGIN_PAGE_URL})
                 body = resp.text or ""
 
         res_lower = body.lower()
-        success_indicators = (
-            "welcome", "attendance", "dashboard", "logout", "hrdsystem",
-            "student", "portal", "srmist", "timetable", "internal"
-        )
-        if any(k in res_lower for k in success_indicators) and "invalid login credentials" not in res_lower and "invalid captcha" not in res_lower:
+        resp_path = str(resp.url.path).lower()
+
+        # Check if login redirected to HRDSystem, logout, or attendance
+        if "logout.jsp" in resp_path or "attendance" in resp_path or "hrdsystem" in resp_path or "logout.jsp" in res_lower:
+            try:
+                await self.client.get(HRD_URL, headers={"Referer": LOGIN_PAGE_URL})
+            except Exception as e:
+                log.warning("HRDSystem init failed: %s", e)
             return {"ok": True, "cookies": {c.name: c.value for c in self.client.cookies.jar}}
 
+        # If not obvious from URL, initialize HRDSystem and check if attendance can be fetched
+        try:
+            await self.client.get(HRD_URL, headers={"Referer": LOGIN_PAGE_URL})
+        except Exception:
+            pass
         att_check = await self.get_attendance_html()
-        if att_check:
+        if att_check is not None:
             return {"ok": True, "cookies": {c.name: c.value for c in self.client.cookies.jar}}
 
         failure_info = self.classify_failure(resp.url.path, body)
@@ -285,32 +291,62 @@ class PortalSession:
         return {"reason": "login_failed", "message": alert_text or "Login failed."}
 
     async def get_attendance_html(self) -> Optional[str]:
+        headers = {
+            "Referer": HRD_URL,
+            "Origin": SP_BASE_URL,
+            "Content-Type": "application/x-www-form-urlencoded",
+        }
+        # 1. POST with empty body (as servlet expects)
         try:
-            r = await self.client.get(ATTENDANCE_URL)
-            if (
-                r.status_code != 200 
-                or "youlogin" in str(r.url).lower() 
-                or "login" in str(r.url).lower() 
-                or "loginform" in r.text.lower() 
-                or "login_form" in r.text.lower() 
-                or "thegr8loginloader" in r.text.lower()
-            ):
-                return None
-            return r.text
+            r = await self.client.post(ATTENDANCE_URL, data={}, headers=headers)
+            if r.status_code == 200 and r.text:
+                txt_lower = r.text.lower()
+                if not ("login_form" in txt_lower or "youlogin" in txt_lower or "thegr8loginloader" in txt_lower):
+                    if any(marker in txt_lower for marker in ("course wise attendance", "attendance", "total percentage", "course code", "<table")):
+                        return r.text
         except Exception as e:
-            log.warning("Network error fetching attendance: %s", e)
-            return None
+            log.warning("Network error POST fetching attendance: %s", e)
+
+        # 2. GET fallback with HRD_URL referer
+        try:
+            r = await self.client.get(ATTENDANCE_URL, headers={"Referer": HRD_URL})
+            if r.status_code == 200 and r.text:
+                txt_lower = r.text.lower()
+                if not ("login_form" in txt_lower or "youlogin" in txt_lower or "thegr8loginloader" in txt_lower):
+                    if any(marker in txt_lower for marker in ("course wise attendance", "attendance", "total percentage", "course code", "<table")):
+                        return r.text
+        except Exception as e:
+            log.warning("Network error GET fetching attendance: %s", e)
+
+        return None
 
     async def get_marks_html(self) -> Optional[str]:
+        headers = {
+            "Referer": HRD_URL,
+            "Origin": SP_BASE_URL,
+            "Content-Type": "application/x-www-form-urlencoded",
+        }
         try:
-            r = await self.client.get(MARKS_URL)
-            if r.status_code == 200 and "table" in r.text.lower():
+            r = await self.client.post(MARKS_URL, data={}, headers=headers)
+            if r.status_code == 200 and "table" in r.text.lower() and "login_form" not in r.text.lower():
                 return r.text
         except Exception as e:
-            log.warning("Network error fetching marks: %s", e)
+            log.warning("Network error POST fetching marks: %s", e)
+
+        try:
+            r = await self.client.get(MARKS_URL, headers={"Referer": HRD_URL})
+            if r.status_code == 200 and "table" in r.text.lower() and "login_form" not in r.text.lower():
+                return r.text
+        except Exception as e:
+            log.warning("Network error GET fetching marks: %s", e)
         return None
 
     async def get_timetable_html(self) -> Optional[str]:
+        headers = {
+            "Referer": HRD_URL,
+            "Origin": SP_BASE_URL,
+            "Content-Type": "application/x-www-form-urlencoded",
+        }
         try:
             payload = {
                 "iden": "10",
@@ -318,8 +354,8 @@ class PortalSession:
                 "hdnFormDetails": "1",
                 "csrfPreventionSalt": ""
             }
-            r = await self.client.post(TIMETABLE_URL, data=payload)
-            if r.status_code == 200 and "table" in r.text.lower() and "day 1" in r.text.lower():
+            r = await self.client.post(TIMETABLE_URL, data=payload, headers=headers)
+            if r.status_code == 200 and "table" in r.text.lower() and "login_form" not in r.text.lower():
                 return r.text
         except Exception as e:
             log.warning("Network error fetching timetable: %s", e)
@@ -348,33 +384,67 @@ class PortalClient:
         if cookies:
             self.client.cookies.update(cookies)
 
-    async def get_attendance_html(self) -> Optional[str]:
+    async def keepalive(self):
         try:
-            r = await self.client.get(ATTENDANCE_URL)
-            if (
-                r.status_code != 200 
-                or "youlogin" in str(r.url).lower() 
-                or "login" in str(r.url).lower() 
-                or "loginform" in r.text.lower() 
-                or "login_form" in r.text.lower() 
-                or "thegr8loginloader" in r.text.lower()
-            ):
-                return None
-            return r.text
+            await self.client.get(HRD_URL, headers={"Referer": LOGIN_PAGE_URL})
+        except httpx.HTTPError:
+            pass
+
+    async def get_attendance_html(self) -> Optional[str]:
+        headers = {
+            "Referer": HRD_URL,
+            "Origin": SP_BASE_URL,
+            "Content-Type": "application/x-www-form-urlencoded",
+        }
+        try:
+            r = await self.client.post(ATTENDANCE_URL, data={}, headers=headers)
+            if r.status_code == 200 and r.text:
+                txt_lower = r.text.lower()
+                if not ("login_form" in txt_lower or "youlogin" in txt_lower or "thegr8loginloader" in txt_lower):
+                    if any(marker in txt_lower for marker in ("course wise attendance", "attendance", "total percentage", "course code", "<table")):
+                        return r.text
         except Exception as e:
-            log.warning("Network error fetching attendance: %s", e)
-            return None
+            log.warning("Network error POST fetching attendance: %s", e)
+
+        try:
+            r = await self.client.get(ATTENDANCE_URL, headers={"Referer": HRD_URL})
+            if r.status_code == 200 and r.text:
+                txt_lower = r.text.lower()
+                if not ("login_form" in txt_lower or "youlogin" in txt_lower or "thegr8loginloader" in txt_lower):
+                    if any(marker in txt_lower for marker in ("course wise attendance", "attendance", "total percentage", "course code", "<table")):
+                        return r.text
+        except Exception as e:
+            log.warning("Network error GET fetching attendance: %s", e)
+
+        return None
 
     async def get_marks_html(self) -> Optional[str]:
+        headers = {
+            "Referer": HRD_URL,
+            "Origin": SP_BASE_URL,
+            "Content-Type": "application/x-www-form-urlencoded",
+        }
         try:
-            r = await self.client.get(MARKS_URL)
-            if r.status_code == 200 and "table" in r.text.lower():
+            r = await self.client.post(MARKS_URL, data={}, headers=headers)
+            if r.status_code == 200 and "table" in r.text.lower() and "login_form" not in r.text.lower():
                 return r.text
         except Exception as e:
-            log.warning("Network error fetching marks: %s", e)
+            log.warning("Network error POST fetching marks: %s", e)
+
+        try:
+            r = await self.client.get(MARKS_URL, headers={"Referer": HRD_URL})
+            if r.status_code == 200 and "table" in r.text.lower() and "login_form" not in r.text.lower():
+                return r.text
+        except Exception as e:
+            log.warning("Network error GET fetching marks: %s", e)
         return None
 
     async def get_timetable_html(self) -> Optional[str]:
+        headers = {
+            "Referer": HRD_URL,
+            "Origin": SP_BASE_URL,
+            "Content-Type": "application/x-www-form-urlencoded",
+        }
         try:
             payload = {
                 "iden": "10",
@@ -382,8 +452,8 @@ class PortalClient:
                 "hdnFormDetails": "1",
                 "csrfPreventionSalt": ""
             }
-            r = await self.client.post(TIMETABLE_URL, data=payload)
-            if r.status_code == 200 and "table" in r.text.lower() and "day 1" in r.text.lower():
+            r = await self.client.post(TIMETABLE_URL, data=payload, headers=headers)
+            if r.status_code == 200 and "table" in r.text.lower() and "login_form" not in r.text.lower():
                 return r.text
         except Exception as e:
             log.warning("Network error fetching timetable: %s", e)
@@ -464,11 +534,8 @@ async def submit_login_and_fetch(req_data: StudentPortalLoginRequest) -> Tuple[s
     marks_html = await session.get_marks_html()
     tt_html = await session.get_timetable_html()
 
-    if not att_html:
-        raise StudentPortalClientError("Failed to fetch attendance details.")
-
     cookie_str = "; ".join(f"{c.name}={c.value}" for c in session.client.cookies.jar)
-    return att_html, marks_html, tt_html, cookie_str
+    return att_html or "", marks_html, tt_html, cookie_str
 
 async def refresh_session_and_fetch(session_cookie: str) -> Tuple[str, Optional[str], Optional[str], str]:
     if not session_cookie or not session_cookie.strip():
@@ -484,11 +551,13 @@ async def refresh_session_and_fetch(session_cookie: str) -> Tuple[str, Optional[
             cookies_dict[k] = v
 
     client = PortalClient(cookies=cookies_dict)
+    await client.keepalive()
     att_html = await client.get_attendance_html()
-    if not att_html:
-        raise StudentPortalClientError("session_expired")
     marks_html = await client.get_marks_html()
     tt_html = await client.get_timetable_html()
 
+    if not att_html and not marks_html and not tt_html:
+        raise StudentPortalClientError("session_expired")
+
     cookie_str = "; ".join(f"{c.name}={c.value}" for c in client.client.cookies.jar)
-    return att_html, marks_html, tt_html, cookie_str
+    return att_html or "", marks_html, tt_html, cookie_str

@@ -52,10 +52,8 @@ async def auto_login_and_fetch(username: str, password: str) -> Tuple[str, Optio
                 att_html = await session.get_attendance_html()
                 marks_html = await session.get_marks_html()
                 tt_html = await session.get_timetable_html()
-                if not att_html:
-                    raise StudentPortalClientError("Failed to fetch attendance details.")
                 cookie_str = "; ".join(f"{c.name}={c.value}" for c in session.client.cookies.jar)
-                return att_html, marks_html, tt_html, cookie_str
+                return att_html or "", marks_html, tt_html, cookie_str
 
             reason = res.get("reason", "login_failed")
             msg = res.get("message", "Login failed")
