@@ -189,7 +189,7 @@ class PortalSession:
             "username": username,
             "password": password,
             "captcha": captcha.strip(),
-            "fpPayload": fp_payload,
+            "fpPayload": "",
             "fpToken": "",
             "recaptchaToken": "",
             "telemetryPayload": payload,
