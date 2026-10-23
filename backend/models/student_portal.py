@@ -43,6 +43,7 @@ class StudentPortalCaptchaResponse(_CamelModel):
     captcha_field: str
     random_delim: str
     honeypot_field: str
+    nonce: str = ""
     captcha_base64: str
     page_load_time: float
 
@@ -56,6 +57,7 @@ class StudentPortalLoginRequest(_CamelModel):
     captcha_field: str
     random_delim: str
     honeypot_field: str
+    nonce: str = ""
     page_load_time: float = 0.0
 
 

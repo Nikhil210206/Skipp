@@ -276,6 +276,7 @@ type SessionValue = {
       captchaField: string;
       randomDelim: string;
       honeypotField: string;
+      nonce?: string;
       pageLoadTime?: number;
     },
   ) => Promise<void>;
@@ -1105,6 +1106,7 @@ export function SessionProvider({ children }: { children: React.ReactNode }) {
             captchaField: manual.captchaField,
             randomDelim: manual.randomDelim,
             honeypotField: manual.honeypotField,
+            nonce: manual.nonce,
             pageLoadTime: manual.pageLoadTime ?? Date.now() / 1000,
           });
         } else {

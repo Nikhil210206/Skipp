@@ -108,10 +108,22 @@ def init_login_session() -> StudentPortalCaptchaResponse:
     
     # Extract config values
     try:
-        nonce = re.search(r"nonce:\s*'([^']+)'", html).group(1)
-        domain_field = re.search(r"domainFieldName\s*=\s*'([^']+)'", html).group(1)
-        captcha_field = re.search(r"captchaFieldName\s*=\s*'([^']+)'", html).group(1)
-        random_delim = re.search(r"randomDelimiter\s*=\s*'([^']+)'", html).group(1)
+        nonce_match = (
+            re.search(r"window\.SECURE_CONFIG\s*=\s*\{[^}]*?nonce\s*:\s*'([^']+)'", html)
+            or re.search(r"window\.SECURE_CONFIG\s*=\s*window\.SECURE_CONFIG\s*\|\|\s*\{\};\s*window\.SECURE_CONFIG\.nonce\s*=\s*'([^']+)'", html)
+            or re.search(r'id="fpNonce"\s*value="([^"]+)"', html)
+            or re.search(r"nonce:\s*'([^']+)'", html)
+        )
+        nonce = nonce_match.group(1) if nonce_match else ""
+
+        df_match = re.search(r"""domainFieldName\s*=\s*['"]([^'"]+)['"]""", html)
+        domain_field = df_match.group(1) if df_match else "dtoken_x"
+
+        cf_match = re.search(r"""captchaFieldName\s*=\s*['"]([^'"]+)['"]""", html)
+        captcha_field = cf_match.group(1) if cf_match else "cptoken_x"
+
+        rd_match = re.search(r"""randomDelimiter\s*=\s*['"]([^'"]+)['"]""", html)
+        random_delim = rd_match.group(1) if rd_match else "0000"
         
         honeypot_match = re.search(r'id="(ph_[a-f0-9]+)"', html)
         if not honeypot_match:
@@ -119,10 +131,11 @@ def init_login_session() -> StudentPortalCaptchaResponse:
             honeypot_field = "ph_cf19b370"
         else:
             honeypot_field = honeypot_match.group(1)
-
         
-        token = re.search(r"SCaptchaServlet\?ts=[^&]+&token=([^\"']+)", html).group(1)
-        ts = re.search(r"SCaptchaServlet\?ts=([^&]+)&token=", html).group(1)
+        token_match = re.search(r"SCaptchaServlet\?ts=[^&]+&token=([^\"']+)", html)
+        token = token_match.group(1) if token_match else ""
+        ts_match = re.search(r"SCaptchaServlet\?ts=([^&]+)&token=", html)
+        ts = ts_match.group(1) if ts_match else str(int(time.time() * 1000))
     except AttributeError as e:
         raise StudentPortalClientError("Failed to extract anti-bot configuration") from e
 
@@ -165,9 +178,11 @@ def init_login_session() -> StudentPortalCaptchaResponse:
 
     cookie_str = "; ".join(cookies)
 
-    # Append the proxy to the session cookie so we can reuse it
+    # Append the proxy and nonce to the session cookie so we can reuse it
     if chosen_proxy:
         cookie_str += f"; SKIPP_PROXY_ID={chosen_proxy}"
+    if nonce:
+        cookie_str += f"; SKIPP_NONCE={nonce}"
         
     return StudentPortalCaptchaResponse(
         session_cookie=cookie_str,
@@ -175,6 +190,7 @@ def init_login_session() -> StudentPortalCaptchaResponse:
         captcha_field=captcha_field,
         random_delim=random_delim,
         honeypot_field=honeypot_field,
+        nonce=nonce,
         captcha_base64=captcha_b64,
         page_load_time=page_load_time
     )
@@ -187,50 +203,64 @@ def submit_login_and_fetch(req_data: StudentPortalLoginRequest) -> Tuple[str, Op
     if "@" in clean_username:
         clean_username = clean_username.split("@")[0].strip()
 
-    # Calculate actual time elapsed since page load to pass anti-bot telemetry
     import time
     import json
     t_now = int(time.time() * 1000)
-    
-    if req_data.page_load_time and req_data.page_load_time > 0:
-        time_elapsed_ms = max(3500, min(120000, t_now - int(req_data.page_load_time * 1000)))
-    else:
-        # Default realistic human elapsed time on page (e.g. 4.2 - 7.5 seconds)
-        time_elapsed_ms = random.randint(4200, 7500)
 
-    start_time_ms = t_now - time_elapsed_ms
-    time_elapsed_sec = time_elapsed_ms // 1000
-    typing_speed_ms = min(2500, max(800, time_elapsed_ms - random.randint(1200, 2000)))
-    
-    # Realistic interaction count (keystrokes + mouse events when filling credentials)
-    interact_count = random.randint(12, 24)
-    trap_payload = f"{time_elapsed_sec}{req_data.random_delim}{interact_count}"
+    # 1. Resolve nonce from request data or SKIPP_NONCE in session_cookie
+    nonce = (getattr(req_data, 'nonce', '') or '').strip()
+    if not nonce and req_data.session_cookie:
+        for part in req_data.session_cookie.split(';'):
+            if '=' in part:
+                k, v = part.strip().split('=', 1)
+                if k == 'SKIPP_NONCE':
+                    nonce = v.strip()
+                    break
+
+    # 2. Timing and trap payload (must end with form index "3" matching portal JavaScript)
+    calc_elapsed = max(0, int((t_now - int(req_data.page_load_time * 1000)) / 1000)) if req_data.page_load_time else 0
+    elapsed_sec = max(random.randint(3, 5), calc_elapsed)
+    trap_delim = req_data.random_delim or "0000"
+    trap_payload = f"{elapsed_sec}{trap_delim}3"
     captcha_trap_value = base64.b64encode(trap_payload.encode()).decode()
-    
-    payload_json = json.dumps({
+
+    # 3. Valid fpPayload JSON containing the session nonce
+    fp_payload = base64.b64encode(json.dumps({
+        "fp": "",
+        "nonce": nonce,
+        "ts": t_now
+    }).encode()).decode()
+
+    # 4. Anti-bot browser telemetry matching working portal client
+    time_elapsed_ms = elapsed_sec * 1000 + random.randint(120, 680)
+    start_time_ms = t_now - time_elapsed_ms
+    seed = random.randint(0, 0x7FFFFFFF)
+    canvas_hash_val = format(seed, "06x")
+
+    telemetry_dict = {
         "startTime": start_time_ms,
         "currentDomain": "sp.srmist.edu.in",
         "timezoneOffset": -330,
-        "screenWidth": 1440,
-        "screenHeight": 900,
+        "screenWidth": 1366,
+        "screenHeight": 768,
         "colorDepth": 24,
-        "devicePixelRatio": 2,
-        "userAgent": UA,
+        "devicePixelRatio": 1,
         "platform": "Win32",
+        "userAgent": UA,
         "language": "en-US",
-        "deviceMemory": 8,
         "hardwareConcurrency": 8,
+        "deviceMemory": 8,
         "touchSupport": False,
         "webdriver": False,
-        "mouseClicks": random.randint(2, 4),
-        "mouseMovements": random.randint(5, 12),
-        "keystrokeCount": max(8, len(clean_username) + len(req_data.captcha)),
-        "typingSpeedMs": typing_speed_ms,
-        "canvasHash": "58bc8d31",
+        "mouseClicks": random.randint(2, 6),
+        "mouseMovements": random.randint(5, 20),
+        "keystrokeCount": 0,
+        "typingSpeedMs": 0,
+        "canvasHash": canvas_hash_val,
         "submitTime": t_now,
         "timeOnPageMs": time_elapsed_ms
-    }, separators=(',', ':'))
-    telemetry_payload = base64.b64encode(payload_json.encode('utf-8')).decode('utf-8')
+    }
+    telemetry_payload = base64.b64encode(json.dumps(telemetry_dict, separators=(',', ':')).encode('utf-8')).decode('utf-8')
     
     form_data = {
         'username': clean_username,
@@ -239,8 +269,9 @@ def submit_login_and_fetch(req_data: StudentPortalLoginRequest) -> Tuple[str, Op
         req_data.domain_field: domain_value,
         req_data.captcha_field: captcha_trap_value,
         req_data.honeypot_field: '',
-        'fpPayload': '',
+        'fpPayload': fp_payload,
         'fpToken': '',
+        'recaptchaToken': '',
         'telemetryPayload': telemetry_payload
     }
     encoded_data = urllib.parse.urlencode(form_data, encoding='utf-8').encode('utf-8')
@@ -249,7 +280,6 @@ def submit_login_and_fetch(req_data: StudentPortalLoginRequest) -> Tuple[str, Op
     import http.cookiejar
     cj = http.cookiejar.CookieJar()
     # Note: we need to delay creating the opener until after we parse chosen_proxy from cookies
-
     
     chosen_proxy = None
     cookie_dict = {}
@@ -263,6 +293,10 @@ def submit_login_and_fetch(req_data: StudentPortalLoginRequest) -> Tuple[str, Op
                 k, v = part.split('=', 1)
                 if k == 'SKIPP_PROXY_ID':
                     chosen_proxy = v
+                    continue
+                if k == 'SKIPP_NONCE':
+                    if not nonce:
+                        nonce = v.strip()
                     continue
                 cookie_dict[k] = v
                 ck = http.cookiejar.Cookie(version=0, name=k, value=v, port=None, port_specified=False, domain='sp.srmist.edu.in', domain_specified=False, domain_initial_dot=False, path='/', path_specified=False, secure=False, expires=None, discard=True, comment=None, comment_url=None, rest={'HttpOnly': None}, rfc2109=False)

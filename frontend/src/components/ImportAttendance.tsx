@@ -177,6 +177,7 @@ export function ImportAttendanceAction({
           captchaField: captchaSession.captchaField,
           randomDelim: captchaSession.randomDelim,
           honeypotField: captchaSession.honeypotField,
+          nonce: captchaSession.nonce,
           pageLoadTime: captchaSession.pageLoadTime,
         });
       } else {
@@ -805,6 +806,7 @@ export function PortalSourceNote({ type = "attendance" }: { type?: "attendance" 
           captchaField: captchaSession.captchaField,
           randomDelim: captchaSession.randomDelim,
           honeypotField: captchaSession.honeypotField,
+          nonce: captchaSession.nonce,
           pageLoadTime: captchaSession.pageLoadTime,
         });
       } else {

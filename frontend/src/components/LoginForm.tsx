@@ -174,6 +174,7 @@ export default function LoginForm({
               captchaField: captchaSession.captchaField,
               randomDelim: captchaSession.randomDelim,
               honeypotField: captchaSession.honeypotField,
+              nonce: captchaSession.nonce,
               pageLoadTime: captchaSession.pageLoadTime,
             },
           );

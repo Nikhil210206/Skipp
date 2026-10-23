@@ -62,6 +62,7 @@ def auto_login_and_fetch(username: str, password: str) -> Tuple[str, Optional[st
                 captcha_field=session_data.captcha_field,
                 random_delim=session_data.random_delim,
                 honeypot_field=session_data.honeypot_field,
+                nonce=session_data.nonce,
                 page_load_time=session_data.page_load_time
             )
             
