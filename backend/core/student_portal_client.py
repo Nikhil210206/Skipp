@@ -1,27 +1,37 @@
-import re
 import base64
-import urllib.request
-import urllib.parse
+import json
+import logging
 import os
+import random
+import re
+import secrets
 import ssl
+import time
 from typing import Tuple, Dict, Optional
+import httpx
 
 from models.student_portal import StudentPortalCaptchaResponse, StudentPortalLoginRequest
 
+log = logging.getLogger("skipp.api.sp_client")
+
 SP_BASE_URL = "https://sp.srmist.edu.in"
-LOGIN_PAGE_URL = f"{SP_BASE_URL}/srmiststudentportal/students/loginManager/youLogin.jsp"
-LOGIN_SUBMIT_URL = f"{SP_BASE_URL}/srmiststudentportal/LoginServlet"
-ATTENDANCE_URL = f"{SP_BASE_URL}/srmiststudentportal/students/report/studentAttendanceDetails.jsp"
-MARKS_URL = f"{SP_BASE_URL}/srmiststudentportal/students/report/studentInternalMarkDetails.jsp"
-TIMETABLE_URL = f"{SP_BASE_URL}/srmiststudentportal/students/report/studentTimeTableDetails.jsp"
+BASE_URL = f"{SP_BASE_URL}/srmiststudentportal"
+LOGIN_PAGE_URL = f"{BASE_URL}/students/loginManager/youLogin.jsp"
+LOGIN_SUBMIT_URL = f"{BASE_URL}/LoginServlet"
+ATTENDANCE_URL = f"{BASE_URL}/students/report/studentAttendanceDetails.jsp"
+MARKS_URL = f"{BASE_URL}/students/report/studentInternalMarkDetails.jsp"
+TIMETABLE_URL = f"{BASE_URL}/students/report/studentTimeTableDetails.jsp"
+HRD_URL = f"{BASE_URL}/students/template/HRDSystem.jsp"
 
 UA = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/127.0.0.0 Safari/537.36"
 
-import logging
-import random
-import time
-
-log = logging.getLogger("skipp.api.sp_client")
+HEADERS = {
+    "User-Agent": UA,
+    "Referer": LOGIN_PAGE_URL,
+    "Origin": SP_BASE_URL,
+    "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,*/*;q=0.8",
+    "Accept-Language": "en-US,en;q=0.9",
+}
 
 class StudentPortalClientError(Exception):
     pass
@@ -32,212 +42,13 @@ def _get_proxies() -> list[str]:
         return [p.strip() for p in proxy_env.split(',') if p.strip()]
     return []
 
-def _get_opener(cj=None, force_proxy=None):
-    handlers = []
-    
-    # Disable SSL verification due to portal's self-signed certificates or local network interception
-    ctx = ssl.create_default_context()
-    ctx.check_hostname = False
-    ctx.verify_mode = ssl.CERT_NONE
-    try:
-        ctx.set_ciphers('ECDHE-RSA-AES128-GCM-SHA256:ECDHE-RSA-AES256-GCM-SHA384:HIGH:!aNULL:!eNULL')
-    except Exception:
-        pass
-    handlers.append(urllib.request.HTTPSHandler(context=ctx))
-    
-    if cj is not None:
-        handlers.append(urllib.request.HTTPCookieProcessor(cj))
-        
-    proxy_url = force_proxy
-    if proxy_url == "DIRECT":
-        proxy_url = None
-    elif not proxy_url:
-        proxies = _get_proxies()
-        if proxies:
-            proxy_url = random.choice(proxies)
-                
-    if proxy_url:
-        handlers.append(urllib.request.ProxyHandler({'http': proxy_url, 'https': proxy_url}))
-    else:
-        # Crucial: pass empty dict to explicitly bypass any environment proxy when going direct
-        handlers.append(urllib.request.ProxyHandler({}))
-        
-    return urllib.request.build_opener(*handlers), proxy_url or "DIRECT"
-
-def init_login_session() -> StudentPortalCaptchaResponse:
-    page_load_time = time.time()
-    req = urllib.request.Request(LOGIN_PAGE_URL, headers={'User-Agent': UA})
-    
-    proxies = _get_proxies()
-    # Try DIRECT first for instant response; fall back to proxies if direct fails
-    candidates = ["DIRECT"]
-    if proxies:
-        p_list = list(proxies)
-        random.shuffle(p_list)
-        candidates.extend(p_list)
-    
-    res = None
-    opener = None
-    chosen_proxy = None
-    last_err = None
-    
-    for candidate in candidates:
-        try:
-            curr_opener, curr_proxy = _get_opener(force_proxy=candidate)
-            res = curr_opener.open(req, timeout=7)
-            opener = curr_opener
-            chosen_proxy = curr_proxy
-            break
-        except Exception as e:
-            print(f"Student portal session init via '{candidate}' failed: {e}")
-            last_err = e
-            continue
-            
-    if res is None or opener is None:
-        raise StudentPortalClientError(f"Network error connecting to student portal: {last_err}") from last_err
-    html = res.read().decode('utf-8', errors='ignore')
-    
-    # Extract session cookies
-    cookies = []
-    if res.info().get_all('Set-Cookie'):
-        for c in res.info().get_all('Set-Cookie'):
-            cookies.append(c.split(';')[0])
-    
-    if not cookies:
-        raise StudentPortalClientError("Failed to get session cookie")
-    
-    # Extract config values
-    try:
-        nonce_match = (
-            re.search(r"window\.SECURE_CONFIG\s*=\s*\{[^}]*?nonce\s*:\s*'([^']+)'", html)
-            or re.search(r"window\.SECURE_CONFIG\s*=\s*window\.SECURE_CONFIG\s*\|\|\s*\{\};\s*window\.SECURE_CONFIG\.nonce\s*=\s*'([^']+)'", html)
-            or re.search(r'id="fpNonce"\s*value="([^"]+)"', html)
-            or re.search(r"nonce:\s*'([^']+)'", html)
-        )
-        nonce = nonce_match.group(1) if nonce_match else ""
-
-        df_match = re.search(r"""domainFieldName\s*=\s*['"]([^'"]+)['"]""", html)
-        domain_field = df_match.group(1) if df_match else "dtoken_x"
-
-        cf_match = re.search(r"""captchaFieldName\s*=\s*['"]([^'"]+)['"]""", html)
-        captcha_field = cf_match.group(1) if cf_match else "cptoken_x"
-
-        rd_match = re.search(r"""randomDelimiter\s*=\s*['"]([^'"]+)['"]""", html)
-        random_delim = rd_match.group(1) if rd_match else "0000"
-        
-        honeypot_match = re.search(r'id="(ph_[a-f0-9]+)"', html)
-        if not honeypot_match:
-            print("WARNING: Could not extract honeypot field name! Using default ph_cf19b370")
-            honeypot_field = "ph_cf19b370"
-        else:
-            honeypot_field = honeypot_match.group(1)
-        
-        token_match = re.search(r"SCaptchaServlet\?ts=[^&]+&token=([^\"']+)", html)
-        token = token_match.group(1) if token_match else ""
-        ts_match = re.search(r"SCaptchaServlet\?ts=([^&]+)&token=", html)
-        ts = ts_match.group(1) if ts_match else str(int(time.time() * 1000))
-    except AttributeError as e:
-        raise StudentPortalClientError("Failed to extract anti-bot configuration") from e
-
-    domain_proof = base64.b64encode(f"{nonce}:sp.srmist.edu.in".encode()).decode()
-    captcha_url = f"{SP_BASE_URL}/srmiststudentportal/SCaptchaServlet?ts={ts}&token={token}"
-    
-    req_c = urllib.request.Request(captcha_url, headers={
-        'User-Agent': UA,
-        'X-Domain-Proof': domain_proof,
-        'Cookie': "; ".join(cookies),
-        'Accept': 'image/png, image/jpeg, image/svg+xml, image/*',
-        'Referer': LOGIN_PAGE_URL,
-        'Origin': SP_BASE_URL
-    })
-    
-    try:
-        c_res = opener.open(req_c, timeout=5)
-        if c_res.info().get_all('Set-Cookie'):
-            for c in c_res.info().get_all('Set-Cookie'):
-                cookies.append(c.split(';')[0])
-        
-        captcha_bytes = c_res.read()
-        captcha_b64 = "data:image/png;base64," + base64.b64encode(captcha_bytes).decode()
-    except Exception as e:
-        if chosen_proxy and chosen_proxy != "DIRECT":
-            print(f"Proxy failed on captcha ({e}). Falling back to direct...")
-            direct_opener, chosen_proxy = _get_opener(force_proxy="DIRECT")
-            opener = direct_opener
-            try:
-                c_res = opener.open(req_c, timeout=5)
-                if c_res.info().get_all('Set-Cookie'):
-                    for c in c_res.info().get_all('Set-Cookie'):
-                        cookies.append(c.split(';')[0])
-                captcha_bytes = c_res.read()
-                captcha_b64 = "data:image/png;base64," + base64.b64encode(captcha_bytes).decode()
-            except Exception as direct_err:
-                raise StudentPortalClientError(f"Failed to fetch captcha: {direct_err}") from direct_err
-        else:
-            raise StudentPortalClientError(f"Failed to fetch captcha: {e}") from e
-
-    cookie_str = "; ".join(cookies)
-
-    # Append the proxy and nonce to the session cookie so we can reuse it
-    if chosen_proxy:
-        cookie_str += f"; SKIPP_PROXY_ID={chosen_proxy}"
-    if nonce:
-        cookie_str += f"; SKIPP_NONCE={nonce}"
-        
-    return StudentPortalCaptchaResponse(
-        session_cookie=cookie_str,
-        domain_field=domain_field,
-        captcha_field=captcha_field,
-        random_delim=random_delim,
-        honeypot_field=honeypot_field,
-        nonce=nonce,
-        captcha_base64=captcha_b64,
-        page_load_time=page_load_time
-    )
-
-def submit_login_and_fetch(req_data: StudentPortalLoginRequest) -> Tuple[str, Optional[str], Optional[str], str]:
-    """Submits login and returns (attendance_html, marks_html, tt_html, cookie_str). Raises on invalid login."""
-    domain_value = base64.b64encode("ni.ude.tsimrs.ps".encode()).decode()
-    
-    clean_username = req_data.username.strip().lower()
-    if "@" in clean_username:
-        clean_username = clean_username.split("@")[0].strip()
-
-    import time
-    import json
-    t_now = int(time.time() * 1000)
-
-    # 1. Resolve nonce from request data or SKIPP_NONCE in session_cookie
-    nonce = (getattr(req_data, 'nonce', '') or '').strip()
-    if not nonce and req_data.session_cookie:
-        for part in req_data.session_cookie.split(';'):
-            if '=' in part:
-                k, v = part.strip().split('=', 1)
-                if k == 'SKIPP_NONCE':
-                    nonce = v.strip()
-                    break
-
-    # 2. Timing and trap payload (must end with form index "3" matching portal JavaScript)
-    calc_elapsed = max(0, int((t_now - int(req_data.page_load_time * 1000)) / 1000)) if req_data.page_load_time else 0
-    elapsed_sec = max(random.randint(3, 5), calc_elapsed)
-    trap_delim = req_data.random_delim or "0000"
-    trap_payload = f"{elapsed_sec}{trap_delim}3"
-    captcha_trap_value = base64.b64encode(trap_payload.encode()).decode()
-
-    # 3. Valid fpPayload JSON containing the session nonce
-    fp_payload = base64.b64encode(json.dumps({
-        "fp": "",
-        "nonce": nonce,
-        "ts": t_now
-    }).encode()).decode()
-
-    # 4. Anti-bot browser telemetry matching working portal client
-    time_elapsed_ms = elapsed_sec * 1000 + random.randint(120, 680)
-    start_time_ms = t_now - time_elapsed_ms
+def canvas_hash() -> str:
     seed = random.randint(0, 0x7FFFFFFF)
-    canvas_hash_val = format(seed, "06x")
+    return format(seed, "06x")
 
-    telemetry_dict = {
+def telemetry_payload(now_ms: int, start_time_ms: int) -> dict:
+    time_elapsed_ms = now_ms - start_time_ms
+    return {
         "startTime": start_time_ms,
         "currentDomain": "sp.srmist.edu.in",
         "timezoneOffset": -330,
@@ -256,429 +67,428 @@ def submit_login_and_fetch(req_data: StudentPortalLoginRequest) -> Tuple[str, Op
         "mouseMovements": random.randint(5, 20),
         "keystrokeCount": 0,
         "typingSpeedMs": 0,
-        "canvasHash": canvas_hash_val,
-        "submitTime": t_now,
-        "timeOnPageMs": time_elapsed_ms
+        "canvasHash": canvas_hash(),
+        "submitTime": now_ms,
+        "timeOnPageMs": time_elapsed_ms,
     }
-    telemetry_payload = base64.b64encode(json.dumps(telemetry_dict, separators=(',', ':')).encode('utf-8')).decode('utf-8')
-    
-    form_data = {
-        'username': clean_username,
-        'password': req_data.password,
-        'captcha': req_data.captcha.strip(),
-        req_data.domain_field: domain_value,
-        req_data.captcha_field: captcha_trap_value,
-        req_data.honeypot_field: '',
-        'fpPayload': fp_payload,
-        'fpToken': '',
-        'recaptchaToken': '',
-        'telemetryPayload': telemetry_payload
-    }
-    encoded_data = urllib.parse.urlencode(form_data, encoding='utf-8').encode('utf-8')
-    
-    # Create a CookieJar opener to handle redirects and cookies automatically
-    import http.cookiejar
-    cj = http.cookiejar.CookieJar()
-    # Note: we need to delay creating the opener until after we parse chosen_proxy from cookies
-    
-    chosen_proxy = None
-    cookie_dict = {}
-    # Parse cookies from session_cookie into a dictionary and CookieJar
-    if req_data.session_cookie:
-        for part in req_data.session_cookie.split(';'):
-            part = part.strip()
-            if not part:
-                continue
-            if '=' in part:
-                k, v = part.split('=', 1)
-                if k == 'SKIPP_PROXY_ID':
-                    chosen_proxy = v
-                    continue
-                if k == 'SKIPP_NONCE':
-                    if not nonce:
-                        nonce = v.strip()
-                    continue
-                cookie_dict[k] = v
-                ck = http.cookiejar.Cookie(version=0, name=k, value=v, port=None, port_specified=False, domain='sp.srmist.edu.in', domain_specified=False, domain_initial_dot=False, path='/', path_specified=False, secure=False, expires=None, discard=True, comment=None, comment_url=None, rest={'HttpOnly': None}, rfc2109=False)
-                cj.set_cookie(ck)
-    
-    opener, chosen_proxy = _get_opener(cj, force_proxy=chosen_proxy)
-    cookie_header_val = "; ".join(f"{k}={v}" for k, v in cookie_dict.items())
-    req_post = urllib.request.Request(LOGIN_SUBMIT_URL, data=encoded_data, headers={
-        'User-Agent': UA,
-        'Cookie': cookie_header_val,
-        'Content-Type': 'application/x-www-form-urlencoded; charset=UTF-8',
-        'Origin': SP_BASE_URL,
-        'Referer': LOGIN_PAGE_URL,
-        'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,image/apng,*/*;q=0.8',
-        'Accept-Language': 'en-US,en;q=0.9',
-        'Sec-Ch-Ua': '"Not/A)Brand";v="8", "Chromium";v="127", "Google Chrome";v="127"',
-        'Sec-Ch-Ua-Mobile': '?0',
-        'Sec-Ch-Ua-Platform': '"Windows"',
-        'Sec-Fetch-Dest': 'document',
-        'Sec-Fetch-Mode': 'navigate',
-        'Sec-Fetch-Site': 'same-origin',
-        'Sec-Fetch-User': '?1',
-        'Upgrade-Insecure-Requests': '1',
-        'Cache-Control': 'max-age=0'
-    })
-    
-    try:
-        res_post = opener.open(req_post, timeout=12)
-        result_html = res_post.read().decode('utf-8', errors='ignore')
-        set_cookies = res_post.info().get_all('Set-Cookie')
-    except Exception as e:
-        if chosen_proxy and chosen_proxy != "DIRECT":
-            print(f"Proxy failed on POST ({e}). Falling back to direct connection...")
-            direct_opener, chosen_proxy = _get_opener(cj, force_proxy="DIRECT")
-            opener = direct_opener
-            try:
-                res_post = opener.open(req_post, timeout=12)
-                result_html = res_post.read().decode('utf-8', errors='ignore')
-                set_cookies = res_post.info().get_all('Set-Cookie')
-            except Exception as direct_err:
-                raise StudentPortalClientError(f"Login request error: {direct_err}") from direct_err
+
+class PortalSession:
+    def __init__(self, proxy: Optional[str] = None):
+        proxy_url = proxy
+        if not proxy_url:
+            proxies = _get_proxies()
+            if proxies:
+                proxy_url = random.choice(proxies)
+        
+        self.proxy = proxy_url
+        if proxy_url and proxy_url != "DIRECT":
+            transport = httpx.AsyncHTTPTransport(retries=1, verify=False, proxy=proxy_url)
         else:
-            # Retry once after brief pause if connection reset or transient error
-            try:
-                time.sleep(1)
-                res_post = opener.open(req_post, timeout=12)
-                result_html = res_post.read().decode('utf-8', errors='ignore')
-                set_cookies = res_post.info().get_all('Set-Cookie')
-            except Exception as retry_err:
-                raise StudentPortalClientError(f"Login request error: {retry_err}") from retry_err
+            transport = httpx.AsyncHTTPTransport(retries=1, verify=False)
 
-    # Update cookies with the cookies from the POST response
-    if set_cookies:
-        for header in set_cookies:
-            main_part = header.split(';')[0].strip()
-            if '=' in main_part:
-                k, v = main_part.split('=', 1)
-                cookie_dict[k] = v
-                ck = http.cookiejar.Cookie(version=0, name=k, value=v, port=None, port_specified=False, domain='sp.srmist.edu.in', domain_specified=False, domain_initial_dot=False, path='/', path_specified=False, secure=False, expires=None, discard=True, comment=None, comment_url=None, rest={'HttpOnly': None}, rfc2109=False)
-                cj.set_cookie(ck)
-        
-    res_lower = result_html.lower()
-    
-    # Extract alert text from HTML if present
-    alert_text = ""
-    if "alert-danger" in res_lower or "alert-icon-content" in res_lower:
-        from bs4 import BeautifulSoup
-        soup_err = BeautifulSoup(result_html, "html.parser")
-        alert_el = soup_err.find(class_=lambda x: x and ("alert-icon-content" in x or "alert-danger" in x))
-        if alert_el:
-            alert_text = alert_el.get_text(strip=True).replace("Alert", "").strip()
-            log.warning("Portal returned alert text: %s", alert_text)
+        self.client = httpx.AsyncClient(
+            transport=transport,
+            headers=HEADERS,
+            follow_redirects=True,
+            timeout=30.0,
+            verify=False
+        )
+        self.nonce: Optional[str] = None
+        self.login_form_fields: Dict[str, str] = {}
+        self.captcha_page: Optional[str] = None
+        self.exposed_captcha_text: Optional[str] = None
+        self.domain_field_name: str = "dtoken_x"
+        self.captcha_field_name: str = "cptoken_x"
+        self.random_delimiter: str = "0000"
+        self.honeypot_field: Optional[str] = None
+        self.load_ms: Optional[int] = None
+        self.captcha_bytes: Optional[bytes] = None
 
-    alert_lower = alert_text.lower()
+    async def load_captcha(self) -> Dict[str, any]:
+        r = await self.client.get(LOGIN_PAGE_URL)
+        text = r.text
+        m = (
+            re.search(r"window\.SECURE_CONFIG\s*=\s*\{[^}]*?nonce\s*:\s*'([^']+)'", text)
+            or re.search(r"window\.SECURE_CONFIG\s*=\s*window\.SECURE_CONFIG\s*\|\|\s*\{\};\s*window\.SECURE_CONFIG\.nonce\s*=\s*'([^']+)'", text)
+            or re.search(r'id="fpNonce"\s*value="([^"]+)"', text)
+            or re.search(r"nonce:\s*'([^']+)'", text)
+        )
+        self.nonce = m.group(1) if m else None
 
-    # 1. Bad Captcha:
-    if "invalid captcha" in alert_lower or "invalid captcha" in res_lower:
-        log.warning("Login failed: Invalid Captcha found in portal HTML response")
-        raise StudentPortalClientError("Invalid captcha.")
-        
-    # 2. Account temporarily locked by SRM:
-    if "temporarily locked" in alert_lower or "temporarily locked" in res_lower:
-        log.warning("Login failed: Account temporarily locked by SRM portal")
-        raise StudentPortalClientError("Your account has been temporarily locked due to multiple unsuccessful attempts. Please try again after 5 minutes.")
-        
-    # 3. Bad username / password / credentials (Active Directory / LDAP error):
-    if (
-        "invalid login credentials" in alert_lower
-        or "invalid credentials" in alert_lower
-        or "user id or password entered is invalid" in alert_lower
-        or "attempts remaining" in alert_lower
-        or "login attempt was unsuccessful" in alert_lower
-        or "invalid login credentials" in res_lower
-        or "invalid credentials" in res_lower
-        or "user id or password entered is invalid" in res_lower
-        or "attempts remaining" in res_lower
-        or "login attempt was unsuccessful" in res_lower
-    ):
-        log.warning("Login failed: Invalid username or password reported by portal: %s", alert_text or "Invalid credentials")
-        if alert_text and ("attempts remaining" in alert_lower or "user id or password" in alert_lower):
-            raise StudentPortalClientError(f"Incorrect NetID or password ({alert_text}). Note that your Student Portal password is your SRM student email password, often different from your Academia password.")
-        raise StudentPortalClientError("Incorrect NetID or password. Note that your Student Portal password is your SRM student email password, often different from your Academia password.")
+        df = re.search(r"""domainFieldName\s*=\s*['"]([^'"]+)['"]""", text)
+        cf = re.search(r"""captchaFieldName\s*=\s*['"]([^'"]+)['"]""", text)
+        self.domain_field_name = df.group(1) if df else "dtoken_x"
+        self.captcha_field_name = cf.group(1) if cf else "cptoken_x"
 
-    # 4. Any other alert returned by portal:
-    if alert_text:
-        log.warning("Login failed: Server returned alert: %s", alert_text)
-        raise StudentPortalClientError(f"Login failed: {alert_text}")
+        hp = re.search(r'id="(ph_[a-f0-9]+)"', text)
+        self.honeypot_field = hp.group(1) if hp else "ph_cf19b370"
 
-    if "theGR8LoginLoader" in result_html or "thegr8loginloader" in result_html.lower():
-        log.info("Login successful, following theGR8LoginLoader redirect...")
-        target_url = f"{SP_BASE_URL}/srmiststudentportal/students/loginManager/youLogin.jsp"
-        form_payload = b""
-        form_method = "POST"
-        try:
+        rd = re.search(r"""randomDelimiter\s*=\s*['"]([^'"]+)['"]""", text)
+        self.random_delimiter = rd.group(1) if rd else "0000"
+
+        fields = {}
+        for inp in re.finditer(r"<input[^>]*name=['\"]([^'\"]+)['\"][^>]*>", text):
+            fields[inp.group(1)] = ""
+        self.login_form_fields = fields
+
+        m_cap = re.search(r"SCaptchaServlet[^'\" ]*", text)
+        captcha_url = None
+        if m_cap:
+            seg = m_cap.group(0)
+            captcha_url = BASE_URL + "/" + seg if not seg.startswith("/") else SP_BASE_URL + seg
+
+        img_b64 = None
+        if captcha_url:
+            proof = base64.b64encode(f"{self.nonce}:sp.srmist.edu.in".encode()).decode()
+            cr = await self.client.get(captcha_url, headers={
+                "X-Domain-Proof": proof,
+                "Accept": "image/png, image/jpeg, image/svg+xml, image/*",
+                "Referer": LOGIN_PAGE_URL,
+            })
+            if cr.status_code == 200:
+                img_b64 = base64.b64encode(cr.content).decode()
+                self.captcha_bytes = cr.content
+
+        self.captcha_page = text
+        self.load_ms = int(time.time() * 1000)
+        return {
+            "captcha_image": f"data:image/png;base64,{img_b64}" if img_b64 else None,
+            "nonce": self.nonce or "",
+            "domain_field": self.domain_field_name,
+            "captcha_field": self.captcha_field_name,
+            "random_delim": self.random_delimiter,
+            "honeypot_field": self.honeypot_field,
+        }
+
+    async def login(self, username: str, password: str, captcha: str) -> Dict[str, any]:
+        if not self.captcha_page:
+            await self.load_captcha()
+
+        now_ms = int(time.time() * 1000)
+        calc_elapsed = max(0, int((now_ms - (self.load_ms or now_ms)) / 1000))
+        elapsed_sec = max(random.randint(3, 5), calc_elapsed)
+        start_time_ms = now_ms - (elapsed_sec * 1000 + random.randint(150, 650))
+
+        dtoken = base64.b64encode("sp.srmist.edu.in"[::-1].encode()).decode()
+        trap_payload = str(elapsed_sec) + (self.random_delimiter or "0000") + "3"
+        cptoken = base64.b64encode(trap_payload.encode()).decode()
+
+        fp_payload = base64.b64encode(json.dumps({
+            "fp": "",
+            "nonce": self.nonce or "",
+            "ts": now_ms
+        }).encode()).decode()
+
+        payload = base64.b64encode(json.dumps(
+            telemetry_payload(now_ms, start_time_ms),
+            separators=(',', ':')
+        ).encode('utf-8')).decode('utf-8')
+
+        fp_body = dict(self.login_form_fields)
+        fp_body.update({
+            "username": username,
+            "password": password,
+            "captcha": captcha.strip(),
+            "fpPayload": fp_payload,
+            "fpToken": "",
+            "recaptchaToken": "",
+            "telemetryPayload": payload,
+        })
+        fp_body[self.domain_field_name] = dtoken
+        fp_body[self.captcha_field_name] = cptoken
+        if self.honeypot_field:
+            fp_body[self.honeypot_field] = ""
+
+        resp = await self.client.post(LOGIN_SUBMIT_URL, data=fp_body)
+        body = resp.text or ""
+
+        # Follow theGR8LoginLoader redirect if present
+        if "thegr8loginloader" in body.lower():
             from bs4 import BeautifulSoup
-            soup_loader = BeautifulSoup(result_html, "html.parser")
+            soup_loader = BeautifulSoup(body, "html.parser")
             loader_form = soup_loader.find("form", id=lambda x: x and "loginloader" in str(x).lower()) or soup_loader.find("form")
             if loader_form:
                 action = loader_form.get("action")
+                target_url = f"{BASE_URL}/students/loginManager/youLogin.jsp"
                 if action:
                     if action.startswith("http"):
                         target_url = action
                     elif action.startswith("/"):
                         target_url = f"{SP_BASE_URL}{action}"
                     else:
-                        target_url = f"{SP_BASE_URL}/srmiststudentportal/students/loginManager/{action}"
-                form_method = (loader_form.get("method") or "POST").upper()
+                        target_url = f"{BASE_URL}/students/loginManager/{action}"
                 inputs = {
                     inp.get("name"): inp.get("value", "")
                     for inp in loader_form.find_all("input")
                     if inp.get("name")
                 }
-                if inputs:
-                    form_payload = urllib.parse.urlencode(inputs).encode()
-        except Exception as parse_err:
-            print(f"Could not parse loader form: {parse_err}")
+                resp = await self.client.post(target_url, data=inputs)
+                body = resp.text or ""
 
-        cookie_header_val = "; ".join(f"{k}={v}" for k, v in cookie_dict.items())
-        redirect_headers = {
-            'User-Agent': UA,
-            'Cookie': cookie_header_val,
-            'Referer': LOGIN_PAGE_URL,
-            'Origin': SP_BASE_URL
+        res_lower = body.lower()
+        success_indicators = (
+            "welcome", "attendance", "dashboard", "logout", "hrdsystem",
+            "student", "portal", "srmist", "timetable", "internal"
+        )
+        if any(k in res_lower for k in success_indicators) and "invalid login credentials" not in res_lower and "invalid captcha" not in res_lower:
+            return {"ok": True, "cookies": {c.name: c.value for c in self.client.cookies.jar}}
+
+        att_check = await self.get_attendance_html()
+        if att_check:
+            return {"ok": True, "cookies": {c.name: c.value for c in self.client.cookies.jar}}
+
+        failure_info = self.classify_failure(resp.url.path, body)
+        return {
+            "ok": False,
+            "reason": failure_info.get("reason", "login_failed"),
+            "message": failure_info.get("message", "Login failed"),
+            "raw_body": body
         }
-        if form_method == "POST":
-            redirect_headers['Content-Type'] = 'application/x-www-form-urlencoded'
-            req_redirect = urllib.request.Request(
-                target_url,
-                data=form_payload,
-                headers=redirect_headers,
-                method="POST"
-            )
-        else:
-            req_redirect = urllib.request.Request(target_url, headers=redirect_headers)
 
-        try:
-            res_redirect = opener.open(req_redirect, timeout=10)
-            result_html = res_redirect.read().decode('utf-8', errors='ignore')
-            set_cookies_red = res_redirect.info().get_all('Set-Cookie')
-            if set_cookies_red:
-                for header in set_cookies_red:
-                    main_part = header.split(';')[0].strip()
-                    if '=' in main_part:
-                        k, v = main_part.split('=', 1)
-                        cookie_dict[k] = v
-                        ck = http.cookiejar.Cookie(version=0, name=k, value=v, port=None, port_specified=False, domain='sp.srmist.edu.in', domain_specified=False, domain_initial_dot=False, path='/', path_specified=False, secure=False, expires=None, discard=True, comment=None, comment_url=None, rest={'HttpOnly': None}, rfc2109=False)
-                        cj.set_cookie(ck)
-        except urllib.error.HTTPError as e:
-            raise StudentPortalClientError(f"Login redirect failed: {e.code}") from e
-        except Exception as e:
-            raise StudentPortalClientError(f"Login redirect error: {e}") from e
-
-    res_lower = result_html.lower()
-    success_indicators = (
-        "welcome",
-        "attendance",
-        "dashboard",
-        "thegr8loginloader",
-        "logout",
-        "hrdsystem",
-        "student",
-        "portal",
-        "srmist",
-        "timetable",
-        "internal",
-    )
-    if not any(k in res_lower for k in success_indicators):
-        log.warning("Login failed: Unknown response, size %d", len(result_html))
-        raise StudentPortalClientError("Failed to login, unknown response.")
-
-    cookie_header_val = "; ".join(f"{k}={v}" for k, v in cookie_dict.items())
-    # Fetch HRDSystem.jsp to initialize dashboard session
-    req_hrd = urllib.request.Request(f"{SP_BASE_URL}/srmiststudentportal/students/template/HRDSystem.jsp", headers={
-        'User-Agent': UA,
-        'Cookie': cookie_header_val,
-        'Referer': LOGIN_PAGE_URL
-    })
-    hrd_html = ""
-    try:
-        res_hrd = opener.open(req_hrd, timeout=10)
-        hrd_html = res_hrd.read().decode('utf-8', errors='ignore')
-        set_cookies_hrd = res_hrd.info().get_all('Set-Cookie')
-        if set_cookies_hrd:
-            for header in set_cookies_hrd:
-                main_part = header.split(';')[0].strip()
-                if '=' in main_part:
-                    k, v = main_part.split('=', 1)
-                    cookie_dict[k] = v
-    except Exception as e:
-        log.warning("HRDSystem fetch failed: %s", e)
-
-    hrd_referer = f"{SP_BASE_URL}/srmiststudentportal/students/template/HRDSystem.jsp"
-    from core.student_portal import looks_signed_out
-
-    def _fetch_page(url: str) -> str:
-        cookie_hdr = "; ".join(f"{k}={v}" for k, v in cookie_dict.items())
-        for attempt in range(2):
-            post_html = ""
-            try:
-                req = urllib.request.Request(url, data=b"", headers={
-                    'User-Agent': UA,
-                    'Cookie': cookie_hdr,
-                    'Referer': hrd_referer,
-                    'Content-Type': 'application/x-www-form-urlencoded',
-                    'Cache-Control': 'no-cache, no-store, must-revalidate',
-                    'Pragma': 'no-cache',
-                    'Expires': '0'
-                }, method="POST")
-                res = opener.open(req, timeout=12)
-                post_html = res.read().decode('utf-8', errors='ignore')
-                if post_html and not looks_signed_out(post_html):
-                    return post_html
-            except Exception as e:
-                log.info("POST fetch attempt %d failed for %s: %s", attempt + 1, url, e)
-
-            # Fallback to GET
-            try:
-                req_get = urllib.request.Request(url, headers={
-                    'User-Agent': UA,
-                    'Cookie': cookie_hdr,
-                    'Referer': hrd_referer,
-                    'Cache-Control': 'no-cache, no-store, must-revalidate',
-                    'Pragma': 'no-cache',
-                    'Expires': '0'
-                })
-                res_get = opener.open(req_get, timeout=12)
-                get_html = res_get.read().decode('utf-8', errors='ignore')
-                if get_html and not looks_signed_out(get_html):
-                    return get_html
-                if get_html and not post_html:
-                    post_html = get_html
-            except Exception as e:
-                print(f"GET fetch attempt {attempt + 1} failed for {url}: {e}")
-
-            if attempt == 0:
-                time.sleep(1)
-
-        return post_html
-
-    att_html: Optional[str] = None
-    marks_html: Optional[str] = None
-    tt_html: Optional[str] = None
-
-    # Fetch attendance, marks, and timetable sequentially to avoid dropping connections
-    try:
-        att_html = _fetch_page(ATTENDANCE_URL)
-    except Exception as e:
-        raise StudentPortalClientError(f"Failed to fetch attendance: {e}") from e
-
-    try:
-        marks_html = _fetch_page(MARKS_URL)
-    except Exception as e:
-        print(f"Failed to fetch marks: {e}")
-        marks_html = None
-
-    try:
-        tt_html = _fetch_page(TIMETABLE_URL)
-    except Exception as e:
-        print(f"Failed to fetch timetable: {e}")
-        tt_html = None
-
-    # Fallback to hrd_html if tt_html is empty or doesn't have the timetable table
-    if (not tt_html or "day 1" not in tt_html.lower()) and "day 1" in hrd_html.lower():
-        tt_html = hrd_html
+    @staticmethod
+    def classify_failure(path: str, body: str) -> Dict[str, str]:
+        from bs4 import BeautifulSoup
+        soup = BeautifulSoup(body, "html.parser")
+        alert_el = soup.find(class_=lambda c: c and ("alert-icon-content" in c or "alert-danger" in c))
         
-    cookie_header_val = "; ".join(f"{k}={v}" for k, v in cookie_dict.items())
-    if chosen_proxy:
-        cookie_header_val += f"; SKIPP_PROXY_ID={chosen_proxy}"
+        alert_text = ""
+        if alert_el:
+            alert_text = alert_el.get_text(separator=" ", strip=True)
+            if alert_text.lower().startswith("alert"):
+                alert_text = alert_text[5:].strip()
 
-    return att_html, marks_html, tt_html, cookie_header_val
+        blob = (alert_text + " " + body).lower()
+        if "invalid captcha" in blob:
+            return {
+                "reason": "wrong_captcha",
+                "message": alert_text or "Invalid captcha.",
+            }
+        if "locked" in blob:
+            return {
+                "reason": "account_locked",
+                "message": alert_text or "Your account has been temporarily locked due to multiple unsuccessful attempts. Please try again after 5 minutes.",
+            }
+        if (
+            "invalid login credentials" in blob
+            or "invalid credentials" in blob
+            or "attempts remaining" in blob
+            or "user id or password" in blob
+            or "unsuccessful" in blob
+        ):
+            return {
+                "reason": "invalid_credentials",
+                "message": alert_text or "Incorrect NetID or password.",
+            }
 
+        if "session" in blob and ("expire" in blob or "timeout" in blob):
+            return {"reason": "session_expired", "message": "Session expired, refresh and retry."}
+        return {"reason": "login_failed", "message": alert_text or "Login failed."}
 
-def refresh_session_and_fetch(session_cookie: str) -> Tuple[str, Optional[str], Optional[str], str]:
-    """Uses an existing authenticated session cookie to fetch fresh attendance and marks without re-login."""
+    async def get_attendance_html(self) -> Optional[str]:
+        try:
+            r = await self.client.get(ATTENDANCE_URL)
+            if (
+                r.status_code != 200 
+                or "youlogin" in str(r.url).lower() 
+                or "login" in str(r.url).lower() 
+                or "loginform" in r.text.lower() 
+                or "login_form" in r.text.lower() 
+                or "thegr8loginloader" in r.text.lower()
+            ):
+                return None
+            return r.text
+        except Exception as e:
+            log.warning("Network error fetching attendance: %s", e)
+            return None
+
+    async def get_marks_html(self) -> Optional[str]:
+        try:
+            r = await self.client.get(MARKS_URL)
+            if r.status_code == 200 and "table" in r.text.lower():
+                return r.text
+        except Exception as e:
+            log.warning("Network error fetching marks: %s", e)
+        return None
+
+    async def get_timetable_html(self) -> Optional[str]:
+        try:
+            payload = {
+                "iden": "10",
+                "filter": "",
+                "hdnFormDetails": "1",
+                "csrfPreventionSalt": ""
+            }
+            r = await self.client.post(TIMETABLE_URL, data=payload)
+            if r.status_code == 200 and "table" in r.text.lower() and "day 1" in r.text.lower():
+                return r.text
+        except Exception as e:
+            log.warning("Network error fetching timetable: %s", e)
+        return None
+
+class PortalClient:
+    def __init__(self, cookies: Optional[Dict[str, str]] = None, proxy: Optional[str] = None):
+        proxy_url = proxy
+        if not proxy_url:
+            proxies = _get_proxies()
+            if proxies:
+                proxy_url = random.choice(proxies)
+
+        if proxy_url and proxy_url != "DIRECT":
+            transport = httpx.AsyncHTTPTransport(retries=1, verify=False, proxy=proxy_url)
+        else:
+            transport = httpx.AsyncHTTPTransport(retries=1, verify=False)
+
+        self.client = httpx.AsyncClient(
+            transport=transport,
+            headers=HEADERS,
+            follow_redirects=True,
+            timeout=30.0,
+            verify=False
+        )
+        if cookies:
+            self.client.cookies.update(cookies)
+
+    async def get_attendance_html(self) -> Optional[str]:
+        try:
+            r = await self.client.get(ATTENDANCE_URL)
+            if (
+                r.status_code != 200 
+                or "youlogin" in str(r.url).lower() 
+                or "login" in str(r.url).lower() 
+                or "loginform" in r.text.lower() 
+                or "login_form" in r.text.lower() 
+                or "thegr8loginloader" in r.text.lower()
+            ):
+                return None
+            return r.text
+        except Exception as e:
+            log.warning("Network error fetching attendance: %s", e)
+            return None
+
+    async def get_marks_html(self) -> Optional[str]:
+        try:
+            r = await self.client.get(MARKS_URL)
+            if r.status_code == 200 and "table" in r.text.lower():
+                return r.text
+        except Exception as e:
+            log.warning("Network error fetching marks: %s", e)
+        return None
+
+    async def get_timetable_html(self) -> Optional[str]:
+        try:
+            payload = {
+                "iden": "10",
+                "filter": "",
+                "hdnFormDetails": "1",
+                "csrfPreventionSalt": ""
+            }
+            r = await self.client.post(TIMETABLE_URL, data=payload)
+            if r.status_code == 200 and "table" in r.text.lower() and "day 1" in r.text.lower():
+                return r.text
+        except Exception as e:
+            log.warning("Network error fetching timetable: %s", e)
+        return None
+
+_active_portal_sessions: Dict[str, PortalSession] = {}
+
+def _prune_portal_sessions():
+    if len(_active_portal_sessions) > 50:
+        keys_to_remove = list(_active_portal_sessions.keys())[:15]
+        for k in keys_to_remove:
+            old_sess = _active_portal_sessions.pop(k, None)
+            if old_sess:
+                try:
+                    import asyncio
+                    asyncio.create_task(old_sess.client.aclose())
+                except Exception:
+                    pass
+
+async def init_login_session() -> StudentPortalCaptchaResponse:
+    sid = secrets.token_hex(16)
+    session = PortalSession()
+    info = await session.load_captcha()
+    _active_portal_sessions[sid] = session
+    _prune_portal_sessions()
+
+    cookie_parts = [f"SKIPP_SID={sid}"]
+    if session.proxy:
+        cookie_parts.append(f"SKIPP_PROXY_ID={session.proxy}")
+    if session.nonce:
+        cookie_parts.append(f"SKIPP_NONCE={session.nonce}")
+    for c in session.client.cookies.jar:
+        cookie_parts.append(f"{c.name}={c.value}")
+
+    cookie_str = "; ".join(cookie_parts)
+    return StudentPortalCaptchaResponse(
+        session_cookie=cookie_str,
+        domain_field=info["domain_field"],
+        captcha_field=info["captcha_field"],
+        random_delim=info["random_delim"],
+        honeypot_field=info["honeypot_field"],
+        nonce=info["nonce"],
+        captcha_base64=info["captcha_image"],
+        page_load_time=time.time()
+    )
+
+async def submit_login_and_fetch(req_data: StudentPortalLoginRequest) -> Tuple[str, Optional[str], Optional[str], str]:
+    clean_username = req_data.username.strip().lower()
+    if "@" in clean_username:
+        clean_username = clean_username.split("@")[0].strip()
+
+    sid = None
+    if req_data.session_cookie:
+        for part in req_data.session_cookie.split(';'):
+            part = part.strip()
+            if part.startswith('SKIPP_SID='):
+                sid = part.split('=', 1)[1].strip()
+                break
+
+    session = _active_portal_sessions.pop(sid, None) if sid else None
+    if not session:
+        session = PortalSession()
+        await session.load_captcha()
+
+    res = await session.login(clean_username, req_data.password, req_data.captcha)
+    if not res.get("ok"):
+        reason = res.get("reason", "login_failed")
+        msg = res.get("message", "Login failed")
+        if reason == "account_locked":
+            raise StudentPortalClientError("Your account has been temporarily locked due to multiple unsuccessful attempts. Please try again after 5 minutes.")
+        if reason == "wrong_captcha":
+            raise StudentPortalClientError("Invalid captcha.")
+        if reason == "invalid_credentials":
+            raise StudentPortalClientError(f"Incorrect NetID or password ({msg}). Note that your Student Portal password is your SRM student email password, often different from your Academia password.")
+        raise StudentPortalClientError(msg)
+
+    att_html = await session.get_attendance_html()
+    marks_html = await session.get_marks_html()
+    tt_html = await session.get_timetable_html()
+
+    if not att_html:
+        raise StudentPortalClientError("Failed to fetch attendance details.")
+
+    cookie_str = "; ".join(f"{c.name}={c.value}" for c in session.client.cookies.jar)
+    return att_html, marks_html, tt_html, cookie_str
+
+async def refresh_session_and_fetch(session_cookie: str) -> Tuple[str, Optional[str], Optional[str], str]:
     if not session_cookie or not session_cookie.strip():
         raise StudentPortalClientError("session_expired")
 
-    import http.cookiejar
-    cj = http.cookiejar.CookieJar()
-    chosen_proxy = None
-    cookie_dict = {}
-
+    cookies_dict = {}
     for part in session_cookie.split(';'):
         part = part.strip()
-        if not part:
+        if not part or part.startswith('SKIPP_'):
             continue
         if '=' in part:
             k, v = part.split('=', 1)
-            if k == 'SKIPP_PROXY_ID':
-                chosen_proxy = v
-                continue
-            cookie_dict[k] = v
-            ck = http.cookiejar.Cookie(
-                version=0, name=k, value=v, port=None, port_specified=False,
-                domain='sp.srmist.edu.in', domain_specified=False, domain_initial_dot=False,
-                path='/', path_specified=False, secure=False, expires=None, discard=True,
-                comment=None, comment_url=None, rest={'HttpOnly': None}, rfc2109=False
-            )
-            cj.set_cookie(ck)
+            cookies_dict[k] = v
 
-    opener, chosen_proxy = _get_opener(cj, force_proxy=chosen_proxy)
-
-    from core.student_portal import looks_signed_out
-
-    def _fetch_with_cookie(url: str) -> str:
-        cookie_hdr = "; ".join(f"{k}={v}" for k, v in cookie_dict.items())
-        headers = {
-            'User-Agent': UA,
-            'Cookie': cookie_hdr,
-            'Referer': f"{SP_BASE_URL}/srmiststudentportal/students/template/HRDSystem.jsp",
-            'Content-Type': 'application/x-www-form-urlencoded',
-            'Cache-Control': 'no-cache, no-store, must-revalidate',
-            'Pragma': 'no-cache',
-            'Expires': '0'
-        }
-        # First attempt POST with empty payload
-        try:
-            req = urllib.request.Request(url, data=b"", headers=headers, method="POST")
-            res = opener.open(req, timeout=10)
-            html = res.read().decode('utf-8', errors='ignore')
-            set_cookies = res.info().get_all('Set-Cookie')
-            if set_cookies:
-                for sc in set_cookies:
-                    mp = sc.split(';')[0].strip()
-                    if '=' in mp:
-                        k, v = mp.split('=', 1)
-                        cookie_dict[k] = v
-            if html and not looks_signed_out(html):
-                return html
-        except Exception as e:
-            log.warning("POST fetch failed on refresh for %s: %s", url, e)
-
-        # Fallback to GET
-        try:
-            get_headers = dict(headers)
-            get_headers.pop('Content-Type', None)
-            req_get = urllib.request.Request(url, headers=get_headers)
-            res_get = opener.open(req_get, timeout=10)
-            html = res_get.read().decode('utf-8', errors='ignore')
-            set_cookies = res_get.info().get_all('Set-Cookie')
-            if set_cookies:
-                for sc in set_cookies:
-                    mp = sc.split(';')[0].strip()
-                    if '=' in mp:
-                        k, v = mp.split('=', 1)
-                        cookie_dict[k] = v
-            return html
-        except Exception as e:
-            log.warning("GET fetch failed on refresh for %s: %s", url, e)
-            return ""
-
-    att_html = _fetch_with_cookie(ATTENDANCE_URL)
-    if not att_html or looks_signed_out(att_html):
-        log.info("Student portal session expired on refresh")
+    client = PortalClient(cookies=cookies_dict)
+    att_html = await client.get_attendance_html()
+    if not att_html:
         raise StudentPortalClientError("session_expired")
+    marks_html = await client.get_marks_html()
+    tt_html = await client.get_timetable_html()
 
-    marks_html = _fetch_with_cookie(MARKS_URL)
-    if marks_html and looks_signed_out(marks_html):
-        marks_html = None
-
-    updated_cookie_str = "; ".join(f"{k}={v}" for k, v in cookie_dict.items())
-    if chosen_proxy:
-        updated_cookie_str += f"; SKIPP_PROXY_ID={chosen_proxy}"
-
-    return att_html, marks_html, None, updated_cookie_str
+    cookie_str = "; ".join(f"{c.name}={c.value}" for c in client.client.cookies.jar)
+    return att_html, marks_html, tt_html, cookie_str

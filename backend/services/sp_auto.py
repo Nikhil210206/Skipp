@@ -1,83 +1,79 @@
 import base64
 import logging
+import re
 from typing import Tuple, Optional
+import ddddocr
 
 from core.student_portal_client import (
-    init_login_session,
-    submit_login_and_fetch,
+    PortalSession,
     StudentPortalClientError,
 )
-from models.student_portal import StudentPortalLoginRequest
-import ddddocr
 
 log = logging.getLogger("skipp.api.sp_auto")
 
-# Initialize ddddocr globally so it doesn't reload the model on every request
 ocr = ddddocr.DdddOcr(show_ad=False)
 
-def auto_login_and_fetch(username: str, password: str) -> Tuple[str, Optional[str], Optional[str], str]:
+async def auto_login_and_fetch(username: str, password: str) -> Tuple[str, Optional[str], Optional[str], str]:
     """
     Attempts to login to the student portal automatically by solving the CAPTCHA.
     Limits submissions to at most 1 attempt to ensure we never risk hitting SRM's account lockout.
     """
-    max_captcha_fetches = 5
-    max_submissions = 1
+    clean_username = username.strip().lower()
+    if "@" in clean_username:
+        clean_username = clean_username.split("@")[0].strip()
+
+    max_captcha_fetches = 4
     submissions_done = 0
     last_error = None
 
     for fetch_attempt in range(max_captcha_fetches):
-        if submissions_done >= max_submissions:
+        if submissions_done >= 1:
             break
 
+        session = PortalSession()
         try:
-            log.info(f"Auto-login captcha fetch {fetch_attempt + 1} for {username}")
-            
-            # 1. Initialize session and get captcha
-            session_data = init_login_session()
-            
-            # 2. Decode the captcha image base64
-            b64_str = session_data.captcha_base64.split(",", 1)[1]
-            image_bytes = base64.b64decode(b64_str)
-            
-            # 3. Solve the captcha
-            raw_captcha = ocr.classification(image_bytes)
-            import re
+            log.info(f"Auto-login captcha fetch {fetch_attempt + 1} for {clean_username}")
+            info = await session.load_captcha()
+            if not session.captcha_bytes:
+                continue
+
+            raw_captcha = ocr.classification(session.captcha_bytes)
             captcha_text = re.sub(r"[^a-zA-Z0-9]", "", raw_captcha).strip()
-            
-            # SRM student portal captchas are strictly 6 alphanumeric characters.
-            # If OCR returned anything other than 6 characters, do not submit a guaranteed failure.
+
             if len(captcha_text) != 6:
                 log.info(f"Fetch {fetch_attempt + 1}: OCR returned invalid length {len(captcha_text)} ({captcha_text}), refreshing captcha...")
                 continue
-            
-            # 4. Submit login (counts toward max_submissions)
+
             submissions_done += 1
-            log.info(f"Submitting login attempt {submissions_done}/{max_submissions} for {username} with captcha '{captcha_text}'")
-            req = StudentPortalLoginRequest(
-                username=username,
-                password=password,
-                captcha=captcha_text,
-                session_cookie=session_data.session_cookie,
-                domain_field=session_data.domain_field,
-                captcha_field=session_data.captcha_field,
-                random_delim=session_data.random_delim,
-                honeypot_field=session_data.honeypot_field,
-                nonce=session_data.nonce,
-                page_load_time=session_data.page_load_time
-            )
-            
-            return submit_login_and_fetch(req)
-            
+            log.info(f"Submitting login attempt {submissions_done}/1 for {clean_username} with captcha '{captcha_text}'")
+            res = await session.login(clean_username, password, captcha_text)
+
+            if res.get("ok"):
+                att_html = await session.get_attendance_html()
+                marks_html = await session.get_marks_html()
+                tt_html = await session.get_timetable_html()
+                if not att_html:
+                    raise StudentPortalClientError("Failed to fetch attendance details.")
+                cookie_str = "; ".join(f"{c.name}={c.value}" for c in session.client.cookies.jar)
+                return att_html, marks_html, tt_html, cookie_str
+
+            reason = res.get("reason", "login_failed")
+            msg = res.get("message", "Login failed")
+            if reason == "wrong_captcha":
+                last_error = StudentPortalClientError("Invalid captcha.")
+                continue
+            if reason == "account_locked":
+                raise StudentPortalClientError("Your account has been temporarily locked due to multiple unsuccessful attempts. Please try again after 5 minutes.")
+            if reason == "invalid_credentials":
+                raise StudentPortalClientError(f"Incorrect NetID or password ({msg}). Note that your Student Portal password is your SRM student email password, often different from your Academia password.")
+            raise StudentPortalClientError(msg)
+
         except StudentPortalClientError as e:
-            error_msg = str(e).lower()
-            if "captcha" in error_msg or "unknown response" in error_msg or "security verification failed" in error_msg or "security check failed" in error_msg:
-                log.info(f"CAPTCHA / portal verification failed on submission {submissions_done}: {e}")
+            if "captcha" in str(e).lower():
                 last_error = e
                 continue
-            else:
-                # Genuine invalid credentials or account locked should fail immediately
-                raise
+            raise
 
     if last_error:
         raise last_error
-    raise StudentPortalClientError("Failed to solve portal CAPTCHA. Please try again or sign in manually.")
+    raise StudentPortalClientError("Failed to solve portal CAPTCHA. Please enter the captcha manually.")

@@ -507,10 +507,10 @@ from core.student_portal_client import init_login_session, submit_login_and_fetc
 from models.student_portal import StudentPortalCaptchaResponse, StudentPortalLoginRequest, StudentPortalRefreshRequest
 
 @app.get("/sp/captcha", response_model=StudentPortalCaptchaResponse)
-def sp_captcha() -> StudentPortalCaptchaResponse:
+async def sp_captcha() -> StudentPortalCaptchaResponse:
     """Initialize a student portal login session and return the captcha."""
     try:
-        return init_login_session()
+        return await init_login_session()
     except StudentPortalClientError as e:
         raise _fail(502, "upstream_error", str(e))
 
@@ -584,7 +584,7 @@ def sp_parse(req: StudentPortalParseRequest, request: Request) -> StudentPortalS
 
 
 @app.post("/sp/login", response_model=StudentPortalSnapshot)
-def sp_login(req: StudentPortalLoginRequest, request: Request) -> StudentPortalSnapshot:
+async def sp_login(req: StudentPortalLoginRequest, request: Request) -> StudentPortalSnapshot:
     """Submit credentials and captcha, simulate anti-bot payload, and fetch attendance."""
     _sp_rate_check(request)
 
@@ -609,7 +609,7 @@ def sp_login(req: StudentPortalLoginRequest, request: Request) -> StudentPortalS
     req.password = clean_password
 
     try:
-        att_html, marks_html, tt_html, cookies = submit_login_and_fetch(req)
+        att_html, marks_html, tt_html, cookies = await submit_login_and_fetch(req)
     except StudentPortalClientError as e:
         msg = str(e)
         log.warning("StudentPortalClientError raised: %s", msg)
@@ -706,7 +706,7 @@ def sp_login(req: StudentPortalLoginRequest, request: Request) -> StudentPortalS
 
 
 @app.post("/sp/refresh", response_model=StudentPortalSnapshot)
-def sp_refresh(req: StudentPortalRefreshRequest, request: Request) -> StudentPortalSnapshot:
+async def sp_refresh(req: StudentPortalRefreshRequest, request: Request) -> StudentPortalSnapshot:
     """Use an active session cookie to refresh attendance and marks without re-authenticating."""
     _sp_rate_check(request)
 
@@ -714,7 +714,7 @@ def sp_refresh(req: StudentPortalRefreshRequest, request: Request) -> StudentPor
         raise _fail(401, "session_expired", "No active portal session found. Please sign in.")
 
     try:
-        att_html, marks_html, tt_html, updated_cookies = refresh_session_and_fetch(req.session_cookie)
+        att_html, marks_html, tt_html, updated_cookies = await refresh_session_and_fetch(req.session_cookie)
     except StudentPortalClientError as e:
         msg = str(e)
         if "session_expired" in msg.lower() or "expired" in msg.lower():
@@ -765,7 +765,7 @@ def sp_refresh(req: StudentPortalRefreshRequest, request: Request) -> StudentPor
 
 
 @app.post("/sp/auto-login", response_model=StudentPortalSnapshot)
-def sp_auto_login(req: LoginRequest, request: Request) -> StudentPortalSnapshot:
+async def sp_auto_login(req: LoginRequest, request: Request) -> StudentPortalSnapshot:
     """Submit credentials and use OCR to bypass captcha automatically."""
     _sp_rate_check(request)
 
@@ -787,7 +787,7 @@ def sp_auto_login(req: LoginRequest, request: Request) -> StudentPortalSnapshot:
         raise _fail(400, "invalid_credentials", "Password should not be empty.")
 
     try:
-        att_html, marks_html, tt_html, cookies = auto_login_and_fetch(clean_username, clean_password)
+        att_html, marks_html, tt_html, cookies = await auto_login_and_fetch(clean_username, clean_password)
     except StudentPortalClientError as e:
         msg = str(e)
         if "temporarily locked" in msg.lower():
