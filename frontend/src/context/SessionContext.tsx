@@ -440,10 +440,10 @@ export function SessionProvider({ children }: { children: React.ReactNode }) {
           cached.attendance,
         );
         setRestoring(false);
-        // Quietly check for fresh data on reload/app start in background if not in cooldown
-        // and not fetched in the last 60 seconds
+        // Seamless auto-sync: check for fresh data on reload/app start in background if not in cooldown
+        // and not fetched in the last 30 seconds
         const recentlyFetched =
-          cached.fetchedAt && Date.now() - Date.parse(cached.fetchedAt) < 60 * 1000;
+          cached.fetchedAt && Date.now() - Date.parse(cached.fetchedAt) < 30 * 1000;
         if (!recentlyFetched && !inCooldown()) {
           void backgroundRefresh(saved, savedMode);
         }
@@ -456,6 +456,24 @@ export function SessionProvider({ children }: { children: React.ReactNode }) {
         if (savedMode === "portal") {
           const sp = await autoStudentPortalLogin(saved);
           snap = synthesizePortalSnapshot(sp, saved.username);
+          if (sp.attendanceStatus === "ready" && sp.attendance) {
+            const titles = new Map(
+              (snap.timetable.courses ?? []).map((c) => [
+                c.code.toUpperCase(),
+                c.title,
+              ]),
+            );
+            const override: PortalOverride = {
+              attendance: enrichTitles(sp.attendance, titles),
+              marks: sp.marksStatus === "ready" ? sp.marks : null,
+              reportedPeriod: sp.reportedPeriod,
+              sessionCookie: sp.sessionCookie || null,
+              fetchedAt: sp.fetchedAt || new Date().toISOString(),
+            };
+            setPortalAtt(override);
+            const studentReg = snap.timetable.student.registrationNumber || saved.username;
+            savePortalOverride(studentReg, override);
+          }
         } else {
           snap = await fetchSnapshot(saved);
         }
@@ -479,11 +497,30 @@ export function SessionProvider({ children }: { children: React.ReactNode }) {
     })();
 
     async function backgroundRefresh(withCreds: Credentials, mode: LoginPortalMode) {
+      setIsAutoSyncing(true);
       try {
         let fresh: Snapshot;
         if (mode === "portal") {
           const sp = await autoStudentPortalLogin(withCreds);
           fresh = synthesizePortalSnapshot(sp, withCreds.username);
+          if (sp.attendanceStatus === "ready" && sp.attendance) {
+            const titles = new Map(
+              (fresh.timetable.courses ?? []).map((c) => [
+                c.code.toUpperCase(),
+                c.title,
+              ]),
+            );
+            const override: PortalOverride = {
+              attendance: enrichTitles(sp.attendance, titles),
+              marks: sp.marksStatus === "ready" ? sp.marks : null,
+              reportedPeriod: sp.reportedPeriod,
+              sessionCookie: sp.sessionCookie || null,
+              fetchedAt: sp.fetchedAt || new Date().toISOString(),
+            };
+            setPortalAtt(override);
+            const studentReg = fresh.timetable.student.registrationNumber || withCreds.username;
+            savePortalOverride(studentReg, override);
+          }
         } else {
           fresh = await fetchSnapshot(withCreds);
         }
@@ -495,16 +532,23 @@ export function SessionProvider({ children }: { children: React.ReactNode }) {
         // Keep showing the cached snapshot; a rate-limit or blip is non-fatal.
         // Recording it is what stops the next launch knocking again.
         noteFailure(e);
+      } finally {
+        setIsAutoSyncing(false);
       }
 
-      // If portal credentials exist, also refresh portal attendance in the background
-      try {
-        const pCreds = await getPortalCredentials();
-        if (pCreds && !cancelled) {
-          await autoImportAttendance(pCreds);
+      // If portal credentials exist and mode is academia, also refresh portal attendance in the background
+      if (mode !== "portal") {
+        try {
+          const pCreds = await getPortalCredentials();
+          if (pCreds && !cancelled) {
+            setIsAutoSyncing(true);
+            await autoImportAttendance(pCreds);
+          }
+        } catch (e) {
+          console.warn("Portal background refresh failed:", e);
+        } finally {
+          setIsAutoSyncing(false);
         }
-      } catch (e) {
-        console.warn("Portal background refresh failed:", e);
       }
     }
 
@@ -707,68 +751,100 @@ export function SessionProvider({ children }: { children: React.ReactNode }) {
   const refreshIfStale = useCallback(async () => {
     if (bgRefreshing.current) return;
     const now = Date.now();
+
+    // Mode 1: Logged in via Student Portal
+    if (loginSource === "portal" && creds && !inCooldown()) {
+      const lastSync = portalAtt?.fetchedAt || snapshot?.fetchedAt;
+      const isStaleData = !lastSync || now - Date.parse(lastSync) > 45 * 1000;
+      if (!isStaleData) return;
+
+      bgRefreshing.current = true;
+      setIsAutoSyncing(true);
+      try {
+        let succeeded = false;
+        if (portalAtt?.sessionCookie) {
+          try {
+            await refreshPortalAttendance(portalAtt.sessionCookie);
+            succeeded = true;
+          } catch (sessionErr) {
+            console.warn("Session refresh failed, falling back to full portal login:", sessionErr);
+          }
+        }
+        if (!succeeded) {
+          const sp = await autoStudentPortalLogin(creds);
+          const fresh = synthesizePortalSnapshot(sp, creds.username);
+          if (sp.attendanceStatus === "ready" && sp.attendance) {
+            const titles = new Map(
+              (fresh.timetable.courses ?? []).map((c) => [c.code.toUpperCase(), c.title]),
+            );
+            const override: PortalOverride = {
+              attendance: enrichTitles(sp.attendance, titles),
+              marks: sp.marksStatus === "ready" ? sp.marks : null,
+              reportedPeriod: sp.reportedPeriod,
+              sessionCookie: sp.sessionCookie || null,
+              fetchedAt: sp.fetchedAt || new Date().toISOString(),
+            };
+            setPortalAtt(override);
+            const studentReg = fresh.timetable.student.registrationNumber || creds.username;
+            savePortalOverride(studentReg, override);
+          }
+          installSnapshot(fresh);
+          void saveSnapshot(fresh);
+        }
+      } catch (e) {
+        noteFailure(e);
+      } finally {
+        setIsAutoSyncing(false);
+        bgRefreshing.current = false;
+      }
+      return;
+    }
+
+    // Mode 2: Logged in via Academia
     const isAcademiaStale = snapshot ? isStale(snapshot.fetchedAt) : false;
     const isPortalStale = portalAtt?.fetchedAt
-      ? now - Date.parse(portalAtt.fetchedAt) > 60 * 1000
+      ? now - Date.parse(portalAtt.fetchedAt) > 45 * 1000
       : true;
 
     const needsAcademia = creds && isAcademiaStale && !inCooldown();
     const needsPortal =
       (portalAtt !== null || (snapshot && snapshot.attendanceStatus !== "ready")) &&
-      (!portalAtt?.fetchedAt || isPortalStale);
+      isPortalStale;
 
     if (!needsAcademia && !needsPortal) return;
 
     bgRefreshing.current = true;
     try {
       if (needsPortal) {
-        if (portalAtt?.sessionCookie) {
-          try {
-            setIsAutoSyncing(true);
-            await refreshPortalAttendance(portalAtt.sessionCookie);
-          } catch (portalErr) {
-            console.error("Portal session refresh failed:", portalErr);
-            if (portalErr instanceof SessionExpiredError) {
-              const pCreds = await getPortalCredentials();
-              if (pCreds) {
-                try {
-                  await autoImportAttendance(pCreds);
-                } catch (autoErr) {
-                  console.error("Auto import fallback failed after session expiry:", autoErr);
-                }
-              }
-            }
-          } finally {
-            setIsAutoSyncing(false);
-          }
-        } else {
-          const pCreds = await getPortalCredentials();
-          if (pCreds) {
+        setIsAutoSyncing(true);
+        try {
+          let succeeded = false;
+          if (portalAtt?.sessionCookie) {
             try {
-              setIsAutoSyncing(true);
-              await autoImportAttendance(pCreds);
+              await refreshPortalAttendance(portalAtt.sessionCookie);
+              succeeded = true;
             } catch (portalErr) {
-              console.error("Portal attendance background update failed:", portalErr);
-            } finally {
-              setIsAutoSyncing(false);
+              console.warn("Portal session refresh failed:", portalErr);
             }
           }
+          if (!succeeded) {
+            const pCreds = await getPortalCredentials();
+            if (pCreds) {
+              await autoImportAttendance(pCreds);
+            }
+          }
+        } finally {
+          setIsAutoSyncing(false);
         }
       }
 
       if (needsAcademia && creds) {
-        let fresh: Snapshot;
-        if (loginSource === "portal") {
-          const sp = await autoStudentPortalLogin(creds);
-          fresh = synthesizePortalSnapshot(sp, creds.username);
-        } else {
-          fresh = await fetchSnapshot(creds);
-        }
+        const fresh = await fetchSnapshot(creds);
         installSnapshot(fresh);
         void saveSnapshot(fresh);
       }
     } catch (e) {
-      noteFailure(e); // keep cache, and stop knocking
+      noteFailure(e);
     } finally {
       bgRefreshing.current = false;
     }
@@ -776,7 +852,7 @@ export function SessionProvider({ children }: { children: React.ReactNode }) {
 
   // Refresh when the app is reopened / brought back to the foreground, if the
   // cached data has gone stale, so a class update shows up without any manual
-  // action, while the 15-min guard keeps sign-ins rare.
+  // action.
   useEffect(() => {
     const onFocus = () => {
       if (document.visibilityState === "visible") void refreshIfStale();
@@ -789,11 +865,11 @@ export function SessionProvider({ children }: { children: React.ReactNode }) {
     };
   }, [refreshIfStale]);
 
-  // Periodic background check every 5 minutes when app remains open
+  // Periodic background check every 2.5 minutes when app remains open
   useEffect(() => {
     const interval = setInterval(() => {
       void refreshIfStale();
-    }, 5 * 60 * 1000);
+    }, 2.5 * 60 * 1000);
     return () => clearInterval(interval);
   }, [refreshIfStale]);
 
@@ -802,8 +878,9 @@ export function SessionProvider({ children }: { children: React.ReactNode }) {
   useEffect(() => {
     if (!snapshot) return;
     
-    // Skip if we recently synced portal (within the last 60 seconds)
-    if (portalAtt?.fetchedAt && (Date.now() - Date.parse(portalAtt.fetchedAt) < 60 * 1000)) return;
+    // Skip if we recently synced portal (within the last 45 seconds)
+    const lastSync = portalAtt?.fetchedAt || snapshot.fetchedAt;
+    if (lastSync && (Date.now() - Date.parse(lastSync) < 45 * 1000)) return;
 
     if (hasAttemptedSilentSync.current) return;
     hasAttemptedSilentSync.current = true;
@@ -811,15 +888,60 @@ export function SessionProvider({ children }: { children: React.ReactNode }) {
     let isMounted = true;
     const silentSync = async () => {
       try {
-        if (portalAtt?.sessionCookie && isMounted) {
+        if (loginSource === "portal" && creds) {
           setIsAutoSyncing(true);
-          await refreshPortalAttendance(portalAtt.sessionCookie);
+          let succeeded = false;
+          if (portalAtt?.sessionCookie && isMounted) {
+            try {
+              await refreshPortalAttendance(portalAtt.sessionCookie);
+              succeeded = true;
+            } catch (sessionErr) {
+              console.warn("Session refresh failed, falling back to full portal login:", sessionErr);
+            }
+          }
+          if (!succeeded && isMounted) {
+            const sp = await autoStudentPortalLogin(creds);
+            if (isMounted) {
+              const fresh = synthesizePortalSnapshot(sp, creds.username);
+              if (sp.attendanceStatus === "ready" && sp.attendance) {
+                const titles = new Map(
+                  (fresh.timetable.courses ?? []).map((c) => [c.code.toUpperCase(), c.title]),
+                );
+                const override: PortalOverride = {
+                  attendance: enrichTitles(sp.attendance, titles),
+                  marks: sp.marksStatus === "ready" ? sp.marks : null,
+                  reportedPeriod: sp.reportedPeriod,
+                  sessionCookie: sp.sessionCookie || null,
+                  fetchedAt: sp.fetchedAt || new Date().toISOString(),
+                };
+                setPortalAtt(override);
+                const studentReg = fresh.timetable.student.registrationNumber || creds.username;
+                savePortalOverride(studentReg, override);
+              }
+              installSnapshot(fresh);
+              void saveSnapshot(fresh);
+            }
+          }
           return;
         }
-        const pCreds = await getPortalCredentials();
-        if (pCreds && isMounted) {
-          setIsAutoSyncing(true);
-          await autoImportAttendance(pCreds);
+
+        // Academia mode with portal override
+        let succeeded = false;
+        if (portalAtt?.sessionCookie && isMounted) {
+          try {
+            setIsAutoSyncing(true);
+            await refreshPortalAttendance(portalAtt.sessionCookie);
+            succeeded = true;
+          } catch (sessionErr) {
+            console.warn("Portal session refresh failed:", sessionErr);
+          }
+        }
+        if (!succeeded && isMounted) {
+          const pCreds = await getPortalCredentials();
+          if (pCreds && isMounted) {
+            setIsAutoSyncing(true);
+            await autoImportAttendance(pCreds);
+          }
         }
       } catch (e) {
         console.error("Background portal sync failed:", e);
@@ -830,7 +952,7 @@ export function SessionProvider({ children }: { children: React.ReactNode }) {
     
     void silentSync();
     return () => { isMounted = false; };
-  }, [snapshot, portalAtt?.fetchedAt, portalAtt?.sessionCookie, autoImportAttendance, getPortalCredentials, refreshPortalAttendance]);
+  }, [snapshot, creds, loginSource, portalAtt?.fetchedAt, portalAtt?.sessionCookie, autoImportAttendance, getPortalCredentials, refreshPortalAttendance, installSnapshot]);
 
   // Drop the imported attendance and go back to academia (which may still be
   // gated). The escape hatch for when academia recovers but the app is showing
@@ -860,84 +982,116 @@ export function SessionProvider({ children }: { children: React.ReactNode }) {
 
     try {
       const academiaReady = snapshot?.attendanceStatus === "ready" && !!snapshot?.attendance;
-      const isPortalPrimary = !academiaReady || portalAtt !== null;
+      const isPortalPrimary = loginSource === "portal" || !academiaReady || portalAtt !== null;
 
-      // 1. If portal is primary for attendance, sync portal first!
-      if (isPortalPrimary && (!portalRecent || force)) {
-        if (portalAtt?.sessionCookie) {
-          try {
-            await refreshPortalAttendance(portalAtt.sessionCookie);
-            updatedAnything = true;
-          } catch (sessionErr) {
-            console.error("Portal session refresh failed during manual refresh:", sessionErr);
-            const pCreds = await getPortalCredentials();
-            if (pCreds) {
-              try {
-                await autoImportAttendance(pCreds);
-                updatedAnything = true;
-              } catch (autoErr) {
-                console.error("Auto import fallback failed:", autoErr);
-                if (autoErr instanceof AuthError && isBadCredentials(autoErr)) {
-                  authFailed = true;
-                }
-                window.dispatchEvent(new CustomEvent("skipp:request-portal-login"));
-              }
-            } else {
-              window.dispatchEvent(new CustomEvent("skipp:request-portal-login"));
+      // 1. If user is logged in via student portal directly
+      if (loginSource === "portal" && creds) {
+        if (!portalRecent || force) {
+          let succeeded = false;
+          if (portalAtt?.sessionCookie) {
+            try {
+              await refreshPortalAttendance(portalAtt.sessionCookie);
+              succeeded = true;
+              updatedAnything = true;
+            } catch (sessionErr) {
+              console.warn("Session refresh failed during manual refresh, doing full login:", sessionErr);
             }
           }
-        } else {
-          const pCreds = await getPortalCredentials();
-          if (pCreds) {
+          if (!succeeded) {
+            const sp = await autoStudentPortalLogin(creds);
+            const fresh = synthesizePortalSnapshot(sp, creds.username);
+            if (sp.attendanceStatus === "ready" && sp.attendance) {
+              const titles = new Map(
+                (fresh.timetable.courses ?? []).map((c) => [c.code.toUpperCase(), c.title]),
+              );
+              const override: PortalOverride = {
+                attendance: enrichTitles(sp.attendance, titles),
+                marks: sp.marksStatus === "ready" ? sp.marks : null,
+                reportedPeriod: sp.reportedPeriod,
+                sessionCookie: sp.sessionCookie || null,
+                fetchedAt: sp.fetchedAt || new Date().toISOString(),
+              };
+              setPortalAtt(override);
+              const studentReg = fresh.timetable.student.registrationNumber || creds.username;
+              savePortalOverride(studentReg, override);
+            }
+            installSnapshot(fresh);
+            void saveSnapshot(fresh);
+            updatedAnything = true;
+          }
+        }
+      } else {
+        // 1. If portal is primary for attendance, sync portal first!
+        if (isPortalPrimary && (!portalRecent || force)) {
+          if (portalAtt?.sessionCookie) {
             try {
-              await autoImportAttendance(pCreds);
+              await refreshPortalAttendance(portalAtt.sessionCookie);
               updatedAnything = true;
-            } catch (portalErr) {
-              console.error("Portal attendance sync during refresh failed:", portalErr);
-              if (portalErr instanceof AuthError && isBadCredentials(portalErr)) {
-                authFailed = true;
-                window.dispatchEvent(new CustomEvent("skipp:request-portal-login"));
+            } catch (sessionErr) {
+              console.error("Portal session refresh failed during manual refresh:", sessionErr);
+              const pCreds = await getPortalCredentials();
+              if (pCreds) {
+                try {
+                  await autoImportAttendance(pCreds);
+                  updatedAnything = true;
+                } catch (autoErr) {
+                  console.error("Auto import fallback failed:", autoErr);
+                  if (autoErr instanceof AuthError && isBadCredentials(autoErr)) {
+                    authFailed = true;
+                  }
+                  window.dispatchEvent(new CustomEvent("skipp:request-portal-login"));
+                }
               } else {
                 window.dispatchEvent(new CustomEvent("skipp:request-portal-login"));
               }
             }
           } else {
-            // No portal credentials available! Request portal login from the UI
-            window.dispatchEvent(new CustomEvent("skipp:request-portal-login"));
+            const pCreds = await getPortalCredentials();
+            if (pCreds) {
+              try {
+                await autoImportAttendance(pCreds);
+                updatedAnything = true;
+              } catch (portalErr) {
+                console.error("Portal attendance sync during refresh failed:", portalErr);
+                if (portalErr instanceof AuthError && isBadCredentials(portalErr)) {
+                  authFailed = true;
+                  window.dispatchEvent(new CustomEvent("skipp:request-portal-login"));
+                } else {
+                  window.dispatchEvent(new CustomEvent("skipp:request-portal-login"));
+                }
+              }
+            } else {
+              // No portal credentials available! Request portal login from the UI
+              window.dispatchEvent(new CustomEvent("skipp:request-portal-login"));
+            }
           }
         }
-      }
 
-      // 2. Refresh academia if creds exist
-      if (creds && (!academiaRecent || force) && !inCooldown()) {
-        try {
-          let fresh: Snapshot;
-          if (loginSource === "portal") {
-            const sp = await autoStudentPortalLogin(creds);
-            fresh = synthesizePortalSnapshot(sp, creds.username);
-          } else {
-            fresh = await fetchSnapshot(creds);
-          }
-          installSnapshot(fresh);
-          void saveSnapshot(fresh);
-          updatedAnything = true;
-        } catch (acadErr) {
-          console.warn("Academia refresh soft fail during refresh:", acadErr);
-          if (!updatedAnything) {
-            noteFailure(acadErr);
-          }
-        }
-      }
-
-      // 3. If academia was primary but failed or didn't return attendance, sync portal as backup
-      if (!isPortalPrimary && (!updatedAnything || snapshot?.attendanceStatus !== "ready")) {
-        const pCreds = await getPortalCredentials();
-        if (pCreds && (!portalRecent || force)) {
+        // 2. Refresh academia if creds exist
+        if (creds && (!academiaRecent || force) && !inCooldown()) {
           try {
-            await autoImportAttendance(pCreds);
+            const fresh = await fetchSnapshot(creds);
+            installSnapshot(fresh);
+            void saveSnapshot(fresh);
             updatedAnything = true;
-          } catch (portalErr) {
-            console.error("Secondary portal attendance sync during refresh failed:", portalErr);
+          } catch (acadErr) {
+            console.warn("Academia refresh soft fail during refresh:", acadErr);
+            if (!updatedAnything) {
+              noteFailure(acadErr);
+            }
+          }
+        }
+
+        // 3. If academia was primary but failed or didn't return attendance, sync portal as backup
+        if (!isPortalPrimary && (!updatedAnything || snapshot?.attendanceStatus !== "ready")) {
+          const pCreds = await getPortalCredentials();
+          if (pCreds && (!portalRecent || force)) {
+            try {
+              await autoImportAttendance(pCreds);
+              updatedAnything = true;
+            } catch (portalErr) {
+              console.error("Secondary portal attendance sync during refresh failed:", portalErr);
+            }
           }
         }
       }
