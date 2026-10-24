@@ -4,3 +4,7 @@
 .claude/
 __pycache__/
 test_sp.py
+
+# Infrastructure & Proxy documentation (contains server IPs/infra details)
+ORACLE_PROXY_ARCHITECTURE.md
+ORACLE_PROXY_*.md
