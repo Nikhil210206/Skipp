@@ -1,3 +1,4 @@
+import asyncio
 import base64
 import json
 import logging
@@ -530,9 +531,11 @@ async def submit_login_and_fetch(req_data: StudentPortalLoginRequest) -> Tuple[s
             raise StudentPortalClientError(f"Incorrect NetID or password ({msg}). Note that your Student Portal password is your SRM student email password, often different from your Academia password.")
         raise StudentPortalClientError(msg)
 
-    att_html = await session.get_attendance_html()
-    marks_html = await session.get_marks_html()
-    tt_html = await session.get_timetable_html()
+    att_html, marks_html, tt_html = await asyncio.gather(
+        session.get_attendance_html(),
+        session.get_marks_html(),
+        session.get_timetable_html(),
+    )
 
     cookie_str = "; ".join(f"{c.name}={c.value}" for c in session.client.cookies.jar)
     return att_html or "", marks_html, tt_html, cookie_str
@@ -551,10 +554,15 @@ async def refresh_session_and_fetch(session_cookie: str) -> Tuple[str, Optional[
             cookies_dict[k] = v
 
     client = PortalClient(cookies=cookies_dict)
-    await client.keepalive()
-    att_html = await client.get_attendance_html()
-    marks_html = await client.get_marks_html()
-    tt_html = await client.get_timetable_html()
+    try:
+        # Fetch attendance, marks, and timetable concurrently for sub-second response
+        att_html, marks_html, tt_html = await asyncio.gather(
+            client.get_attendance_html(),
+            client.get_marks_html(),
+            client.get_timetable_html(),
+        )
+    finally:
+        await client.client.aclose()
 
     if not att_html and not marks_html and not tt_html:
         raise StudentPortalClientError("session_expired")

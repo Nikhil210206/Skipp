@@ -1,3 +1,4 @@
+import asyncio
 import base64
 import logging
 import re
@@ -49,9 +50,11 @@ async def auto_login_and_fetch(username: str, password: str) -> Tuple[str, Optio
             res = await session.login(clean_username, password, captcha_text)
 
             if res.get("ok"):
-                att_html = await session.get_attendance_html()
-                marks_html = await session.get_marks_html()
-                tt_html = await session.get_timetable_html()
+                att_html, marks_html, tt_html = await asyncio.gather(
+                    session.get_attendance_html(),
+                    session.get_marks_html(),
+                    session.get_timetable_html(),
+                )
                 cookie_str = "; ".join(f"{c.name}={c.value}" for c in session.client.cookies.jar)
                 return att_html or "", marks_html, tt_html, cookie_str
 

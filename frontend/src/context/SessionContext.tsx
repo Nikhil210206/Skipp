@@ -497,11 +497,30 @@ export function SessionProvider({ children }: { children: React.ReactNode }) {
     })();
 
     async function backgroundRefresh(withCreds: Credentials, mode: LoginPortalMode) {
+      hasAttemptedSilentSync.current = true;
       setIsAutoSyncing(true);
       try {
         let fresh: Snapshot;
         if (mode === "portal") {
-          const sp = await autoStudentPortalLogin(withCreds);
+          let sp: StudentPortalSnapshot | null = null;
+          // Fast Path: Try active session cookie first (~600-800ms)
+          const studentReg = reg || withCreds.username;
+          const currentOverride = studentReg ? loadPortalOverride(studentReg) : null;
+          const activeCookie = currentOverride?.sessionCookie || portalAtt?.sessionCookie;
+
+          if (activeCookie) {
+            try {
+              sp = await refreshStudentPortal(activeCookie);
+            } catch (fastErr) {
+              console.warn("Fast session refresh failed or expired, falling back to full login:", fastErr);
+            }
+          }
+
+          // Slow Path: Full auto-login only if no session cookie or session expired
+          if (!sp) {
+            sp = await autoStudentPortalLogin(withCreds);
+          }
+
           fresh = synthesizePortalSnapshot(sp, withCreds.username);
           if (sp.attendanceStatus === "ready" && sp.attendance) {
             const titles = new Map(
@@ -512,14 +531,14 @@ export function SessionProvider({ children }: { children: React.ReactNode }) {
             );
             const override: PortalOverride = {
               attendance: enrichTitles(sp.attendance, titles),
-              marks: sp.marksStatus === "ready" ? sp.marks : null,
-              reportedPeriod: sp.reportedPeriod,
-              sessionCookie: sp.sessionCookie || null,
+              marks: sp.marksStatus === "ready" ? sp.marks : (currentOverride?.marks ?? null),
+              reportedPeriod: sp.reportedPeriod || currentOverride?.reportedPeriod || null,
+              sessionCookie: sp.sessionCookie || activeCookie || null,
               fetchedAt: sp.fetchedAt || new Date().toISOString(),
             };
             setPortalAtt(override);
-            const studentReg = fresh.timetable.student.registrationNumber || withCreds.username;
-            savePortalOverride(studentReg, override);
+            const savedReg = fresh.timetable.student.registrationNumber || studentReg;
+            savePortalOverride(savedReg, override);
           }
         } else {
           fresh = await fetchSnapshot(withCreds);
