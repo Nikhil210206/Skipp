@@ -372,7 +372,7 @@ let switchingUntil = 0;
 const SETTLE_WINDOW = 600;
 
 /** Whether a screen's entrance should settle rather than play. */
-function settleEntrance(reduced: boolean): boolean {
+export function settleEntrance(reduced: boolean): boolean {
   return reduced || switching || performance.now() < switchingUntil;
 }
 

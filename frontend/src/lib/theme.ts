@@ -21,6 +21,8 @@ export type Theme =
   | "terminal"
   | "stone"
   | "arcade"
+  | "register"
+  | "ticket"
   | "rose"
   | "ember"
   | "gold"
@@ -86,6 +88,22 @@ export const THEMES: ThemeInfo[] = [
     note: "Maze walls, lives for skips",
     bar: "#000000",
     swatch: ["#000000", "#2121ff", "#ffe600"],
+    structural: true,
+  },
+  {
+    id: "register",
+    name: "Register",
+    note: "Tick boxes and ruled rows",
+    bar: "#eefafc",
+    swatch: ["#eefafc", "#05262e", "#22c7e8"],
+    structural: true,
+  },
+  {
+    id: "ticket",
+    name: "Ticket",
+    note: "Passes, stubs, a bunk pass",
+    bar: "#f6f3ec",
+    swatch: ["#f6f3ec", "#121110", "#ff6b1f"],
     structural: true,
   },
   {
@@ -236,4 +254,21 @@ function subscribe(cb: () => void): () => void {
 /** The active theme, kept in sync with the DOM attribute. */
 export function useTheme(): Theme {
   return useSyncExternalStore(subscribe, readTheme, () => "ink" as Theme);
+}
+
+/**
+ * The two full looks that change how Home and Attendance are COMPOSED, not only
+ * how they are styled.
+ *
+ * Every other look is CSS over the shared screens, through the markers on the
+ * primitives. These two need pieces the shared markup cannot draw: Register's
+ * tick box grid and period strip, Ticket's passes with their stubs and stamp.
+ * So those two screens swap in their own composition, and every other screen
+ * stays shared and is restyled by CSS like any other look.
+ */
+export type Composition = "register" | "ticket";
+
+export function useComposition(): Composition | null {
+  const t = useTheme();
+  return t === "register" || t === "ticket" ? t : null;
 }

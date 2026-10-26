@@ -22,6 +22,8 @@ import { useTheme, type Theme } from "@/lib/theme";
  * | clay     | puffy, and it squishes into place                       |
  * | terminal | typed as a shell path, with a blinking block cursor     |
  * | arcade   | the chomper eats a row of dots and leaves the word      |
+ * | register | rises out of its own line, then the loud cell is ticked |
+ * | ticket   | the perforation tears along, then the word drops on it  |
  *
  * **Every one fits the 56px bar, level.** A first pass of the hand was 40px and
  * tilted -2 degrees: the tilt lifted the end of the word into the top edge of
@@ -35,7 +37,7 @@ import { useTheme, type Theme } from "@/lib/theme";
  * instead, so a skipped entrance leaves no debris. Reduced motion skips all of
  * it. The typography lives in `globals.css` under `[data-mt]`.
  */
-type Look = "hand" | "brutal" | "stone" | "clay" | "terminal" | "arcade";
+type Look = "hand" | "brutal" | "stone" | "clay" | "terminal" | "arcade" | "register" | "ticket";
 
 function lookFor(theme: Theme): Look {
   switch (theme) {
@@ -44,6 +46,8 @@ function lookFor(theme: Theme): Look {
     case "clay":
     case "terminal":
     case "arcade":
+    case "register":
+    case "ticket":
       return theme;
     default:
       return "hand";
@@ -161,6 +165,38 @@ export default function MastheadTitle({ text }: { text: string }) {
           });
           break;
         }
+        case "register": {
+          // Rises from under its own baseline, the house headline move, and
+          // the cell beside it is ticked once the word has landed.
+          tl.fromTo(
+            word,
+            { yPercent: 105 },
+            { yPercent: 0, duration: 0.6, ease: "expo.out", clearProps: "transform" },
+          );
+          const cell = part("[data-mt-cell]");
+          if (cell) {
+            tl.fromTo(
+              cell,
+              { scale: 0 },
+              { scale: 1, duration: 0.4, ease: "back.out(2.6)", clearProps: "transform" },
+              "-=0.25",
+            );
+          }
+          break;
+        }
+        case "ticket": {
+          // The perforation is torn along first, then the word drops onto it
+          // and settles level, the way the passes on Home arrive.
+          const perf = part("[data-mt-perf]");
+          if (perf) tl.add(grow(perf, 0.35));
+          tl.fromTo(
+            word,
+            { y: -10, rotation: -4, opacity: 0 },
+            { y: 0, rotation: 0, opacity: 1, duration: 0.5, ease: "back.out(2)", clearProps: "transform,opacity" },
+            "-=0.15",
+          );
+          break;
+        }
         case "arcade": {
           // The chomper runs along a row of dots, and the word is what it
           // leaves behind. Dots, word and chomper share one linear clock, so
@@ -218,6 +254,8 @@ export default function MastheadTitle({ text }: { text: string }) {
       <span data-mt-word>{shown}</span>
       {look === "terminal" && <span data-mt-cursor aria-hidden />}
       {look === "stone" && <span data-mt-bar aria-hidden />}
+      {look === "register" && <span data-mt-cell aria-hidden />}
+      {look === "ticket" && <span data-mt-perf aria-hidden />}
       {look === "arcade" && (
         <>
           <span data-mt-dots aria-hidden />

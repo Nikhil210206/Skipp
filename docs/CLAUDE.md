@@ -345,6 +345,80 @@ is deployment and true push notifications.
 Entries below are newest first. **When something breaks, read the relevant entry first**: most
 oddities here (login shell, empty calendar, 429s, duplicated course codes) are already diagnosed.
 
+### DONE: Register and Ticket are hand-drawn, and the boxes became a register (2026-10-26, later)
+
+Reported: the attendance cells were confusing ("each cell is 1%", twenty 5%
+cells per subject), and every screen but Home and Attendance read as a skin.
+Asked for, in so many words: Gen Z, hand-drawn, not AI made. Chosen with the
+user: keep the idea of showing classes went and missed, doodled accents rather
+than a full sketchbook, in both looks.
+
+- **The cells are gone. Each subject is a mini pen-drawn bar plus one line of
+  words** (`HandBar compact` in `components/looks/hand.tsx`, then "went 25 ·
+  missed 3"). The drawing shows the distance to the line, the words give the
+  counts. A row of tallies, crosses and dashed rings was built first and
+  REMOVED on request as hard to read: a count you have to count off a row of
+  marks is not an answer. Do not bring the tallies back.
+- **The term is one pen-drawn bar** (`HandBar`): a hand-drawn outline, hatched
+  in to your percentage, the 75% line drawn across it as "the line", and an
+  arrow saying "you're here" at your mark. The note hangs left of the arrow
+  past halfway, or it ran off the column.
+- **The hand never sets a figure.** Caveat has no tabular figures, so notes are
+  words ("you're here", "the line", "finally"), and `--text-note` and
+  `--text-note-sm` are their only sizes.
+- **Every shared screen gets doodles through CSS masks** at the end of
+  `globals.css`: handwritten section labels, pencilled rules, holidays
+  highlighted, optional classes scratched out, your name highlighted, hand cut
+  chips. Each mark is a mask over a token fill, so it takes the look's colours.
+  `data-name` (Profile) is the one marker added for it.
+- **REMOVED ON REQUEST, the same day; do not add back:** the key row
+  (went / missed / can skip / must attend), the three count boxes under the
+  bar, every marker underline (section labels, headings, scores, the filter,
+  Register's masthead, which has its cyan cell back), the mood notes ("you're
+  chilling" and friends), the circled poster figures and circled today, and
+  "you're here" on Schedule.
+- Verified at 390x844 against `?fixture=1` in the DevTools browser: Home,
+  Attendance, Marks, Calendar and Schedule in Register, and Attendance and
+  Schedule in Ticket. No overflow, `tsc` clean, changed files lint clean.
+  **Not seen:** the scratched out optional class (the fixture has none), a
+  real phone.
+
+### DONE: Register and Ticket, the two composed looks (2026-10-26)
+
+Two new full looks in Profile; Ink stays the default. **Register** is cyan on pale
+cyan paper in Bricolage: the class register itself. **Ticket** is orange and black
+on cream in Unbounded (`preload: false`): passes with stubs. Both were designed on
+a canvas first (claude.ai/artifact/5grye1gWjFBMnkVLL9dEs7) after a Zenith and
+OneClick style pass was rejected as reading like a Samsung product.
+
+- **They are the first looks that change COMPOSITION, not only CSS.**
+  `useComposition()` in `lib/theme.ts` returns `register`, `ticket` or null, and
+  Home and the ready state of Attendance render `components/looks/*` for those
+  two. Every other screen stays shared and is restyled through the usual markers
+  at the end of `globals.css`. Loading, gated and error states stay shared too.
+- **Home's derivation moved to `lib/home.ts`** (`useHomeData`, `buildCover`,
+  `greeting`), so the three Homes cannot disagree about which class is next.
+- **Two accents per look, on purpose.** `--color-accent` is the dark one
+  (`#087189`, `#b03f05`) because the accent is also text, and the loud fill fails
+  contrast as text on a light page. `--look-loud` is the bright fill and is only
+  ever a fill.
+- **Register's cells are counts, never a timeline.** The portal reports how many
+  classes were missed, not which, so the term grid fills attended cells first.
+  One cell per class up to 180, then 1% each. Subject strips are twenty 5% cells
+  with the gap after the fifteenth, so the 75% gap lines up down the page.
+- **Ticket's rows are passes** through `[data-surface]::before/::after` notches.
+  `Button` now carries `data-variant`, so Ticket can fill the primary action in
+  the loud orange. Both tab bars name their tabs from `aria-label` via `::after`.
+- Verified at 390x844 against `?fixture=1` with no backend running, so no
+  sign-in was spent: Home, Attendance, Marks, Schedule, Calendar and Profile in
+  both looks, no horizontal overflow, no console errors. The onboarding theme
+  chapter still fits 375x667 with seven looks (0px over, every pill 44px).
+  `tsc` clean and changed files lint clean; the 7 lint errors left are in
+  `SessionContext.tsx` and `ImportAttendance.tsx`, untouched here. **Measured in
+  the DevTools browser**: the built-in pane was hidden, which means zero rAF and
+  a launch overlay that never lifts. **Not verified:** a real phone, the desktop
+  side rail, and the leave planner sheet in either look.
+
 ### DONE: Attendance and Marks are under maintenance (2026-10-05)
 
 The scraper stopped returning attendance and marks, so both screens show

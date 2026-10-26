@@ -102,11 +102,12 @@ DEV_ORIGIN_RE = (
     r"http://(localhost|127\.0\.0\.1|"
     r"(?:192\.168|10|172\.(?:1[6-9]|2\d|3[01]))\.\d+\.\d+):3000"
 )
-_allowed = [
+_named = [
     o.strip().rstrip("/")
     for o in os.environ.get("SKIPP_ALLOWED_ORIGINS", "").split(",")
     if o.strip()
 ]
+_allowed = list(_named)
 if "https://sp.srmist.edu.in" not in _allowed:
     _allowed.append("https://sp.srmist.edu.in")
 
@@ -114,8 +115,11 @@ app.add_middleware(
     CORSMiddleware,
     allow_origins=_allowed,
     # Dropped in production: a deployment that names its origins should not also
-    # accept every LAN address.
-    allow_origin_regex=None if _allowed else DEV_ORIGIN_RE,
+    # accept every LAN address. Keyed on what the ENVIRONMENT named, not on the
+    # final list: the portal origin above is always appended, so testing the
+    # list switched the dev regex off everywhere and local dev got a 400 on
+    # every preflight from localhost:3000.
+    allow_origin_regex=None if _named else DEV_ORIGIN_RE,
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
@@ -143,7 +147,7 @@ def health() -> dict:
         "service": "skipp-api",
         "version": os.environ.get("RENDER_GIT_COMMIT", "0.0.2"),
         "allowedOrigins": _allowed,
-        "devOriginRegexActive": not _allowed,
+        "devOriginRegexActive": not _named,
     }
 
 

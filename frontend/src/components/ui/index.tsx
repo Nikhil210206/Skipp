@@ -80,6 +80,9 @@ export function Button({
     <button
       ref={ref}
       data-btn
+      // Marked so a look can restyle one variant: Ticket fills the primary
+      // action with its loud orange, which is too light to be the text accent.
+      data-variant={variant}
       type={type}
       onClick={onClick}
       disabled={disabled}

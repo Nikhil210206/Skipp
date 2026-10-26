@@ -90,6 +90,8 @@ export default function ProfilePage() {
           {/* Set as large as the longest word allows. A name is not a numeral:
               cropping it mid-word would read as breakage, not as a crop. */}
           <h1
+            // Marked so a look can run a highlighter under it.
+            data-name
             className="optical font-bold leading-[0.95] tracking-[-0.035em]"
             style={{ fontSize: fitName(fullName) }}
           >

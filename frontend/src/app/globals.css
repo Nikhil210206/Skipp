@@ -95,6 +95,36 @@
   --text-scrawl--line-height: 1;
   --text-scrawl--font-weight: 700;
 
+  /* A margin note in the hand (Register and Ticket's doodles). Words only:
+     the hand has no tabular figures. */
+  --text-note: 1.375rem;
+  --text-note--line-height: 1;
+  --text-note--font-weight: 600;
+  --text-note-sm: 1.125rem;
+  --text-note-sm--line-height: 1;
+  --text-note-sm--font-weight: 600;
+
+  /* The composed looks' own figures (Register and Ticket; see
+     components/looks). Only those two compositions use them, in --font-look,
+     and each look resizes them for its face: Unbounded is far wider than
+     Bricolage at the same size, so Ticket sets these smaller. */
+  --text-look-giant: clamp(6rem, 46vw, 11.75rem);
+  --text-look-giant--line-height: 0.84;
+  --text-look-giant--letter-spacing: -0.055em;
+  --text-look-giant--font-weight: 800;
+  --text-look-big: clamp(4.5rem, 37vw, 9.5rem);
+  --text-look-big--line-height: 0.86;
+  --text-look-big--letter-spacing: -0.055em;
+  --text-look-big--font-weight: 800;
+  --text-look-head: 2.25rem;
+  --text-look-head--line-height: 0.98;
+  --text-look-head--letter-spacing: -0.045em;
+  --text-look-head--font-weight: 800;
+  --text-look-fig: 2.375rem;
+  --text-look-fig--line-height: 0.9;
+  --text-look-fig--letter-spacing: -0.05em;
+  --text-look-fig--font-weight: 800;
+
   /* --- Radius --- */
   --radius-control: 12px;
   --radius-card: 18px;
@@ -113,6 +143,8 @@
   /* The hand in the entry notebook. Headings and margin notes only, never a
      number: it has no tabular figures. */
   --font-hand: var(--font-hand-src), var(--font-geist-sans), cursive;
+  /* The composed looks' display face. Geist unless a look names its own. */
+  --font-look: var(--font-geist-sans), sans-serif;
 }
 
 /* Spacing rhythm and layout constants live outside @theme so they can be
@@ -2124,4 +2156,445 @@ html[data-theme="clay"] [data-optional] {
   [data-mt-chomper] {
     animation: arcade-chomp 0.22s steps(1) infinite;
   }
+}
+
+/* ============================================================
+   REGISTER and TICKET, the two composed looks.
+
+   Unlike the other full looks these also swap the composition of Home and
+   Attendance (see `useComposition` and components/looks): Register draws the
+   class register itself, Ticket draws passes with stubs. Every other screen
+   is shared and restyled here through the usual markers.
+
+   Both are light, and both keep the colour rule: a safe subject is never
+   coloured, only "on the line" and "short" are.
+
+   Each has TWO oranges or cyans on purpose. `--color-accent` is the dark one,
+   because the accent is also used as text and the loud one fails contrast as
+   text on a light page. `--look-loud` is the bright fill, used only where it
+   is a fill: the next period, the stub, the coupons, the selected tab.
+   ============================================================ */
+
+html[data-theme="register"] {
+  color-scheme: light;
+  --color-ink-0: #eefafc;
+  --color-ink-1: #ffffff;
+  --color-ink-2: #dff3f7;
+  --color-ink-3: #c9eaf1;
+  --color-line: #c6e1e8;
+  --color-line-soft: #dcedf1;
+  --color-line-strong: #05262e;
+  --color-text-1: #05262e;
+  --color-text-2: #2c4a53;
+  --color-text-3: #4a6670;
+  --color-accent: #087189;
+  --color-accent-ink: #ffffff;
+  --color-safe: #1c7150;
+  --color-watch: #855300;
+  --color-risk: #b01a31;
+
+  --look-loud: #22c7e8;
+  --look-on-loud: #04242c;
+  --look-deep: #073a46;
+  --look-on-deep: #eefafc;
+  --look-deep-dim: #a3d4de;
+  --look-deep-card: #0f4f5e;
+  --look-deep-line: #1b6475;
+  --look-risk-bg: #fde7ea;
+  --look-watch-bg: #fbefd6;
+  --look-watch: #e0a100;
+  --font-look: var(--font-display-src), var(--font-geist-sans), sans-serif;
+
+  --radius-control: 12px;
+  --radius-card: 14px;
+  --radius-sheet: 24px;
+  --shadow-lift: 0 1px 2px rgb(5 38 46 / 0.08), 0 10px 24px -16px rgb(5 38 46 / 0.3);
+  --shadow-float: 0 2px 6px rgb(5 38 46 / 0.12), 0 24px 48px -24px rgb(5 38 46 / 0.4);
+}
+
+html[data-theme="ticket"] {
+  color-scheme: light;
+  --color-ink-0: #f6f3ec;
+  --color-ink-1: #ffffff;
+  --color-ink-2: #ece7dc;
+  --color-ink-3: #e0d9cb;
+  --color-line: #d9d2c4;
+  --color-line-soft: #e6e0d4;
+  --color-line-strong: #141210;
+  --color-text-1: #141210;
+  --color-text-2: #3d3832;
+  --color-text-3: #6b655b;
+  --color-accent: #b03f05;
+  --color-accent-ink: #ffffff;
+  --color-safe: #1c7150;
+  --color-watch: #855300;
+  --color-risk: #b0163a;
+
+  --look-loud: #ff6b1f;
+  --look-on-loud: #1f0b00;
+  --look-deep: #121110;
+  --look-on-deep: #f6f3ec;
+  --look-deep-dim: #a9a39a;
+  --look-deep-card: #24221f;
+  --look-deep-line: #36332e;
+  --look-risk-bg: #fde6ec;
+  --look-watch-bg: #fbefd6;
+  --look-watch: #e0a100;
+  --font-look: var(--font-ticket-src), var(--font-geist-sans), sans-serif;
+
+  /* Unbounded is about a third wider than Bricolage at the same size, so the
+     composed figures come down to fit the same column. */
+  --text-look-giant: clamp(4.5rem, 33vw, 8.5rem);
+  --text-look-giant--letter-spacing: -0.05em;
+  --text-look-giant--font-weight: 700;
+  --text-look-big: clamp(3.5rem, 25vw, 6.75rem);
+  --text-look-big--letter-spacing: -0.05em;
+  --text-look-big--font-weight: 700;
+  --text-look-head: 1.75rem;
+  --text-look-head--letter-spacing: -0.04em;
+  --text-look-head--font-weight: 700;
+  --text-look-fig: 1.875rem;
+  --text-look-fig--letter-spacing: -0.045em;
+  --text-look-fig--font-weight: 700;
+
+  --border-w: 2px;
+  --radius-control: 18px;
+  --radius-card: 18px;
+  --radius-sheet: 28px;
+  --shadow-lift: none;
+  --shadow-float: 0 2px 0 var(--color-text-1);
+}
+
+/* REGISTER, everywhere: headings and the one poster figure take Bricolage,
+   section labels are tracked caps in full ink, meters are a solid ruled bar
+   with a real tick, and the calendar is a ruled grid. Body copy and every
+   column of figures stay Geist, so nothing that lines up today moves. */
+html[data-theme="register"] main :is(h1, h2, .text-poster, .text-display, .text-mega) {
+  font-family: var(--font-look);
+}
+html[data-theme="register"] [data-meter] {
+  height: 6px;
+  background: var(--color-ink-2);
+}
+html[data-theme="register"] [data-meter-fill] {
+  background: var(--color-text-1);
+}
+html[data-theme="register"] [data-meter] > span[aria-hidden] {
+  top: -4px;
+  height: 14px;
+  width: 2px;
+  background: var(--color-text-1);
+}
+html[data-theme="register"] [data-chip] {
+  border-radius: 4px;
+}
+html[data-theme="register"] [data-day] {
+  border: 1px solid var(--color-line);
+  margin: -1px 0 0 -1px;
+}
+
+/* REGISTER's tab bar is a row of ruled cells under a heavy rule, each named,
+   and the open one is the loud cell: the same mark as the next period. */
+html[data-theme="register"] [data-nav] {
+  background: var(--color-ink-0);
+  border-top: 2px solid var(--color-text-1);
+}
+html[data-theme="register"] [data-nav] .rule,
+html[data-theme="register"] [data-nav-dot] {
+  display: none;
+}
+html[data-theme="register"] [data-nav] ul {
+  padding-top: 0;
+}
+html[data-theme="register"] [data-nav] li + li {
+  border-left: 1px solid var(--color-line);
+}
+html[data-theme="register"] [data-nav-item] {
+  flex-direction: column;
+  gap: 4px;
+  min-height: 62px;
+  color: var(--color-text-3);
+}
+html[data-theme="register"] [data-nav-item]::after {
+  content: attr(aria-label);
+  font-size: var(--text-label);
+  font-weight: 700;
+  letter-spacing: 0.02em;
+}
+html[data-theme="register"] [data-nav-pill] {
+  background: var(--look-loud);
+  border-radius: 0;
+}
+html[data-theme="register"] [data-nav-item][aria-current="page"],
+html[data-theme="register"] [data-nav-item][data-drag-active] {
+  color: var(--look-on-loud);
+}
+
+/* TICKET, everywhere: every row is a pass with a notch bitten out of each
+   side, section labels are dashed tags, the primary action is the loud
+   orange, and the connecting lines that cards replace are hidden, the same
+   answer every card look gives. */
+html[data-theme="ticket"] [data-surface] {
+  position: relative;
+  border: 2px solid var(--color-text-1);
+  border-radius: 18px;
+  background: var(--color-ink-1);
+  padding: 14px 16px;
+  margin-bottom: 14px;
+}
+html[data-theme="ticket"] [data-surface] .bleed {
+  margin-left: 0;
+  margin-right: 0;
+}
+html[data-theme="ticket"] [data-surface]::before,
+html[data-theme="ticket"] [data-surface]::after {
+  content: "";
+  position: absolute;
+  top: 50%;
+  box-sizing: border-box;
+  width: 20px;
+  height: 20px;
+  margin-top: -10px;
+  border-radius: 50%;
+  border: 2px solid var(--color-text-1);
+  background: var(--color-ink-0);
+  pointer-events: none;
+}
+html[data-theme="ticket"] [data-surface]::before {
+  left: -11px;
+  clip-path: inset(0 0 0 50%);
+}
+html[data-theme="ticket"] [data-surface]::after {
+  right: -11px;
+  clip-path: inset(0 50% 0 0);
+}
+html[data-theme="ticket"] [data-rule],
+html[data-theme="ticket"] [data-spine] {
+  display: none;
+}
+html[data-theme="ticket"] [data-meter] {
+  height: 6px;
+  border-radius: 2px;
+  background: var(--color-ink-2);
+}
+html[data-theme="ticket"] [data-meter-fill] {
+  border-radius: 2px;
+  background: var(--color-text-1);
+}
+html[data-theme="ticket"] [data-meter] > span[aria-hidden] {
+  top: -4px;
+  height: 14px;
+  width: 2px;
+  background: var(--color-text-1);
+}
+html[data-theme="ticket"] [data-btn][data-variant="primary"] {
+  background: var(--look-loud);
+  color: var(--look-on-loud);
+  border: 2px solid var(--color-text-1);
+}
+html[data-theme="ticket"] [data-btn][data-variant="outline"] {
+  background: var(--color-ink-1);
+  color: var(--color-text-1);
+  border: 2px dashed var(--color-text-1);
+}
+html[data-theme="ticket"] [data-day] {
+  border: 1.5px dashed color-mix(in oklab, var(--color-text-1) 22%, transparent);
+  margin: -1px 0 0 -1px;
+}
+
+/* TICKET's tab bar is a black tear-off strip: a row of punched holes along
+   its top edge, every tab named, and the open one lit in the loud orange with
+   a bar along the tear. */
+html[data-theme="ticket"] [data-nav] {
+  background: var(--look-deep);
+}
+html[data-theme="ticket"] [data-nav]::before {
+  content: "";
+  position: absolute;
+  left: 0;
+  right: 0;
+  top: -6px;
+  height: 12px;
+  background: radial-gradient(circle at 9px 6px, var(--color-ink-0) 5px, transparent 5.5px) 0 0 / 18px 12px repeat-x;
+  pointer-events: none;
+}
+html[data-theme="ticket"] [data-nav] .rule,
+html[data-theme="ticket"] [data-nav-dot] {
+  display: none;
+}
+html[data-theme="ticket"] [data-nav-item] {
+  flex-direction: column;
+  gap: 4px;
+  min-height: 62px;
+  color: var(--look-deep-dim);
+}
+html[data-theme="ticket"] [data-nav-item]::after {
+  content: attr(aria-label);
+  font-size: var(--text-label);
+  font-weight: 700;
+  letter-spacing: 0.02em;
+}
+html[data-theme="ticket"] [data-nav-pill] {
+  background: none;
+  border-radius: 0;
+  border-bottom: 3px solid var(--look-loud);
+}
+html[data-theme="ticket"] [data-dragging] [data-nav-item]:not([data-drag-active]) {
+  color: var(--look-deep-dim);
+}
+html[data-theme="ticket"] [data-nav-item][aria-current="page"],
+html[data-theme="ticket"] [data-nav-item][data-drag-active] {
+  color: var(--look-loud);
+}
+
+html[data-theme="ticket"] [data-optional] {
+  border-style: dashed;
+}
+
+/* REGISTER's title: Bricolage, rising out of its own line, with the loud cell
+   ticked beside it. The title clips its own word so the rise reads as coming
+   from under the baseline rather than sliding in from nowhere. A marker
+   underline replaced the cell for a while and was removed on request. */
+[data-mt="register"] {
+  align-items: center;
+  gap: 0.5rem;
+  overflow: hidden;
+  padding: 0.125rem 0.25rem 0.125rem 0;
+}
+[data-mt-cell] {
+  width: 0.75rem;
+  height: 0.75rem;
+  border-radius: 3px;
+  background: var(--look-loud);
+  box-shadow: 0 0 0 2px var(--color-text-1);
+}
+[data-mt="register"] [data-mt-word] {
+  font-family: var(--font-display);
+  font-size: 1.75rem;
+  font-weight: 800;
+  letter-spacing: -0.045em;
+  color: var(--color-text-1);
+}
+
+/* TICKET's title: Unbounded over a dashed perforation in the accent. */
+[data-mt="ticket"] {
+  padding-bottom: 0.5rem;
+}
+[data-mt="ticket"] [data-mt-word] {
+  font-family: var(--font-ticket-src), var(--font-geist-sans), sans-serif;
+  font-size: 1.375rem;
+  font-weight: 700;
+  letter-spacing: -0.04em;
+  color: var(--color-text-1);
+}
+[data-mt-perf] {
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  border-top: 2px dashed var(--color-accent);
+}
+
+/* ============================================================
+   THE DOODLES, for Register and Ticket on every shared screen.
+
+   Doodled accents, not a sketchbook. The layout and every figure stay as they
+   are; what changes is the marks a student would make in pen. Section labels
+   are written by hand, rules are pencilled, a holiday is highlighted, an
+   optional class is scratched out, and your name is highlighted.
+
+   Underlines, circled figures, a circled today and the "you're here" note on
+   Schedule were all built and then REMOVED ON REQUEST. Do not add them back.
+
+   Each mark is a MASK over a fill, never an image with a colour baked in, so
+   it takes the look's own tokens and stays right in both looks. The paths are
+   deliberately a little off, so they read as drawn rather than generated.
+   ============================================================ */
+:is(html[data-theme="register"], html[data-theme="ticket"]) {
+  --hand-strike: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 200 12' preserveAspectRatio='none'%3E%3Cpath d='M2 8 C 40 4, 70 10, 110 6 S 170 3, 198 7' fill='none' stroke='black' stroke-width='2.6' stroke-linecap='round'/%3E%3C/svg%3E");
+  --hand-marker: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 20' preserveAspectRatio='none'%3E%3Cpath d='M3 7 C 30 4, 70 3, 98 5 L 97 16 C 70 18, 30 17, 2 18 Z' fill='black'/%3E%3C/svg%3E");
+  --hand-rule: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 120 8' preserveAspectRatio='none'%3E%3Cpath d='M0 4.5 C 20 2.5, 40 6, 60 4 S 100 2.8, 120 4.5' fill='none' stroke='black' stroke-width='1.6' stroke-linecap='round'/%3E%3C/svg%3E");
+}
+
+/* A box drawn by hand: no two corners alike. */
+.hand-edge {
+  border-radius: 255px 15px 225px 15px / 15px 225px 15px 255px;
+}
+
+/* Section labels, written by hand. */
+:is(html[data-theme="register"], html[data-theme="ticket"]) [data-band] {
+  position: relative;
+  font-family: var(--font-hand);
+  font-size: var(--text-note);
+  font-weight: 700;
+  line-height: 1;
+  letter-spacing: 0;
+  text-transform: lowercase;
+  color: var(--color-text-1);
+}
+/* Register's rules are pencilled rather than ruled. */
+html[data-theme="register"] [data-rule] {
+  height: 8px;
+  background: var(--color-text-2);
+  opacity: 0.45;
+  mask: var(--hand-rule) repeat-x center / 120px 8px;
+}
+
+/* A day off, highlighted. In the holiday's own colour, at a highlighter's
+   strength, so it adds to the green the numeral already carries. */
+:is(html[data-theme="register"], html[data-theme="ticket"]) [data-holiday] {
+  isolation: isolate;
+}
+:is(html[data-theme="register"], html[data-theme="ticket"]) [data-holiday]::before {
+  content: "";
+  position: absolute;
+  inset: 12% -45% 8%;
+  z-index: -1;
+  background: var(--color-safe);
+  opacity: 0.3;
+  mask: var(--hand-marker) no-repeat center / 100% 100%;
+  pointer-events: none;
+}
+
+/* An optional class is scratched out, which says "not going" before a word is
+   read. The fade it already has stays underneath. */
+:is(html[data-theme="register"], html[data-theme="ticket"]) [data-optional] h3 {
+  position: relative;
+}
+:is(html[data-theme="register"], html[data-theme="ticket"]) [data-optional] h3::after {
+  content: "";
+  position: absolute;
+  left: -2px;
+  right: -2px;
+  top: 50%;
+  height: 10px;
+  margin-top: -4px;
+  background: var(--color-text-1);
+  mask: var(--hand-strike) no-repeat center / 100% 100%;
+  pointer-events: none;
+}
+
+/* Your name, run over with a highlighter. */
+:is(html[data-theme="register"], html[data-theme="ticket"]) [data-name] {
+  position: relative;
+  isolation: isolate;
+  width: fit-content;
+}
+:is(html[data-theme="register"], html[data-theme="ticket"]) [data-name]::before {
+  content: "";
+  position: absolute;
+  left: -0.08em;
+  right: -0.12em;
+  bottom: 0.02em;
+  height: 0.46em;
+  z-index: -1;
+  background: var(--look-loud);
+  opacity: 0.55;
+  mask: var(--hand-marker) no-repeat center / 100% 100%;
+  pointer-events: none;
+}
+
+/* The tags and chips the shared screens use are hand cut. */
+:is(html[data-theme="register"], html[data-theme="ticket"]) [data-chip] {
+  border-radius: 255px 15px 225px 15px / 15px 225px 15px 255px;
 }

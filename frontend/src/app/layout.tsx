@@ -8,6 +8,7 @@ import {
   Press_Start_2P,
   Silkscreen,
   Space_Grotesk,
+  Unbounded,
 } from "next/font/google";
 import "./globals.css";
 import { SessionProvider } from "@/context/SessionContext";
@@ -93,6 +94,18 @@ const pixelName = Silkscreen({
   preload: false,
 });
 
+/**
+ * Ticket's display face: wide and loud on the big figures and headings. Body
+ * copy and every column of figures stay in Geist, so nothing lines up
+ * differently. `preload: false` for the same reason as the faces above.
+ */
+const ticketFace = Unbounded({
+  variable: "--font-ticket-src",
+  subsets: ["latin"],
+  weight: ["600", "700"],
+  preload: false,
+});
+
 export const metadata: Metadata = {
   title: "Skipp, know before you bunk",
   description:
@@ -125,7 +138,7 @@ export default function RootLayout({
     <html
       lang="en"
       suppressHydrationWarning
-      className={`${geistSans.variable} ${geistMono.variable} ${signature.variable} ${display.variable} ${hand.variable} ${puffy.variable} ${pixel.variable} ${pixelName.variable} h-full antialiased`}
+      className={`${geistSans.variable} ${geistMono.variable} ${signature.variable} ${display.variable} ${hand.variable} ${puffy.variable} ${pixel.variable} ${pixelName.variable} ${ticketFace.variable} h-full antialiased`}
     >
       <head>
         {/* Applies the saved theme before paint so there is no flash. */}

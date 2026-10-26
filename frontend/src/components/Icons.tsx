@@ -126,6 +126,15 @@ export function IconCheck(p: IconProps) {
   );
 }
 
+export function IconArrowRight(p: IconProps) {
+  return (
+    <Svg {...p}>
+      <path d="M5 12h14" />
+      <path d="M13 6l6 6-6 6" />
+    </Svg>
+  );
+}
+
 export function IconArrowDown(p: IconProps) {
   return (
     <Svg {...p}>
