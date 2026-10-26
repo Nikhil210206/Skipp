@@ -216,6 +216,9 @@ export default function CalendarPage() {
                   // four, which makes a day order recognisable here and on
                   // Schedule without reading the figure.
                   data-do={day?.dayOrder ?? undefined}
+                  // Marked so a look can write "you're here" beside today
+                  // (Register and Ticket).
+                  data-today={isToday ? "" : undefined}
                   // Taller past `lg`. Once the grid fills a laptop window each
                   // cell is ~150px wide, and at the phone's 52px height that is
                   // a 3:1 letterbox rather than a day. Height only, so the

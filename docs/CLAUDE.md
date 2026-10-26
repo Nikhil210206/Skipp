@@ -376,7 +376,9 @@ than a full sketchbook, in both looks.
   bar, every marker underline (section labels, headings, scores, the filter,
   Register's masthead, which has its cyan cell back), the mood notes ("you're
   chilling" and friends), the circled poster figures and circled today, and
-  "you're here" on Schedule.
+  "you're here" on Schedule. **Then asked back, alone:** "you're here" written
+  beside today on the Calendar (`data-today`), with no circle; the underline
+  stays.
 - Verified at 390x844 against `?fixture=1` in the DevTools browser: Home,
   Attendance, Marks, Calendar and Schedule in Register, and Attendance and
   Schedule in Ticket. No overflow, `tsc` clean, changed files lint clean.

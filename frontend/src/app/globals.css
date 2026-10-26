@@ -2505,6 +2505,7 @@ html[data-theme="ticket"] [data-optional] {
 
    Underlines, circled figures, a circled today and the "you're here" note on
    Schedule were all built and then REMOVED ON REQUEST. Do not add them back.
+   "You're here" beside today on the Calendar was asked back, alone.
 
    Each mark is a MASK over a fill, never an image with a colour baked in, so
    it takes the look's own tokens and stays right in both looks. The paths are
@@ -2538,6 +2539,43 @@ html[data-theme="register"] [data-rule] {
   background: var(--color-text-2);
   opacity: 0.45;
   mask: var(--hand-rule) repeat-x center / 120px 8px;
+}
+
+/* Today on the calendar is circled in marker with "you're here" written
+   beside it (asked back together). The circle replaces the underline. */
+:is(html[data-theme="register"], html[data-theme="ticket"]) [data-day][data-today] > span.absolute.bottom-1\.5 {
+  display: none;
+}
+:is(html[data-theme="register"], html[data-theme="ticket"]) [data-day][data-today]::before {
+  content: "";
+  position: absolute;
+  inset: 3px 4px 5px;
+  background: var(--look-loud);
+  mask: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 120 70' preserveAspectRatio='none'%3E%3Cpath d='M70 5 C 30 2, 5 15, 6 36 C 7 58, 42 66, 72 63 C 103 60, 117 42, 112 24 C 106 7, 80 3, 52 9' fill='none' stroke='black' stroke-width='3' stroke-linecap='round'/%3E%3C/svg%3E") no-repeat center / 100% 100%;
+  pointer-events: none;
+}
+/*
+   It sits on the boundary above the cell, so it can cross the day order
+   figure of the date above; the halo in the page colour knocks that figure out
+   behind the letters only, so the note always reads. */
+:is(html[data-theme="register"], html[data-theme="ticket"]) [data-day][data-today]::after {
+  content: "you're here";
+  position: absolute;
+  top: -0.6rem;
+  left: 38%;
+  z-index: 2;
+  white-space: nowrap;
+  font-family: var(--font-hand);
+  font-size: var(--text-note-sm);
+  font-weight: 700;
+  line-height: 1;
+  color: var(--color-accent);
+  text-shadow:
+    0 0 2px var(--color-ink-0),
+    0 0 2px var(--color-ink-0),
+    0 0 3px var(--color-ink-0);
+  transform: rotate(-6deg);
+  pointer-events: none;
 }
 
 /* A day off, highlighted. In the holiday's own colour, at a highlighter's
