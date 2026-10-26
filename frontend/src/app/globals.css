@@ -1,5 +1,11 @@
 @import "tailwindcss";
 
+/* A phone with little height to spare (an iPhone SE is 667). The front door
+   and the tour are composed for one screen with nothing to scroll, so on a
+   short phone they drop their second paragraphs and tighten, rather than
+   asking the reader to scroll a chapter that was meant to be seen whole. */
+@custom-variant short (@media (max-height: 720px) and (max-width: 1023px));
+
 /* ============================================================
    SKIPP DESIGN SYSTEM
    One scale for everything. Nothing is styled ad hoc.

@@ -3,7 +3,7 @@
 import { useRouter } from "next/navigation";
 import { useCallback, useEffect, useState } from "react";
 import LoginForm, { type SignInPhase } from "@/components/LoginForm";
-import Onboarding from "@/components/onboarding/Onboarding";
+import Tour from "@/components/front/Tour";
 import SyncSequence, { type Fact } from "@/components/onboarding/SyncSequence";
 import {
   markIntroSeen,
@@ -12,7 +12,7 @@ import {
   useSeenWelcome,
 } from "@/lib/firstRun";
 import InstallGate, { useShouldOfferInstall } from "@/components/InstallGate";
-import Welcome from "@/components/Welcome";
+import Hero from "@/components/front/Hero";
 import CreatorCredit from "@/components/CreatorCredit";
 import Logo, { Wordmark } from "@/components/Logo";
 import Greeting from "@/components/Greeting";
@@ -36,9 +36,11 @@ export default function LoginPage() {
   const seenIntro = useSeenIntro();
   const [dismissed, setDismissed] = useState(false);
 
-  // The welcome comes first of all: it says what Skipp is and lets the student
-  // choose the installed app or the browser, so the install screen that may
-  // follow is answering a choice they made rather than making a demand.
+  // The front door comes first of all: it says what Skipp is before anything
+  // asks for anything, so the install screen that may follow is answering a
+  // choice they made rather than making a demand. Its flag is still the
+  // welcome's, since it replaced the welcome and a device that saw one has
+  // seen the other.
   const seenWelcome = useSeenWelcome();
   const [welcomeDone, setWelcomeDone] = useState(false);
   const showWelcome = !seenWelcome && !welcomeDone;
@@ -122,14 +124,24 @@ export default function LoginPage() {
   }
 
   // First of all, and behind the authed redirect above: a returning student is
-  // on their way to the dashboard and has been greeted long ago. It asks for
-  // nothing, so there is only one way on.
+  // on their way to the dashboard and has been greeted long ago.
+  //
+  // Two ways on. "Get started" plays the tour. "Sign in" is for somebody who
+  // already uses Skipp on another device, so it skips the tour as well, but
+  // NOT the install offer: on iOS that one is about where the sign in happens,
+  // which matters to them exactly as much as to anybody new.
   if (showWelcome) {
     return (
-      <Welcome
-        onNext={() => {
+      <Hero
+        onStart={() => {
           markWelcomeSeen();
           setWelcomeDone(true);
+        }}
+        onSignIn={() => {
+          markWelcomeSeen();
+          markIntroSeen();
+          setWelcomeDone(true);
+          setDismissed(true);
         }}
       />
     );
@@ -144,7 +156,7 @@ export default function LoginPage() {
 
   if (showIntro) {
     return (
-      <Onboarding
+      <Tour
         onDone={() => {
           markIntroSeen();
           setDismissed(true);

@@ -135,6 +135,15 @@ export function IconArrowRight(p: IconProps) {
   );
 }
 
+export function IconUndo(p: IconProps) {
+  return (
+    <Svg {...p}>
+      <path d="M4 10h11a5 5 0 0 1 0 10H9" />
+      <path d="M8 6 4 10l4 4" />
+    </Svg>
+  );
+}
+
 export function IconArrowDown(p: IconProps) {
   return (
     <Svg {...p}>

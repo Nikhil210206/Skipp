@@ -4,6 +4,7 @@ import { useLayoutEffect, useRef, useState } from "react";
 import gsap from "gsap";
 import { EASE, prefersReducedMotion } from "@/lib/motion";
 import { TASSEL_PIVOT } from "@/lib/logo";
+import { markLaunchLifted } from "@/lib/launch";
 import Logo from "./Logo";
 
 /**
@@ -37,7 +38,10 @@ export default function Splash() {
 
     if (prefersReducedMotion()) {
       // No performance, just a brief hold so the app does not flash past.
-      const t = setTimeout(() => setDone(true), 280);
+      const t = setTimeout(() => {
+        markLaunchLifted();
+        setDone(true);
+      }, 280);
       return () => clearTimeout(t);
     }
 
@@ -88,6 +92,9 @@ export default function Splash() {
         // The whole thing lifts away rather than dissolving: the app is
         // arriving underneath it, not replacing it.
         .to({}, { duration: 0.08 }, 1.25)
+        // The screen underneath can start its own entrance now, so it is
+        // already moving as the overlay clears rather than sitting there.
+        .call(markLaunchLifted)
         .to("[data-mark-group]", {
           y: -14,
           opacity: 0,

@@ -1,31 +1,37 @@
 "use client";
 
 import { useEffect, useState, useSyncExternalStore } from "react";
-import Notebook from "./entry/Notebook";
-import { Ink, Staple, Sticky, Star, Tape } from "./entry/paper";
-import { INKS } from "./entry/inks";
-import { markInstallOffered, useDeckPages } from "./entry/pages";
+import gsap from "gsap";
+import Logo from "./Logo";
 import { IconAddSquare, IconCheck, IconMenuDots, IconShare } from "./Icons";
+import { useLockScroll } from "./ui/Overlay";
+import { useGsap } from "@/lib/motion";
+import { haptic } from "@/lib/haptics";
+import Rise from "./front/Rise";
+import { RoomButton } from "./front/RoomFrame";
+import { ROOMS } from "./front/rooms";
+import { usePaintChrome } from "./front/chrome";
 
 /**
- * The way onto the home screen, as the second chapter of the entry deck.
+ * The way onto the home screen.
  *
- * It was a bottom sheet, and a sheet is what you use to ASK quietly. This asks
- * with the whole screen, because the installed app is a genuinely different
- * product: it starts from the copy already on the phone, it has no browser
- * chrome eating a fifth of a 6.7 inch display, and **on iOS it is the only
- * context that can show a notification at all**.
+ * A full screen ask rather than a sheet, because the installed app is a
+ * genuinely different product: it starts from the copy already on the phone,
+ * it has no browser chrome eating a fifth of the display, and **on iOS it is
+ * the only context that can show a notification at all**.
  *
- * Built from the same furniture as the welcome before it and the onboarding
- * chapters after it, so the whole way in reads as one publication. Its room is
- * a deep ocean against the welcome's warm ember, so advancing feels like moving
- * somewhere rather than reskinning the same screen.
+ * Its room is CLAY, the soft look, and it is the one screen of the way in that
+ * is not part of the numbered tour: it is a question about where Skipp lives,
+ * not a chapter about what it does. The object is a home screen with an empty
+ * slot, and the Skipp icon drops into it, which is the whole request drawn.
+ * (Rebuilt with the front door and the tour, 2026-10-27; it was a notebook
+ * page.)
  *
  * **It still never blocks.** There is no way to observe that somebody made a
  * shortcut, only whether this page is *running* standalone, so a hard wall
  * would trap anyone whose browser cannot install (some in-app browsers, Firefox
  * on iOS) with no route to their own attendance. "Use in browser instead" is
- * deliberately quiet rather than absent.
+ * always there.
  *
  * The placement matters as much as the design. Shown to a SIGNED OUT visitor,
  * installing costs nothing: they install, then sign in once, inside the
@@ -34,8 +40,6 @@ import { IconAddSquare, IconCheck, IconMenuDots, IconShare } from "./Icons";
  * container and the session in Safari does not follow it. Hence `signedIn`,
  * which only adds the sentence that warns about it.
  */
-
-const INK = INKS.install;
 
 const KEY = "skipp.install-prompt";
 /** One dismissal is not forever, but it is not a nag on every launch either. */
@@ -129,17 +133,13 @@ export default function InstallGate({
   /** Adds the iOS "you will sign in again" caveat, true only inside the app. */
   signedIn?: boolean;
 }) {
+  const room = ROOMS.clay;
   const [native, setNative] = useState<BeforeInstallPrompt | null>(null);
   const ios = isIOS();
-  const pages = useDeckPages();
   const note = signedIn && ios;
 
-  // This sheet is now part of the pad, and stays part of it once turned, or
-  // dismissing the offer shortens the notebook under the reader. Only from the
-  // entry deck: the copy shown inside the signed in app is not a sheet at all.
-  useEffect(() => {
-    if (!signedIn) markInstallOffered();
-  }, [signedIn]);
+  usePaintChrome(room.bg);
+  useLockScroll(true);
 
   useEffect(() => {
     const onPrompt = (e: Event) => {
@@ -151,6 +151,7 @@ export default function InstallGate({
   }, []);
 
   function dismiss() {
+    haptic("tick");
     snoozeInstallOffer();
     onDismiss();
   }
@@ -163,105 +164,160 @@ export default function InstallGate({
       ]
     : [
         { Icon: IconMenuDots, text: "Open the browser menu" },
-        { Icon: IconAddSquare, text: "Choose Install app, or Add to Home screen" },
+        { Icon: IconAddSquare, text: "Choose Install app or Add to Home screen" },
         { Icon: IconCheck, text: "Open Skipp from the new icon" },
       ];
 
-  return (
-    <Notebook
-      page={pages.install ?? 2}
-      total={pages.total}
-      word="ON HOME"
-      ink={INK}
-      // No round arrow on this sheet. An arrow means "the next page", and this
-      // page is not asking you to read on, it is asking you to leave, install,
-      // and come back. The way past is therefore named: carrying on without
-      // installing is a choice, so it says which choice it is.
-      actionLabel="Use in browser instead"
-      onNext={dismiss}
-      onSkip={dismiss}
-      mark={<Staple className="right-[16%] top-[11%]" rotate={-34} size={48} />}
-    >
-      <div className="flex h-full flex-col">
-        {/* Taped on rather than written: this page is an offer stuck into the
-            pad, not part of the argument the rest of it is making. */}
-        <div className="relative shrink-0 self-start">
-          <Tape className="-left-3 -top-4 z-10" rotate={-9} width={72} />
-          <Tape className="-right-4 -top-2 z-10" rotate={6} width={56} />
-          <Sticky rotate={-1.5} tone="paper" pad="px-5 py-4">
-            <Ink tool="marker" colour={INK} size="text-[1.5rem]">
-              Get Skipp on
-              <br />
-              your Home Screen
-            </Ink>
-          </Sticky>
-        </div>
-        <Star className="right-2 top-2" size={14} />
+  const scope = useGsap(({ reduced }) => {
+    if (reduced) return;
+    const tl = gsap.timeline({ delay: 0.15 });
+    tl.fromTo(
+      "[data-char]",
+      { yPercent: 120 },
+      { yPercent: 0, duration: 0.95, ease: "expo.out", stagger: 0.016 },
+      0,
+    )
+      .fromTo(
+        "[data-f]",
+        { opacity: 0, y: 20 },
+        { opacity: 1, y: 0, duration: 0.7, ease: "expo.out", stagger: 0.07 },
+        0.25,
+      )
+      .fromTo(
+        "[data-app]",
+        { scale: 0.6, opacity: 0 },
+        { scale: 1, opacity: 1, duration: 0.5, ease: "back.out(2)", stagger: 0.04 },
+        0.35,
+      )
+      // The one that matters lands last, from above, with a bounce.
+      .fromTo(
+        "[data-skipp]",
+        { y: -90, scale: 1.25, opacity: 0 },
+        { y: 0, scale: 1, opacity: 1, duration: 0.8, ease: "bounce.out" },
+        0.9,
+      )
+      .fromTo(
+        "[data-step]",
+        { opacity: 0, y: 24, scale: 0.94 },
+        { opacity: 1, y: 0, scale: 1, duration: 0.6, ease: "back.out(1.6)", stagger: 0.09 },
+        0.75,
+      );
+  }, []);
 
-        {/* The steps float in whatever the heading and the sign off leave,
-            rather than stacking under the heading and leaving half the sheet
-            blank. Auto margins on the outer items rather than `justify-center`
-            on the list: once free space goes negative a flex container treats
-            them as zero, so on a short phone the list top aligns and scrolls
-            instead of pushing its own first step out of reach. */}
-        <ol className="no-scrollbar relative mt-7 flex min-h-0 flex-1 flex-col overflow-y-auto lg:max-w-[30rem] [&>*:first-child]:mt-auto [&>*:last-child]:mb-auto">
-          {/* Three numbered steps read as a torn out instruction sheet, so
-              they get stapled in rather than taped like the heading above. */}
-          <Staple className="-left-2 top-0 z-10" rotate={-44} size={34} />
-          {steps.map(({ Icon, text }, i) => (
-            <li
-              key={text}
-              className="flex items-center gap-4 border-b py-4"
-              style={{ borderColor: `${INK}22` }}
+  /** The other apps on the screen: pale tiles, so the one in colour is Skipp. */
+  const tiles = ["#d9ddf7", "#cfd4f5", "#e2e5fa", "#d4d9f6", "#c8cef3", "#dde1f8", "#d0d5f5"];
+
+  return (
+    <div
+      ref={scope}
+      className="fixed inset-0 z-50 flex flex-col overflow-hidden"
+      style={{ background: room.bg, color: room.ink }}
+    >
+      <div className="mx-auto flex w-full max-w-[560px] shrink-0 items-center px-6 pt-[max(18px,env(safe-area-inset-top))]">
+        <p data-f className="font-mono text-[11px] font-semibold tracking-[0.16em]" style={{ color: room.faint }}>
+          BEFORE YOU START
+        </p>
+      </div>
+
+      <div className="no-scrollbar min-h-0 flex-1 overflow-y-auto">
+        <div className="mx-auto flex min-h-full w-full max-w-[560px] flex-col px-6 pt-5">
+          <Rise
+            text="put skipp on"
+            className="text-[38px] font-bold leading-[1] tracking-[-0.03em] short:text-[34px]"
+            style={{ fontFamily: room.head }}
+          />
+          <Rise
+            text="your home screen."
+            className="text-[38px] font-bold leading-[1.05] tracking-[-0.03em] short:text-[34px]"
+            style={{ fontFamily: room.head, color: room.accentText }}
+          />
+          <p data-f className="mt-4 text-[16px] leading-[1.5] short:hidden" style={{ color: room.dim }}>
+            Full screen, no browser bar, opens instantly. On iPhone it is also
+            the only way Skipp can nudge you before a class.
+          </p>
+
+          <div className="my-auto py-6 short:py-3">
+            <div
+              data-f
+              className="grid grid-cols-4 gap-x-4 gap-y-3 rounded-[28px] p-5 short:gap-y-2 short:p-4"
+              style={{ background: "#f6f7fe", boxShadow: "0 18px 36px -22px rgba(107,77,255,0.45)" }}
+              aria-hidden
             >
-              {/* The number is written, the icon is stamped. */}
-              <Ink tool="pencil" colour={INK} size="text-[1.1rem]" className="w-6 shrink-0">
-                {String(i + 1).padStart(2, "0")}
-              </Ink>
-              <span
-                className="grid size-10 shrink-0 place-items-center rounded-xl"
-                style={{ background: `${INK}18`, color: INK }}
-              >
-                <Icon size={18} />
+              {tiles.map((c, i) => (
+                <span key={i} className="flex flex-col items-center gap-1.5">
+                  <span data-app className="aspect-square w-full rounded-[16px]" style={{ background: c }} />
+                  <span className="h-1.5 w-3/5 rounded-full" style={{ background: "#e3e6f8" }} />
+                </span>
+              ))}
+              <span className="flex flex-col items-center gap-1.5">
+                <span
+                  data-skipp
+                  className="grid aspect-square w-full place-items-center rounded-[16px]"
+                  style={{ background: "#f2661c", color: "#140700", boxShadow: "0 10px 18px -8px rgba(242,102,28,0.6)" }}
+                >
+                  <Logo size={30} mono />
+                </span>
+                <span className="text-[11px] font-semibold leading-none" style={{ color: room.ink }}>
+                  skipp
+                </span>
               </span>
-              <Ink tool="pen" colour={INK} size="text-[1.1rem]" className="min-w-0 flex-1">
-                {text}
-              </Ink>
-            </li>
-          ))}
-          {note && (
-            <li className="pt-4">
-              <Ink tool="pencil" colour={INK} size="text-[1rem]" className="max-w-[30ch]">
+            </div>
+
+            <ol className="mt-5 flex flex-col gap-2.5 short:mt-3 short:gap-2">
+              {steps.map(({ Icon, text }, i) => (
+                <li
+                  key={text}
+                  data-step
+                  className="flex items-center gap-3.5 rounded-[22px] px-4 py-3 short:py-2"
+                  style={{ background: "#f6f7fe", boxShadow: "0 10px 22px -16px rgba(107,77,255,0.5)" }}
+                >
+                  <span
+                    className="grid size-10 shrink-0 place-items-center rounded-full"
+                    style={{ background: "#e6e9fb", color: room.accentText }}
+                  >
+                    <Icon size={18} />
+                  </span>
+                  <span className="min-w-0 flex-1 text-[15px] font-medium leading-snug">{text}</span>
+                  <span className="font-mono text-[11px] font-semibold" style={{ color: room.faint }}>
+                    {String(i + 1).padStart(2, "0")}
+                  </span>
+                </li>
+              ))}
+            </ol>
+            {note && (
+              <p className="mt-4 text-[14px] leading-[1.5]" style={{ color: room.dim }}>
                 Signing in once more inside the installed app is normal: iOS keeps
                 a home screen app&rsquo;s data separate from Safari&rsquo;s.
-              </Ink>
-            </li>
-          )}
-        </ol>
+              </p>
+            )}
+          </div>
+        </div>
+      </div>
 
+      <div className="mx-auto flex w-full max-w-[560px] shrink-0 flex-col gap-2 px-6 pb-[max(18px,env(safe-area-inset-bottom))] pt-2">
         {/* Chrome hands over a real install dialog, so on Android there is a
             genuine action to offer. Safari has no equivalent, which is the
-            whole reason the written steps above exist, and on iOS this sheet
-            correctly has no button of its own: the only way on is the named
-            one in the footer. */}
+            whole reason the written steps exist, and there the only button is
+            the way past. */}
         {native && (
-          <div className="shrink-0 pb-1 pt-4">
-            <button
-              onClick={async () => {
-                await native.prompt();
-                await native.userChoice;
-                dismiss();
-              }}
-              className="inline-flex min-h-12 items-center justify-center rounded-full px-7 transition-transform duration-200 active:scale-[0.97]"
-              style={{ background: INK, color: "#F6F1E4" }}
-            >
-              <Ink tool="marker" colour="#F6F1E4" size="text-[1.15rem]">
-                Install Skipp
-              </Ink>
-            </button>
-          </div>
+          <RoomButton
+            room={room}
+            label="install skipp"
+            onClick={async () => {
+              await native.prompt();
+              await native.userChoice;
+              dismiss();
+            }}
+          />
         )}
+        <RoomButton
+          room={room}
+          label="use in browser instead"
+          solid={false}
+          arrow={false}
+          onClick={dismiss}
+        />
       </div>
-    </Notebook>
+    </div>
   );
 }
