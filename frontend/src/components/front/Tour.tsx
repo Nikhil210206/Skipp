@@ -9,6 +9,7 @@ import { haptic } from "@/lib/haptics";
 import { prefersReducedMotion, useGsap } from "@/lib/motion";
 import { setTheme, THEMES, useTheme, type Theme } from "@/lib/theme";
 import { CREATOR, LINK_NAMES, creatorLinks } from "@/lib/creator";
+import { predict } from "@/lib/predictor";
 import { BackButton, C, DISPLAY, DotField, Eyebrow, PrimaryPill, Receipt } from "./kit";
 import { PhoneFrame, Shot } from "./PhoneShot";
 import Rise from "./Rise";
@@ -334,28 +335,84 @@ function Body({
 
 /* ------------------------------------------------------- 01 · what it is */
 
-const LOT = [
-  { label: "ATTENDANCE", figure: "85.3", unit: "%", note: "and how many you can still miss", meter: 85.3, loud: true },
-  { label: "LEAVE PLANNER", figure: "83.2", unit: "%", note: "if you take friday off, before you book it" },
-  { label: "MARKS", figure: "174", unit: "/240", note: "and the grade you are on track for" },
-  { label: "TIMETABLE", figure: "12:30", unit: "", note: "by day order, the way SRM runs" },
-] as const;
+/**
+ * The portal's own attendance table, as cramped as the real one: nine columns
+ * in the order SRM prints them. The courses and staff are invented, but the
+ * arithmetic is not: the answers are `predict()` over exactly these rows, so
+ * the chapter can never quote a figure the app would disagree with.
+ */
+const PORTAL_COLS = ["CODE", "COURSE TITLE", "CATEGORY", "FACULTY", "SLOT", "ROOM", "HRS", "ABS", "ATTN %"];
+const PORTAL = [
+  { code: "21CSC302J", title: "Computer Networks", cat: "Theory", fac: "Dr. R. K.", slot: "A", room: "TP306", hrs: 28, abs: 3 },
+  { code: "21CSE742P", title: "Database Systems Lab", cat: "Practical", fac: "Dr. S. M.", slot: "P37", room: "TP1004", hrs: 24, abs: 2 },
+  { code: "21MAB302T", title: "Discrete Mathematics", cat: "Theory", fac: "Dr. A. V.", slot: "B", room: "TP506", hrs: 28, abs: 9 },
+  { code: "21CSC303J", title: "Software Engineering", cat: "Theory", fac: "Dr. P. N.", slot: "C", room: "TP307", hrs: 24, abs: 4 },
+  { code: "21CSE356T", title: "Machine Learning", cat: "Theory", fac: "Dr. K. L.", slot: "D", room: "TP402", hrs: 26, abs: 2 },
+  { code: "21LEM302T", title: "Critical Thinking", cat: "Theory", fac: "Dr. M. J.", slot: "E", room: "TP306", hrs: 20, abs: 2 },
+];
+const PORTAL_GRID = "grid grid-cols-[46px_minmax(0,1fr)_32px_34px_20px_30px_16px_16px_28px] gap-x-1 lg:grid-cols-[60px_minmax(0,1fr)_46px_44px_24px_40px_20px_20px_36px]";
+
+const held = PORTAL.reduce((n, r) => n + r.hrs, 0);
+const went = PORTAL.reduce((n, r) => n + r.hrs - r.abs, 0);
+const overall = predict(went, held, 75);
+const worst = PORTAL.reduce((w, r) => ((r.hrs - r.abs) / r.hrs < (w.hrs - w.abs) / w.hrs ? r : w));
+const worstPct = ((worst.hrs - worst.abs) / worst.hrs) * 100;
+const fix = predict(worst.hrs - worst.abs, worst.hrs, 75);
+
+/**
+ * What the table above actually means. Three answers out of nine columns, and
+ * the orange goes on the one that is trouble, the way it does in the app.
+ */
+const ANSWERS = [
+  { label: "ATTENDED", note: "Term to date, all six subjects.", figure: overall.percentage.toFixed(1), unit: "%" },
+  {
+    label: "MUST ATTEND",
+    note: `${worst.title} is at ${worstPct.toFixed(1)}%. This many in a row clears 75%.`,
+    figure: String(fix.mustAttend),
+    unit: "",
+    loud: true,
+  },
+  { label: "NEXT CLASS", note: "Critical Thinking, TP306.", figure: "12:30", unit: "" },
+];
+
+/** Where each struck row lands as it falls out of the window. */
+const FALL_TILT = [-13, 9, -6, 12, -9, 7, -4];
 
 function What({ nav }: { nav: Nav }) {
   const scope = useEntrance(nav.arrive, (tl, self) => {
-    const cards = self.querySelectorAll("[data-deal]");
-    if (cards.length) {
-      tl.fromTo(
-        cards,
-        { y: 110, rotation: (i: number) => [-9, 7, -6, 8][i] ?? 0, opacity: 0 },
-        { y: 0, rotation: 0, opacity: 1, duration: 1, ease: "back.out(1.35)", stagger: 0.09 },
-        0.2,
-      );
-    }
-    const fill = self.querySelector("[data-fill]");
-    if (fill) {
-      tl.fromTo(fill, { scaleX: 0 }, { scaleX: 1, duration: 1.1, ease: "expo.out", transformOrigin: "left center" }, 0.85);
-    }
+    const portal = self.querySelector("[data-portal]");
+    const frame = self.querySelector("[data-frame]");
+    const rows = self.querySelectorAll("[data-prow]");
+    const strikes = self.querySelectorAll("[data-strike]");
+    const answers = self.querySelectorAll("[data-answer]");
+    if (!portal || !frame || !rows.length || !strikes.length || !answers.length) return;
+
+    // The chapter is RENDERED as its ending, the answers with no portal, so a
+    // story that never plays still leaves a readable page. These two sets turn
+    // it back to the beginning before the first paint.
+    gsap.set(portal, { autoAlpha: 1 });
+    gsap.set(answers, { autoAlpha: 0 });
+
+    // The portal loads, a marker goes through every row, the rows drop out of
+    // the window, the empty window goes, and the answers are what is left.
+    tl.fromTo(frame, { y: 36, opacity: 0 }, { y: 0, opacity: 1, duration: 0.7, ease: "expo.out" }, 0.2)
+      .fromTo(rows, { opacity: 0 }, { opacity: 1, duration: 0.25, ease: "power1.out", stagger: 0.05 }, 0.45)
+      .fromTo(strikes, { scaleX: 0 }, { scaleX: 1, duration: 0.3, ease: "power2.inOut", stagger: 0.08 }, 1.05)
+      .to(
+        rows,
+        {
+          y: (i: number) => 80 + ((i * 41) % 70),
+          rotation: (i: number) => FALL_TILT[i % FALL_TILT.length],
+          opacity: 0,
+          duration: 0.65,
+          ease: "power2.in",
+          stagger: { each: 0.045, from: "random" },
+        },
+        1.95,
+      )
+      .to(frame, { opacity: 0, scale: 0.94, duration: 0.4, ease: "power2.in" }, 2.4)
+      .set(portal, { autoAlpha: 0 })
+      .fromTo(answers, { autoAlpha: 0, y: 34 }, { autoAlpha: 1, y: 0, duration: 0.85, ease: "expo.out", stagger: 0.12 }, 2.55);
   });
 
   return (
@@ -369,33 +426,81 @@ function What({ nav }: { nav: Nav }) {
         </Head>
       }
       object={
-        <div className="mx-auto grid w-full max-w-[24rem] grid-cols-2 gap-3 lg:max-w-[30rem] lg:gap-4">
-          {LOT.map((k) => {
-            const loud = "loud" in k && k.loud;
-            return (
-              <div key={k.label} data-deal>
-                <Receipt label={k.label} fill={loud ? "accent" : undefined} className="h-full">
-                  <div className="px-4 pb-4 pt-3 short:pb-3 short:pt-2">
-                    <p className="tnum text-[30px] font-extrabold leading-none tracking-[-0.04em] short:text-[26px] lg:text-[40px]" style={{ fontFamily: DISPLAY }}>
-                      {k.figure}
-                      <span className="text-[15px] lg:text-[19px]" style={{ opacity: 0.55 }}>
-                        {k.unit}
-                      </span>
-                    </p>
-                    {"meter" in k && (
-                      <div className="relative mt-3 h-[3px] rounded-full" style={{ background: "rgba(20,7,0,0.2)" }}>
-                        <span data-fill className="absolute inset-y-0 left-0 rounded-full" style={{ width: `${k.meter}%`, background: C.onAccent }} />
-                        <span className="absolute -top-[4px] left-[75%] h-[11px] w-[2px]" style={{ background: C.onAccent }} />
-                      </div>
-                    )}
-                    <p className="mt-2.5 text-[12.5px] leading-snug lg:text-[14px]" style={{ opacity: loud ? 0.8 : 1, color: loud ? undefined : C.dim }}>
-                      {k.note}
-                    </p>
-                  </div>
-                </Receipt>
+        <div className="mx-auto grid w-full max-w-[24rem] lg:max-w-[31rem]">
+          {/* The portal: decoration, hidden at rest (see above), and shown
+              only for as long as the story needs it. */}
+          <div data-portal aria-hidden className="invisible self-center [grid-area:1/1]">
+            <div data-frame className="rounded-[18px] border-2 px-3 pb-3 pt-2.5" style={{ borderColor: C.line, background: C.card }}>
+              <div data-prow className="flex items-center gap-2 rounded-full px-3 py-1.5 font-mono text-[9.5px] lg:text-[11px]" style={{ background: C.raised, color: C.faint }}>
+                <IconLock size={10} />
+                <span className="truncate">academia.srmist.edu.in / My_Attendance</span>
               </div>
-            );
-          })}
+              <div data-prow className={`${PORTAL_GRID} mt-2.5 px-1 font-mono text-[7px] font-semibold tracking-[0.04em] lg:text-[8.5px]`} style={{ color: C.faint }}>
+                {PORTAL_COLS.map((c) => (
+                  <span key={c} className="truncate">
+                    {c}
+                  </span>
+                ))}
+              </div>
+              {PORTAL.map((r, i) => (
+                <div
+                  key={r.code}
+                  data-prow
+                  className={`${PORTAL_GRID} relative mt-1 rounded-[4px] px-1 py-[3px] font-mono text-[8px] leading-tight lg:text-[9.5px]`}
+                  style={{ color: C.dim, background: i % 2 ? "transparent" : C.raised }}
+                >
+                  {[r.code, r.title, r.cat, r.fac, r.slot, r.room, r.hrs, r.abs, (((r.hrs - r.abs) / r.hrs) * 100).toFixed(2)].map((v, k) => (
+                    <span key={k} className="truncate">
+                      {v}
+                    </span>
+                  ))}
+                  <span
+                    data-strike
+                    className="absolute inset-x-0 top-[calc(50%-1.5px)] h-[3px] origin-left rounded-full"
+                    style={{ background: C.accent, rotate: `${FALL_TILT[i] / 10}deg` }}
+                  />
+                </div>
+              ))}
+            </div>
+          </div>
+
+          <div className="[grid-area:1/1]">
+            {ANSWERS.map((a, i) => (
+              <div
+                key={a.label}
+                data-answer
+                className={`flex items-end justify-between gap-4 py-3.5 short:py-2.5 lg:py-5 ${i ? "border-t-2" : "pt-0 short:pt-0 lg:pt-0"}`}
+                // Each row is painted, not the column: on a laptop the outlined
+                // numeral and the dots stand behind this column and ran through
+                // the figures. The column itself stays clear, because it sits
+                // above the portal and would black it out mid story.
+                style={{ borderColor: C.line, background: C.ground }}
+              >
+                <div className="min-w-0 pb-1">
+                  <p className="font-mono text-[10px] font-semibold tracking-[0.14em] lg:text-[11px]" style={{ color: a.loud ? C.accent : C.faint }}>
+                    {a.label}
+                  </p>
+                  <p className="mt-1.5 text-[13px] leading-snug lg:text-[15px]" style={{ color: C.dim }}>
+                    {a.note}
+                  </p>
+                </div>
+                <p
+                  className="tnum shrink-0 text-[52px] font-extrabold leading-[0.9] tracking-[-0.05em] short:text-[42px] lg:text-[72px]"
+                  style={{ fontFamily: DISPLAY, color: a.loud ? C.accent : C.text }}
+                >
+                  {a.figure}
+                  {a.unit && (
+                    <span className="text-[0.42em] tracking-[-0.02em]" style={{ opacity: 0.55 }}>
+                      {a.unit}
+                    </span>
+                  )}
+                </p>
+              </div>
+            ))}
+            <p data-answer className="pt-2 font-mono text-[10px] font-semibold tracking-[0.14em] lg:text-[11px]" style={{ color: C.faint, background: C.ground }}>
+              NINE COLUMNS IN, THREE ANSWERS OUT
+            </p>
+          </div>
         </div>
       }
     />

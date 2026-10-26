@@ -25,8 +25,12 @@ import { prefersReducedMotion } from "@/lib/motion";
  * repaint the tour.
  */
 export const C = {
-  /** Warm, tinted toward the orange rather than a dead neutral black. */
-  ground: "#0b0a08",
+  /**
+   * True black, the way Ink is. A warm near black (#0b0a08) was tried here and
+   * reported as the hero no longer being black: on an OLED phone it is a lit,
+   * tinted backdrop, and the orange glow on it read as a gradient.
+   */
+  ground: "#000000",
   card: "#13110e",
   raised: "#1c1915",
   line: "#2e2a24",

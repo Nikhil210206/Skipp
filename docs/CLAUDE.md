@@ -358,12 +358,18 @@ C's giant wordmark behind them.
 **A first build set every chapter in a different look ("the rooms") and was
 rejected**: a way in has to read as one place. All Ink was then stopped as too
 plain. So the whole way in speaks **one language, `front/kit.tsx`**, the house
-style: a warm near black (`#0b0a08`), one orange used as a fill, a heavy
+style: true black, one orange used as a fill, a heavy
 lowercase display line followed by a second line in the hand, mono eyebrows,
 receipt cards, pills, a Bayer dither `DotField`, and an arch at the end. **Its
 colours are fixed, not theme tokens**: the look chapter changes the app's
 tokens live, and that must not repaint the tour. `rooms.ts` and `RoomFrame`
 are deleted.
+
+**The ground is `#000000`, and a warm near black was tried and reverted.**
+`#0b0a08` with an orange glow behind the hero's phones was reported from a
+phone as the hero no longer being black but "some sort of gradient": on OLED
+it is a lit, tinted backdrop. The glow is gone too. The dot field stays in the
+tour and the install offer (asked about directly, the answer was leave it).
 
 - **The hero is the README banner made to move.** "skipp" set enormous like a
   masthead, with three real screenshots (Brutal attendance, Ticket home, Ink
@@ -382,12 +388,24 @@ are deleted.
 - **The hero waits for the launch.** `lib/launch.ts` is a one shot signal the
   splash fires as it starts to lift (`markLaunchLifted`), with a fallback timer.
   Without it the whole entrance played under the overlay.
-- **Four chapters**: what it is (the old first two, merged, as four receipt
-  cards), your password (it scrambles into a cipher, the lock pops, and a packet
+- **Four chapters**: what it is, your password (it scrambles into a cipher, the lock pops, and a packet
   runs phone, Skipp's server, SRM portal), the dev (an ID card dropped on a
   lanyard, labelled THE DEV on request, with LinkedIn, Instagram and GitHub from
   `lib/creator.ts`), and your look. **The skip demo was dropped** because it was
   not in the chapter list the user gave; it is in git history.
+- **Chapter one is "the portal, stripped"**, chosen over two other concepts
+  after four receipt cards were reported as not creative enough. A cramped copy
+  of the portal's nine column attendance table loads, an orange marker strikes
+  every row, the rows drop out of the window, and three answers are left set
+  big: 85.3% attended, 8 to attend for the one subject below the line (in the
+  orange, because colour marks trouble), and the next class. **The answers
+  are `predict()` over exactly the rows in the table**, so the figures cannot
+  disagree with it. **The chapter is RENDERED as its ending** (answers, no
+  portal) and `gsap.set` turns it back to the start before first paint, so a
+  story that never plays, or reduced motion, leaves the answers and nothing
+  half hidden. The answer rows are each painted black, not their column: on a
+  laptop the outlined numeral ran through the figures, and a painted column
+  would sit over the portal and black it out mid story.
 - **Look order, everywhere: Ticket, Brutal, Terminal, Register, Clay, Stone.**
   `THEMES` holds that order and Profile, the look chapter and the README palette
   follow it. Ink leads the skins.

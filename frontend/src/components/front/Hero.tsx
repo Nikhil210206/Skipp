@@ -98,8 +98,7 @@ export default function Hero({
       const h = stage.clientHeight;
 
       const tl = gsap.timeline({ paused: true });
-      tl.fromTo("[data-glow]", { opacity: 0 }, { opacity: 1, duration: 1.6, ease: "power2.out" }, 0)
-        .fromTo(
+      tl.fromTo(
           "[data-letter]",
           { yPercent: 135 },
           { yPercent: 0, duration: 1, ease: "expo.out", stagger: 0.06 },
@@ -241,16 +240,6 @@ export default function Hero({
         data-stage
         className="relative z-10 min-h-0 flex-1 [container-type:size] lg:col-start-2 lg:row-start-1 lg:h-full"
       >
-        <div
-          data-glow
-          aria-hidden
-          className="pointer-events-none absolute left-1/2 top-[55%] h-[110cqh] w-[120cqw] -translate-x-1/2 -translate-y-1/2"
-          style={{
-            background:
-              "radial-gradient(closest-side, rgba(242,102,28,0.22), rgba(242,102,28,0) 72%)",
-          }}
-        />
-
         <div data-par-word className="absolute inset-x-0 top-[6cqh] flex justify-center">
           {/* The clip is what the letters rise out from under, and it needs
               room below the line or it shaves the tails off both p's. */}
