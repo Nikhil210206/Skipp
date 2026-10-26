@@ -1,8 +1,8 @@
-// Attendance & leave projection engine aligned with getratiod.lol (Ratio'd SRM)
+// Attendance & leave projection engine for SRM students
 //
 // Calculates the exact impact of leaves and OD/ML on attendance percentage and margins:
 // 1. Accurately counts lab & theory durations (e.g. 100min lab = 2 classes, 150min lab = 3 classes).
-// 2. Matches enrolled subjects to timetable periods with code & category fuzzy resolution.
+// 2. Matches enrolled subjects to timetable periods with code & category fallback resolution.
 // 3. Supports both 'leave' (missed classes) and 'od' (on-duty / medical leave excused/credited).
 // 4. Calculates per-subject margins (safe: classes you can skip; risk: classes to recover).
 // 5. Predicts the earliest calendar recovery date for any subject that falls below 75%.
@@ -109,9 +109,13 @@ export function getSlotHours(slot: {
   end?: string;
   startMin?: number;
   endMin?: number;
+  start_min?: number;
+  end_min?: number;
 }): number {
-  if (slot.startMin != null && slot.endMin != null && slot.endMin > slot.startMin) {
-    const diff = slot.endMin - slot.startMin;
+  const sMin = slot.startMin ?? slot.start_min;
+  const eMin = slot.endMin ?? slot.end_min;
+  if (sMin != null && eMin != null && eMin > sMin) {
+    const diff = eMin - sMin;
     return Math.max(1, Math.round(diff / 50));
   }
   if (slot.start && slot.end) {
@@ -136,56 +140,75 @@ function cleanStr(s: string) {
 
 /**
  * Matches a timetable class to an attendance subject row.
- * Respects Theory vs Practical split for courses that have both.
+ * Handles both split courses (Theory row + Practical row) and single combined rows.
  */
 function findMatchingSubject(
-  code: string,
-  title: string,
-  isLab: boolean,
-  subjects: ProjectedSubject[],
+  codeOrClass:
+    | string
+    | {
+        code?: string;
+        courseCode?: string;
+        title?: string;
+        name?: string;
+        isLab?: boolean;
+        is_lab?: boolean;
+        type?: string;
+      },
+  titleOrSubjects: string | ProjectedSubject[],
+  isLabOrUndefined?: boolean,
+  subjectsOrUndefined?: ProjectedSubject[],
 ): ProjectedSubject | null {
-  const normCode = cleanStr(code);
-  const normTitle = cleanStr(title);
+  let rawCode = "";
+  let rawTitle = "";
+  let isLab = false;
+  let subjects: ProjectedSubject[] = [];
 
-  // 1. Exact match on cleaned code AND lab status
-  let match = subjects.find(
-    (s) => cleanStr(s.code) === normCode && s.isPractical === isLab,
+  if (typeof codeOrClass === "object" && codeOrClass !== null) {
+    rawCode = cleanStr(codeOrClass.code || codeOrClass.courseCode || "");
+    rawTitle = cleanStr(codeOrClass.title || codeOrClass.name || "");
+    isLab =
+      codeOrClass.isLab ??
+      codeOrClass.is_lab ??
+      (codeOrClass.type ? /practical|lab/i.test(codeOrClass.type) : false);
+    subjects = Array.isArray(titleOrSubjects) ? titleOrSubjects : [];
+  } else {
+    rawCode = cleanStr(codeOrClass);
+    rawTitle = cleanStr(typeof titleOrSubjects === "string" ? titleOrSubjects : "");
+    isLab = Boolean(isLabOrUndefined);
+    subjects = subjectsOrUndefined ?? [];
+  }
+
+  if (!subjects || subjects.length === 0) return null;
+
+  // Pass 1: Match code or title AND lab/practical category
+  const typeMatch = subjects.find((s) => {
+    const sCode = cleanStr(s.code);
+    const sTitle = cleanStr(s.title);
+    const codeMatch =
+      sCode === rawCode ||
+      (sCode && rawCode && (sCode.includes(rawCode) || rawCode.includes(sCode)));
+    const titleMatch =
+      rawTitle.length > 3 &&
+      (sTitle === rawTitle || sTitle.includes(rawTitle) || rawTitle.includes(sTitle));
+    return (codeMatch || titleMatch) && s.isPractical === isLab;
+  });
+  if (typeMatch) return typeMatch;
+
+  // Pass 2: Fallback to match code or title regardless of lab/theory type
+  // (handles portal courses where integrated courses like 21CSC302J only have one combined row)
+  return (
+    subjects.find((s) => {
+      const sCode = cleanStr(s.code);
+      const sTitle = cleanStr(s.title);
+      const codeMatch =
+        sCode === rawCode ||
+        (sCode && rawCode && (sCode.includes(rawCode) || rawCode.includes(sCode)));
+      const titleMatch =
+        rawTitle.length > 3 &&
+        (sTitle === rawTitle || sTitle.includes(rawTitle) || rawTitle.includes(sTitle));
+      return codeMatch || titleMatch;
+    }) ?? null
   );
-  if (match) return match;
-
-  // 2. Substring/prefix match on code AND lab status
-  match = subjects.find((s) => {
-    const sc = cleanStr(s.code);
-    return (sc.includes(normCode) || normCode.includes(sc)) && s.isPractical === isLab;
-  });
-  if (match) return match;
-
-  // 3. Cleaned title match AND lab status
-  if (normTitle.length > 3) {
-    match = subjects.find((s) => {
-      const st = cleanStr(s.title);
-      return (st === normTitle || st.includes(normTitle) || normTitle.includes(st)) && s.isPractical === isLab;
-    });
-    if (match) return match;
-  }
-
-  // 4. Fallback: match by code alone if only one candidate exists
-  const byCode = subjects.filter((s) => {
-    const sc = cleanStr(s.code);
-    return sc === normCode || sc.includes(normCode) || normCode.includes(sc);
-  });
-  if (byCode.length === 1) return byCode[0];
-
-  // 5. Fallback: match by title alone
-  if (normTitle.length > 3) {
-    const byTitle = subjects.filter((s) => {
-      const st = cleanStr(s.title);
-      return st === normTitle || st.includes(normTitle) || normTitle.includes(st);
-    });
-    if (byTitle.length === 1) return byTitle[0];
-  }
-
-  return byCode[0] ?? null;
 }
 
 /**

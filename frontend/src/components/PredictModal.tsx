@@ -331,7 +331,7 @@ export default function PredictModal({
 }
 
 /**
- * Forecast View: Re-architected to match getratiod.lol (Ratio'd SRM).
+ * Forecast View: Detailed attendance projection summary.
  *
  * Highlights:
  * 1. Prominent overall percentage and before -> after delta.
