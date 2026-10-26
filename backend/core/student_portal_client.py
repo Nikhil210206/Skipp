@@ -73,6 +73,84 @@ def telemetry_payload(now_ms: int, start_time_ms: int) -> dict:
         "timeOnPageMs": time_elapsed_ms,
     }
 
+async def _fetch_marks_with_components(client: httpx.AsyncClient) -> Optional[str]:
+    headers = {
+        "Referer": HRD_URL,
+        "Origin": SP_BASE_URL,
+        "Content-Type": "application/x-www-form-urlencoded",
+    }
+    main_html = None
+    try:
+        r = await client.post(MARKS_URL, data={}, headers=headers)
+        if r.status_code == 200 and "table" in r.text.lower() and "login_form" not in r.text.lower():
+            main_html = r.text
+    except Exception as e:
+        log.warning("Network error POST fetching marks: %s", e)
+
+    if not main_html:
+        try:
+            r = await client.get(MARKS_URL, headers={"Referer": HRD_URL})
+            if r.status_code == 200 and "table" in r.text.lower() and "login_form" not in r.text.lower():
+                main_html = r.text
+        except Exception as e:
+            log.warning("Network error GET fetching marks: %s", e)
+
+    if not main_html:
+        return None
+
+    # Fetch component-wise marks for each subject in parallel
+    try:
+        from bs4 import BeautifulSoup
+        soup = BeautifulSoup(main_html, "html.parser")
+        buttons = soup.find_all("button", onclick=re.compile(r"funViewComponentWiseMarks", re.I))
+
+        inner_url = f"{BASE_URL}/students/report/studentInternalMarkDetailsInner.jsp"
+        inner_headers = {
+            "Referer": MARKS_URL,
+            "Origin": SP_BASE_URL,
+            "Content-Type": "application/x-www-form-urlencoded",
+        }
+
+        async def _fetch_inner(subj_id: str, code: str, desc: str, status: str):
+            try:
+                payload = {"iden": "1", "hdnSubjectId": subj_id, "status": status}
+                resp = await client.post(inner_url, data=payload, headers=inner_headers, timeout=8.0)
+                if resp.status_code == 200 and "table" in resp.text.lower():
+                    return code, desc, subj_id, resp.text
+            except Exception as inner_err:
+                log.warning("Failed to fetch inner marks for %s (%s): %s", code, subj_id, inner_err)
+            return code, desc, subj_id, None
+
+        inner_tasks = []
+        for b in buttons:
+            onclick = b.get("onclick", "")
+            m = re.search(r"funViewComponentWiseMarks\(([^)]+)\)", onclick)
+            if m:
+                raw_args = [a.strip(" '\"") for a in m.group(1).split(",")]
+                if len(raw_args) >= 3:
+                    subj_id = raw_args[0]
+                    code = raw_args[1]
+                    desc = raw_args[2]
+                    status = raw_args[3] if len(raw_args) > 3 else "2"
+                    inner_tasks.append(_fetch_inner(subj_id, code, desc, status))
+
+        if inner_tasks:
+            inner_results = await asyncio.gather(*inner_tasks)
+            inner_blocks = []
+            for code, desc, subj_id, inner_html in inner_results:
+                if inner_html:
+                    inner_blocks.append(
+                        f'<div class="skipp-inner-marks" data-subject-code="{code}" data-subject-desc="{desc}" data-subject-id="{subj_id}">\n'
+                        f'{inner_html}\n'
+                        f'</div>'
+                    )
+            if inner_blocks:
+                main_html = main_html + "\n<!-- SKIPP INNER MARKS START -->\n" + "\n".join(inner_blocks) + "\n<!-- SKIPP INNER MARKS END -->"
+    except Exception as e:
+        log.warning("Error fetching inner component marks: %s", e)
+
+    return main_html
+
 class PortalSession:
     def __init__(self, proxy: Optional[str] = None):
         proxy_url = proxy
@@ -322,25 +400,7 @@ class PortalSession:
         return None
 
     async def get_marks_html(self) -> Optional[str]:
-        headers = {
-            "Referer": HRD_URL,
-            "Origin": SP_BASE_URL,
-            "Content-Type": "application/x-www-form-urlencoded",
-        }
-        try:
-            r = await self.client.post(MARKS_URL, data={}, headers=headers)
-            if r.status_code == 200 and "table" in r.text.lower() and "login_form" not in r.text.lower():
-                return r.text
-        except Exception as e:
-            log.warning("Network error POST fetching marks: %s", e)
-
-        try:
-            r = await self.client.get(MARKS_URL, headers={"Referer": HRD_URL})
-            if r.status_code == 200 and "table" in r.text.lower() and "login_form" not in r.text.lower():
-                return r.text
-        except Exception as e:
-            log.warning("Network error GET fetching marks: %s", e)
-        return None
+        return await _fetch_marks_with_components(self.client)
 
     async def get_timetable_html(self) -> Optional[str]:
         headers = {
@@ -420,25 +480,7 @@ class PortalClient:
         return None
 
     async def get_marks_html(self) -> Optional[str]:
-        headers = {
-            "Referer": HRD_URL,
-            "Origin": SP_BASE_URL,
-            "Content-Type": "application/x-www-form-urlencoded",
-        }
-        try:
-            r = await self.client.post(MARKS_URL, data={}, headers=headers)
-            if r.status_code == 200 and "table" in r.text.lower() and "login_form" not in r.text.lower():
-                return r.text
-        except Exception as e:
-            log.warning("Network error POST fetching marks: %s", e)
-
-        try:
-            r = await self.client.get(MARKS_URL, headers={"Referer": HRD_URL})
-            if r.status_code == 200 and "table" in r.text.lower() and "login_form" not in r.text.lower():
-                return r.text
-        except Exception as e:
-            log.warning("Network error GET fetching marks: %s", e)
-        return None
+        return await _fetch_marks_with_components(self.client)
 
     async def get_timetable_html(self) -> Optional[str]:
         headers = {

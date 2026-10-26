@@ -104,12 +104,45 @@ const GENERIC_TEST_NAMES = new Set([
   "--",
 ]);
 
+const ROMAN_TO_INT: Record<string, string> = {
+  i: "1",
+  ii: "2",
+  iii: "3",
+  iv: "4",
+  v: "5",
+  vi: "6",
+  vii: "7",
+  viii: "8",
+  ix: "9",
+  x: "10",
+};
+
+export function formatTestName(name: string): string {
+  const trimmed = (name || "").replace(/\s+/g, " ").trim();
+  if (!trimmed) return "";
+
+  // Matches FT-I, FT-1, FT - I, FP-I, PBL-I, CT-I, CLA-1, etc.
+  const m = trimmed.match(/^([a-z0-9]+)[-_\s]+([a-z]+|\d+)$/i);
+  if (m) {
+    const rawPrefix = m[1];
+    const prefix =
+      rawPrefix.length <= 4
+        ? rawPrefix.toUpperCase()
+        : rawPrefix.charAt(0).toUpperCase() + rawPrefix.slice(1).toLowerCase();
+    const rawSuffix = m[2];
+    const num = ROMAN_TO_INT[rawSuffix.toLowerCase()] ?? rawSuffix.toUpperCase();
+    return `${prefix} ${num}`;
+  }
+
+  return trimmed;
+}
+
 /**
- * Infers an assessment's test name (e.g. "FT1", "CT 1") when the portal
+ * Infers an assessment's test name (e.g. "FT 1", "CT 1") when the portal
  * only provided the course title or a generic "Internal" / "View Details" button text.
  *
  * In SRMIST regulations:
- * - 5-mark continuous evaluations are Formative Tests (FT1, FT2, FT3...).
+ * - 5-mark continuous evaluations are Formative Tests (FT 1, FT 2, FT 3...).
  * - Higher max evaluations (15, 20, 25, 50) are Cycle Tests (CT 1, CT 2...).
  * Real test names from academia (e.g. "CLA-1", "Assignment") are preserved.
  */
@@ -135,11 +168,11 @@ export function inferTestName(
     Boolean(codeUpper && trimmed.toUpperCase() === codeUpper);
 
   if (!isGeneric) {
-    return trimmed;
+    return formatTestName(trimmed);
   }
 
   const num = index + 1;
-  return maxMarks <= 5 ? `FT${num}` : `CT ${num}`;
+  return maxMarks <= 5 ? `FT ${num}` : `CT ${num}`;
 }
 
 /**

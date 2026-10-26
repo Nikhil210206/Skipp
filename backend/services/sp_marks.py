@@ -66,6 +66,26 @@ def _clean(text: str) -> str:
     return re.sub(r"\s+", " ", text.replace("\xa0", " ")).strip()
 
 
+ROMAN_TO_INT = {
+    "I": "1", "II": "2", "III": "3", "IV": "4", "V": "5",
+    "VI": "6", "VII": "7", "VIII": "8", "IX": "9", "X": "10"
+}
+
+
+def format_component_name(name: str) -> str:
+    clean = re.sub(r"\s+", " ", name.replace("\xa0", " ")).strip()
+    if not clean:
+        return clean
+    m = re.match(r"^([A-Za-z0-9]+)[-_\s]+([IVX]+|\d+)$", clean, re.I)
+    if m:
+        raw_prefix = m.group(1)
+        prefix = raw_prefix.upper() if len(raw_prefix) <= 4 else raw_prefix.capitalize()
+        suffix = m.group(2).upper()
+        num = ROMAN_TO_INT.get(suffix, suffix)
+        return f"{prefix} {num}"
+    return clean
+
+
 def parse_marks(html: str) -> Marks:
     soup = BeautifulSoup(html, "html.parser")
 
@@ -75,6 +95,45 @@ def parse_marks(html: str) -> Marks:
     tables = _find_marks_tables(soup)
     if not tables:
         raise MarksUnavailable("No marks table on the student portal page.")
+
+    # Parse any inner component-wise tables embedded by the scraper
+    inner_divs = soup.find_all("div", class_="skipp-inner-marks")
+    inner_by_code: dict[str, list[MarkComponent]] = {}
+    for div in inner_divs:
+        code_attr = (div.get("data-subject-code") or "").strip().upper()
+        if not code_attr:
+            continue
+        inner_table = div.find("table")
+        if not inner_table:
+            continue
+        comps: list[MarkComponent] = []
+
+        comp_col = 1
+        mark_col = 2
+        for tr in inner_table.find_all("tr")[:3]:
+            row_heads = [_clean(c.get_text()).lower() for c in tr.find_all(["th", "td"])]
+            for idx, h in enumerate(row_heads):
+                if any(k in h for k in ("component", "test", "name", "desc")):
+                    comp_col = idx
+                elif "mark" in h:
+                    mark_col = idx
+
+        for tr in inner_table.find_all("tr"):
+            tds = tr.find_all("td")
+            if len(tds) > max(comp_col, mark_col):
+                raw_name = _clean(tds[comp_col].get_text())
+                comp_name = format_component_name(raw_name)
+                mark_text = _clean(tds[mark_col].get_text())
+                pair = _PAIR_RE.search(mark_text)
+                if pair:
+                    raw_scored = pair.group(1).strip()
+                    try:
+                        scored = float(raw_scored) if raw_scored and raw_scored != "-" else 0.0
+                    except ValueError:
+                        scored = 0.0
+                    maximum = float(pair.group(2))
+                    comps.append(MarkComponent(name=comp_name, scored=scored, max=maximum))
+        inner_by_code[code_attr] = comps
 
     by_code: dict[str, SubjectMarks] = {}
     order: list[str] = []
@@ -237,6 +296,13 @@ def parse_marks(html: str) -> Marks:
                 order.append(code)
             elif not subject.title and desc:
                 subject.title = desc
+
+            # If inner component marks were captured for this subject, use them!
+            if code.upper() in inner_by_code:
+                subject.components = inner_by_code[code.upper()]
+                subject.scored_total = round(sum(c.scored for c in subject.components), 2)
+                subject.max_total = round(sum(c.max for c in subject.components), 2)
+                continue
 
             # Final fallback for test name: never use the subject description or generic navigation words!
             cand_lower = (test_name or "").lower().strip()
