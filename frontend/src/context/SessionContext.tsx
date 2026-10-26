@@ -299,7 +299,17 @@ export function SessionProvider({ children }: { children: React.ReactNode }) {
   const [attendanceChanges, setChanges] = useState<AttendanceChange[]>([]);
   const [loadedReg, setLoadedReg] = useState<string | null>(null);
   const [portalAtt, setPortalAtt] = useState<PortalOverride | null>(null);
-  const [isAutoSyncing, setIsAutoSyncing] = useState(false);
+  const [isAutoSyncing, setIsAutoSyncingState] = useState(false);
+  const syncTimeoutRef = useRef<NodeJS.Timeout | null>(null);
+  const setIsAutoSyncing = useCallback((syncing: boolean) => {
+    setIsAutoSyncingState(syncing);
+    if (syncTimeoutRef.current) clearTimeout(syncTimeoutRef.current);
+    if (syncing) {
+      syncTimeoutRef.current = setTimeout(() => {
+        setIsAutoSyncingState(false);
+      }, 15000);
+    }
+  }, []);
   const [loginSource, setLoginSource] = useState<LoginPortalMode>("academia");
   const hasAttemptedSilentSync = useRef(false);
   const portalAuthFailed = useRef(false);

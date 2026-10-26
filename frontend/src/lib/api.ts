@@ -99,6 +99,7 @@ async function post<T>(path: string, creds: Credentials): Promise<T> {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify(creds),
+      signal: AbortSignal.timeout(20000),
     });
   } catch {
     throw new PortalError("Can't reach Skipp. Is the backend running?", "unreachable");
@@ -283,6 +284,7 @@ export async function refreshStudentPortal(
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ sessionCookie }),
+      signal: AbortSignal.timeout(12000),
     });
   } catch (e) {
     console.error("fetch(/sp/refresh) failed:", e);
@@ -324,6 +326,7 @@ export async function autoStudentPortalLogin(
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify(creds),
+      signal: AbortSignal.timeout(20000),
     });
   } catch (e) {
     console.error("fetch(/sp/auto-login) failed:", e);
