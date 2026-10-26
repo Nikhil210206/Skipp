@@ -587,6 +587,32 @@ function Field({
   );
 }
 
+function isPortalDateBehindToday(reportedPeriod: string | null | undefined): boolean {
+  if (!reportedPeriod) return false;
+  const match = reportedPeriod.match(/To\s+(\d{1,2})[\/\-]([a-zA-Z]{3}|\d{1,2})[\/\-](\d{4})/i);
+  if (!match) return false;
+  const day = parseInt(match[1], 10);
+  const monthStr = match[2];
+  const year = parseInt(match[3], 10);
+
+  const months: Record<string, number> = {
+    jan: 0, feb: 1, mar: 2, apr: 3, may: 4, jun: 5,
+    jul: 6, aug: 7, sep: 8, oct: 9, nov: 10, dec: 11,
+  };
+
+  const month = isNaN(Number(monthStr))
+    ? months[monthStr.toLowerCase().slice(0, 3)]
+    : parseInt(monthStr, 10) - 1;
+
+  if (month === undefined || month < 0) return false;
+
+  const portalDate = new Date(year, month, day);
+  const today = new Date();
+  const todayMidnight = new Date(today.getFullYear(), today.getMonth(), today.getDate());
+
+  return portalDate.getTime() < todayMidnight.getTime();
+}
+
 export function PortalSourceNote({ type = "attendance" }: { type?: "attendance" | "marks" }) {
   const {
     creds: sessionCreds,
@@ -600,7 +626,9 @@ export function PortalSourceNote({ type = "attendance" }: { type?: "attendance" 
     loginSource,
   } = useSession();
   const [busy, setBusy] = useState(false);
-  const [status, setStatus] = useState<"idle" | "updating" | "updated">("idle");
+  const [status, setStatus] = useState<"idle" | "updating" | "updated" | "no_new_data">("idle");
+  const [notice, setNotice] = useState<string | null>(null);
+  const isBehind = type === "attendance" && isPortalDateBehindToday(reportedPeriod);
   const [open, setOpen] = useState(false);
   const [tab, setTab] = useState<"paste" | "login">("paste");
   const [pastedText, setPastedText] = useState("");
@@ -733,9 +761,19 @@ export function PortalSourceNote({ type = "attendance" }: { type?: "attendance" 
       try {
         const outcome = await refresh(true);
         if (outcome === "updated" || outcome === "fresh") {
-          setStatus("updated");
+          const behind = type === "attendance" && isPortalDateBehindToday(reportedPeriod);
+          if (behind) {
+            setStatus("no_new_data");
+            setNotice("Synced with portal just now · Today's attendance hasn't been posted by faculty yet.");
+          } else {
+            setStatus("updated");
+            setNotice(null);
+          }
           if (updatedTimer.current) clearTimeout(updatedTimer.current);
-          updatedTimer.current = setTimeout(() => setStatus("idle"), 2500);
+          updatedTimer.current = setTimeout(() => {
+            setStatus("idle");
+            setNotice(null);
+          }, 4000);
           return;
         } else {
           setStatus("idle");
@@ -819,9 +857,19 @@ export function PortalSourceNote({ type = "attendance" }: { type?: "attendance" 
       setCaptchaSession(null);
       setCaptchaInput("");
       setOpen(false);
-      setStatus("updated");
+      const behind = type === "attendance" && isPortalDateBehindToday(reportedPeriod);
+      if (behind) {
+        setStatus("no_new_data");
+        setNotice("Synced with portal just now · Today's attendance hasn't been posted by faculty yet.");
+      } else {
+        setStatus("updated");
+        setNotice(null);
+      }
       if (updatedTimer.current) clearTimeout(updatedTimer.current);
-      updatedTimer.current = setTimeout(() => setStatus("idle"), 2500);
+      updatedTimer.current = setTimeout(() => {
+        setStatus("idle");
+        setNotice(null);
+      }, 4000);
     } catch (err) {
       const isAuthErr = err instanceof AuthError && (err.code === "wrong_password" || err.code === "user_not_found");
       setCaptchaSession(null);
@@ -841,10 +889,18 @@ export function PortalSourceNote({ type = "attendance" }: { type?: "attendance" 
   return (
     <>
       <div className="flex flex-wrap items-center justify-between gap-x-4 gap-y-3 border-t border-line-soft pt-3">
-        <p className="min-w-0 flex-1 text-callout text-text-3">
-          From the student portal
-          {reportedPeriod ? ` · ${reportedPeriod}` : ""}
-        </p>
+        <div className="min-w-0 flex-1">
+          <p className="text-callout text-text-3">
+            From the student portal
+            {reportedPeriod ? ` · ${reportedPeriod}` : ""}
+          </p>
+          {isBehind && (
+            <p className="mt-1 flex items-center gap-1.5 text-caption font-medium text-amber-500">
+              <span className="inline-block h-1.5 w-1.5 shrink-0 rounded-full bg-amber-500 animate-pulse" />
+              <span>Today&apos;s attendance hasn&apos;t been posted by faculty yet</span>
+            </p>
+          )}
+        </div>
         <div className="flex shrink-0 items-center gap-4">
           <button
             type="button"
@@ -855,6 +911,8 @@ export function PortalSourceNote({ type = "attendance" }: { type?: "attendance" 
             className={`inline-flex min-h-11 select-none items-center justify-center rounded-control px-5 text-body font-semibold tracking-[-0.01em] transition-all duration-150 ease-out disabled:pointer-events-none disabled:opacity-35 ${
               status === "updated"
                 ? "bg-safe text-ink-0"
+                : status === "no_new_data"
+                ? "bg-surface-elevated text-text-1 border border-line-strong shadow-sm"
                 : "bg-risk text-ink-0 hover:bg-risk/90 active:bg-risk/80"
             }`}
           >
@@ -862,6 +920,8 @@ export function PortalSourceNote({ type = "attendance" }: { type?: "attendance" 
               ? "Updating..."
               : status === "updated"
               ? "Updated!"
+              : status === "no_new_data"
+              ? "No new updates"
               : "Update"}
           </button>
           <button
@@ -877,6 +937,15 @@ export function PortalSourceNote({ type = "attendance" }: { type?: "attendance" 
           </button>
         </div>
       </div>
+
+      {notice && (
+        <div className="mt-2.5 flex items-center gap-2 rounded-control bg-surface-elevated px-3 py-2 text-caption text-text-2 border border-line-soft transition-all duration-200">
+          <svg className="h-3.5 w-3.5 shrink-0 text-amber-500" viewBox="0 0 20 20" fill="currentColor">
+            <path fillRule="evenodd" d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-7-4a1 1 0 11-2 0 1 1 0 012 0zM9 9a1 1 0 000 2v3a1 1 0 001 1h1a1 1 0 100-2v-3a1 1 0 00-1-1H9z" clipRule="evenodd" />
+          </svg>
+          <span>{notice}</span>
+        </div>
+      )}
       
       <Sheet open={open} onClose={() => { if (!busy) setOpen(false); }} title={`Update ${type}`}>
         <div className="flex flex-col gap-4 pb-2">
