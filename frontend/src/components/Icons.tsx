@@ -135,6 +135,49 @@ export function IconArrowRight(p: IconProps) {
   );
 }
 
+export function IconPhone(p: IconProps) {
+  return (
+    <Svg {...p}>
+      <rect x="6.5" y="2.5" width="11" height="19" rx="2.5" />
+      <path d="M10.5 18.5h3" />
+    </Svg>
+  );
+}
+
+export function IconServer(p: IconProps) {
+  return (
+    <Svg {...p}>
+      <rect x="3.5" y="4" width="17" height="6.5" rx="1.8" />
+      <rect x="3.5" y="13.5" width="17" height="6.5" rx="1.8" />
+      <path d="M7.5 7.25v.1" />
+      <path d="M7.5 16.75v.1" />
+    </Svg>
+  );
+}
+
+export function IconLock(p: IconProps) {
+  return (
+    <Svg {...p}>
+      <rect x="4.5" y="10.5" width="15" height="10" rx="2.5" />
+      <path d="M8 10.5V7.5a4 4 0 0 1 8 0v3" />
+    </Svg>
+  );
+}
+
+/** The portal: a building with columns, the institution at the far end. */
+export function IconPortal(p: IconProps) {
+  return (
+    <Svg {...p}>
+      <path d="M3.5 9 12 4l8.5 5" />
+      <path d="M5.5 9.5v8" />
+      <path d="M10 9.5v8" />
+      <path d="M14 9.5v8" />
+      <path d="M18.5 9.5v8" />
+      <path d="M3.5 20h17" />
+    </Svg>
+  );
+}
+
 export function IconUndo(p: IconProps) {
   return (
     <Svg {...p}>
@@ -261,6 +304,22 @@ export function IconLinkedIn(p: IconProps) {
     </Svg>
   );
 }
+
+export function IconGitHub(p: IconProps) {
+  return (
+    <Svg {...p}>
+      <path d="M15 21v-3.5a3.4 3.4 0 0 0-1-2.6c3.2-.4 6-1.6 6-6.4a5 5 0 0 0-1.3-3.4 4.6 4.6 0 0 0-.1-3.3s-1.1-.3-3.5 1.3a12 12 0 0 0-6.2 0C6.5 1.5 5.4 1.8 5.4 1.8a4.6 4.6 0 0 0-.1 3.3A5 5 0 0 0 4 8.5c0 4.8 2.8 6 6 6.4a3.4 3.4 0 0 0-1 2.6V21" />
+      <path d="M9 18.5c-3.5 1.1-3.5-1.8-5-2.3" />
+    </Svg>
+  );
+}
+
+/** One icon per creator link, so a new link needs a line here and nowhere else. */
+export const CREATOR_ICONS = {
+  linkedin: IconLinkedIn,
+  instagram: IconInstagram,
+  github: IconGitHub,
+} as const;
 
 export function IconInstagram(p: IconProps) {
   return (

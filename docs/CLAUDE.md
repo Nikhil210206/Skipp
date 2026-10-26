@@ -345,69 +345,94 @@ is deployment and true push notifications.
 Entries below are newest first. **When something breaks, read the relevant entry first**: most
 oddities here (login shell, empty calendar, 429s, duplicated course codes) are already diagnosed.
 
-### DONE: The front door and the tour, and the notebook is gone (2026-10-27)
+### DONE: The front door, in one language, and Arcade is gone (2026-10-26, latest)
 
-A first visit is now: the **hero** (`components/front/Hero.tsx`), then the
-install offer on a phone, then the **tour** (`components/front/Tour.tsx`), then
-sign in. The spiral notebook (`Welcome`, `onboarding/Onboarding`, everything in
-`components/entry/`) is deleted. Three directions were mocked on a design
-canvas first (claude.ai/artifact/1gTDpxzgYMaLtZjVpgs6eR); the user chose A's
-hero with C's rooms, plus C's giant wordmark behind the phones.
+A signed out visit is now: the **hero** (`components/front/Hero.tsx`), the
+install offer on a phone, a four chapter **tour** (`components/front/Tour.tsx`),
+then a **send-off** into sign in. Signed in still goes straight to the
+dashboard. The spiral notebook (`Welcome`, `onboarding/Onboarding`, everything
+in `components/entry/`) is deleted. Three directions were mocked on a design
+canvas first (claude.ai/artifact/1gTDpxzgYMaLtZjVpgs6eR): A's dealt phones with
+C's giant wordmark behind them.
+
+**A first build set every chapter in a different look ("the rooms") and was
+rejected**: a way in has to read as one place. All Ink was then stopped as too
+plain. So the whole way in speaks **one language, `front/kit.tsx`**, the house
+style: a warm near black (`#0b0a08`), one orange used as a fill, a heavy
+lowercase display line followed by a second line in the hand, mono eyebrows,
+receipt cards, pills, a Bayer dither `DotField`, and an arch at the end. **Its
+colours are fixed, not theme tokens**: the look chapter changes the app's
+tokens live, and that must not repaint the tour. `rooms.ts` and `RoomFrame`
+are deleted.
 
 - **The hero is the README banner made to move.** "skipp" set enormous like a
-  magazine masthead, and three real screenshots (Brutal attendance, Ticket home,
-  Ink home, in `src/assets/front/`) dealt up in front of it from below the edge,
-  sides first, each with an overshoot, then floating. **The phones cover the
-  lower half of the word on purpose**: a masthead reads from the top halves of
-  its letters. On a desktop the word and the fan drift apart under the pointer.
-  Its flag is still `skipp.seen-welcome`. "Sign in" skips the tour but not the
-  install offer, which on iOS is about where the sign in happens.
+  masthead, with three real screenshots (Brutal attendance, Ticket home, Ink
+  home, in `src/assets/front/`) dealt up in front of it, sides first, then
+  floating. **The phones cover the lower half of the word on purpose**: a
+  masthead reads from the top halves of its letters. On a desktop the word and
+  the fan drift apart under the pointer. **The hero has no dot field, on
+  request.**
+- **The hero appears on every signed out visit.** `skipp.seen-welcome` is gone;
+  `app/page.tsx` holds a `step` (`hero`, `install`, `tour`, `signin`) that
+  starts at the hero. `skipp.seen-intro` only decides whether "get started"
+  plays the tour again or goes to sign in.
+- **Every page has a way back.** `BackButton` sits top left on the install
+  offer and every chapter (chapter one goes back to the hero), and sign in has
+  one before the logo.
 - **The hero waits for the launch.** `lib/launch.ts` is a one shot signal the
   splash fires as it starts to lift (`markLaunchLifted`), with a fallback timer.
-  Without it the whole entrance played under the overlay. Measured: held at its
-  start pose until about 1.6s, letters settled by 2.5s, front phone landed by
-  3.5s after a 28px overshoot.
-- **Every chapter is set in a different look**: Ink, Brutal, Ticket, YOUR look,
-  Terminal, Arcade, and the install offer is Clay. The tour is the theme
-  showcase. **The rooms carry their own palettes** (`front/rooms.ts`, copied from
-  `globals.css`) because themes are scoped to `html[data-theme]` and cannot be
-  borrowed by one element. If a look's colours move, move its room too. The look
-  chapter is the exception: it paints with the live tokens, so picking a theme
-  repaints that room.
-- **A chapter opens through a circle grown from the button pressed** (0.85s,
-  expo in-out). Both chapters are mounted for the wipe, the old one underneath
-  and `inert`, keyed so React keeps the old instance rather than remounting it.
-  Reduced motion dissolves (0.34s), never cuts. Measured: circle 0 to 1504px,
-  old layer removed, clip cleared.
-- **The skip demo is a bunk pass**: each skip punches a hole, then "LAST ONE",
-  then the pass turns red and "VOID". It runs on `predict()` with Computer
-  Networks at 25 of 28, so it can never quote a margin the app would not.
-- **Buttons are drawn by the room** (`RoomFrame`): a pill, a bordered block on a
-  hard shadow, a bracketed box, a pixel button. The shape is part of the look.
-- **`short:` is a new variant** (`globals.css`): under 720px tall and under
-  1024 wide. Second paragraphs drop and objects tighten, so every screen fits
-  375x667 with nothing to scroll (measured: hero, install and all six chapters,
-  0px over). The notebook had held itself to that and this keeps it.
+  Without it the whole entrance played under the overlay.
+- **Four chapters**: what it is (the old first two, merged, as four receipt
+  cards), your password (it scrambles into a cipher, the lock pops, and a packet
+  runs phone, Skipp's server, SRM portal), the dev (an ID card dropped on a
+  lanyard, labelled THE DEV on request, with LinkedIn, Instagram and GitHub from
+  `lib/creator.ts`), and your look. **The skip demo was dropped** because it was
+  not in the chapter list the user gave; it is in git history.
+- **Look order, everywhere: Ticket, Brutal, Terminal, Register, Clay, Stone.**
+  `THEMES` holds that order and Profile, the look chapter and the README palette
+  follow it. Ink leads the skins.
+- **Arcade is removed for good, on request**: the theme, its masthead title,
+  both pixel fonts (Press Start 2P, Silkscreen) and its markers (`data-short`,
+  `data-margin`, `--hearts`, `data-unit`). `LEGACY_THEMES` sends `arcade` and
+  `handheld` to Terminal, the nearest structural look. **The Arcade and
+  Handheld entries further down describe code that no longer exists.** That
+  leaves 21 looks: six full looks and fifteen skins.
+- **The send-off** (`front/SendOff.tsx`). "let's go" on the arch grows the
+  orange out of the button into a full screen circle, sign in mounts underneath
+  once it is covered, "let's go." is written on in the hand with a swash, and
+  the field lifts away. It lives in the PAGE, not the tour, because it has to
+  outlive the tour, and the page renders it in a fixed slot so the step change
+  cannot remount it. Reduced motion fades it. Measured: circle 0 to 820px in
+  0.8s, sign in mounted at 1.0s, overlay gone at 3.0s.
+- **A tap during a chapter move finishes the move rather than being dropped.**
+  `next` used to be locked until the move's timeline completed, so a quick
+  second tap did nothing, and in a browser pane that draws no frames the lock
+  never cleared. `go()` calls `progress(1)` on the running move. Verified:
+  three taps 120ms apart land on chapter four with one layer left.
+- **`Rise` clips each word with room on every side.** Room only below the line
+  took the top off Caveat's question mark in "this?".
+- **`short:` is a variant** (`globals.css`): under 720px tall and under 1024
+  wide. Second paragraphs drop and objects tighten, so every screen fits
+  375x667 with nothing to scroll.
 - **No entrance hides anything in CSS.** All of it is `fromTo` in a context, so
-  a reveal that never runs leaves the page readable. Verified with reduced
-  motion forced on: 0 elements left hidden on the hero or any chapter.
-- **The Terminal chapter types into text nodes**, so its cleanup restores the
-  text: a GSAP revert restores styles, never text.
-- `usePaintChrome` (`front/chrome.ts`) is the old deck's bar painting, made a
-  hook. Its hand back calls `setTheme`, which writes `skipp.theme`: harmless,
-  it writes the theme already applied.
+  a reveal that never runs leaves the page readable.
+- `usePaintChrome` (`front/chrome.ts`) paints the bar and canvas for the way in
+  and hands back through `setTheme`.
 - **A note for anyone testing this:** the DevTools MCP's Chrome now reports
   `prefers-reduced-motion: no-preference` (the older notes say `reduce`), so
   force whichever one you mean with an `initScript`. And a `location.reload()`
   from a page does not rerun the `initScript`; navigate instead.
 
-Verified in the DevTools browser at 390x844, 375x667 and 1440x900: hero, install
-offer, all six chapters, the punch states, picking a look repainting the room
-and the status bar colour, skip intro landing on sign in with the app's colours
-restored, no horizontal overflow, no tap target under 44px, no console errors,
-`tsc` and the changed files' `eslint` clean. **Not verified:** a real phone, an
-installed iOS app, and Chrome's native install button (it only appears when the
-browser fires `beforeinstallprompt`).
+Verified in the DevTools browser at 390x844, 375x667 and 1440x900, with both
+motion settings forced: hero (no canvas on it), install offer and its back
+button, all four chapters fitting with nothing to scroll, the ID card, the
+cipher, picking a look applying the theme and swapping the phone while the tour
+keeps its own colours, the send-off into sign in, sign in's back button
+returning to the hero, 0 elements left hidden under reduced motion, every tap
+target at least 44px, no horizontal overflow, no console errors, `tsc` and the
+changed files' `eslint` clean. **Not verified:** a real phone, an installed iOS
+app, and Chrome's native install button (it only appears when the browser fires
+`beforeinstallprompt`).
 
 ### DONE: Register and Ticket are hand-drawn, and the boxes became a register (2026-10-26, later)
 

@@ -5,8 +5,6 @@ import {
   Fredoka,
   Geist,
   Geist_Mono,
-  Press_Start_2P,
-  Silkscreen,
   Space_Grotesk,
   Unbounded,
 } from "next/font/google";
@@ -61,8 +59,9 @@ const display = Bricolage_Grotesque({
 });
 
 /**
- * Clay's puffy masthead title, and nothing else. `preload: false` for the same
- * reason as the pixel faces below: only a student on Clay ever fetches it.
+ * Clay's puffy masthead title, and nothing else. `preload: false` IS LOAD
+ * BEARING: the root layout preloads every font it declares, so without it every
+ * student would download a face only a student on Clay ever uses.
  */
 const puffy = Fredoka({
   variable: "--font-puffy-src",
@@ -72,32 +71,9 @@ const puffy = Fredoka({
 });
 
 /**
- * Arcade's two pixel faces. Figures in Press Start 2P (monospaced by
- * construction, so columns cannot drift), everything else in Silkscreen.
- *
- * `preload: false` IS LOAD BEARING. The root layout preloads every font it
- * declares, so without it every student would download two pixel faces on
- * every launch for a theme almost none of them run. An @font-face is only
- * fetched once something actually uses it, which is only ever that theme.
- */
-const pixel = Press_Start_2P({
-  variable: "--font-pixel-src",
-  subsets: ["latin"],
-  weight: "400",
-  preload: false,
-});
-
-const pixelName = Silkscreen({
-  variable: "--font-pixel-name-src",
-  subsets: ["latin"],
-  weight: ["400", "700"],
-  preload: false,
-});
-
-/**
  * Ticket's display face: wide and loud on the big figures and headings. Body
  * copy and every column of figures stay in Geist, so nothing lines up
- * differently. `preload: false` for the same reason as the faces above.
+ * differently. `preload: false`, so only a student running Ticket fetches it.
  */
 const ticketFace = Unbounded({
   variable: "--font-ticket-src",
@@ -138,7 +114,7 @@ export default function RootLayout({
     <html
       lang="en"
       suppressHydrationWarning
-      className={`${geistSans.variable} ${geistMono.variable} ${signature.variable} ${display.variable} ${hand.variable} ${puffy.variable} ${pixel.variable} ${pixelName.variable} ${ticketFace.variable} h-full antialiased`}
+      className={`${geistSans.variable} ${geistMono.variable} ${signature.variable} ${display.variable} ${hand.variable} ${puffy.variable} ${ticketFace.variable} h-full antialiased`}
     >
       <head>
         {/* Applies the saved theme before paint so there is no flash. */}

@@ -10,6 +10,7 @@ import { onLaunchLifted } from "@/lib/launch";
 import { haptic } from "@/lib/haptics";
 import PhoneShot from "./PhoneShot";
 import { usePaintChrome } from "./chrome";
+import { C } from "./kit";
 import ticketHome from "@/assets/front/ticket-home.webp";
 import brutalAttendance from "@/assets/front/brutal-attendance.webp";
 import inkHome from "@/assets/front/ink-home.webp";
@@ -18,7 +19,7 @@ import inkHome from "@/assets/front/ink-home.webp";
  * THE FRONT DOOR.
  *
  * The first thing a new visitor sees, after the launch. It replaced the
- * notebook welcome (2026-10-27), and it is the README banner made to move: the
+ * notebook welcome (2026-10-26), and it is the README banner made to move: the
  * word "skipp" set enormous across the room like a magazine masthead, and three
  * phones dealt up in front of it, each wearing a different look.
  *
@@ -27,8 +28,9 @@ import inkHome from "@/assets/front/ink-home.webp";
  * the lower half without the name going anywhere, and the overlap is what puts
  * the phones IN the room rather than pasted under a title.
  *
- * The palette is fixed Ink, not the theme tokens. This screen appears before
- * anybody has chosen anything, and it is the front of the product.
+ * It is set in the front door's one language (`kit.tsx`), fixed colours rather
+ * than the theme tokens: this screen appears before anybody has chosen
+ * anything, and it is the front of the product.
  *
  * Motion, in order: the letters rise from under their own line, the phones are
  * dealt up from below the edge (the sides first, the front last, each with a
@@ -42,14 +44,6 @@ import inkHome from "@/assets/front/ink-home.webp";
  * writing one transform is the standing trap in this codebase.
  */
 
-const C = {
-  bg: "#000000",
-  ink: "#f5f5f5",
-  dim: "#a1a1a1",
-  faint: "#6f6f6f",
-  accent: "#f2661c",
-  onAccent: "#140700",
-} as const;
 
 /** Sides first in the markup, so the front phone paints over them. */
 const PHONES = [
@@ -89,7 +83,7 @@ export default function Hero({
   const ctxRef = useRef<gsap.Context | null>(null);
   const leaving = useRef(false);
 
-  usePaintChrome(C.bg);
+  usePaintChrome(C.ground);
   useLockScroll(true);
 
   useLayoutEffect(() => {
@@ -223,7 +217,7 @@ export default function Hero({
     <div
       ref={root}
       className="fixed inset-0 z-40 flex flex-col overflow-hidden font-sans lg:grid lg:grid-cols-[minmax(0,0.8fr)_minmax(0,1.2fr)]"
-      style={{ background: C.bg, color: C.ink }}
+      style={{ background: C.ground, color: C.text }}
     >
       <header className="relative z-20 flex shrink-0 items-center justify-between px-6 pt-[max(16px,env(safe-area-inset-top))] lg:absolute lg:inset-x-0 lg:top-0 lg:px-14 lg:pt-9 xl:px-20">
         <div data-up className="flex items-center gap-3">
@@ -339,9 +333,9 @@ export default function Hero({
           </svg>
         </div>
         <p data-up className="mt-8 max-w-[30rem] text-[16px] leading-[1.45] short:mt-6 lg:mt-10 lg:text-[19px]" style={{ color: C.dim }}>
-          Your SRM <b className="font-semibold" style={{ color: C.ink }}>attendance</b>,{" "}
-          <b className="font-semibold" style={{ color: C.ink }}>marks</b> and{" "}
-          <b className="font-semibold" style={{ color: C.ink }}>timetable</b>, minus the portal.
+          Your SRM <b className="font-semibold" style={{ color: C.text }}>attendance</b>,{" "}
+          <b className="font-semibold" style={{ color: C.text }}>marks</b> and{" "}
+          <b className="font-semibold" style={{ color: C.text }}>timetable</b>, minus the portal.
           <span className="short:hidden">
             {" "}Know how many you can skip, and what a leave will cost.
           </span>

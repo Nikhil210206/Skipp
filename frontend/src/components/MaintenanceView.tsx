@@ -165,7 +165,7 @@ export default function MaintenanceView({
             <Reel pattern={pattern} />
           </span>
           {unit && (
-            <span data-unit className="text-title">
+            <span className="text-title">
               {unit}
             </span>
           )}

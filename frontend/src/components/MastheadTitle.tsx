@@ -21,7 +21,6 @@ import { useTheme, type Theme } from "@/lib/theme";
  * | stone    | cut into the wall a letter at a time, screen colour bar |
  * | clay     | puffy, and it squishes into place                       |
  * | terminal | typed as a shell path, with a blinking block cursor     |
- * | arcade   | the chomper eats a row of dots and leaves the word      |
  * | register | rises out of its own line, then the loud cell is ticked |
  * | ticket   | the perforation tears along, then the word drops on it  |
  *
@@ -32,12 +31,10 @@ import { useTheme, type Theme } from "@/lib/theme";
  *
  * **Visible content never depends on the animation.** No look has a CSS start
  * state for its word: each tween sets its own, and reverting the context mid
- * flight hands the element back to plain CSS, which shows it. The decorations
- * that exist only for the entrance (Arcade's dots and chomper) rest hidden
- * instead, so a skipped entrance leaves no debris. Reduced motion skips all of
- * it. The typography lives in `globals.css` under `[data-mt]`.
+ * flight hands the element back to plain CSS, which shows it. Reduced motion
+ * skips all of it. The typography lives in `globals.css` under `[data-mt]`.
  */
-type Look = "hand" | "brutal" | "stone" | "clay" | "terminal" | "arcade" | "register" | "ticket";
+type Look = "hand" | "brutal" | "stone" | "clay" | "terminal" | "register" | "ticket";
 
 function lookFor(theme: Theme): Look {
   switch (theme) {
@@ -45,7 +42,6 @@ function lookFor(theme: Theme): Look {
     case "stone":
     case "clay":
     case "terminal":
-    case "arcade":
     case "register":
     case "ticket":
       return theme;
@@ -197,41 +193,6 @@ export default function MastheadTitle({ text }: { text: string }) {
           );
           break;
         }
-        case "arcade": {
-          // The chomper runs along a row of dots, and the word is what it
-          // leaves behind. Dots, word and chomper share one linear clock, so
-          // the mouth is always exactly at the edge of the word.
-          const dots = part("[data-mt-dots]");
-          const chomper = part("[data-mt-chomper]");
-          const width = word.offsetWidth;
-          const run = 0.2 + shown.length * 0.06;
-          if (dots) {
-            tl.fromTo(
-              dots,
-              { clipPath: "inset(0% 0% 0% 0%)" },
-              { clipPath: "inset(0% 0% 0% 100%)", duration: run, ease: "none" },
-              0,
-            );
-          }
-          tl.fromTo(
-            word,
-            // Negative on the left too, or the halo is cut to a hard edge.
-            { clipPath: "inset(-40% 100% -40% -20%)" },
-            { clipPath: "inset(-40% 0% -40% -20%)", duration: run, ease: "none", clearProps: "clipPath" },
-            0,
-          );
-          if (chomper) {
-            // Its back sits on the edge of the word, so the mouth is always
-            // on the next dot and never on a letter it has just left.
-            tl.fromTo(
-              chomper,
-              { x: -2, opacity: 1 },
-              { x: width - 2, duration: run, ease: "none" },
-              0,
-            ).to(chomper, { opacity: 0, duration: 0.18 });
-          }
-          break;
-        }
       }
     }, el);
 
@@ -256,12 +217,6 @@ export default function MastheadTitle({ text }: { text: string }) {
       {look === "stone" && <span data-mt-bar aria-hidden />}
       {look === "register" && <span data-mt-cell aria-hidden />}
       {look === "ticket" && <span data-mt-perf aria-hidden />}
-      {look === "arcade" && (
-        <>
-          <span data-mt-dots aria-hidden />
-          <span data-mt-chomper aria-hidden />
-        </>
-      )}
       {look === "hand" && (
         <svg data-mt-swash aria-hidden viewBox="0 0 200 8" preserveAspectRatio="none">
           {/* pathLength 1 lets the draw run from 1 to 0 without measuring the

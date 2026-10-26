@@ -3,243 +3,246 @@
 import { useCallback, useEffect, useLayoutEffect, useRef, useState } from "react";
 import gsap from "gsap";
 import { useLockScroll } from "@/components/ui/Overlay";
-import { IconInstagram, IconLinkedIn, IconUndo } from "@/components/Icons";
-import RollingNumber from "@/components/onboarding/RollingNumber";
+import { CREATOR_ICONS, IconLock, IconPhone, IconPortal, IconServer } from "@/components/Icons";
+import { ProfileFace } from "@/components/ProfileMark";
 import { haptic } from "@/lib/haptics";
 import { prefersReducedMotion, useGsap } from "@/lib/motion";
-import { predict } from "@/lib/predictor";
 import { setTheme, THEMES, useTheme, type Theme } from "@/lib/theme";
-import { CREATOR, creatorLinks } from "@/lib/creator";
-import RoomFrame from "./RoomFrame";
+import { CREATOR, LINK_NAMES, creatorLinks } from "@/lib/creator";
+import { BackButton, C, DISPLAY, DotField, Eyebrow, PrimaryPill, Receipt } from "./kit";
+import { PhoneFrame, Shot } from "./PhoneShot";
 import Rise from "./Rise";
-import { ROOMS, type Room, type RoomId } from "./rooms";
 import { usePaintChrome } from "./chrome";
+import ticketHome from "@/assets/front/ticket-home.webp";
+import brutalHome from "@/assets/front/brutal-home.webp";
+import terminalHome from "@/assets/front/terminal-home.webp";
+import registerHome from "@/assets/front/register-home.webp";
+import clayHome from "@/assets/front/clay-home.webp";
+import stoneHome from "@/assets/front/stone-home.webp";
+import inkHome from "@/assets/front/ink-home.webp";
 
 /**
  * THE TOUR.
  *
- * Six chapters, and every one of them is set in a different look: Ink, Brutal,
- * Ticket, then YOUR look, then Terminal and Arcade. The tour is the showcase,
- * so the theme chapter is not a list of names, it is the fifth room you have
- * stood in. Chosen with the user as "C, the rooms" over two other directions
- * (2026-10-27); it replaced the spiral notebook.
+ * Four chapters in ONE language (see `kit.tsx`): what Skipp is, where your
+ * password goes, who made it, and your look. Then the arch, and the send-off
+ * into sign in, which the parent plays (`SendOff`) because it has to outlive
+ * this component.
  *
- * What each chapter teaches is unchanged from the notebook: what Skipp is, what
- * it does, the line (a live skip demo on the app's own arithmetic), choosing a
- * look, who made it, and that the only thing it asks for is a Net ID.
+ * The furniture never moves: the dot field in the corner, the back button and
+ * the progress at the top, the action at the bottom. Only the chapter between
+ * them changes, and it changes by travelling: the chapter you leave slides off
+ * one way as the next arrives from the other, both mounted for the length of
+ * the move, so there is never an empty frame. Each chapter carries its own
+ * enormous outlined numeral behind it, which travels with it.
  *
- * **A chapter opens through a circle grown from the button that was pressed**,
- * in the next room's colour, so moving on reads as walking into the next room
- * rather than as a slide. Both chapters are mounted for the length of the wipe
- * (the old one underneath, inert), which is the only way to show one room
- * opening over another with React holding a single tree. Reduced motion keeps
- * the change and loses the movement: the new room dissolves in, it never cuts.
+ * Every headline rises a letter at a time from under its own line, then the
+ * rest lifts in, then the chapter's own object does its own thing: receipts
+ * are dealt, the password is encrypted on its way down the route, the ID card
+ * swings in on its lanyard. Nothing is hidden in CSS first, so an entrance that
+ * never runs leaves a readable page behind it.
  *
- * Every chapter's headline rises a letter at a time from under its own line,
- * then the rest lifts in, then the chapter's own object does its own thing:
- * cards are dealt, blocks slam down, the pass drops in, the terminal types.
- * Nothing is hidden in CSS first, so a reveal that never runs leaves a readable
- * page behind it.
+ * Reduced motion keeps every change and drops the travel: chapters dissolve,
+ * they never cut.
  */
 
-const CHAPTERS = [
-  { id: "hello", room: "ink" },
-  { id: "does", room: "brutal" },
-  { id: "line", room: "ticket" },
-  { id: "look", room: "look" },
-  { id: "who", room: "terminal" },
-  { id: "ready", room: "arcade" },
-] as const satisfies readonly { id: string; room: RoomId }[];
+const TOTAL = 4;
 
-const TOTAL = CHAPTERS.length;
+type Nav = { arrive: number };
 
-/** The skip demo's subject. The same numbers the hero's phones show. */
-const ATTENDED = 25;
-const HELD = 28;
-/** Punches on the pass: the margin before any skip. */
-const SLOTS = predict(ATTENDED, HELD, 75).canSkip;
-const MAX_SKIPS = 7;
-
-type Nav = {
-  step: number;
-  arrive: number;
-  onBack: (e: React.MouseEvent<HTMLButtonElement>) => void;
-  onNext: (e: React.MouseEvent<HTMLButtonElement>) => void;
+export default function Tour({
+  onBack,
+  onSkip,
+  onDone,
+}: {
+  /** Back from the first chapter, to wherever the visitor came from. */
+  onBack: () => void;
+  /** Skip intro: straight to sign in. */
   onSkip: () => void;
-};
-
-export default function Tour({ onDone }: { onDone: () => void }) {
+  /** "let's go", with the point the send-off grows from. */
+  onDone: (from: { x: number; y: number }) => void;
+}) {
   const [c, setC] = useState(0);
-  const [prev, setPrev] = useState<number | null>(null);
-  const [skipped, setSkipped] = useState(0);
-  const [picked, setPicked] = useState<Theme | null>(null);
-  const theme = useTheme();
-  const top = useRef<HTMLDivElement>(null);
-  const origin = useRef({ x: 0, y: 0 });
+  const [prev, setPrev] = useState<{ i: number; dir: number } | null>(null);
+  const cur = useRef<HTMLDivElement>(null);
+  const old = useRef<HTMLDivElement>(null);
   const busy = useRef(false);
+  const move = useRef<gsap.core.Timeline | null>(null);
 
   useLockScroll(true);
-  const roomId: RoomId = CHAPTERS[c].room;
-  usePaintChrome(
-    ROOMS[roomId].bg,
-    roomId === "look"
-      ? (THEMES.find((t) => t.id === theme)?.bar ?? "#000000")
-      : ROOMS[roomId].bar,
-  );
-
-  const finish = useCallback(() => {
-    haptic("commit");
-    onDone();
-  }, [onDone]);
+  usePaintChrome(C.ground);
 
   const go = useCallback(
-    (n: number, from?: Element | null) => {
-      const next = Math.max(0, Math.min(TOTAL - 1, n));
-      if (next === c || busy.current) return;
-      const r = from?.getBoundingClientRect();
-      origin.current = r
-        ? { x: r.left + r.width / 2, y: r.top + r.height / 2 }
-        : { x: window.innerWidth / 2, y: window.innerHeight / 2 };
+    (n: number) => {
+      if (n < 0) {
+        onBack();
+        return;
+      }
+      const next = Math.min(TOTAL - 1, n);
+      if (next === c) return;
+      // A tap during a move finishes that move rather than being dropped: a
+      // quick double tap on "next" should go two chapters, not one.
+      if (busy.current) move.current?.progress(1);
       busy.current = true;
       haptic("tick");
-      setPrev(c);
+      setPrev({ i: c, dir: next > c ? 1 : -1 });
       setC(next);
     },
-    [c],
+    [c, onBack],
   );
 
-  // The wipe. Runs once per chapter change, on the chapter that just mounted.
+  // The move between chapters. Runs on the chapter that just mounted.
   useLayoutEffect(() => {
-    if (prev === null) return;
-    const el = top.current;
-    if (!el) return;
+    if (!prev) return;
+    const a = cur.current;
+    const b = old.current;
     const done = () => {
       busy.current = false;
       setPrev(null);
     };
-    if (prefersReducedMotion()) {
-      const t = gsap.fromTo(
-        el,
-        { opacity: 0 },
-        { opacity: 1, duration: 0.34, ease: "power1.out", onComplete: done },
-      );
-      return () => {
-        t.kill();
-      };
+    if (!a) {
+      done();
+      return;
     }
-    const { x, y } = origin.current;
-    const r =
-      Math.hypot(
-        Math.max(x, window.innerWidth - x),
-        Math.max(y, window.innerHeight - y),
-      ) + 24;
-    const t = gsap.fromTo(
-      el,
-      { clipPath: `circle(0px at ${x}px ${y}px)` },
-      {
-        clipPath: `circle(${r}px at ${x}px ${y}px)`,
-        duration: 0.85,
-        ease: "expo.inOut",
-        onComplete: () => {
-          gsap.set(el, { clearProps: "clipPath" });
-          done();
-        },
-      },
-    );
+    const tl = gsap.timeline({ onComplete: done });
+    move.current = tl;
+    if (prefersReducedMotion()) {
+      tl.fromTo(a, { opacity: 0 }, { opacity: 1, duration: 0.34, ease: "power1.out" }, 0);
+      if (b) tl.to(b, { opacity: 0, duration: 0.34, ease: "power1.out" }, 0);
+    } else {
+      if (b) tl.to(b, { x: -56 * prev.dir, opacity: 0, duration: 0.36, ease: "power2.in" }, 0);
+      tl.fromTo(
+        a,
+        { x: 64 * prev.dir, opacity: 0 },
+        { x: 0, opacity: 1, duration: 0.75, ease: "expo.out", clearProps: "transform" },
+        0.12,
+      );
+    }
     return () => {
-      t.kill();
+      tl.kill();
+      if (move.current === tl) move.current = null;
     };
-  }, [prev, c]);
+  }, [prev]);
 
   // Arrow keys on a laptop. The buttons are the control; this is a shortcut.
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
       if (e.key === "ArrowRight" && c < TOTAL - 1) go(c + 1);
-      if (e.key === "ArrowLeft") go(c - 1);
+      if (e.key === "ArrowLeft" && c > 0) go(c - 1);
     };
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
   }, [c, go]);
 
   const chapter = (i: number) => {
-    const nav: Nav = {
-      step: i + 1,
-      arrive: prev !== null ? 0.3 : 0.12,
-      onBack: (e) => go(i - 1, e.currentTarget),
-      onNext: (e) => go(i + 1, e.currentTarget),
-      onSkip: finish,
-    };
-    switch (CHAPTERS[i].id) {
-      case "hello":
-        return <Hello nav={nav} />;
-      case "does":
-        return <Does nav={nav} />;
-      case "line":
-        return (
-          <TheLine
-            nav={nav}
-            skipped={skipped}
-            onSkip={() => {
-              haptic("select");
-              setSkipped((n) => Math.min(MAX_SKIPS, n + 1));
-            }}
-            onUndo={() => {
-              haptic("tick");
-              setSkipped((n) => Math.max(0, n - 1));
-            }}
-          />
-        );
-      case "look":
-        return (
-          <Look
-            nav={nav}
-            current={picked ?? theme}
-            onPick={(t) => {
-              haptic("select");
-              setPicked(t);
-              setTheme(t);
-            }}
-          />
-        );
-      case "who":
-        return <Who nav={nav} />;
-      case "ready":
-        return <Ready nav={nav} picked={picked} onStart={finish} />;
-    }
+    const nav: Nav = { arrive: prev ? 0.28 : 0.12 };
+    if (i === 0) return <What nav={nav} />;
+    if (i === 1) return <Password nav={nav} />;
+    if (i === 2) return <Maker nav={nav} />;
+    return <Look nav={nav} />;
   };
 
+  const last = c === TOTAL - 1;
+
   return (
-    <div className="fixed inset-0 z-40 overflow-hidden font-sans">
-      <FontWarmer />
-      {prev !== null && (
-        <div key={`ch-${prev}`} aria-hidden inert className="pointer-events-none absolute inset-0">
-          {chapter(prev)}
+    <div
+      className="fixed inset-0 z-40 flex flex-col overflow-hidden font-sans"
+      style={{ background: C.ground, color: C.text }}
+    >
+      <DotField className="absolute right-0 top-0 h-[46%] w-[85%] lg:w-[60%]" origin={[1, 0]} reach={0.8} />
+
+      <header className="relative z-10 mx-auto flex w-full max-w-[1180px] shrink-0 items-center gap-4 px-6 pt-[max(14px,env(safe-area-inset-top))] lg:px-14 lg:pt-8">
+        <BackButton onClick={() => go(c - 1)} label={c === 0 ? "Back to the start" : "Previous chapter"} />
+        <span className="font-mono text-[12px] font-semibold tracking-[0.12em]" style={{ color: C.dim }}>
+          {String(c + 1).padStart(2, "0")} / {String(TOTAL).padStart(2, "0")}
+        </span>
+        <div className="grid flex-1 grid-cols-4 gap-1.5 lg:max-w-[220px]" aria-hidden>
+          {Array.from({ length: TOTAL }, (_, i) => (
+            <span
+              key={i}
+              className="h-[3px] rounded-full transition-colors duration-500"
+              style={{ background: i < c ? C.text : i === c ? C.accent : C.line }}
+            />
+          ))}
         </div>
-      )}
-      <div ref={top} key={`ch-${c}`} className="absolute inset-0">
-        {chapter(c)}
+        <button
+          type="button"
+          onClick={onSkip}
+          className="ml-auto min-h-11 shrink-0 text-[14px] underline-offset-4 hover:underline"
+          style={{ color: C.dim }}
+        >
+          skip intro
+        </button>
+      </header>
+
+      <div className="relative min-h-0 flex-1">
+        {prev && (
+          <div key={`ch-${prev.i}`} ref={old} aria-hidden inert className="pointer-events-none absolute inset-0">
+            {chapter(prev.i)}
+          </div>
+        )}
+        <div key={`ch-${c}`} ref={cur} className="absolute inset-0">
+          {chapter(c)}
+        </div>
       </div>
+
+      {last ? (
+        <Arch
+          onGo={(e) => {
+            const r = e.currentTarget.getBoundingClientRect();
+            haptic("commit");
+            onDone({ x: r.left + r.width / 2, y: r.top + r.height / 2 });
+          }}
+        />
+      ) : (
+        <footer className="relative z-10 mx-auto flex w-full max-w-[1180px] shrink-0 px-6 pb-[max(18px,env(safe-area-inset-bottom))] pt-3 lg:justify-end lg:px-14 lg:pb-10">
+          <PrimaryPill label="next" onClick={() => go(c + 1)} className="w-full lg:w-[300px]" />
+        </footer>
+      )}
     </div>
   );
 }
 
 /**
- * Three of the rooms are set in faces that are `preload: false`, because the
- * app itself only needs them in one theme each. Naming them here as the tour
- * opens starts the downloads while the reader is still in the first room, so
- * the Ticket and Arcade chapters do not open in a fallback face.
+ * The closing call to action, on an arch: an orange dome rising from the
+ * bottom edge, which is where the house style always ends. It rises as the
+ * last chapter arrives, and its button is where the send-off grows from, so
+ * the orange that floods the screen is the arch's own.
  */
-function FontWarmer() {
+function Arch({ onGo }: { onGo: (e: React.MouseEvent<HTMLButtonElement>) => void }) {
+  const ref = useRef<HTMLDivElement>(null);
+  useLayoutEffect(() => {
+    const el = ref.current;
+    if (!el || prefersReducedMotion()) return;
+    const t = gsap.fromTo(
+      el,
+      { yPercent: 100 },
+      { yPercent: 0, duration: 0.9, ease: "expo.out", delay: 0.15, clearProps: "transform" },
+    );
+    return () => {
+      t.kill();
+    };
+  }, []);
   return (
-    <div aria-hidden className="pointer-events-none absolute -left-[9999px] top-0 opacity-0">
-      <span style={{ fontFamily: ROOMS.ticket.head, fontWeight: 700 }}>skip</span>
-      <span style={{ fontFamily: ROOMS.arcade.head }}>ready</span>
-      <span className="font-hand font-bold">look</span>
+    <div ref={ref} className="relative z-10 shrink-0">
+      <div
+        aria-hidden
+        className="absolute bottom-0 left-1/2 h-full w-[170%] -translate-x-1/2 rounded-t-[100%] lg:w-[130%]"
+        style={{ background: C.accent }}
+      />
+      <div className="relative mx-auto flex w-full max-w-[560px] flex-col items-center gap-2.5 px-6 pb-[max(18px,env(safe-area-inset-bottom))] pt-10 short:pt-8">
+        <PrimaryPill label="let's go" inverse onClick={onGo} className="w-full max-w-[340px]" />
+        <p className="font-mono text-[10.5px] font-semibold tracking-[0.14em]" style={{ color: "rgba(20,7,0,0.72)" }}>
+          NEXT: SIGN IN, ONCE
+        </p>
+      </div>
     </div>
   );
 }
 
-/** The shared entrance: the headline rises, then the rest lifts in. */
+/* ---------------------------------------------------------------- shared */
+
+/** The shared entrance: the numeral, the headline rising, then the rest. */
 function useEntrance(
   arrive: number,
   extra?: (tl: gsap.core.Timeline, self: HTMLElement) => void | (() => void),
@@ -247,877 +250,525 @@ function useEntrance(
   return useGsap(({ self, reduced }) => {
     if (reduced) return;
     const tl = gsap.timeline({ delay: arrive });
+    const numeral = self.querySelector("[data-numeral]");
     const chars = self.querySelectorAll("[data-char]");
     const fades = self.querySelectorAll("[data-f]");
+    if (numeral) {
+      tl.fromTo(numeral, { yPercent: 18, opacity: 0 }, { yPercent: 0, opacity: 1, duration: 1.1, ease: "expo.out" }, 0);
+    }
     if (chars.length) {
-      tl.fromTo(
-        chars,
-        { yPercent: 120 },
-        { yPercent: 0, duration: 0.95, ease: "expo.out", stagger: 0.016 },
-        0,
-      );
+      tl.fromTo(chars, { yPercent: 120 }, { yPercent: 0, duration: 0.95, ease: "expo.out", stagger: 0.016 }, 0);
     }
     if (fades.length) {
-      tl.fromTo(
-        fades,
-        { opacity: 0, y: 20 },
-        { opacity: 1, y: 0, duration: 0.7, ease: "expo.out", stagger: 0.07 },
-        0.25,
-      );
+      tl.fromTo(fades, { opacity: 0, y: 20 }, { opacity: 1, y: 0, duration: 0.7, ease: "expo.out", stagger: 0.07 }, 0.25);
     }
     return extra?.(tl, self);
   }, []);
 }
 
-function Eyebrow({ room, children }: { room: Room; children: React.ReactNode }) {
+/**
+ * The words half of a chapter: eyebrow, the two part headline (heavy display,
+ * then the hand in orange), and one short paragraph that drops on a short
+ * phone so the chapter still fits a single screen.
+ */
+function Head({
+  eyebrow,
+  lead,
+  hand,
+  children,
+}: {
+  eyebrow: string;
+  lead: string;
+  hand: string;
+  children: React.ReactNode;
+}) {
   return (
-    <p
-      data-f
-      className="font-mono text-[11px] font-semibold tracking-[0.16em]"
-      style={{ color: room.faint }}
-    >
-      {children}
-    </p>
+    <>
+      <Eyebrow>{eyebrow}</Eyebrow>
+      <Rise
+        text={lead}
+        className="mt-4 text-[42px] font-extrabold leading-[0.92] tracking-[-0.045em] short:text-[36px] lg:text-[78px]"
+        style={{ fontFamily: DISPLAY }}
+      />
+      <Rise
+        text={hand}
+        className="font-hand text-[48px] font-bold leading-none short:text-[42px] lg:text-[86px]"
+        style={{ color: C.accent }}
+      />
+      <p data-f className="mt-5 max-w-[30rem] text-[16px] leading-[1.5] short:hidden lg:text-[18px]" style={{ color: C.dim }}>
+        {children}
+      </p>
+    </>
   );
 }
 
-/* ------------------------------------------------------- 01 · Ink · hello */
+/** A chapter: its numeral behind, its words, its object. */
+function Body({
+  scope,
+  numeral,
+  head,
+  object,
+}: {
+  scope: React.RefObject<HTMLDivElement | null>;
+  numeral: string;
+  head: React.ReactNode;
+  object: React.ReactNode;
+}) {
+  return (
+    <div ref={scope} className="no-scrollbar absolute inset-0 overflow-y-auto">
+      <span
+        data-numeral
+        aria-hidden
+        className="pointer-events-none absolute -right-3 top-1 select-none text-[190px] font-extrabold leading-none tracking-[-0.06em] lg:right-6 lg:top-0 lg:text-[340px]"
+        style={{ fontFamily: DISPLAY, color: "transparent", WebkitTextStroke: `2px ${C.line}` }}
+      >
+        {numeral}
+      </span>
+      <div className="relative mx-auto flex min-h-full w-full max-w-[1180px] flex-col px-6 lg:grid lg:grid-cols-2 lg:items-center lg:gap-16 lg:px-14">
+        <div className="pt-6 short:pt-3 lg:pt-0">{head}</div>
+        <div className="my-auto py-6 short:py-3 lg:my-0 lg:py-10">{object}</div>
+      </div>
+    </div>
+  );
+}
 
-function Hello({ nav }: { nav: Nav }) {
-  const room = ROOMS.ink;
+/* ------------------------------------------------------- 01 · what it is */
+
+const LOT = [
+  { label: "ATTENDANCE", figure: "85.3", unit: "%", note: "and how many you can still miss", meter: 85.3, loud: true },
+  { label: "LEAVE PLANNER", figure: "83.2", unit: "%", note: "if you take friday off, before you book it" },
+  { label: "MARKS", figure: "174", unit: "/240", note: "and the grade you are on track for" },
+  { label: "TIMETABLE", figure: "12:30", unit: "", note: "by day order, the way SRM runs" },
+] as const;
+
+function What({ nav }: { nav: Nav }) {
   const scope = useEntrance(nav.arrive, (tl, self) => {
     const cards = self.querySelectorAll("[data-deal]");
     if (cards.length) {
       tl.fromTo(
         cards,
-        { y: 140, rotation: (i: number) => [-14, 11, -8][i] ?? 0, opacity: 0 },
-        { y: 0, rotation: 0, opacity: 1, duration: 1.05, ease: "back.out(1.3)", stagger: 0.12 },
-        0.15,
+        { y: 110, rotation: (i: number) => [-9, 7, -6, 8][i] ?? 0, opacity: 0 },
+        { y: 0, rotation: 0, opacity: 1, duration: 1, ease: "back.out(1.35)", stagger: 0.09 },
+        0.2,
       );
     }
     const fill = self.querySelector("[data-fill]");
     if (fill) {
-      tl.fromTo(
-        fill,
-        { scaleX: 0 },
-        { scaleX: 1, duration: 1.2, ease: "expo.out", transformOrigin: "left center" },
-        0.9,
-      );
-    }
-  });
-
-  const card = (header: string, aside: string, body: React.ReactNode, tilt: number, z: number) => (
-    <div data-deal className="relative" style={{ zIndex: z }}>
-      <div
-        className="overflow-hidden rounded-[24px] border-2"
-        style={{
-          transform: `rotate(${tilt}deg)`,
-          borderColor: room.line,
-          background: "#0a0a0a",
-          boxShadow: "0 24px 40px -24px rgba(0,0,0,0.9)",
-        }}
-      >
-        <div
-          className="flex items-center justify-between border-b-2 px-[18px] py-3 font-mono short:py-2 text-[11px] font-semibold tracking-[0.14em]"
-          style={{ borderColor: room.line, color: room.faint }}
-        >
-          <span>{header}</span>
-          <span>{aside}</span>
-        </div>
-        <div className="px-[18px] pb-[18px] pt-3.5 short:pb-3 short:pt-2.5">{body}</div>
-      </div>
-    </div>
-  );
-
-  return (
-    <div ref={scope} className="absolute inset-0">
-      <RoomFrame
-        room={room}
-        step={nav.step}
-        total={TOTAL}
-        onSkip={nav.onSkip}
-        onBack={nav.onBack}
-        primary={{ label: "next", onClick: nav.onNext }}
-        head={
-          <>
-            <Eyebrow room={room}>SKIPP · WHAT IT IS</Eyebrow>
-            <Rise
-              text="the whole portal,"
-              className="mt-4 text-[42px] font-extrabold leading-[0.92] tracking-[-0.05em] short:text-[36px] lg:text-[76px]"
-              style={{ fontFamily: room.head }}
-            />
-            <Rise
-              text="minus the portal."
-              className="font-hand text-[48px] font-bold leading-none short:text-[42px] lg:text-[84px]"
-              style={{ color: room.accentText }}
-            />
-            <p data-f className="mt-5 max-w-[30rem] text-[16px] leading-[1.5] short:hidden lg:text-[18px]" style={{ color: room.dim }}>
-              Attendance, marks and your timetable, read from SRM and laid out so
-              the answer is the first thing you see.
-            </p>
-          </>
-        }
-        object={
-          <div className="mx-auto flex w-full max-w-[22rem] flex-col lg:max-w-[26rem]">
-            {card(
-              "ATTENDANCE",
-              "TERM TO DATE",
-              <>
-                <p className="tnum text-[40px] font-extrabold leading-none tracking-[-0.04em] short:text-[32px]">
-                  87.4<span className="text-[22px]" style={{ color: room.faint }}>%</span>
-                </p>
-                <div className="relative mt-4 h-[3px]" style={{ background: room.line }}>
-                  <span data-fill className="absolute inset-y-0 left-0 w-[87.4%]" style={{ background: room.ink }} />
-                  <span className="absolute -top-[5px] left-[75%] h-[13px] w-[2px]" style={{ background: room.faint }} />
-                </div>
-                <p className="mt-3 text-[13px]" style={{ color: room.dim }}>
-                  198 of 232 attended, 32 to spare
-                </p>
-              </>,
-              -2,
-              1,
-            )}
-            <div className="-mt-3">
-              {card(
-                "TODAY",
-                "DAY ORDER 1",
-                <>
-                  <p className="tnum text-[40px] font-extrabold leading-none tracking-[-0.04em] short:text-[32px]">12:30</p>
-                  <p className="mt-2 text-[13px]" style={{ color: room.dim }}>
-                    Critical Thinking, TP306, in 42 min
-                  </p>
-                </>,
-                1.5,
-                2,
-              )}
-            </div>
-            <div className="-mt-3">
-              {card(
-                "MARKS",
-                "INTERNALS",
-                <>
-                  <p className="tnum text-[40px] font-extrabold leading-none tracking-[-0.04em] short:text-[32px]">
-                    174<span className="text-[22px]" style={{ color: room.faint }}>/240</span>
-                  </p>
-                  <p className="mt-2 text-[13px]" style={{ color: room.dim }}>
-                    and the grade each subject is on track for
-                  </p>
-                </>,
-                -1,
-                3,
-              )}
-            </div>
-          </div>
-        }
-      />
-    </div>
-  );
-}
-
-/* ---------------------------------------------------- 02 · Brutal · the lot */
-
-const LOT = [
-  ["01", "attendance", "and how many you can still miss"],
-  ["02", "leave planner", "see the damage before you book"],
-  ["03", "marks", "and the grade you are on track for"],
-  ["04", "timetable", "by day order, the way SRM runs"],
-] as const;
-
-function Does({ nav }: { nav: Nav }) {
-  const room = ROOMS.brutal;
-  const scope = useEntrance(nav.arrive, (tl, self) => {
-    const tape = self.querySelector("[data-tape]");
-    if (tape) {
-      tl.fromTo(
-        tape,
-        { scale: 1.35, opacity: 0, boxShadow: "0px 0px 0 #000" },
-        { scale: 1, opacity: 1, boxShadow: "6px 6px 0 #000", duration: 0.55, ease: "back.out(2.4)" },
-        0.05,
-      );
-    }
-    const blocks = self.querySelectorAll("[data-slam]");
-    if (blocks.length) {
-      tl.fromTo(
-        blocks,
-        {
-          scale: 1.12,
-          opacity: 0,
-          rotation: (i: number) => [-3, 2.5, -2, 3][i] ?? 0,
-          boxShadow: "0px 0px 0 #000",
-        },
-        {
-          scale: 1,
-          opacity: 1,
-          rotation: 0,
-          boxShadow: "5px 5px 0 #000",
-          duration: 0.5,
-          ease: "back.out(2.2)",
-          stagger: 0.09,
-        },
-        0.35,
-      );
+      tl.fromTo(fill, { scaleX: 0 }, { scaleX: 1, duration: 1.1, ease: "expo.out", transformOrigin: "left center" }, 0.85);
     }
   });
 
   return (
-    <div ref={scope} className="absolute inset-0">
-      <RoomFrame
-        room={room}
-        step={nav.step}
-        total={TOTAL}
-        onSkip={nav.onSkip}
-        onBack={nav.onBack}
-        primary={{ label: "next", onClick: nav.onNext }}
-        head={
-          <>
-            <Eyebrow room={room}>THE LOT · IN BRUTAL</Eyebrow>
-            <div className="mt-4 inline-block -rotate-2">
-              <div
-                data-tape
-                className="border-[3px] px-5 pb-2 pt-0.5 font-hand text-[58px] font-bold leading-none text-white short:text-[46px] lg:text-[92px]"
-                style={{ background: room.accent, borderColor: room.line, boxShadow: "6px 6px 0 #000" }}
-              >
-                the lot.
-              </div>
-            </div>
-            <Rise
-              text="everything you open the portal for."
-              className="mt-5 max-w-[16ch] text-[28px] font-extrabold leading-[0.98] tracking-[-0.04em] short:mt-4 short:text-[24px] lg:mt-6 lg:text-[46px]"
-              style={{ fontFamily: room.head }}
-            />
-            {/* Laptop only: on a phone the four blocks say it, and the room
-                has to fit one screen. */}
-            <p data-f className="mt-4 hidden max-w-[28rem] text-[18px] leading-[1.5] lg:block" style={{ color: room.dim }}>
-              Four things, each one tap from home, none of them behind a loading
-              spinner.
-            </p>
-          </>
-        }
-        object={
-          <div className="grid gap-3.5 short:gap-2.5 sm:grid-cols-2 lg:gap-5">
-            {LOT.map(([n, t, d]) => (
-              <div
-                key={n}
-                data-slam
-                className="flex items-center gap-3.5 border-[3px] bg-white px-4 py-3.5 short:py-2.5 lg:items-start lg:py-4"
-                style={{ borderColor: room.line, boxShadow: "5px 5px 0 #000" }}
-              >
-                <span
-                  className="grid size-9 shrink-0 place-items-center font-mono text-[13px] font-bold"
-                  style={{ background: room.line, color: room.bg }}
-                >
-                  {n}
-                </span>
-                <span className="min-w-0">
-                  <span className="block text-[18px] font-extrabold leading-tight tracking-[-0.02em] lg:text-[19px]">{t}</span>
-                  <span className="mt-0.5 block text-[14px] leading-snug" style={{ color: room.dim }}>
-                    {d}
-                  </span>
-                </span>
-              </div>
-            ))}
-          </div>
-        }
-      />
-    </div>
-  );
-}
-
-/* ---------------------------------------------- 03 · Ticket · the bunk pass */
-
-function TheLine({
-  nav,
-  skipped,
-  onSkip,
-  onUndo,
-}: {
-  nav: Nav;
-  skipped: number;
-  onSkip: () => void;
-  onUndo: () => void;
-}) {
-  const room = ROOMS.ticket;
-  // The app's own arithmetic, so the tour can never quote a margin the
-  // attendance screen would disagree with.
-  const p = predict(ATTENDED, HELD + skipped, 75);
-  const below = !p.isSafe;
-  const punched = Math.min(skipped, SLOTS);
-  const stamp = below ? "VOID" : p.canSkip === 0 ? "LAST ONE" : null;
-
-  let message: string;
-  if (below) message = `Pass void. Attend ${p.mustAttend} in a row and it is valid again.`;
-  else if (p.canSkip === 0) message = "Every hole punched. One more skip and the pass is void.";
-  else if (p.canSkip === 1) message = "One skip left on this pass. Spend it wisely.";
-  else if (skipped === 0)
-    message = `Your margin is a pass you can spend. ${p.canSkip} skips left in Computer Networks. Go on, punch one.`;
-  else message = `${p.canSkip} left. That is the whole idea: you always know.`;
-
-  const scope = useEntrance(nav.arrive, (tl, self) => {
-    const pass = self.querySelector("[data-pass]");
-    if (pass) {
-      tl.fromTo(
-        pass,
-        { y: -60, rotation: -7, opacity: 0 },
-        { y: 0, rotation: 0, opacity: 1, duration: 0.95, ease: "back.out(1.4)" },
-        0.2,
-      );
-    }
-  });
-
-  // A punch, and the stamp. Only on a change after arrival, never on mount.
-  const seen = useRef(skipped);
-  const root = scope;
-  useLayoutEffect(() => {
-    const was = seen.current;
-    seen.current = skipped;
-    const self = root.current;
-    if (!self || was === skipped || prefersReducedMotion()) return;
-    const ctx = gsap.context(() => {
-      if (skipped > was) {
-        gsap.fromTo("[data-shake]", { x: -6 }, { x: 0, duration: 0.5, ease: "elastic.out(1, 0.35)" });
-        const slot = self.querySelector(`[data-slot="${skipped - 1}"]`);
-        if (slot) gsap.fromTo(slot, { scale: 0.4 }, { scale: 1, duration: 0.45, ease: "back.out(3)" });
+    <Body
+      scope={scope}
+      numeral="01"
+      head={
+        <Head eyebrow="01 · WHAT IT IS" lead="the whole portal," hand="minus the portal.">
+          Attendance, marks and your timetable, read from SRM and set out so the
+          answer is the first thing you see.
+        </Head>
       }
-      const s = self.querySelector("[data-stamp]");
-      if (s) {
-        gsap.fromTo(
-          s,
-          { scale: 1.9, opacity: 0 },
-          { scale: 1, opacity: 1, duration: 0.45, ease: "back.out(1.8)" },
-        );
-      }
-    }, self);
-    return () => ctx.revert();
-  }, [skipped, root]);
-
-  const passBg = below ? "#a3162c" : "#141210";
-  const notch =
-    "radial-gradient(circle 13px at 76% 0, #0000 96%, #000) top / 100% 51% no-repeat, radial-gradient(circle 13px at 76% 100%, #0000 96%, #000) bottom / 100% 51% no-repeat";
-
-  return (
-    <div ref={scope} className="absolute inset-0">
-      <RoomFrame
-        room={room}
-        step={nav.step}
-        total={TOTAL}
-        onSkip={nav.onSkip}
-        onBack={nav.onBack}
-        onNext={nav.onNext}
-        primary={{ label: "punch a skip", onClick: onSkip, arrow: false }}
-        head={
-          <>
-            <Eyebrow room={room}>THE LINE · IN TICKET</Eyebrow>
-            <Rise
-              text="how many can"
-              className="mt-4 text-[34px] font-bold leading-[1.02] tracking-[-0.045em] short:text-[30px] lg:text-[52px]"
-              style={{ fontFamily: room.head }}
-            />
-            <Rise
-              text="i skip?"
-              className="text-[34px] font-bold leading-[1.02] tracking-[-0.045em] short:text-[30px] lg:text-[52px]"
-              style={{ fontFamily: room.head, color: room.accentText }}
-            />
-            <p
-              data-f
-              aria-live="polite"
-              className="mt-4 min-h-[3em] max-w-[28rem] text-[15px] leading-[1.5] lg:text-[17px]"
-              style={{ color: room.dim }}
-            >
-              {message}
-            </p>
-          </>
-        }
-        object={
-          <div className="mx-auto w-full max-w-[22.5rem] lg:max-w-[27rem]">
-            <div data-pass className="relative">
-              <div style={{ transform: "rotate(-1.5deg)" }}>
-                <div
-                  data-shake
-                  className="relative flex h-[270px] overflow-hidden rounded-[24px] text-[#f6f3ec] transition-colors duration-500 short:h-[220px] lg:h-[310px]"
-                  style={{ background: passBg, WebkitMask: notch, mask: notch }}
-                >
-                  <div className="flex w-[76%] flex-col py-5 pl-6">
-                    <p className="font-mono text-[10.5px] font-bold tracking-[0.14em] opacity-80">
-                      BUNK PASS · COMPUTER NETWORKS
+      object={
+        <div className="mx-auto grid w-full max-w-[24rem] grid-cols-2 gap-3 lg:max-w-[30rem] lg:gap-4">
+          {LOT.map((k) => {
+            const loud = "loud" in k && k.loud;
+            return (
+              <div key={k.label} data-deal>
+                <Receipt label={k.label} fill={loud ? "accent" : undefined} className="h-full">
+                  <div className="px-4 pb-4 pt-3 short:pb-3 short:pt-2">
+                    <p className="tnum text-[30px] font-extrabold leading-none tracking-[-0.04em] short:text-[26px] lg:text-[40px]" style={{ fontFamily: DISPLAY }}>
+                      {k.figure}
+                      <span className="text-[15px] lg:text-[19px]" style={{ opacity: 0.55 }}>
+                        {k.unit}
+                      </span>
                     </p>
-                    <span className="mt-4 block" style={{ fontFamily: room.head }}>
-                      <RollingNumber
-                        value={String(below ? p.mustAttend : p.canSkip)}
-                        className="text-[92px] font-bold leading-[0.85] tracking-[-0.06em] short:text-[72px] lg:text-[112px]"
-                      />
-                    </span>
-                    <p className="mt-3 text-[15px] font-semibold">
-                      {below ? "classes to attend in a row" : "classes you can skip"}
+                    {"meter" in k && (
+                      <div className="relative mt-3 h-[3px] rounded-full" style={{ background: "rgba(20,7,0,0.2)" }}>
+                        <span data-fill className="absolute inset-y-0 left-0 rounded-full" style={{ width: `${k.meter}%`, background: C.onAccent }} />
+                        <span className="absolute -top-[4px] left-[75%] h-[11px] w-[2px]" style={{ background: C.onAccent }} />
+                      </div>
+                    )}
+                    <p className="mt-2.5 text-[12.5px] leading-snug lg:text-[14px]" style={{ opacity: loud ? 0.8 : 1, color: loud ? undefined : C.dim }}>
+                      {k.note}
                     </p>
-                    <div className="mt-auto flex gap-2" aria-hidden>
-                      {Array.from({ length: SLOTS }, (_, i) => (
-                        <span
-                          key={i}
-                          data-slot={i}
-                          className="h-[30px] w-6 rounded-[6px] transition-colors duration-300"
-                          style={
-                            i < punched
-                              ? { background: passBg, boxShadow: "inset 0 0 0 2px rgba(246,243,236,0.55)" }
-                              : { background: room.accent }
-                          }
-                        />
-                      ))}
-                    </div>
                   </div>
-                  <div className="flex flex-1 flex-col items-center justify-center gap-2 border-l-[3px] border-dashed border-[rgba(246,243,236,0.45)]">
-                    <span className="tnum text-[20px] font-bold tracking-[-0.03em]" style={{ fontFamily: room.head }}>
-                      {p.percentage.toFixed(1)}
-                      <span className="text-[11px]">%</span>
-                    </span>
-                    <span className="font-mono text-[9px] font-bold tracking-[0.12em] opacity-80">ATTENDED</span>
-                  </div>
-                </div>
+                </Receipt>
               </div>
-              {stamp && (
-                <span
-                  key={stamp}
-                  data-stamp
-                  className="absolute right-[28%] top-[20%] -rotate-[14deg] rounded-[12px] border-[3px] px-3.5 py-2 text-[22px] font-bold tracking-[-0.02em]"
-                  style={{
-                    fontFamily: room.head,
-                    color: below ? "#f6f3ec" : room.accent,
-                    borderColor: below ? "#f6f3ec" : room.accent,
-                  }}
-                >
-                  {stamp}
-                </span>
-              )}
-            </div>
-            <div data-f className="mt-6 flex items-center justify-between gap-3 short:mt-4">
-              <span className="flex items-center gap-2 font-hand text-[24px] font-bold leading-none">
-                <svg aria-hidden width="40" height="28" viewBox="0 0 44 30" className="shrink-0">
-                  <path
-                    d="M40 24 C 28 24, 16 20, 8 8 M6 18 L7 7 L18 8"
-                    fill="none"
-                    stroke={room.accent}
-                    strokeWidth="2.6"
-                    strokeLinecap="round"
-                    strokeLinejoin="round"
-                  />
-                </svg>
-                each skip punches a hole
-              </span>
-              <button
-                type="button"
-                onClick={onUndo}
-                disabled={skipped === 0}
-                className="inline-flex min-h-11 shrink-0 items-center gap-1.5 px-1 text-[15px] font-semibold disabled:opacity-30"
-              >
-                <IconUndo size={18} />
-                undo
-              </button>
-            </div>
-          </div>
-        }
-      />
-    </div>
-  );
-}
-
-/* ------------------------------------------------ 04 · your look · pick one */
-
-/**
- * A real row from the app, drawn in whatever look is applied. It carries the
- * markers the themes hook into (`data-band`, `data-surface`, `data-meter`) and
- * inherits `--font-sans`, so Brutal turns it into a block on a hard offset,
- * Clay into a soft card and Terminal into mono. A swatch tells you the hues; this
- * tells you what the app will feel like.
- */
-function ThemePreview() {
-  return (
-    <div
-      className="relative rounded-card border border-line p-4 short:p-3"
-      style={{
-        background: "var(--color-ink-1)",
-        color: "var(--color-text-1)",
-        fontFamily: "var(--font-sans)",
-      }}
-    >
-      <p data-band className="text-label uppercase" style={{ color: "var(--color-text-3)" }}>
-        Attendance
-      </p>
-      <div data-surface className="mt-3">
-        <div className="flex items-baseline justify-between gap-3">
-          <span className="truncate text-headline">Computer Networks</span>
-          <span className="tnum shrink-0 text-headline">89%</span>
+            );
+          })}
         </div>
-        <div data-meter className="relative mt-2.5 h-[3px] w-full">
-          <span className="absolute inset-0" style={{ background: "var(--color-line)" }} />
-          <span className="absolute inset-y-0 left-0" style={{ width: "89%", background: "var(--color-accent)" }} />
-          <span
-            className="absolute"
-            style={{ left: "75%", top: -5, width: 2, height: 13, background: "var(--color-text-1)" }}
-          />
-        </div>
-      </div>
-    </div>
+      }
+    />
   );
 }
 
-const LOOKS = THEMES.filter((t) => t.structural);
-const COLOURS = THEMES.filter((t) => !t.structural).slice(0, 6);
-const MORE_COLOURS = THEMES.filter((t) => !t.structural).length - COLOURS.length;
+/* ---------------------------------------------------- 02 · your password */
 
-function Look({
-  nav,
-  current,
-  onPick,
-}: {
-  nav: Nav;
-  current: Theme;
-  onPick: (t: Theme) => void;
-}) {
-  const room = ROOMS.look;
-  const scope = useEntrance(nav.arrive);
-  const chip = (on: boolean): React.CSSProperties => ({
-    background: on ? "var(--color-text-1)" : "transparent",
-    color: on ? "var(--color-ink-0)" : "var(--color-text-1)",
-    boxShadow: on ? "none" : "inset 0 0 0 2px var(--color-line)",
-  });
-  return (
-    <div ref={scope} className="absolute inset-0">
-      <RoomFrame
-        room={room}
-        step={nav.step}
-        total={TOTAL}
-        onSkip={nav.onSkip}
-        onBack={nav.onBack}
-        primary={{ label: "keep this look", onClick: nav.onNext }}
-        head={
-          <>
-            <Eyebrow room={room}>YOUR LOOK · IN WHATEVER YOU PICK</Eyebrow>
-            <Rise
-              text="now pick"
-              className="mt-4 text-[42px] font-extrabold leading-[0.92] tracking-[-0.05em] short:text-[36px] lg:text-[76px]"
-              style={{ fontFamily: room.head }}
-            />
-            <Rise
-              text="your own."
-              className="font-hand text-[48px] font-bold leading-none short:text-[42px] lg:text-[84px]"
-              style={{ color: room.accentText }}
-            />
-            <p data-f className="mt-5 max-w-[30rem] text-[16px] leading-[1.5] short:hidden lg:text-[18px]" style={{ color: room.dim }}>
-              Seven looks rebuild the whole app and fifteen colours repaint it.
-              Tap one and this room becomes it.
-            </p>
-          </>
-        }
-        object={
-          <div data-f className="mx-auto flex w-full max-w-[24rem] flex-col gap-4 short:gap-3 lg:max-w-[28rem]">
-            <ThemePreview />
-            <div className="grid grid-cols-2 gap-2">
-              {LOOKS.map((t) => {
-                const on = current === t.id;
-                return (
-                  <button
-                    key={t.id}
-                    type="button"
-                    onClick={() => onPick(t.id)}
-                    aria-pressed={on}
-                    className="flex min-h-11 min-w-0 items-center justify-between gap-2 rounded-full px-4 transition-[background-color,color,box-shadow] duration-300 [&:last-child:nth-child(odd)]:col-span-2"
-                    style={chip(on)}
-                  >
-                    <span className="min-w-0 truncate text-[15px] font-semibold">{t.name}</span>
-                    <span className="flex shrink-0 gap-1" aria-hidden>
-                      {t.swatch.map((sw, k) => (
-                        <span key={k} className="size-2.5 rounded-full" style={{ background: sw }} />
-                      ))}
-                    </span>
-                  </button>
-                );
-              })}
-            </div>
-            <div className="flex flex-wrap items-center gap-2.5">
-              {COLOURS.map((t) => {
-                const on = current === t.id;
-                return (
-                  <button
-                    key={t.id}
-                    type="button"
-                    onClick={() => onPick(t.id)}
-                    aria-pressed={on}
-                    aria-label={t.name}
-                    className="grid size-11 shrink-0 place-items-center rounded-full transition-transform duration-300 active:scale-90"
-                    style={{ boxShadow: on ? "inset 0 0 0 2px var(--color-text-1)" : "none" }}
-                  >
-                    <span className="flex size-8 overflow-hidden rounded-full">
-                      {t.swatch.map((sw, k) => (
-                        <span key={k} className="h-full flex-1" style={{ background: sw }} />
-                      ))}
-                    </span>
-                  </button>
-                );
-              })}
-              <span className="text-[13px]" style={{ color: room.faint }}>
-                +{MORE_COLOURS} more in Profile
-              </span>
-            </div>
-          </div>
-        }
-      />
-    </div>
-  );
-}
+const CIPHER = "x7Qe9#vL2kZ";
+const SCRAMBLE = "ABCDEFGHJKLMNPQRSTUVWXYZabcdefghjkmnpqrstuvwxyz23456789#$%&*";
 
-/* -------------------------------------------------- 05 · Terminal · the dev */
-
-function Who({ nav }: { nav: Nav }) {
-  const room = ROOMS.terminal;
-  const links = creatorLinks();
-  const name = CREATOR.name.toLowerCase();
-
+function Password({ nav }: { nav: Nav }) {
   const scope = useEntrance(nav.arrive, (tl, self) => {
-    const cmds = Array.from(self.querySelectorAll<HTMLElement>("[data-cmd]"));
-    const outs = Array.from(self.querySelectorAll<HTMLElement>("[data-out]"));
-    const cursor = self.querySelector("[data-cursor]");
-    if (!cmds.length) return;
-
-    // Typed into the text node, so the original has to be put back on the way
-    // out: a revert restores styles, never text. Same as Terminal's own title.
-    const restore = () => cmds.forEach((c) => (c.textContent = c.dataset.text ?? ""));
-
-    tl.call(() => cmds.forEach((c) => (c.textContent = "")), [], 0.3);
-    tl.set(outs, { opacity: 0 }, 0.3);
-    let at = 0.5;
-    cmds.forEach((c, i) => {
-      const text = c.dataset.text ?? "";
-      const o = { n: 0 };
+    const field = self.querySelector<HTMLElement>("[data-cipher]");
+    const lock = self.querySelector("[data-lock]");
+    const packet = self.querySelector("[data-packet]");
+    const rail = self.querySelector<HTMLElement>("[data-rail]");
+    const stops = self.querySelectorAll("[data-stop]");
+    if (stops.length) {
+      tl.fromTo(stops, { opacity: 0, x: -16 }, { opacity: 1, x: 0, duration: 0.6, ease: "expo.out", stagger: 0.12 }, 0.45);
+    }
+    // The password is encrypted on the phone before it goes anywhere: the dots
+    // scramble, then settle into ciphertext, then the lock closes.
+    if (field) {
+      const dots = field.textContent ?? "";
+      const o = { p: 0 };
       tl.to(
         o,
         {
-          n: text.length,
-          duration: text.length * 0.045,
-          ease: "none",
+          p: 1,
+          duration: 0.9,
+          ease: "power1.inOut",
           onUpdate: () => {
-            c.textContent = text.slice(0, Math.round(o.n));
+            const settled = Math.floor(o.p * CIPHER.length);
+            let s = CIPHER.slice(0, settled);
+            for (let i = settled; i < CIPHER.length; i++) {
+              s += SCRAMBLE[Math.floor(Math.random() * SCRAMBLE.length)];
+            }
+            field.textContent = s;
           },
         },
-        at,
+        0.95,
       );
-      at += text.length * 0.045 + 0.15;
-      if (outs[i]) tl.to(outs[i], { opacity: 1, duration: 0.2 }, at);
-      at += 0.35;
-    });
-    if (cursor) {
-      gsap.to(cursor, { opacity: 0, duration: 0.5, repeat: -1, yoyo: true, ease: "steps(1)" });
+      if (lock) tl.fromTo(lock, { scale: 0.4, opacity: 0 }, { scale: 1, opacity: 1, duration: 0.45, ease: "back.out(2.6)" }, 1.75);
+      // The route, on a slow loop: one request, down to the portal and gone.
+      if (packet && rail) {
+        const run = gsap.timeline({ repeat: -1, repeatDelay: 1.1, delay: arrivalEnd(nav.arrive) });
+        run
+          .fromTo(packet, { y: 0, opacity: 0 }, { opacity: 1, duration: 0.2 }, 0)
+          .to(packet, { y: rail.offsetHeight - 10, duration: 1.7, ease: "power1.inOut" }, 0)
+          .to(packet, { opacity: 0, duration: 0.25 }, 1.55);
+      }
+      // A revert restores styles, never text, so the dots go back by hand.
+      return () => {
+        field.textContent = dots;
+      };
     }
-    return restore;
   });
 
-  const lines: [string, React.ReactNode][] = [
-    ["whoami", name],
-    [
-      "cat why.txt",
-      "third year cse at srm. built skipp because the portal was three taps and a spinner away from every answer.",
-    ],
-    [
-      "cat promise.txt",
-      "your own data, read with your own sign in. no account, no server, nothing kept.",
-    ],
+  const stops = [
+    { Icon: IconPhone, title: "THIS PHONE", text: "Encrypted with a key that cannot be read back out, not even by Skipp." },
+    { Icon: IconServer, title: "SKIPP'S SERVER", text: "Holds it for one request to sign you in, then forgets it. Nothing written down.", dashed: true },
+    { Icon: IconPortal, title: "SRM PORTAL", text: "Where you actually sign in. The only place your password is checked." },
   ];
 
   return (
-    <div ref={scope} className="absolute inset-0">
-      <RoomFrame
-        room={room}
-        step={nav.step}
-        total={TOTAL}
-        onSkip={nav.onSkip}
-        onBack={nav.onBack}
-        primary={{ label: "next", onClick: nav.onNext }}
-        head={
-          <>
-            <Eyebrow room={room}>THE DEV · IN TERMINAL</Eyebrow>
-            <Rise
-              text="who made"
-              className="mt-4 text-[40px] font-bold leading-[0.95] tracking-[-0.04em] lg:text-[68px]"
-              style={{ fontFamily: room.head }}
-            />
-            <Rise
-              text="this?"
-              className="text-[40px] font-bold leading-[0.95] tracking-[-0.04em] lg:text-[68px]"
-              style={{ fontFamily: room.head, color: room.accentText }}
-            />
-            <p data-f className="mt-5 max-w-[28rem] text-[15px] leading-[1.55] short:hidden lg:text-[17px]" style={{ color: room.dim, fontFamily: room.head }}>
-              One student, not a company. Worth knowing before you hand anything
-              your password.
-            </p>
-          </>
-        }
-        object={
-          <div
-            data-f
-            className="w-full border-[1.5px] text-[13.5px] leading-[1.6] lg:text-[15px]"
-            style={{ borderColor: room.line, background: "#0a100c", fontFamily: room.head }}
-          >
-            <div
-              className="flex items-center justify-between border-b-[1.5px] px-4 py-2.5 text-[11px] tracking-[0.12em]"
-              style={{ borderColor: room.line, color: room.faint }}
-            >
-              <span>~/skipp</span>
-              <span>zsh</span>
-            </div>
-            <div className="space-y-3 p-4 short:space-y-2 short:p-3 lg:p-5">
-              {lines.map(([cmd, out], i) => (
-                // The promise is said again, plainly, in the last room, so a
-                // short phone can drop it here and keep the chapter whole.
-                <div key={cmd} className={i === 2 ? "short:hidden" : undefined}>
-                  <p>
-                    <span style={{ color: room.accent }}>$ </span>
-                    <span data-cmd data-text={cmd}>
-                      {cmd}
+    <Body
+      scope={scope}
+      numeral="02"
+      head={
+        <Head eyebrow="02 · YOUR PASSWORD" lead="your password" hand="stays yours.">
+          No accounts and no database. This is exactly where it goes, and how
+          long it stays there.
+        </Head>
+      }
+      object={
+        <div data-f className="mx-auto w-full max-w-[24rem] lg:max-w-[28rem]">
+          <Receipt label="WHERE IT GOES" aside="ONE REQUEST">
+            <div className="p-4 short:p-3">
+              <div className="flex items-center gap-3 rounded-[14px] px-4 py-3" style={{ background: C.raised }}>
+                <span className="font-mono text-[10px] font-semibold tracking-[0.14em]" style={{ color: C.faint }}>
+                  PASSWORD
+                </span>
+                <span data-cipher className="tnum min-w-0 flex-1 truncate text-right font-mono text-[15px] tracking-[0.12em]">
+                  •••••••••••
+                </span>
+                <span data-lock className="grid size-7 shrink-0 place-items-center rounded-full" style={{ background: C.accent, color: C.onAccent }}>
+                  <IconLock size={14} />
+                </span>
+              </div>
+              <ol className="relative mt-4 flex flex-col gap-3.5 short:gap-2.5">
+                <span data-rail aria-hidden className="absolute bottom-5 left-[19px] top-5 w-[2px]" style={{ background: C.line }}>
+                  <span data-packet className="absolute -left-[4px] top-0 size-[10px] rounded-full opacity-0" style={{ background: C.accent, boxShadow: `0 0 12px ${C.accent}` }} />
+                </span>
+                {stops.map(({ Icon, title, text, dashed }) => (
+                  <li key={title} data-stop className="relative flex gap-3.5">
+                    <span
+                      className="grid size-10 shrink-0 place-items-center rounded-full"
+                      style={{ background: C.card, color: C.text, border: `2px ${dashed ? "dashed" : "solid"} ${C.line}` }}
+                    >
+                      <Icon size={17} />
                     </span>
-                  </p>
-                  <p data-out style={{ color: room.dim }}>
-                    {out}
-                  </p>
-                </div>
-              ))}
-              {links.length > 0 && (
-                <div>
-                  <p>
-                    <span style={{ color: room.accent }}>$ </span>
-                    <span data-cmd data-text="ls links/">
-                      ls links/
+                    <span className="min-w-0 pt-0.5">
+                      <span className="block font-mono text-[10.5px] font-semibold tracking-[0.14em]">{title}</span>
+                      <span className="mt-1 block text-[13.5px] leading-snug" style={{ color: C.dim }}>
+                        {text}
+                      </span>
                     </span>
-                  </p>
-                  <div data-out className="mt-1.5 flex flex-wrap gap-2">
-                    {links.map((l) => (
-                      <a
-                        key={l.kind}
-                        href={l.url}
-                        target="_blank"
-                        rel="noopener"
-                        className="inline-flex min-h-11 items-center gap-2 border-[1.5px] px-3 transition-colors hover:bg-[#101a13]"
-                        style={{ borderColor: room.line, color: room.ink }}
-                      >
-                        {l.kind === "linkedin" ? <IconLinkedIn size={15} /> : <IconInstagram size={15} />}
-                        {l.kind}
-                      </a>
-                    ))}
-                  </div>
-                </div>
-              )}
-              <p>
-                <span style={{ color: room.accent }}>$ </span>
-                <span
-                  data-cursor
-                  aria-hidden
-                  className="inline-block h-[1.05em] w-[0.6em] align-[-0.15em]"
-                  style={{ background: room.accent }}
-                />
-              </p>
+                  </li>
+                ))}
+              </ol>
             </div>
-          </div>
-        }
-      />
-    </div>
+            <div className="border-t-2 px-4 py-2.5 text-center font-mono text-[10px] font-semibold tracking-[0.14em]" style={{ borderColor: C.line, color: C.accent }}>
+              NO ACCOUNT · NO DATABASE · NO LOGS
+            </div>
+          </Receipt>
+        </div>
+      }
+    />
   );
 }
 
-/* -------------------------------------------------- 06 · Arcade · ready */
+/** When a chapter's entrance has finished, for loops that start after it. */
+function arrivalEnd(arrive: number): number {
+  return arrive + 2.1;
+}
 
-/** The chomper's mouth, as a wedge cut out of a disc. `--m` is its angle. */
-const CHOMPER =
-  "conic-gradient(from calc(90deg + var(--m) / 2), #ffe600 0 calc(360deg - var(--m)), #0000 0)";
+/* ------------------------------------------------------- 03 · who made it */
 
-function Ready({
-  nav,
-  picked,
-  onStart,
-}: {
-  nav: Nav;
-  picked: Theme | null;
-  onStart: () => void;
-}) {
-  const room = ROOMS.arcade;
-  const look = THEMES.find((t) => t.id === picked)?.name ?? "Ink";
-  const DOTS = 9;
+/** A barcode that is the same every time: it is a drawing, not a code. */
+const BARS = [2, 1, 3, 1, 1, 2, 3, 1, 2, 1, 1, 3, 2, 1, 3, 1, 2, 2, 1, 3, 1, 1, 2, 3, 1, 2, 1, 3, 2, 1, 2, 3];
 
-  const scope = useEntrance(nav.arrive, (_tl, self) => {
-    const chomp = self.querySelector<HTMLElement>("[data-chomp]");
-    const dots = Array.from(self.querySelectorAll<HTMLElement>("[data-dot]"));
-    const lane = chomp?.parentElement;
-    if (!chomp || !lane || !dots.length) return;
-    const w = lane.clientWidth;
-    gsap.to(chomp, { "--m": "6deg", duration: 0.13, repeat: -1, yoyo: true, ease: "steps(1)" });
-    const run = gsap.timeline({ repeat: -1, repeatDelay: 0.5, delay: nav.arrive + 0.4 });
-    run.set(dots, { opacity: 1 }, 0);
-    run.fromTo(chomp, { x: -28 }, { x: w + 4, duration: 3.4, ease: "none" }, 0);
-    dots.forEach((d) => {
-      const at = ((d.offsetLeft + 28) / (w + 32)) * 3.4;
-      run.set(d, { opacity: 0 }, at);
+function Maker({ nav }: { nav: Nav }) {
+  const links = creatorLinks();
+  const [first, ...rest] = CREATOR.name.split(" ");
+
+  const scope = useEntrance(nav.arrive, (tl, self) => {
+    const swing = self.querySelector("[data-swing]");
+    if (!swing) return;
+    // Dropped in from above on its lanyard, then it swings and settles from
+    // the strap, the way a card on a lanyard actually comes to rest.
+    tl.fromTo(swing, { y: -260, rotation: -18 }, { y: 0, duration: 0.7, ease: "power3.out" }, 0.15).fromTo(
+      swing,
+      { rotation: -18 },
+      { rotation: 0, duration: 1.8, ease: "elastic.out(1, 0.32)" },
+      0.3,
+    );
+    const sway = gsap.to(swing, {
+      rotation: 1.4,
+      duration: 2.6,
+      ease: "sine.inOut",
+      yoyo: true,
+      repeat: -1,
+      delay: arrivalEnd(nav.arrive),
+      immediateRender: false,
     });
+    return () => {
+      sway.kill();
+    };
   });
 
   return (
-    <div ref={scope} className="absolute inset-0">
-      <RoomFrame
-        room={room}
-        step={nav.step}
-        total={TOTAL}
-        onSkip={nav.onSkip}
-        onBack={nav.onBack}
-        primary={{ label: "press start", onClick: () => onStart() }}
-        head={
-          <>
-            <Eyebrow room={room}>READY · IN ARCADE</Eyebrow>
-            <Rise
-              text="ready,"
-              className="mt-5 text-[30px] leading-[1.2] short:mt-3 lg:text-[56px]"
-              style={{ fontFamily: room.head }}
-            />
-            <Rise
-              text="player one?"
-              className="text-[30px] leading-[1.2] lg:text-[56px]"
-              style={{ fontFamily: room.head, color: room.accentText }}
-            />
-            <p data-f className="mt-6 max-w-[28rem] text-[16px] leading-[1.5] short:mt-4 lg:text-[18px]" style={{ color: room.dim }}>
-              Your Net ID goes to the SRM portal to sign you in, and nowhere else.
-              No account, no server, nothing kept.
-            </p>
-          </>
-        }
-        object={
-          <div
-            data-f
-            className="w-full rounded-[14px] px-5 pb-6 pt-5 short:pb-4 short:pt-4"
-            style={{ border: `6px double ${room.line}`, fontFamily: room.head }}
-          >
-            <div className="flex items-baseline justify-between text-[10px] tracking-[0.04em]" style={{ color: room.faint }}>
-              <span>1UP</span>
-              <span>SKIPS LEFT</span>
-            </div>
-            <div className="mt-2.5 flex items-baseline justify-between text-[20px] lg:text-[24px]">
-              <span>87.4%</span>
-              <span style={{ color: room.accent }}>32</span>
-            </div>
-            <div className="relative mt-7 h-8 overflow-hidden short:mt-4">
-              <div className="absolute inset-x-0 top-1/2 flex -translate-y-1/2 justify-between px-2" aria-hidden>
-                {Array.from({ length: DOTS }, (_, i) => (
-                  <span key={i} data-dot className="size-[7px] rounded-[2px] bg-[#ffb897]" />
-                ))}
-              </div>
+    <Body
+      scope={scope}
+      numeral="03"
+      head={
+        <Head eyebrow="03 · THE DEV" lead="who made" hand="this?">
+          One student, not a company. Worth knowing before you hand anything
+          your password.
+        </Head>
+      }
+      object={
+        <div className="mx-auto flex w-full max-w-[21rem] flex-col items-center lg:max-w-[23rem]">
+          <div data-swing className="flex w-full flex-col items-center" style={{ transformOrigin: "50% 0%" }}>
+            <div
+              aria-hidden
+              className="relative -mt-6 flex h-[78px] w-[30px] justify-center overflow-hidden short:h-[40px]"
+              // Faded at the top so the strap hangs from somewhere out of
+              // frame, rather than starting at a hard edge in mid air.
+              style={{
+                background: C.accent,
+                maskImage: "linear-gradient(to bottom, transparent, black 45%)",
+                WebkitMaskImage: "linear-gradient(to bottom, transparent, black 45%)",
+              }}
+            >
               <span
-                data-chomp
-                aria-hidden
-                className="absolute left-0 top-1/2 size-7 -translate-y-1/2 rounded-full"
-                style={{ background: CHOMPER, ["--m" as string]: "70deg" }}
-              />
+                className="whitespace-nowrap font-mono text-[9px] font-bold tracking-[0.32em] [writing-mode:vertical-rl]"
+                style={{ color: C.onAccent }}
+              >
+                SKIPP · SKIPP · SKIPP · SKIPP
+              </span>
             </div>
-            <p className="mt-7 text-[10px] leading-[1.8] tracking-[0.04em] short:mt-4" style={{ color: room.faint }}>
-              LOOK: <span style={{ color: room.ink }}>{look.toUpperCase()}</span>
-              <br />
-              CHANGE IT ANY TIME IN PROFILE
-            </p>
+            <div aria-hidden className="h-[16px] w-[44px] rounded-[6px]" style={{ background: "linear-gradient(#cfcac0, #8d887f)" }} />
+            <div
+              className="relative mt-1.5 w-full overflow-hidden rounded-[22px] px-5 pb-5 pt-6 short:pb-4 short:pt-5"
+              style={{ background: C.paper, color: C.onPaper, boxShadow: "0 40px 70px -34px rgba(0,0,0,0.95)" }}
+            >
+              <span aria-hidden className="absolute left-1/2 top-2.5 h-[7px] w-[44px] -translate-x-1/2 rounded-full" style={{ background: "#d8d2c5" }} />
+              <div className="flex items-center justify-between">
+                <span className="text-[22px] font-extrabold leading-none tracking-[-0.06em]" style={{ fontFamily: DISPLAY }}>
+                  skip<span style={{ color: C.accent }}>p</span>
+                </span>
+                <span className="font-mono text-[10px] font-bold tracking-[0.16em]" style={{ color: "#6b655b" }}>
+                  THE DEV
+                </span>
+              </div>
+              <div aria-hidden className="mt-3 h-[6px] rounded-full" style={{ background: C.accent }} />
+              <div className="mt-4 flex gap-4">
+                <span className="grid size-[84px] shrink-0 place-items-center rounded-[16px]" style={{ background: C.accent }}>
+                  <ProfileFace seed={CREATOR.name} size={66} tile="bg-[#140700] text-[#f2661c]" cut="#140700" />
+                </span>
+                <div className="min-w-0">
+                  <p className="text-[25px] font-extrabold leading-[0.95] tracking-[-0.04em]" style={{ fontFamily: DISPLAY }}>
+                    {first}
+                  </p>
+                  <p className="text-[17px] font-extrabold leading-tight tracking-[-0.03em]" style={{ fontFamily: DISPLAY }}>
+                    {rest.join(" ")}
+                  </p>
+                  <dl className="mt-2.5 grid grid-cols-[auto_1fr] gap-x-3 gap-y-0.5 font-mono text-[10.5px] font-semibold tracking-[0.06em]">
+                    <dt style={{ color: "#857f72" }}>DEPT</dt>
+                    <dd>CSE</dd>
+                    <dt style={{ color: "#857f72" }}>CAMPUS</dt>
+                    <dd>SRM</dd>
+                    <dt style={{ color: "#857f72" }}>ROLE</dt>
+                    <dd>built skipp</dd>
+                  </dl>
+                </div>
+              </div>
+              <div className="mt-4 flex items-end justify-between gap-3 short:mt-3">
+                <div aria-hidden className="flex h-[34px] items-stretch gap-[2px]">
+                  {BARS.map((w, i) => (
+                    <span key={i} style={{ width: w, background: i % 3 === 2 ? "transparent" : C.onPaper }} />
+                  ))}
+                </div>
+                <span className="-rotate-6 font-hand text-[26px] font-bold leading-none">{first.toLowerCase()}</span>
+              </div>
+            </div>
           </div>
-        }
-      />
-    </div>
+          {links.length > 0 && (
+            <div data-f className="mt-6 grid w-full gap-2 short:mt-4" style={{ gridTemplateColumns: `repeat(${links.length}, minmax(0, 1fr))` }}>
+              {links.map((l) => {
+                const Icon = CREATOR_ICONS[l.kind];
+                return (
+                  <a
+                    key={l.kind}
+                    href={l.url}
+                    target="_blank"
+                    // `noreferrer` is deliberately absent: LinkedIn answers
+                    // referrer-less traffic with a sign-up wall.
+                    rel="noopener"
+                    className="flex h-12 min-w-0 items-center justify-center gap-2 rounded-full px-2 text-[13.5px] font-semibold transition-colors hover:bg-[#1c1915]"
+                    style={{ boxShadow: `inset 0 0 0 2px ${C.line}` }}
+                  >
+                    <Icon size={16} />
+                    <span className="truncate">{LINK_NAMES[l.kind]}</span>
+                  </a>
+                );
+              })}
+            </div>
+          )}
+        </div>
+      }
+    />
+  );
+}
+
+/* --------------------------------------------------------- 04 · your look */
+
+/** In the order they are offered everywhere, then the default. */
+const LOOKS = [
+  { id: "ticket", src: ticketHome, screen: "#f6f3ec" },
+  { id: "brutal", src: brutalHome, screen: "#fdf6e3" },
+  { id: "terminal", src: terminalHome, screen: "#040705" },
+  { id: "register", src: registerHome, screen: "#eefafc" },
+  { id: "clay", src: clayHome, screen: "#eceefa" },
+  { id: "stone", src: stoneHome, screen: "#32322e" },
+  { id: "ink", src: inkHome, screen: "#000000" },
+] as const satisfies readonly { id: Theme; src: unknown; screen: string }[];
+
+const MORE = THEMES.filter((t) => !t.structural && t.id !== "ink").length;
+
+function Look({ nav }: { nav: Nav }) {
+  const theme = useTheme();
+  const shown = LOOKS.find((l) => l.id === theme) ?? LOOKS[LOOKS.length - 1];
+
+  const scope = useEntrance(nav.arrive, (tl, self) => {
+    const phone = self.querySelector("[data-phone]");
+    if (phone) {
+      tl.fromTo(phone, { y: 90, rotation: 6, opacity: 0 }, { y: 0, rotation: 0, opacity: 1, duration: 1.05, ease: "back.out(1.3)" }, 0.2);
+    }
+    const chips = self.querySelectorAll("[data-chip-look]");
+    if (chips.length) {
+      tl.fromTo(chips, { opacity: 0, x: 18 }, { opacity: 1, x: 0, duration: 0.55, ease: "expo.out", stagger: 0.05 }, 0.4);
+    }
+  });
+
+  return (
+    <Body
+      scope={scope}
+      numeral="04"
+      head={
+        <Head eyebrow="04 · YOUR LOOK" lead="now make it" hand="yours.">
+          Six looks rebuild the whole app, and {MORE} more colours wait in
+          Profile. Tap one to try it on.
+        </Head>
+      }
+      object={
+        <div className="mx-auto flex w-full max-w-[24rem] items-center gap-4 lg:max-w-[30rem] lg:gap-8">
+          <div data-phone className="w-[46%] max-w-[176px] shrink-0 lg:max-w-[230px]">
+            <PhoneFrame screen={shown.screen}>
+              {LOOKS.map((l) => {
+                const name = THEMES.find((t) => t.id === l.id)?.name ?? l.id;
+                return (
+                  <Shot
+                    key={l.id}
+                    src={l.src}
+                    alt={`Skipp in the ${name} look`}
+                    className="transition-opacity duration-500"
+                    style={{ opacity: l.id === shown.id ? 1 : 0 }}
+                  />
+                );
+              })}
+            </PhoneFrame>
+          </div>
+          <div className="flex min-w-0 flex-1 flex-col gap-1.5 short:gap-1">
+            {LOOKS.map((l) => {
+              const info = THEMES.find((t) => t.id === l.id);
+              const on = l.id === shown.id;
+              return (
+                <button
+                  key={l.id}
+                  type="button"
+                  data-chip-look
+                  aria-pressed={on}
+                  onClick={() => {
+                    haptic("select");
+                    setTheme(l.id);
+                  }}
+                  className="flex min-h-11 min-w-0 items-center justify-between gap-2 rounded-full px-4 text-left transition-[background-color,color,box-shadow] duration-300"
+                  style={
+                    on
+                      ? { background: C.paper, color: C.onPaper }
+                      : // Filled, not clear: the chapter's numeral stands behind
+                        // this column, and its outline ran through clear chips.
+                        { background: C.ground, color: C.text, boxShadow: `inset 0 0 0 2px ${C.line}` }
+                  }
+                >
+                  <span className="min-w-0 truncate text-[14.5px] font-semibold">
+                    {info?.name}
+                    {l.id === "ink" && (
+                      <span className="font-normal" style={{ opacity: 0.6 }}>
+                        {" "}
+                        default
+                      </span>
+                    )}
+                  </span>
+                  <span className="flex shrink-0 gap-1" aria-hidden>
+                    {info?.swatch.map((sw, k) => (
+                      <span
+                        key={k}
+                        className="size-2.5 rounded-full"
+                        // The ring flips with the chip, or a cream swatch on
+                        // the selected (cream) chip has no edge at all.
+                        style={{ background: sw, boxShadow: `0 0 0 1px ${on ? "rgba(11,10,8,0.28)" : "rgba(255,255,255,0.12)"}` }}
+                      />
+                    ))}
+                  </span>
+                </button>
+              );
+            })}
+          </div>
+        </div>
+      }
+    />
   );
 }

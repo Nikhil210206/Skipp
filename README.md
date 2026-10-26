@@ -38,13 +38,13 @@ anyone else's.
 - **Installs like an app** on iOS and Android, full screen, no browser bar. A nudge 30 and 5
   minutes before class, and a note when the portal marks your attendance.
 - **A real desktop layout** past 1024px, with a sidebar, not a phone screen stretched wide.
-- **22 looks** to wear it in. See below.
+- **21 looks** to wear it in. See below.
 
 ---
 
 ## Pick a look
 
-Themes in Skipp aren't recolours. Seven **full looks** change how the app is built (shapes,
+Themes in Skipp aren't recolours. Six **full looks** change how the app is built (shapes,
 borders, type, sometimes the whole layout of a screen) and fifteen **skins** recolour the
 default. Here are three of them.
 
@@ -71,9 +71,9 @@ The default. True black, three greys, and one orange saved for the one thing to 
 marks trouble, never health: a screen full of safe subjects stays quiet, so the one that needs
 you is impossible to miss.
 
-### And the other nineteen
+### And the other eighteen
 
-<img src="docs/readme/palette.webp" width="100%" alt="All 22 looks: seven full looks (Brutal, Clay, Terminal, Stone, Arcade, Register, Ticket) and fifteen colour skins.">
+<img src="docs/readme/palette.webp" width="100%" alt="All 21 looks: six full looks (Ticket, Brutal, Terminal, Register, Clay, Stone) and fifteen colour skins.">
 
 <sub>Screenshots use sample data, not a real student's.</sub>
 

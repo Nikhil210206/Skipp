@@ -6,7 +6,9 @@ import { Fragment } from "react";
  * Each WORD is its own clipping box, so a long line still wraps where a word
  * ends and every letter is clipped by the line it belongs to. The room below
  * the line is padding pulled back out as negative margin, or the clip shaves
- * the tails off g, p and y.
+ * the tails off g, p and y. The hand needs the same room ABOVE and to the
+ * sides: Caveat's question mark climbs out of the line box at
+ * `leading-none`, and a bottom-only margin took the top off "this?".
  *
  * The letters carry `data-char` and are animated by whoever owns the screen.
  * Nothing here hides them: a reveal that never runs leaves the headline
@@ -30,7 +32,7 @@ export default function Rise({
       <span aria-hidden>
         {words.map((w, i) => (
           <Fragment key={i}>
-            <span className="-mb-[0.18em] inline-block overflow-hidden pb-[0.18em] align-top">
+            <span className="-mx-[0.1em] -my-[0.18em] inline-block overflow-hidden px-[0.1em] py-[0.18em] align-top">
               {[...w].map((ch, j) => (
                 <span key={j} data-char className="inline-block">
                   {ch}

@@ -12,21 +12,19 @@ import Image, { type StaticImageData } from "next/image";
  * No fake status bar. The band is left empty in the screen's colour, which is
  * what a phone shows behind the island anyway.
  *
- * `unoptimized` because these are already 780px WebPs of 34 to 73KB: running
+ * `unoptimized` because these are already 780px WebPs of 34 to 130KB: running
  * them through the image optimiser would cost a function call per visitor to
  * make them no smaller.
  */
-export default function PhoneShot({
-  src,
-  alt,
+export function PhoneFrame({
   screen,
+  children,
   className = "",
   style,
 }: {
-  src: StaticImageData;
-  alt: string;
   /** The screen's own page colour, for the band behind the island. */
   screen: string;
+  children: React.ReactNode;
   className?: string;
   style?: React.CSSProperties;
 }) {
@@ -44,17 +42,10 @@ export default function PhoneShot({
         }}
       >
         <div
-          className="relative h-full w-full overflow-hidden rounded-[13.5cqw]"
+          className="relative h-full w-full overflow-hidden rounded-[13.5cqw] transition-colors duration-500"
           style={{ background: screen }}
         >
-          <Image
-            src={src}
-            alt={alt}
-            unoptimized
-            loading="eager"
-            draggable={false}
-            className="absolute inset-x-0 bottom-0 h-auto w-full select-none"
-          />
+          {children}
           <span
             aria-hidden
             className="absolute left-1/2 top-[2.7cqw] h-[8.3cqw] w-[29cqw] -translate-x-1/2 rounded-full bg-black"
@@ -62,5 +53,50 @@ export default function PhoneShot({
         </div>
       </div>
     </div>
+  );
+}
+
+/** One screenshot, pinned to the bottom of the screen under the island band. */
+export function Shot({
+  src,
+  alt,
+  className = "",
+  style,
+}: {
+  src: StaticImageData;
+  alt: string;
+  className?: string;
+  style?: React.CSSProperties;
+}) {
+  return (
+    <Image
+      src={src}
+      alt={alt}
+      unoptimized
+      loading="eager"
+      draggable={false}
+      className={`absolute inset-x-0 bottom-0 h-auto w-full select-none ${className}`}
+      style={style}
+    />
+  );
+}
+
+export default function PhoneShot({
+  src,
+  alt,
+  screen,
+  className = "",
+  style,
+}: {
+  src: StaticImageData;
+  alt: string;
+  screen: string;
+  className?: string;
+  style?: React.CSSProperties;
+}) {
+  return (
+    <PhoneFrame screen={screen} className={className} style={style}>
+      <Shot src={src} alt={alt} />
+    </PhoneFrame>
   );
 }

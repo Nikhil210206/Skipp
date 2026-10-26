@@ -20,7 +20,6 @@ export type Theme =
   | "clay"
   | "terminal"
   | "stone"
-  | "arcade"
   | "register"
   | "ticket"
   | "rose"
@@ -47,20 +46,22 @@ export type ThemeInfo = {
 };
 
 export const THEMES: ThemeInfo[] = [
+  // The full looks, in the order they are offered everywhere: Ticket and
+  // Brutal first, then Terminal and Register, then Clay and Stone.
+  {
+    id: "ticket",
+    name: "Ticket",
+    note: "Passes, stubs, a bunk pass",
+    bar: "#f6f3ec",
+    swatch: ["#f6f3ec", "#121110", "#ff6b1f"],
+    structural: true,
+  },
   {
     id: "brutal",
     name: "Brutal",
     note: "Blocks, hard shadows, filled labels",
     bar: "#fdf6e3",
     swatch: ["#fdf6e3", "#ffd54a", "#ff4a00"],
-    structural: true,
-  },
-  {
-    id: "clay",
-    name: "Clay",
-    note: "Soft cards, round everything",
-    bar: "#eceefa",
-    swatch: ["#eceefa", "#d9ddf7", "#6b4dff"],
     structural: true,
   },
   {
@@ -72,25 +73,6 @@ export const THEMES: ThemeInfo[] = [
     structural: true,
   },
   {
-    id: "stone",
-    name: "Stone",
-    note: "Lit plaster, sharp planes",
-    // The wall itself, so the phone's status bar matches the page. This was
-    // left at a pale grey from an abandoned daylight version of the theme,
-    // which would have flashed a light bar over a dark app on every launch.
-    bar: "#32322e",
-    swatch: ["#32322e", "#3b3c37", "#ffc21f"],
-    structural: true,
-  },
-  {
-    id: "arcade",
-    name: "Arcade",
-    note: "Maze walls, lives for skips",
-    bar: "#000000",
-    swatch: ["#000000", "#2121ff", "#ffe600"],
-    structural: true,
-  },
-  {
     id: "register",
     name: "Register",
     note: "Tick boxes and ruled rows",
@@ -99,11 +81,22 @@ export const THEMES: ThemeInfo[] = [
     structural: true,
   },
   {
-    id: "ticket",
-    name: "Ticket",
-    note: "Passes, stubs, a bunk pass",
-    bar: "#f6f3ec",
-    swatch: ["#f6f3ec", "#121110", "#ff6b1f"],
+    id: "clay",
+    name: "Clay",
+    note: "Soft cards, round everything",
+    bar: "#eceefa",
+    swatch: ["#eceefa", "#d9ddf7", "#6b4dff"],
+    structural: true,
+  },
+  {
+    id: "stone",
+    name: "Stone",
+    note: "Lit plaster, sharp planes",
+    // The wall itself, so the phone's status bar matches the page. This was
+    // left at a pale grey from an abandoned daylight version of the theme,
+    // which would have flashed a light bar over a dark app on every launch.
+    bar: "#32322e",
+    swatch: ["#32322e", "#3b3c37", "#ffc21f"],
     structural: true,
   },
   {

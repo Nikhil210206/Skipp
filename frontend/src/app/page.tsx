@@ -1,18 +1,14 @@
 "use client";
 
 import { useRouter } from "next/navigation";
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import LoginForm, { type SignInPhase } from "@/components/LoginForm";
 import Tour from "@/components/front/Tour";
 import SyncSequence, { type Fact } from "@/components/onboarding/SyncSequence";
-import {
-  markIntroSeen,
-  markWelcomeSeen,
-  useSeenIntro,
-  useSeenWelcome,
-} from "@/lib/firstRun";
+import { markIntroSeen, useSeenIntro } from "@/lib/firstRun";
 import InstallGate, { useShouldOfferInstall } from "@/components/InstallGate";
 import Hero from "@/components/front/Hero";
+import SendOff from "@/components/front/SendOff";
 import CreatorCredit from "@/components/CreatorCredit";
 import Logo, { Wordmark } from "@/components/Logo";
 import Greeting from "@/components/Greeting";
@@ -20,7 +16,8 @@ import { useSession } from "@/context/SessionContext";
 import { playEntrance, useGsap } from "@/lib/motion";
 import { claimIfNewDevice } from "@/lib/whatsNew";
 import { seedFeedbackSchedule } from "@/lib/feedback";
-import { Spinner } from "@/components/ui";
+import { IconButton, Spinner } from "@/components/ui";
+import { IconChevronLeft } from "@/components/Icons";
 
 /**
  * The way in, in three movements: the opening (play the decision), the ask
@@ -34,27 +31,33 @@ export default function LoginPage() {
     useSession();
 
   const seenIntro = useSeenIntro();
-  const [dismissed, setDismissed] = useState(false);
 
-  // The front door comes first of all: it says what Skipp is before anything
-  // asks for anything, so the install screen that may follow is answering a
-  // choice they made rather than making a demand. Its flag is still the
-  // welcome's, since it replaced the welcome and a device that saw one has
-  // seen the other.
-  const seenWelcome = useSeenWelcome();
-  const [welcomeDone, setWelcomeDone] = useState(false);
-  const showWelcome = !seenWelcome && !welcomeDone;
-
-  // The install offer then comes BEFORE the opening deck, deliberately. On iOS
-  // an installed app gets its own storage container, so a student who plays
-  // through the onboarding in Safari and only then installs has to play through
-  // it a second time inside the real app. Offering first means the deck and the
-  // sign-in both happen once, in the place they are going to live.
+  /**
+   * Where a signed out visitor is in the way in. The front door is shown on
+   * EVERY visit, not just the first (asked for, 2026-10-26): it is the front of
+   * the product, and somebody typing skipp.life should land on it. A student
+   * who is signed in never sees any of this; they are sent to the dashboard.
+   *
+   * After the hero comes the install offer on a phone, ahead of the tour, on
+   * purpose. On iOS an installed app gets its own storage container, so a
+   * student who plays the tour in Safari and only then installs plays it a
+   * second time inside the real app. Then the tour, once per device, then sign
+   * in. Every one of them has a way back.
+   */
+  type Step = "hero" | "install" | "tour" | "signin";
+  const [step, setStep] = useState<Step>("hero");
   const canOfferInstall = useShouldOfferInstall();
-  const [installDismissed, setInstallDismissed] = useState(false);
-  const showInstall = !showWelcome && canOfferInstall && !installDismissed;
+  /** Whether the visitor asked to sign in from the hero, so the install offer
+   *  knows where to send them next. */
+  const wantsSignIn = useRef(false);
+  /** The send-off is playing, from this point, over whatever is underneath. */
+  const [sendOff, setSendOff] = useState<{ x: number; y: number } | null>(null);
 
-  const showIntro = !seenIntro && !dismissed;
+  const afterInstall = (): Step => (wantsSignIn.current || seenIntro ? "signin" : "tour");
+  const leaveHero = (signIn: boolean) => {
+    wantsSignIn.current = signIn;
+    setStep(canOfferInstall ? "install" : afterInstall());
+  };
 
   // While the sign-in sequence is playing we are authenticated but deliberately
   // still here, so the redirect below has to stand down until it finishes.
@@ -79,15 +82,17 @@ export default function LoginPage() {
 
   const scope = useGsap(
     ({ self, reduced }) => {
-      if (restoring || isAuthed || showIntro || showInstall || showWelcome) return;
+      // Held while the send-off is over the form: its entrance plays as the
+      // field lifts off it, not underneath where nobody can see it.
+      if (restoring || isAuthed || step !== "signin" || sendOff) return;
       playEntrance(self, reduced);
     },
-    // Every flag that can hide the form is a dependency, for the reason
+    // Everything that can hide the form is a dependency, for the reason
     // documented in CLAUDE.md: the form does not exist while any of these
     // screens is up, so a missing one means this effect runs once against
     // nothing, never runs again, and the sign-in screen stays permanently at
     // its hidden CSS start state.
-    [restoring, isAuthed, showIntro, showInstall, showWelcome],
+    [restoring, isAuthed, step, sendOff],
   );
 
   const finish = useCallback(() => router.replace("/dashboard"), [router]);
@@ -123,49 +128,36 @@ export default function LoginPage() {
     );
   }
 
-  // First of all, and behind the authed redirect above: a returning student is
-  // on their way to the dashboard and has been greeted long ago.
-  //
-  // Two ways on. "Get started" plays the tour. "Sign in" is for somebody who
-  // already uses Skipp on another device, so it skips the tour as well, but
-  // NOT the install offer: on iOS that one is about where the sign in happens,
-  // which matters to them exactly as much as to anybody new.
-  if (showWelcome) {
-    return (
-      <Hero
-        onStart={() => {
-          markWelcomeSeen();
-          setWelcomeDone(true);
-        }}
-        onSignIn={() => {
-          markWelcomeSeen();
-          markIntroSeen();
-          setWelcomeDone(true);
-          setDismissed(true);
-        }}
+  // Behind the authed redirect above: a signed in student is on their way to
+  // the dashboard. "Get started" goes on to the tour; "sign in" is for somebody
+  // who already uses Skipp, so it skips the tour but NOT the install offer,
+  // which on iOS is about where the sign in happens.
+  let view: React.ReactNode;
+  if (step === "hero") {
+    view = <Hero onStart={() => leaveHero(false)} onSignIn={() => leaveHero(true)} />;
+  } else if (step === "install") {
+    view = (
+      <InstallGate
+        onBack={() => setStep("hero")}
+        onDismiss={() => setStep(afterInstall())}
       />
     );
-  }
-
-  // Ahead of the deck, but behind the authed redirect above: a student who is
-  // already signed in is on their way to the dashboard and gets the offer from
-  // inside the app instead, where the caveat about iOS storage applies.
-  if (showInstall) {
-    return <InstallGate onDismiss={() => setInstallDismissed(true)} />;
-  }
-
-  if (showIntro) {
-    return (
+  } else if (step === "tour") {
+    view = (
       <Tour
-        onDone={() => {
+        onBack={() => setStep("hero")}
+        onSkip={() => {
           markIntroSeen();
-          setDismissed(true);
+          setStep("signin");
+        }}
+        onDone={(from) => {
+          markIntroSeen();
+          setSendOff(from);
         }}
       />
     );
-  }
-
-  return (
+  } else {
+    view = (
     <>
       {/* On a phone this is one column, exactly as it always was. Past `lg` it
           becomes a SPLIT: the cover on the left, the form on the right.
@@ -181,7 +173,12 @@ export default function LoginPage() {
           ref={scope}
           className="flex flex-1 flex-col lg:grid lg:min-h-0 lg:grid-cols-2 lg:items-center lg:gap-16"
         >
-          <div data-mark className="flex items-center gap-2 pt-2 lg:col-span-2">
+          <div data-mark className="flex items-center gap-3 lg:col-span-2">
+            {/* The way back to the front door, the same place it sits on every
+                page of the way in. */}
+            <IconButton label="Back to the start" onClick={() => setStep("hero")}>
+              <IconChevronLeft size={20} />
+            </IconButton>
             <Logo size={22} className="text-text-1" />
             <Wordmark className="text-headline text-text-1" />
           </div>
@@ -252,6 +249,22 @@ export default function LoginPage() {
           name={displayName}
           facts={facts}
           onFinish={finish}
+        />
+      )}
+    </>
+    );
+  }
+
+  // The send-off sits in ONE place whatever the step, so swapping the tour for
+  // the sign in underneath it does not remount it and restart the curtain.
+  return (
+    <>
+      {view}
+      {sendOff && (
+        <SendOff
+          from={sendOff}
+          onCovered={() => setStep("signin")}
+          onFinished={() => setSendOff(null)}
         />
       )}
     </>

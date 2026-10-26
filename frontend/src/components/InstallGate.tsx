@@ -8,8 +8,7 @@ import { useLockScroll } from "./ui/Overlay";
 import { useGsap } from "@/lib/motion";
 import { haptic } from "@/lib/haptics";
 import Rise from "./front/Rise";
-import { RoomButton } from "./front/RoomFrame";
-import { ROOMS } from "./front/rooms";
+import { BackButton, C, DISPLAY, DotField, Eyebrow, GhostPill, PrimaryPill, Receipt } from "./front/kit";
 import { usePaintChrome } from "./front/chrome";
 
 /**
@@ -20,12 +19,12 @@ import { usePaintChrome } from "./front/chrome";
  * it has no browser chrome eating a fifth of the display, and **on iOS it is
  * the only context that can show a notification at all**.
  *
- * Its room is CLAY, the soft look, and it is the one screen of the way in that
- * is not part of the numbered tour: it is a question about where Skipp lives,
- * not a chapter about what it does. The object is a home screen with an empty
- * slot, and the Skipp icon drops into it, which is the whole request drawn.
- * (Rebuilt with the front door and the tour, 2026-10-27; it was a notebook
- * page.)
+ * It is set in the front door's one language (`front/kit.tsx`), and it is the
+ * one screen of the way in that is not part of the numbered tour: it is a
+ * question about where Skipp lives, not a chapter about what it does. The
+ * object is a home screen with an empty slot, and the Skipp icon drops into
+ * it, which is the whole request drawn. (Rebuilt with the front door and the
+ * tour, 2026-10-26; it was a notebook page.)
  *
  * **It still never blocks.** There is no way to observe that somebody made a
  * shortcut, only whether this page is *running* standalone, so a hard wall
@@ -127,18 +126,20 @@ export function useShouldOfferInstall(): boolean {
 
 export default function InstallGate({
   onDismiss,
+  onBack,
   signedIn = false,
 }: {
   onDismiss: () => void;
+  /** The way back to the front door. Absent inside the app, where it is an overlay. */
+  onBack?: () => void;
   /** Adds the iOS "you will sign in again" caveat, true only inside the app. */
   signedIn?: boolean;
 }) {
-  const room = ROOMS.clay;
   const [native, setNative] = useState<BeforeInstallPrompt | null>(null);
   const ios = isIOS();
   const note = signedIn && ios;
 
-  usePaintChrome(room.bg);
+  usePaintChrome(C.ground);
   useLockScroll(true);
 
   useEffect(() => {
@@ -171,67 +172,39 @@ export default function InstallGate({
   const scope = useGsap(({ reduced }) => {
     if (reduced) return;
     const tl = gsap.timeline({ delay: 0.15 });
-    tl.fromTo(
-      "[data-char]",
-      { yPercent: 120 },
-      { yPercent: 0, duration: 0.95, ease: "expo.out", stagger: 0.016 },
-      0,
-    )
-      .fromTo(
-        "[data-f]",
-        { opacity: 0, y: 20 },
-        { opacity: 1, y: 0, duration: 0.7, ease: "expo.out", stagger: 0.07 },
-        0.25,
-      )
-      .fromTo(
-        "[data-app]",
-        { scale: 0.6, opacity: 0 },
-        { scale: 1, opacity: 1, duration: 0.5, ease: "back.out(2)", stagger: 0.04 },
-        0.35,
-      )
+    tl.fromTo("[data-char]", { yPercent: 120 }, { yPercent: 0, duration: 0.95, ease: "expo.out", stagger: 0.016 }, 0)
+      .fromTo("[data-f]", { opacity: 0, y: 20 }, { opacity: 1, y: 0, duration: 0.7, ease: "expo.out", stagger: 0.07 }, 0.25)
+      .fromTo("[data-app]", { scale: 0.6, opacity: 0 }, { scale: 1, opacity: 1, duration: 0.5, ease: "back.out(2)", stagger: 0.04 }, 0.35)
       // The one that matters lands last, from above, with a bounce.
-      .fromTo(
-        "[data-skipp]",
-        { y: -90, scale: 1.25, opacity: 0 },
-        { y: 0, scale: 1, opacity: 1, duration: 0.8, ease: "bounce.out" },
-        0.9,
-      )
-      .fromTo(
-        "[data-step]",
-        { opacity: 0, y: 24, scale: 0.94 },
-        { opacity: 1, y: 0, scale: 1, duration: 0.6, ease: "back.out(1.6)", stagger: 0.09 },
-        0.75,
-      );
+      .fromTo("[data-skipp]", { y: -90, scale: 1.25, opacity: 0 }, { y: 0, scale: 1, opacity: 1, duration: 0.8, ease: "bounce.out" }, 0.9);
   }, []);
-
-  /** The other apps on the screen: pale tiles, so the one in colour is Skipp. */
-  const tiles = ["#d9ddf7", "#cfd4f5", "#e2e5fa", "#d4d9f6", "#c8cef3", "#dde1f8", "#d0d5f5"];
 
   return (
     <div
       ref={scope}
-      className="fixed inset-0 z-50 flex flex-col overflow-hidden"
-      style={{ background: room.bg, color: room.ink }}
+      className="fixed inset-0 z-50 flex flex-col overflow-hidden font-sans"
+      style={{ background: C.ground, color: C.text }}
     >
-      <div className="mx-auto flex w-full max-w-[560px] shrink-0 items-center px-6 pt-[max(18px,env(safe-area-inset-top))]">
-        <p data-f className="font-mono text-[11px] font-semibold tracking-[0.16em]" style={{ color: room.faint }}>
-          BEFORE YOU START
-        </p>
+      <DotField className="absolute right-0 top-0 h-[42%] w-[85%]" origin={[1, 0]} reach={0.8} />
+
+      <div className="relative z-10 mx-auto flex w-full max-w-[560px] shrink-0 items-center gap-4 px-6 pt-[max(14px,env(safe-area-inset-top))]">
+        {onBack && <BackButton onClick={onBack} label="Back to the start" />}
+        <Eyebrow>BEFORE YOU START</Eyebrow>
       </div>
 
-      <div className="no-scrollbar min-h-0 flex-1 overflow-y-auto">
-        <div className="mx-auto flex min-h-full w-full max-w-[560px] flex-col px-6 pt-5">
+      <div className="no-scrollbar relative min-h-0 flex-1 overflow-y-auto">
+        <div className="mx-auto flex min-h-full w-full max-w-[560px] flex-col px-6 pt-5 short:pt-3">
           <Rise
             text="put skipp on"
-            className="text-[38px] font-bold leading-[1] tracking-[-0.03em] short:text-[34px]"
-            style={{ fontFamily: room.head }}
+            className="text-[42px] font-extrabold leading-[0.92] tracking-[-0.045em] short:text-[36px]"
+            style={{ fontFamily: DISPLAY }}
           />
           <Rise
             text="your home screen."
-            className="text-[38px] font-bold leading-[1.05] tracking-[-0.03em] short:text-[34px]"
-            style={{ fontFamily: room.head, color: room.accentText }}
+            className="font-hand text-[46px] font-bold leading-none short:text-[40px]"
+            style={{ color: C.accent }}
           />
-          <p data-f className="mt-4 text-[16px] leading-[1.5] short:hidden" style={{ color: room.dim }}>
+          <p data-f className="mt-4 text-[16px] leading-[1.5] short:hidden" style={{ color: C.dim }}>
             Full screen, no browser bar, opens instantly. On iPhone it is also
             the only way Skipp can nudge you before a class.
           </p>
@@ -239,53 +212,51 @@ export default function InstallGate({
           <div className="my-auto py-6 short:py-3">
             <div
               data-f
-              className="grid grid-cols-4 gap-x-4 gap-y-3 rounded-[28px] p-5 short:gap-y-2 short:p-4"
-              style={{ background: "#f6f7fe", boxShadow: "0 18px 36px -22px rgba(107,77,255,0.45)" }}
               aria-hidden
+              className="grid grid-cols-4 gap-x-4 gap-y-3 rounded-[24px] border-2 p-5 short:gap-y-2 short:p-4"
+              style={{ borderColor: C.line, background: C.card }}
             >
-              {tiles.map((c, i) => (
+              {Array.from({ length: 7 }, (_, i) => (
                 <span key={i} className="flex flex-col items-center gap-1.5">
-                  <span data-app className="aspect-square w-full rounded-[16px]" style={{ background: c }} />
-                  <span className="h-1.5 w-3/5 rounded-full" style={{ background: "#e3e6f8" }} />
+                  <span data-app className="aspect-square w-full rounded-[16px]" style={{ background: C.raised }} />
+                  <span className="h-1.5 w-3/5 rounded-full" style={{ background: C.raised }} />
                 </span>
               ))}
               <span className="flex flex-col items-center gap-1.5">
                 <span
                   data-skipp
                   className="grid aspect-square w-full place-items-center rounded-[16px]"
-                  style={{ background: "#f2661c", color: "#140700", boxShadow: "0 10px 18px -8px rgba(242,102,28,0.6)" }}
+                  style={{ background: C.accent, color: C.onAccent, boxShadow: `0 10px 22px -8px ${C.accent}` }}
                 >
                   <Logo size={30} mono />
                 </span>
-                <span className="text-[11px] font-semibold leading-none" style={{ color: room.ink }}>
-                  skipp
-                </span>
+                <span className="text-[11px] font-semibold leading-none">skipp</span>
               </span>
             </div>
 
-            <ol className="mt-5 flex flex-col gap-2.5 short:mt-3 short:gap-2">
-              {steps.map(({ Icon, text }, i) => (
-                <li
-                  key={text}
-                  data-step
-                  className="flex items-center gap-3.5 rounded-[22px] px-4 py-3 short:py-2"
-                  style={{ background: "#f6f7fe", boxShadow: "0 10px 22px -16px rgba(107,77,255,0.5)" }}
-                >
-                  <span
-                    className="grid size-10 shrink-0 place-items-center rounded-full"
-                    style={{ background: "#e6e9fb", color: room.accentText }}
-                  >
-                    <Icon size={18} />
-                  </span>
-                  <span className="min-w-0 flex-1 text-[15px] font-medium leading-snug">{text}</span>
-                  <span className="font-mono text-[11px] font-semibold" style={{ color: room.faint }}>
-                    {String(i + 1).padStart(2, "0")}
-                  </span>
-                </li>
-              ))}
-            </ol>
+            <div data-f className="mt-4">
+              <Receipt label="HOW" aside={ios ? "SAFARI" : "YOUR BROWSER"}>
+                <ol>
+                  {steps.map(({ Icon, text }, i) => (
+                    <li
+                      key={text}
+                      className="flex items-center gap-3.5 border-t-2 px-4 py-3 first:border-t-0 short:py-2"
+                      style={{ borderColor: C.line }}
+                    >
+                      <span className="font-mono text-[11px] font-semibold" style={{ color: C.accent }}>
+                        {String(i + 1).padStart(2, "0")}
+                      </span>
+                      <span className="min-w-0 flex-1 text-[15px] font-medium leading-snug">{text}</span>
+                      <span style={{ color: C.dim }}>
+                        <Icon size={18} />
+                      </span>
+                    </li>
+                  ))}
+                </ol>
+              </Receipt>
+            </div>
             {note && (
-              <p className="mt-4 text-[14px] leading-[1.5]" style={{ color: room.dim }}>
+              <p className="mt-4 text-[14px] leading-[1.5]" style={{ color: C.dim }}>
                 Signing in once more inside the installed app is normal: iOS keeps
                 a home screen app&rsquo;s data separate from Safari&rsquo;s.
               </p>
@@ -294,15 +265,15 @@ export default function InstallGate({
         </div>
       </div>
 
-      <div className="mx-auto flex w-full max-w-[560px] shrink-0 flex-col gap-2 px-6 pb-[max(18px,env(safe-area-inset-bottom))] pt-2">
+      <div className="relative z-10 mx-auto flex w-full max-w-[560px] shrink-0 flex-col gap-2 px-6 pb-[max(18px,env(safe-area-inset-bottom))] pt-2">
         {/* Chrome hands over a real install dialog, so on Android there is a
             genuine action to offer. Safari has no equivalent, which is the
             whole reason the written steps exist, and there the only button is
-            the way past. */}
+            the quiet way past: the steps are the action. */}
         {native && (
-          <RoomButton
-            room={room}
+          <PrimaryPill
             label="install skipp"
+            className="w-full"
             onClick={async () => {
               await native.prompt();
               await native.userChoice;
@@ -310,13 +281,7 @@ export default function InstallGate({
             }}
           />
         )}
-        <RoomButton
-          room={room}
-          label="use in browser instead"
-          solid={false}
-          arrow={false}
-          onClick={dismiss}
-        />
+        <GhostPill label="use in browser instead" onClick={dismiss} className="w-full" />
       </div>
     </div>
   );

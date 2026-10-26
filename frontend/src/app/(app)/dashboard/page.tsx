@@ -154,7 +154,7 @@ function CoverHome() {
                   <span ref={pct} className="tnum text-display">
                     {overall.toFixed(1)}
                   </span>
-                  <span data-unit className="text-title text-text-3">%</span>
+                  <span className="text-title text-text-3">%</span>
                 </span>
                 <span className="pb-2 text-callout text-text-3">
                   {belowTarget > 0 ? (

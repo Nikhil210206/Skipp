@@ -2,9 +2,9 @@
 
 import { useEffect, useRef, useState } from "react";
 import gsap from "gsap";
-import { CREATOR, creatorLinks } from "@/lib/creator";
+import { CREATOR, LINK_NAMES, creatorLinks } from "@/lib/creator";
 import { DUR, EASE, prefersReducedMotion } from "@/lib/motion";
-import { IconInstagram, IconLinkedIn } from "./Icons";
+import { CREATOR_ICONS } from "./Icons";
 
 /**
  * The authorship line. The name is a control: tapping it reveals where to find
@@ -73,26 +73,25 @@ export default function CreatorCredit({
             : "pointer-events-none ml-0 max-w-0 opacity-0"
         }`}
       >
-        {links.map((l) => (
-          <a
-            key={l.kind}
-            href={l.url}
-            target="_blank"
-            // `noreferrer` is deliberately absent: LinkedIn answers
-            // referrer-less traffic with a sign-up wall instead of the profile.
-            // `noopener` alone still closes the window.opener hole.
-            rel="noopener"
-            tabIndex={open ? 0 : -1}
-            aria-label={l.kind === "linkedin" ? "LinkedIn" : "Instagram"}
-            className="flex size-8 shrink-0 items-center justify-center rounded-full border border-line text-text-3 transition-colors hover:border-line-strong hover:text-text-1"
-          >
-            {l.kind === "linkedin" ? (
-              <IconLinkedIn size={15} />
-            ) : (
-              <IconInstagram size={15} />
-            )}
-          </a>
-        ))}
+        {links.map((l) => {
+          const Icon = CREATOR_ICONS[l.kind];
+          return (
+            <a
+              key={l.kind}
+              href={l.url}
+              target="_blank"
+              // `noreferrer` is deliberately absent: LinkedIn answers
+              // referrer-less traffic with a sign-up wall instead of the profile.
+              // `noopener` alone still closes the window.opener hole.
+              rel="noopener"
+              tabIndex={open ? 0 : -1}
+              aria-label={LINK_NAMES[l.kind]}
+              className="flex size-8 shrink-0 items-center justify-center rounded-full border border-line text-text-3 transition-colors hover:border-line-strong hover:text-text-1"
+            >
+              <Icon size={15} />
+            </a>
+          );
+        })}
       </span>
     </div>
   );

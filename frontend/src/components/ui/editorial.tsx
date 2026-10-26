@@ -99,9 +99,7 @@ export function Amount({
     <span className={`flex items-baseline gap-1.5 ${className}`}>
       <span className={`tnum ${s}`}>{value}</span>
       {unit && (
-        // Marked so a theme that swaps the figure face can swap the unit with
-        // it: set in a name face, a "%" beside pixel digits is a stray glyph.
-        <span data-unit className="text-title opacity-40">
+        <span className="text-title opacity-40">
           {unit}
         </span>
       )}

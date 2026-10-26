@@ -8,7 +8,11 @@ export const LEGACY_THEMES: Record<string, string> = {
   dark: "ink",
   light: "paper",
   concrete: "stone",
-  handheld: "arcade",
+  // Arcade was removed on request (2026-10-26), and Handheld before it. A
+  // device still on either keeps a dark structural look rather than dropping
+  // to the default, and Terminal is the nearest one in spirit.
+  handheld: "terminal",
+  arcade: "terminal",
 };
 
 const VALID = [
@@ -21,7 +25,6 @@ const VALID = [
   "clay",
   "terminal",
   "stone",
-  "arcade",
   "register",
   "ticket",
   "rose",
@@ -47,7 +50,6 @@ const BARS: Record<string, string> = {
   clay: "#eceefa",
   terminal: "#040705",
   stone: "#32322e",
-  arcade: "#000000",
   register: "#eefafc",
   ticket: "#f6f3ec",
   rose: "#3f0323",
