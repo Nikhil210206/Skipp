@@ -242,9 +242,12 @@ export default function Hero({
       >
         <div data-par-word className="absolute inset-x-0 top-[6cqh] flex justify-center">
           {/* The clip is what the letters rise out from under, and it needs
-              room below the line or it shaves the tails off both p's. */}
+              room below the line or it shaves the tails off both p's. It needs
+              room at the sides too, pulled back out so the word stays centred:
+              the tracking makes each letter's box narrower than its glyph, and
+              the clip was taking the right edge off the orange p's bowl. */}
           <h1
-            className="relative -mb-[0.2em] overflow-hidden pb-[0.2em] font-extrabold leading-[0.86] tracking-[-0.065em]"
+            className="relative -mx-[0.08em] -mb-[0.2em] overflow-hidden px-[0.08em] pb-[0.2em] font-extrabold leading-[0.86] tracking-[-0.065em]"
             style={{ fontSize: "min(37cqw, 33cqh)" }}
           >
             <span className="sr-only">Skipp</span>

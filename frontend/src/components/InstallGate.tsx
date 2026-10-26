@@ -8,7 +8,7 @@ import { useLockScroll } from "./ui/Overlay";
 import { useGsap } from "@/lib/motion";
 import { haptic } from "@/lib/haptics";
 import Rise from "./front/Rise";
-import { BackButton, C, DISPLAY, DotField, Eyebrow, GhostPill, PrimaryPill, Receipt } from "./front/kit";
+import { BackButton, C, DISPLAY, DotField, GhostPill, PrimaryPill, Receipt } from "./front/kit";
 import { usePaintChrome } from "./front/chrome";
 
 /**
@@ -189,7 +189,6 @@ export default function InstallGate({
 
       <div className="relative z-10 mx-auto flex w-full max-w-[560px] shrink-0 items-center gap-4 px-6 pt-[max(14px,env(safe-area-inset-top))]">
         {onBack && <BackButton onClick={onBack} label="Back to the start" />}
-        <Eyebrow>BEFORE YOU START</Eyebrow>
       </div>
 
       <div className="no-scrollbar relative min-h-0 flex-1 overflow-y-auto">

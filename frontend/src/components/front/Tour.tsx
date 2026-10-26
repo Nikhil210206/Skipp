@@ -10,7 +10,7 @@ import { prefersReducedMotion, useGsap } from "@/lib/motion";
 import { setTheme, THEMES, useTheme, type Theme } from "@/lib/theme";
 import { CREATOR, LINK_NAMES, creatorLinks } from "@/lib/creator";
 import { predict } from "@/lib/predictor";
-import { BackButton, C, DISPLAY, DotField, Eyebrow, PrimaryPill, Receipt } from "./kit";
+import { BackButton, C, DISPLAY, DotField, PrimaryPill, Receipt } from "./kit";
 import { PhoneFrame, Shot } from "./PhoneShot";
 import Rise from "./Rise";
 import { usePaintChrome } from "./chrome";
@@ -268,27 +268,25 @@ function useEntrance(
 }
 
 /**
- * The words half of a chapter: eyebrow, the two part headline (heavy display,
- * then the hand in orange), and one short paragraph that drops on a short
- * phone so the chapter still fits a single screen.
+ * The words half of a chapter: the two part headline (heavy display, then the
+ * hand in orange), and one short paragraph that drops on a short phone so the
+ * chapter still fits a single screen. No numbered eyebrow above it: removed on
+ * request, since the progress at the top already says which chapter this is.
  */
 function Head({
-  eyebrow,
   lead,
   hand,
   children,
 }: {
-  eyebrow: string;
   lead: string;
   hand: string;
   children: React.ReactNode;
 }) {
   return (
     <>
-      <Eyebrow>{eyebrow}</Eyebrow>
       <Rise
         text={lead}
-        className="mt-4 text-[42px] font-extrabold leading-[0.92] tracking-[-0.045em] short:text-[36px] lg:text-[78px]"
+        className="mt-2 text-[42px] font-extrabold leading-[0.92] tracking-[-0.045em] short:text-[36px] lg:text-[78px]"
         style={{ fontFamily: DISPLAY }}
       />
       <Rise
@@ -316,7 +314,7 @@ function Body({
   object: React.ReactNode;
 }) {
   return (
-    <div ref={scope} className="no-scrollbar absolute inset-0 overflow-y-auto">
+    <div ref={scope} className="no-scrollbar absolute inset-0 overflow-y-auto overflow-x-hidden">
       <span
         data-numeral
         aria-hidden
@@ -420,7 +418,7 @@ function What({ nav }: { nav: Nav }) {
       scope={scope}
       numeral="01"
       head={
-        <Head eyebrow="01 · WHAT IT IS" lead="the whole portal," hand="minus the portal.">
+        <Head lead="the whole portal," hand="minus the portal.">
           Attendance, marks and your timetable, read from SRM and set out so the
           answer is the first thing you see.
         </Head>
@@ -571,7 +569,7 @@ function Password({ nav }: { nav: Nav }) {
       scope={scope}
       numeral="02"
       head={
-        <Head eyebrow="02 · YOUR PASSWORD" lead="your password" hand="stays yours.">
+        <Head lead="your password" hand="stays yours.">
           No accounts and no database. This is exactly where it goes, and how
           long it stays there.
         </Head>
@@ -667,7 +665,7 @@ function Maker({ nav }: { nav: Nav }) {
       scope={scope}
       numeral="03"
       head={
-        <Head eyebrow="03 · THE DEV" lead="who made" hand="this?">
+        <Head lead="who made" hand="this?">
           One student, not a company. Worth knowing before you hand anything
           your password.
         </Head>
@@ -802,7 +800,7 @@ function Look({ nav }: { nav: Nav }) {
       scope={scope}
       numeral="04"
       head={
-        <Head eyebrow="04 · YOUR LOOK" lead="now make it" hand="yours.">
+        <Head lead="now make it" hand="yours.">
           Six looks rebuild the whole app, and {MORE} more colours wait in
           Profile. Tap one to try it on.
         </Head>

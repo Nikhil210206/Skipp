@@ -9,9 +9,10 @@ import { prefersReducedMotion } from "@/lib/motion";
  *
  * The hero, the install offer, every tour chapter and the send-off share ONE
  * design, and it is the house style rather than any of the app's themes: a
- * warm near-black ground, one loud orange used as a fill, a heavy lowercase
- * display face with the second line of a headline in the hand, mono eyebrows,
+ * true black ground, one loud orange used as a fill, a heavy lowercase
+ * display face with the second line of a headline in the hand, mono labels,
  * receipt cards, pills, an ordered dither dot field, and an arch at the end.
+ * No numbered eyebrow above a headline, on any page: removed on request.
  * The hero is the one screen WITHOUT the dot field, on request: the giant
  * word and the phones are already the whole picture there.
  *
@@ -121,15 +122,6 @@ export function BackButton({ onClick, label = "Back" }: { onClick: () => void; l
     >
       <IconChevronLeft size={20} />
     </button>
-  );
-}
-
-/** The numbered mono label above a headline. Numbered only because it is one. */
-export function Eyebrow({ children }: { children: React.ReactNode }) {
-  return (
-    <p data-f className="font-mono text-[11px] font-semibold tracking-[0.16em]" style={{ color: C.faint }}>
-      {children}
-    </p>
   );
 }
 

@@ -7,8 +7,9 @@ import { Fragment } from "react";
  * ends and every letter is clipped by the line it belongs to. The room below
  * the line is padding pulled back out as negative margin, or the clip shaves
  * the tails off g, p and y. The hand needs the same room ABOVE and to the
- * sides: Caveat's question mark climbs out of the line box at
- * `leading-none`, and a bottom-only margin took the top off "this?".
+ * sides: Caveat draws well past its own advance (measured: the "?" reaches
+ * 0.18em beyond it and the "f" 0.21em), so 0.1em still cut the "?" in
+ * "this?". 0.25em clears every glyph in these headlines.
  *
  * The letters carry `data-char` and are animated by whoever owns the screen.
  * Nothing here hides them: a reveal that never runs leaves the headline
@@ -32,7 +33,7 @@ export default function Rise({
       <span aria-hidden>
         {words.map((w, i) => (
           <Fragment key={i}>
-            <span className="-mx-[0.1em] -my-[0.18em] inline-block overflow-hidden px-[0.1em] py-[0.18em] align-top">
+            <span className="-mx-[0.25em] -my-[0.18em] inline-block overflow-hidden px-[0.25em] py-[0.18em] align-top">
               {[...w].map((ch, j) => (
                 <span key={j} data-char className="inline-block">
                   {ch}

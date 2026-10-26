@@ -427,8 +427,20 @@ tour and the install offer (asked about directly, the answer was leave it).
   second tap did nothing, and in a browser pane that draws no frames the lock
   never cleared. `go()` calls `progress(1)` on the running move. Verified:
   three taps 120ms apart land on chapter four with one layer left.
-- **`Rise` clips each word with room on every side.** Room only below the line
-  took the top off Caveat's question mark in "this?".
+- **No eyebrow above any headline on the way in**: the chapters' "01 · WHAT
+  IT IS" and friends, then the install offer's "BEFORE YOU START", both removed
+  on request. `Eyebrow` is gone from the kit.
+- **Every clip that letters rise out of needs room on every side, measured
+  against the glyphs, not guessed.** `Rise` gives each word 0.25em: Caveat draws
+  well past its own advance (the "?" by 0.18em, the "f" by 0.21em), so 0.1em
+  still cut "this?". The hero wordmark's clip has 0.08em at the sides because
+  its -0.065em tracking makes each letter's box narrower than its glyph, which
+  was taking the right edge off the orange p. Both are pulled back out with
+  negative margins, so nothing moves. Checked by measuring every glyph's ink
+  (`measureText`) against its clip on all four chapters and the hero.
+- **The chapters scroll on one axis only** (`overflow-x-hidden`): the outlined
+  numeral hangs 12px off the right edge, and a vertical scroller also scrolls
+  sideways unless told not to, so every chapter could be dragged 12px.
 - **`short:` is a variant** (`globals.css`): under 720px tall and under 1024
   wide. Second paragraphs drop and objects tighten, so every screen fits
   375x667 with nothing to scroll.
