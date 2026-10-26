@@ -3,8 +3,13 @@
 import { useMemo, useRef, useState } from "react";
 import { useSession } from "@/context/SessionContext";
 import { prettyDate, todayISO } from "@/lib/schedule";
-import { projectAttendance } from "@/lib/leavePredictor";
-import { predict } from "@/lib/predictor";
+import {
+  calculateSubjectMargin,
+  projectAttendance,
+  type PredictAction,
+  type ProjectedSubject,
+  type Projection,
+} from "@/lib/leavePredictor";
 import { countTo, revealIn, useGsap } from "@/lib/motion";
 import { Panel } from "@/components/ui/Overlay";
 import { Button, Chip, IconButton, Label, Segmented } from "@/components/ui";
@@ -30,19 +35,25 @@ export default function PredictModal({
   const byDate = useMemo(() => new Map(cal.map((d) => [d.date, d])), [cal]);
   const today = todayISO();
 
-  // Only months from this one on: planning a day that already happened is
-  // meaningless.
+  // All months in the calendar, prioritizing from current month onwards
   const months = useMemo(() => {
     const all = [...new Set(cal.map((d) => d.date.slice(0, 7)))].sort();
-    const future = all.filter((m) => m >= today.slice(0, 7));
-    return future.length > 0 ? future : all;
+    return all.length > 0 ? all : [today.slice(0, 7)];
   }, [cal, today]);
 
-  const [ym, setYm] = useState(() => months[0] ?? today.slice(0, 7));
+  const [ym, setYm] = useState(() => {
+    const cur = today.slice(0, 7);
+    return months.includes(cur) ? cur : months[0] ?? cur;
+  });
+
+  const [action, setAction] = useState<PredictAction>("leave");
   const [mode, setMode] = useState<"single" | "range">("single");
-  const [dates, setDates] = useState<string[]>([]);
+  const [dateActions, setDateActions] = useState<Record<string, PredictAction>>({});
   const [rangeStart, setRangeStart] = useState<string | null>(null);
   const [showResult, setShowResult] = useState(false);
+
+  const selectedDates = useMemo(() => Object.keys(dateActions).sort(), [dateActions]);
+  const totalDays = selectedDates.length;
 
   const monthIdx = months.indexOf(ym);
   const year = Number(ym.slice(0, 4));
@@ -52,58 +63,72 @@ export default function PredictModal({
   const iso = (d: number) =>
     `${year}-${String(month0 + 1).padStart(2, "0")}-${String(d).padStart(2, "0")}`;
 
-  const isSelectable = (date: string) =>
-    byDate.get(date)?.dayOrder != null && date >= today;
+  // Leaves are for today and future working days.
+  // OD/ML can also be applied to past working days to recover absences (Ratio'd feature).
+  const isSelectable = (date: string) => {
+    const day = byDate.get(date);
+    if (!day || day.dayOrder == null || day.isHoliday) return false;
+    if (action === "leave") return date >= today;
+    return true; // OD/ML can be applied to past working days too
+  };
 
-  function toggle(date: string) {
+  function toggleDate(date: string) {
     if (!isSelectable(date)) return;
+
     if (mode === "range") {
       if (!rangeStart) {
         setRangeStart(date);
-        setDates((s) => (s.includes(date) ? s : [...s, date]));
+        setDateActions((prev) => ({ ...prev, [date]: action }));
         return;
       }
       const [a, b] = [rangeStart, date].sort();
-      const next = new Set(dates);
+      const next = { ...dateActions };
       let cur = new Date(`${a}T00:00:00`);
       const end = new Date(`${b}T00:00:00`);
       while (cur <= end) {
         const ds = todayISO(cur);
-        if (isSelectable(ds)) next.add(ds);
+        if (isSelectable(ds)) {
+          next[ds] = action;
+        }
         cur = new Date(cur.getTime() + 86400000);
       }
-      setDates([...next].sort());
+      setDateActions(next);
       setRangeStart(null);
       return;
     }
-    setDates((s) =>
-      s.includes(date) ? s.filter((d) => d !== date) : [...s, date].sort(),
-    );
+
+    // Single mode toggle
+    setDateActions((prev) => {
+      const next = { ...prev };
+      if (next[date] === action) {
+        delete next[date];
+      } else {
+        next[date] = action;
+      }
+      return next;
+    });
   }
 
   function reset() {
-    setDates([]);
+    setDateActions({});
     setRangeStart(null);
     setShowResult(false);
   }
 
   const projection =
-    attendance && showResult
+    attendance && showResult && totalDays > 0
       ? projectAttendance({
           attendance,
           calendar: cal,
           dayOrders: attendingDayOrders,
-          leaveDates: dates,
+          dateActions,
+          today,
         })
       : null;
 
-  // `open` MUST be a dependency: this scope lives inside Panel, which renders
-  // nothing while closed, so on the first run the element does not exist yet.
-  // Without it the reveal never ran for the mounted panel and every row stayed
-  // at the CSS start state's opacity 0, i.e. a blank sheet.
   const scope = useGsap(
     ({ self, reduced }) => revealIn(self, reduced, { stagger: 0.045 }),
-    [open, showResult, ym],
+    [open, showResult, ym, action],
   );
 
   return (
@@ -113,31 +138,38 @@ export default function PredictModal({
         onClose();
         reset();
       }}
-      eyebrow={showResult ? "Forecast" : "Plan leave"}
+      eyebrow={showResult ? "Forecast" : "Leave Predictor"}
       title={
         showResult
-          ? `${dates.length} day${dates.length === 1 ? "" : "s"} off`
-          : "Which days?"
+          ? `${totalDays} day${totalDays === 1 ? "" : "s"} selected`
+          : action === "leave"
+            ? "Plan your leaves"
+            : "Plan your OD / ML"
       }
       footer={
         projection ? (
-          <Button variant="secondary" size="lg" full onClick={() => setShowResult(false)}>
+          <Button
+            variant="secondary"
+            size="lg"
+            full
+            onClick={() => setShowResult(false)}
+          >
             Change days
           </Button>
         ) : (
           <div className="flex items-center gap-3">
             <div className="flex-1">
               <Label>Selected</Label>
-              <p className="tnum mt-1 text-title">{dates.length}</p>
+              <p className="tnum mt-1 text-title">{totalDays}</p>
             </div>
-            {dates.length > 0 && (
+            {totalDays > 0 && (
               <Button variant="quiet" onClick={reset}>
                 Clear
               </Button>
             )}
             <Button
               size="lg"
-              disabled={dates.length === 0 || !attendance}
+              disabled={totalDays === 0 || !attendance}
               onClick={() => setShowResult(true)}
             >
               See impact
@@ -151,6 +183,39 @@ export default function PredictModal({
           <Forecast projection={projection} />
         ) : (
           <>
+            {/* Top Action Tabs: Leaves vs OD/ML (Ratio'd style) */}
+            <div data-reveal className="mb-4 flex items-center gap-2 rounded-2xl bg-surface p-1">
+              <button
+                type="button"
+                onClick={() => {
+                  setAction("leave");
+                  setRangeStart(null);
+                }}
+                className={`flex-1 rounded-xl py-2.5 text-xs font-bold uppercase tracking-wider transition-all ${
+                  action === "leave"
+                    ? "bg-risk text-white shadow-sm"
+                    : "text-text-3 hover:text-text-1"
+                }`}
+              >
+                Leaves
+              </button>
+              <button
+                type="button"
+                onClick={() => {
+                  setAction("od");
+                  setRangeStart(null);
+                }}
+                className={`flex-1 rounded-xl py-2.5 text-xs font-bold uppercase tracking-wider transition-all ${
+                  action === "od"
+                    ? "bg-amber-600 text-white shadow-sm"
+                    : "text-text-3 hover:text-text-1"
+                }`}
+              >
+                OD / ML
+              </button>
+            </div>
+
+            {/* Selection Mode: Single vs Range */}
             <div data-reveal className="mb-6">
               <Segmented
                 label="Selection mode"
@@ -166,6 +231,7 @@ export default function PredictModal({
               />
             </div>
 
+            {/* Month & Year Navigation */}
             <div data-reveal className="mb-4 flex items-center justify-between">
               <h2 className="text-headline">
                 {MONTHS[month0]} <span className="tnum text-text-3">{year}</span>
@@ -192,6 +258,7 @@ export default function PredictModal({
               </div>
             </div>
 
+            {/* Calendar Day Order Grid */}
             <div data-reveal className="grid grid-cols-7 gap-y-1">
               {WEEKDAYS.map((w, i) => (
                 <div
@@ -202,39 +269,59 @@ export default function PredictModal({
                 </div>
               ))}
               {Array.from({ length: firstDow }).map((_, i) => (
-                <div key={`e${i}`} />
+                <div key={`empty-${i}`} />
               ))}
               {Array.from({ length: daysInMonth }, (_, i) => i + 1).map((d) => {
                 const ds = iso(d);
+                const calDay = byDate.get(ds);
+                const dayOrder = calDay?.dayOrder;
                 const selectable = isSelectable(ds);
-                const sel = dates.includes(ds);
+                const act = dateActions[ds];
+                const isSelected = act != null;
+                const isToday = ds === today;
+
+                let tileBg = "text-text-3/45";
+                if (isSelected) {
+                  tileBg = act === "leave" ? "bg-risk text-white font-bold" : "bg-amber-600 text-white font-bold";
+                } else if (selectable) {
+                  tileBg = "text-text-1 hover:bg-ink-2";
+                }
+
                 return (
                   <button
                     key={d}
-                    onClick={() => toggle(ds)}
+                    type="button"
+                    onClick={() => toggleDate(ds)}
                     disabled={!selectable}
-                    aria-pressed={sel}
+                    aria-pressed={isSelected}
                     aria-label={`${d} ${MONTHS[month0]}`}
-                    className="flex min-h-[46px] items-center justify-center"
+                    className="flex min-h-[50px] flex-col items-center justify-center p-0.5"
                   >
-                    <span
-                      className={`tnum flex size-9 items-center justify-center rounded-full text-body transition-colors ${
-                        sel
-                          ? "bg-accent font-semibold text-accent-ink"
-                          : selectable
-                            ? "text-text-1 hover:bg-ink-2"
-                            : "text-text-3/45"
-                      } ${rangeStart === ds ? "ring-2 ring-accent" : ""}`}
+                    <div
+                      className={`relative flex size-10 flex-col items-center justify-center rounded-2xl transition-colors ${tileBg} ${
+                        isToday && !isSelected ? "ring-2 ring-accent" : ""
+                      } ${rangeStart === ds ? "ring-2 ring-accent ring-offset-1" : ""}`}
                     >
-                      {d}
-                    </span>
+                      <span className="tnum text-body leading-none">{d}</span>
+                      {dayOrder != null && (
+                        <span
+                          className={`mt-0.5 text-[9px] font-bold uppercase leading-none tracking-tighter ${
+                            isSelected ? "opacity-90" : "text-text-3"
+                          }`}
+                        >
+                          DO {dayOrder}
+                        </span>
+                      )}
+                    </div>
                   </button>
                 );
               })}
             </div>
 
             <p data-reveal className="mt-6 text-callout text-text-3">
-              Only working days from today onward can be selected.
+              {action === "leave"
+                ? "Tap working days from today onward to plan your leaves."
+                : "OD/ML can be applied to past absences or future on-duty dates."}
             </p>
           </>
         )}
@@ -244,24 +331,17 @@ export default function PredictModal({
 }
 
 /**
- * The forecast answers "what will this cost me?" in the same language as the
- * attendance page: the margin or recovery figure is the hero, and the resulting
- * percentage is the evidence beneath it.
+ * Forecast View: Re-architected to match getratiod.lol (Ratio'd SRM).
+ *
+ * Highlights:
+ * 1. Prominent overall percentage and before -> after delta.
+ * 2. Dedicated "ACTION REQUIRED" section for any subjects dropping below 75%,
+ *    with exact classes needed to recover and the earliest calendar recovery date.
+ * 3. Dedicated "SUBJECTS" section for all safe subjects, with their updated margins.
  */
-function Forecast({
-  projection,
-}: {
-  projection: ReturnType<typeof projectAttendance>;
-}) {
+function Forecast({ projection }: { projection: Projection }) {
   const after = projection.overallAfter;
-  // Signed, because the forecast now plays the term forward: attending the days
-  // between here and your leave can outweigh the days you take off, so a plan
-  // can genuinely leave you HIGHER than today. Saying "down -1.2" for that was
-  // a double negative that read like a bug.
-  const delta = after - projection.overallBefore;
-  const totalA = projection.subjects.reduce((x, s) => x + s.attendedAfter, 0);
-  const totalC = projection.subjects.reduce((x, s) => x + s.conductedAfter, 0);
-  const rec = predict(totalA, totalC, TARGET);
+  const delta = projection.delta;
   const figure = useRef<HTMLSpanElement>(null);
 
   useGsap(
@@ -275,20 +355,18 @@ function Forecast({
 
   return (
     <>
-      <section data-reveal className="pb-9">
-        {/* The percentage is the hero. A count of classes in hand is the right
-            answer to "can I skip one more", but this screen answers "where does
-            this leave me", and a student thinks about that in per cent: it is
-            the number on the portal, on the attendance screen, and the one the
-            75% rule is written in. */}
+      {/* Overall Attendance Hero */}
+      <section data-reveal className="pb-8">
         <Label>
           {projection.through
-            ? `Attendance on ${prettyDate(projection.through)}`
+            ? `Attendance through ${prettyDate(projection.through)}`
             : "Attendance after this"}
         </Label>
         <Amount
           size="poster"
-          className={`mt-4 ${after >= TARGET ? "text-text-1" : "text-accent"}`}
+          className={`mt-4 ${
+            projection.hasDebarmentRisk ? "text-accent" : "text-text-1"
+          }`}
           value={<span ref={figure}>{after.toFixed(1)}</span>}
           unit="%"
         />
@@ -296,7 +374,7 @@ function Forecast({
         <TrackRule
           value={after}
           threshold={TARGET}
-          tone={after >= TARGET ? "neutral" : "accent"}
+          tone={projection.hasDebarmentRisk ? "accent" : "neutral"}
           className="bleed mt-7"
         />
 
@@ -304,100 +382,181 @@ function Forecast({
           <span className="tnum text-callout text-text-3">
             {projection.overallBefore.toFixed(1)}% to {after.toFixed(1)}%
             {Math.abs(delta) >= 0.05
-              ? ` · ${delta > 0 ? "up" : "down"} ${Math.abs(delta).toFixed(1)}`
+              ? ` · ${delta > 0 ? "up" : "down"} ${Math.abs(delta).toFixed(1)}%`
               : " · no change"}
           </span>
-          <Chip tone={after >= TARGET ? "safe" : "risk"}>
-            {after >= TARGET ? "Still safe" : "Below target"}
+          <Chip tone={projection.hasDebarmentRisk ? "risk" : "safe"}>
+            {projection.hasDebarmentRisk ? "Debarment risk" : "Still safe"}
           </Chip>
         </div>
 
-        {/* What the figure above is actually made of. The forecast plays the
-            term forward to the last date picked, so it has to say how many
-            classes that covers and how many of them are missed, otherwise the
-            percentage looks like it came from nowhere. */}
         <p className="mt-4 text-body text-text-2">
-          {rec.isSafe
-            ? `${rec.canSkip} class${rec.canSkip === 1 ? "" : "es"} still in hand after that.`
-            : `Attend ${rec.mustAttend} in a row after that to clear ${TARGET}%.`}
+          {projection.hasDebarmentRisk
+            ? `${projection.atRiskSubjects.length} subject${
+                projection.atRiskSubjects.length === 1 ? " drops" : "s drop"
+              } below ${TARGET}%. You must attend classes consecutively after this to recover.`
+            : `All subjects stay at or above ${TARGET}%. Lowest margin is ${Math.min(
+                ...projection.safeSubjects.map((s) => s.marginAfter),
+              )} class${
+                Math.min(...projection.safeSubjects.map((s) => s.marginAfter)) === 1
+                  ? ""
+                  : "es"
+              }.`}
         </p>
 
-        <p className="mt-3 text-callout leading-relaxed text-text-3">
-          By{" "}
-          <span className="text-text-2">{prettyDate(projection.through ?? "")}</span>{" "}
-          <span className="tnum text-text-2">{projection.totalHeld}</span> more
-          {projection.totalHeld === 1 ? " class" : " classes"} will have been held.
-          You attend{" "}
-          <span className="tnum text-text-2">
-            {projection.totalHeld - projection.totalMissed}
+        <p className="mt-2 text-callout text-text-3">
+          Misses{" "}
+          <span className="tnum font-medium text-accent">
+            {projection.totalMissed}
           </span>{" "}
-          of them across{" "}
-          <span className="tnum">{projection.attendedDays}</span> day
-          {projection.attendedDays === 1 ? "" : "s"} and miss{" "}
-          <span className="tnum text-accent">{projection.totalMissed}</span>.
+          class{projection.totalMissed === 1 ? "" : "es"} across{" "}
+          <span className="tnum font-medium text-text-2">
+            {projection.affectedDays}
+          </span>{" "}
+          working day{projection.affectedDays === 1 ? "" : "s"}.
         </p>
       </section>
 
-      <section>
-        <SectionHead aside={`${projection.affectedDays} day${projection.affectedDays === 1 ? "" : "s"}`}>
-          By subject
-        </SectionHead>
-        <ul className="mt-2">
-          {projection.subjects
-            .filter((s) => s.conductedAfter > 0)
-            // Trouble first, then whatever this leave actually touches. A
-            // subject it never touches is context, not news, so it sinks.
-            .toSorted((a, b) => {
-              const risk = Number(a.pctAfter < TARGET) - Number(b.pctAfter < TARGET);
-              if (risk !== 0) return -risk;
-              if (a.missed !== b.missed) return b.missed - a.missed;
-              return a.pctAfter - b.pctAfter;
-            })
-            .map((s, i) => {
-              const safe = s.pctAfter >= TARGET;
-              const r = predict(s.attendedAfter, s.conductedAfter, TARGET);
-              const value = safe ? r.canSkip : r.mustAttend;
-              return (
-                <li key={`${s.code}-${i}`} data-reveal className="pt-6">
-                  <div className="flex items-start justify-between gap-5">
-                    <div className="min-w-0 flex-1 pt-1">
-                      <p className="truncate text-headline">{s.title}</p>
-                      <p className="tnum mt-1.5 truncate text-callout text-text-3">
-                        {s.attendedAfter}/{s.conductedAfter} · {s.pctAfter.toFixed(1)}%
-                        {s.missed > 0 ? (
-                          <>
-                            {" · "}
-                            <span className="text-accent">{s.missed} missed</span>
-                          </>
-                        ) : (
-                          " · not affected"
-                        )}
-                      </p>
-                    </div>
-                    <div className="shrink-0 text-right">
-                      <span
-                        className={`tnum block text-hero leading-none ${
-                          safe ? "text-text-1" : "text-accent"
-                        }`}
-                      >
-                        {value}
-                      </span>
-                      <span className="mt-2 block text-label uppercase text-text-3">
-                        {safe ? "Margin" : "Required"}
-                      </span>
-                    </div>
-                  </div>
-                  <TrackRule
-                    value={s.pctAfter}
-                    threshold={TARGET}
-                    tone={safe ? "neutral" : "accent"}
-                    className="bleed mt-5"
-                  />
-                </li>
-              );
-            })}
-        </ul>
-      </section>
+      {/* ACTION REQUIRED: Subjects dropping below 75% (Ratio'd Layout) */}
+      {projection.atRiskSubjects.length > 0 && (
+        <section data-reveal className="mb-8 rounded-3xl border-2 border-dashed border-risk/40 bg-risk/5 p-5">
+          <div className="flex items-center justify-between pb-3">
+            <span className="text-label font-bold uppercase tracking-widest text-risk">
+              Action Required
+            </span>
+            <span className="text-callout text-risk/80">
+              {projection.atRiskSubjects.length} short
+            </span>
+          </div>
+
+          <ul className="flex flex-col gap-4">
+            {projection.atRiskSubjects.map((s, i) => (
+              <SubjectCard key={`${s.code}-${i}`} subject={s} isDanger />
+            ))}
+          </ul>
+        </section>
+      )}
+
+      {/* SAFE SUBJECTS */}
+      {projection.safeSubjects.length > 0 && (
+        <section data-reveal>
+          <SectionHead aside={`${projection.safeSubjects.length} safe`}>
+            Subjects
+          </SectionHead>
+          <ul className="mt-3 flex flex-col gap-4">
+            {projection.safeSubjects.map((s, i) => (
+              <SubjectCard key={`${s.code}-${i}`} subject={s} isDanger={false} />
+            ))}
+          </ul>
+        </section>
+      )}
     </>
+  );
+}
+
+function SubjectCard({
+  subject: s,
+  isDanger,
+}: {
+  subject: ProjectedSubject;
+  isDanger: boolean;
+}) {
+  return (
+    <li
+      className={`rounded-2xl border p-4 transition-all ${
+        isDanger
+          ? "border-risk/30 bg-surface/90 shadow-sm"
+          : s.hasChanged
+            ? "border-accent/40 bg-surface/80"
+            : "border-ink-2 bg-surface"
+      }`}
+    >
+      <div className="flex items-start justify-between gap-4">
+        {/* Left: Margin / Recovery Count */}
+        <div className="flex min-w-[70px] shrink-0 flex-col items-center justify-center text-center">
+          <span
+            className={`tnum text-[2.75rem] font-bold leading-none tracking-tight ${
+              isDanger ? "text-accent" : "text-text-1"
+            }`}
+          >
+            {s.marginAfter}
+          </span>
+          <span
+            className={`mt-1.5 text-label font-bold uppercase tracking-wider ${
+              isDanger ? "text-accent" : "text-text-3"
+            }`}
+          >
+            {s.labelAfter}
+          </span>
+
+          {/* Margin transition if changed (e.g. 4 -> 2) */}
+          {s.hasChanged && (
+            <span className="tnum mt-1 text-[11px] font-semibold text-text-3">
+              {s.marginBefore} → {s.marginAfter}
+            </span>
+          )}
+
+          {/* Earliest recovery date if under 75% */}
+          {isDanger && s.recoveryDate && (
+            <div className="mt-2 rounded-full border border-risk/30 bg-risk/10 px-2 py-0.5">
+              <span className="text-[9px] font-bold uppercase tracking-wider text-risk">
+                Rec: {prettyDate(s.recoveryDate).toUpperCase()}
+              </span>
+            </div>
+          )}
+        </div>
+
+        {/* Right: Subject Details */}
+        <div className="min-w-0 flex-1 pt-0.5 text-right">
+          <div className="flex items-center justify-end gap-1.5">
+            {s.isPractical && (
+              <span className="rounded bg-sky-500/15 px-1.5 py-0.5 text-[9px] font-bold uppercase tracking-wider text-sky-400">
+                Practical
+              </span>
+            )}
+            <span
+              className={`text-body font-bold uppercase tracking-wide ${
+                isDanger ? "text-accent" : "text-text-1"
+              }`}
+            >
+              {s.code}
+            </span>
+          </div>
+
+          <p className="mt-1 truncate text-callout lowercase text-text-3">
+            {s.title}
+          </p>
+
+          <div className="mt-2 flex items-center justify-end gap-2 text-callout">
+            <span className="tnum text-text-3">
+              {s.attendedAfter}/{s.conductedAfter}
+            </span>
+            <span className="text-text-3">·</span>
+            <span
+              className={`tnum font-bold ${
+                isDanger ? "text-accent" : "text-text-1"
+              }`}
+            >
+              {s.pctAfter.toFixed(1)}%
+            </span>
+            {s.missed > 0 && (
+              <>
+                <span className="text-text-3">·</span>
+                <span className="tnum font-semibold text-accent">
+                  {s.missed} missed
+                </span>
+              </>
+            )}
+          </div>
+        </div>
+      </div>
+
+      <TrackRule
+        value={s.pctAfter}
+        threshold={TARGET}
+        tone={isDanger ? "accent" : "neutral"}
+        className="mt-3.5"
+      />
+    </li>
   );
 }

@@ -1,85 +1,246 @@
-// What your attendance will actually read on the day you get back.
+// Attendance & leave projection engine aligned with getratiod.lol (Ratio'd SRM)
 //
-// The forecast walks the calendar from today to the last date you picked and
-// plays the term forward: every working day in between holds classes you would
-// sit, and the days you picked hold classes you would miss. Both move the
-// conducted count; only the days you attend move the attended count.
-//
-// **Counting the days in between is the whole point.** An earlier version took
-// today's totals and only added the missed classes, which is right for leave
-// tomorrow and increasingly wrong the further out you look: attending is what
-// pushes a percentage back up, so ignoring a fortnight of classes made a
-// distant leave date look far more expensive than it really is. At 42/43, four
-// classes missed two weeks out reads as 89.4% that way and 93.8% in truth.
+// Calculates the exact impact of leaves and OD/ML on attendance percentage and margins:
+// 1. Accurately counts lab & theory durations (e.g. 100min lab = 2 classes, 150min lab = 3 classes).
+// 2. Matches enrolled subjects to timetable periods with code & category fuzzy resolution.
+// 3. Supports both 'leave' (missed classes) and 'od' (on-duty / medical leave excused/credited).
+// 4. Calculates per-subject margins (safe: classes you can skip; risk: classes to recover).
+// 5. Predicts the earliest calendar recovery date for any subject that falls below 75%.
 
-import type { Attendance, CalendarDay, DayOrderSchedule } from "@/types";
+import type { Attendance, CalendarDay, DayOrderSchedule, Subject } from "@/types";
+
+export type PredictAction = "leave" | "od";
 
 export type ProjectedSubject = {
   code: string;
   title: string;
+  category: string;
+  isPractical: boolean;
   attendedBefore: number;
   conductedBefore: number;
+  pctBefore: number;
+  marginBefore: number;
+  labelBefore: "margin" | "recover";
   attendedAfter: number;
   conductedAfter: number;
-  pctBefore: number;
   pctAfter: number;
-  /** Classes of this subject held between now and the end of the plan. */
+  marginAfter: number;
+  labelAfter: "margin" | "recover";
+  isSafe: boolean; // pctAfter >= 75
+  hasChanged: boolean;
+  /** Classes of this subject held in the projection window. */
   held: number;
-  /** How many of those you would miss, i.e. the cost of this leave. */
+  /** Classes missed during the leave. */
   missed: number;
+  /** Attendance hours credited from OD/ML. */
+  odCredited: number;
+  /** Earliest calendar date where attendance recovers to >= 75%, or null. */
+  recoveryDate: string | null;
 };
 
 export type Projection = {
   subjects: ProjectedSubject[];
   overallBefore: number;
   overallAfter: number;
-  /** Days you picked that actually hold classes. */
+  delta: number;
+  /** Days picked that actually hold scheduled classes. */
   affectedDays: number;
-  /** Working days in the window you would attend as normal. */
+  /** Working days in the window attended as normal. */
   attendedDays: number;
-  /** Every class held in that window, attended and missed alike. */
+  /** Total classes held in the simulation window. */
   totalHeld: number;
-  /** Just the ones you would miss. */
+  /** Total classes missed across all subjects. */
   totalMissed: number;
   /** The last date the projection runs to, or null when nothing is picked. */
   through: string | null;
+  /** Subjects that drop below 75% (Action Required). */
+  atRiskSubjects: ProjectedSubject[];
+  /** Subjects that remain >= 75%. */
+  safeSubjects: ProjectedSubject[];
+  /** True if any subject is below 75% after the projected leave. */
+  hasDebarmentRisk: boolean;
 };
 
-const pct = (a: number, c: number) => (c > 0 ? (a / c) * 100 : 0);
+const TARGET = 75;
 
-// A course can have separate Theory + Practical attendance rows sharing one
-// code, so we key by code + lab-ness: theory periods (slots A-G) hit the theory
-// row, lab periods (P##/L##) hit the practical row.
-const keyOf = (code: string, isLab: boolean) => `${code}::${isLab ? "lab" : "th"}`;
+export const pct = (a: number, c: number) => (c > 0 ? (a / c) * 100 : 0);
 
-/** Periods per (code, lab-ness) on a day order. The code is carried alongside
- *  so a key that matches no attendance row can still be resolved by course. */
-function classesByKey(
-  dayOrders: DayOrderSchedule[],
-  dayOrder: number | null,
-): Map<string, { code: string; n: number }> {
-  const m = new Map<string, { code: string; n: number }>();
-  if (dayOrder == null) return m;
-  const sched = dayOrders.find((d) => d.dayOrder === dayOrder);
-  for (const c of sched?.classes ?? []) {
-    const k = keyOf(c.code, c.isLab);
-    const seen = m.get(k);
-    m.set(k, { code: c.code, n: (seen?.n ?? 0) + 1 });
+/**
+ * Calculates subject margin or recovery count, matching Ratio'd (u/BS):
+ * - If >= 75%: margin = floor((attended - 0.75 * conducted) / 0.75) (classes you can skip)
+ * - If < 75%: recover = classes to attend in a row to reach 75%
+ */
+export function calculateSubjectMargin(
+  attended: number,
+  conducted: number,
+  threshold = TARGET,
+): { val: number; label: "margin" | "recover"; isSafe: boolean } {
+  if (conducted <= 0) {
+    return { val: 0, label: "margin", isSafe: true };
   }
-  return m;
+  const currentPct = (attended / conducted) * 100;
+  const t = threshold / 100;
+  const isSafe = currentPct >= threshold;
+
+  if (isSafe) {
+    const val = Math.max(0, Math.floor((attended - t * conducted) / t + 1e-9));
+    return { val, label: "margin", isSafe: true };
+  }
+
+  let recover = 0;
+  while (
+    conducted + recover > 0 &&
+    ((attended + recover) / (conducted + recover)) * 100 < threshold
+  ) {
+    recover++;
+  }
+  return { val: recover, label: "recover", isSafe: false };
+}
+
+/**
+ * Computes how many class periods a timetable slot represents.
+ * Standard SRM period is 50 minutes.
+ * - 50 mins = 1 class
+ * - 100 mins (lab double slot) = 2 classes
+ * - 150 mins (lab triple slot) = 3 classes
+ */
+export function getSlotHours(slot: {
+  start?: string;
+  end?: string;
+  startMin?: number;
+  endMin?: number;
+}): number {
+  if (slot.startMin != null && slot.endMin != null && slot.endMin > slot.startMin) {
+    const diff = slot.endMin - slot.startMin;
+    return Math.max(1, Math.round(diff / 50));
+  }
+  if (slot.start && slot.end) {
+    const parseMins = (t: string) => {
+      const parts = t.replace(/[^\d:]/g, "").split(":").map(Number);
+      if (isNaN(parts[0]) || isNaN(parts[1])) return 0;
+      let h = parts[0];
+      if (h < 7) h += 12; // PM adjustment (e.g. 01:15 -> 13:15)
+      return h * 60 + parts[1];
+    };
+    const s = parseMins(slot.start);
+    const e = parseMins(slot.end);
+    const diff = e - s;
+    if (diff > 0) return Math.max(1, Math.round(diff / 50));
+  }
+  return 1;
+}
+
+function cleanStr(s: string) {
+  return (s || "").toLowerCase().replace(/[^a-z0-9]/g, "").trim();
+}
+
+/**
+ * Matches a timetable class to an attendance subject row.
+ * Respects Theory vs Practical split for courses that have both.
+ */
+function findMatchingSubject(
+  code: string,
+  title: string,
+  isLab: boolean,
+  subjects: ProjectedSubject[],
+): ProjectedSubject | null {
+  const normCode = cleanStr(code);
+  const normTitle = cleanStr(title);
+
+  // 1. Exact match on cleaned code AND lab status
+  let match = subjects.find(
+    (s) => cleanStr(s.code) === normCode && s.isPractical === isLab,
+  );
+  if (match) return match;
+
+  // 2. Substring/prefix match on code AND lab status
+  match = subjects.find((s) => {
+    const sc = cleanStr(s.code);
+    return (sc.includes(normCode) || normCode.includes(sc)) && s.isPractical === isLab;
+  });
+  if (match) return match;
+
+  // 3. Cleaned title match AND lab status
+  if (normTitle.length > 3) {
+    match = subjects.find((s) => {
+      const st = cleanStr(s.title);
+      return (st === normTitle || st.includes(normTitle) || normTitle.includes(st)) && s.isPractical === isLab;
+    });
+    if (match) return match;
+  }
+
+  // 4. Fallback: match by code alone if only one candidate exists
+  const byCode = subjects.filter((s) => {
+    const sc = cleanStr(s.code);
+    return sc === normCode || sc.includes(normCode) || normCode.includes(sc);
+  });
+  if (byCode.length === 1) return byCode[0];
+
+  // 5. Fallback: match by title alone
+  if (normTitle.length > 3) {
+    const byTitle = subjects.filter((s) => {
+      const st = cleanStr(s.title);
+      return st === normTitle || st.includes(normTitle) || normTitle.includes(st);
+    });
+    if (byTitle.length === 1) return byTitle[0];
+  }
+
+  return byCode[0] ?? null;
+}
+
+/**
+ * Finds the earliest upcoming calendar date where this subject recovers to >= 75%
+ * by attending scheduled classes after the leave.
+ */
+function findRecoveryDate(
+  subject: ProjectedSubject,
+  afterDate: string,
+  calendar: CalendarDay[],
+  dayOrders: DayOrderSchedule[],
+): string | null {
+  if (subject.isSafe) return null;
+
+  let a = subject.attendedAfter;
+  let c = subject.conductedAfter;
+
+  const sortedFuture = calendar
+    .filter((d) => d.date > afterDate && d.dayOrder != null && !d.isHoliday)
+    .sort((x, y) => x.date.localeCompare(y.date));
+
+  for (const day of sortedFuture) {
+    const sched = dayOrders.find((d) => d.dayOrder === day.dayOrder);
+    if (!sched?.classes?.length) continue;
+
+    for (const cl of sched.classes) {
+      const match = findMatchingSubject(cl.code, cl.title, cl.isLab, [subject]);
+      if (match) {
+        const hours = getSlotHours(cl);
+        a += hours;
+        c += hours;
+        if (c > 0 && (a / c) * 100 >= TARGET) {
+          return day.date;
+        }
+      }
+    }
+  }
+  return null;
 }
 
 export function projectAttendance(opts: {
   attendance: Attendance;
   calendar: CalendarDay[];
-  /** Must already exclude optional courses: pass `attendingDayOrders`. */
+  /** Day orders without optional courses. */
   dayOrders: DayOrderSchedule[];
-  /** Dates the student plans to take off, as YYYY-MM-DD. */
-  leaveDates: string[];
-  /** Today, as YYYY-MM-DD. Injectable so the maths can be tested. */
+  /** Dates to take off, as YYYY-MM-DD. */
+  leaveDates?: string[];
+  /** Optional per-date action map: { '2026-10-27': 'leave' | 'od' } */
+  dateActions?: Record<string, PredictAction>;
+  /** Default action for dates in leaveDates. Defaults to 'leave'. */
+  defaultAction?: PredictAction;
+  /** Today, as YYYY-MM-DD. */
   today?: string;
 }): Projection {
-  const { attendance, calendar, dayOrders, leaveDates } = opts;
+  const { attendance, calendar, dayOrders, leaveDates = [], dateActions = {} } = opts;
   const now = new Date();
   const today =
     opts.today ??
@@ -87,77 +248,94 @@ export function projectAttendance(opts: {
       now.getDate(),
     ).padStart(2, "0")}`;
 
-  const subjects: ProjectedSubject[] = [];
-  // A list per key, not a single row. Two attendance rows can share a code and
-  // a lab-ness (the portal is free to report a course twice), and a plain Map
-  // let the second silently replace the first, so the projection landed on the
-  // wrong row and the right one never moved.
-  const byKey = new Map<string, ProjectedSubject[]>();
-  // The same rows keyed by course alone, for the fallback below.
-  const byCode = new Map<string, ProjectedSubject[]>();
-  for (const s of attendance.subjects) {
-    const ps: ProjectedSubject = {
+  // Build the complete action map
+  const actionMap: Record<string, PredictAction> = { ...dateActions };
+  const defaultAct = opts.defaultAction ?? "leave";
+  for (const d of leaveDates) {
+    if (!actionMap[d]) actionMap[d] = defaultAct;
+  }
+
+  // Initialize projected subjects
+  const subjects: ProjectedSubject[] = (attendance.subjects ?? []).map((s) => {
+    const isLab =
+      /practical|lab/i.test(s.category || "") ||
+      (s.slot || "").toUpperCase().startsWith("P") ||
+      (s.slot || "").toUpperCase().startsWith("L") ||
+      s.slot === "LAB";
+    const mBefore = calculateSubjectMargin(s.attended, s.conducted, TARGET);
+    return {
       code: s.code,
       title: s.title || s.code,
+      category: s.category || (isLab ? "Practical" : "Theory"),
+      isPractical: isLab,
       attendedBefore: s.attended,
       conductedBefore: s.conducted,
+      pctBefore: pct(s.attended, s.conducted),
+      marginBefore: mBefore.val,
+      labelBefore: mBefore.label,
       attendedAfter: s.attended,
       conductedAfter: s.conducted,
-      pctBefore: pct(s.attended, s.conducted),
       pctAfter: pct(s.attended, s.conducted),
+      marginAfter: mBefore.val,
+      labelAfter: mBefore.label,
+      isSafe: mBefore.isSafe,
+      hasChanged: false,
       held: 0,
       missed: 0,
+      odCredited: 0,
+      recoveryDate: null,
     };
-    subjects.push(ps);
-    const isLab = /practical|lab/i.test(s.category) || s.slot === "LAB";
-    const k = keyOf(s.code, isLab);
-    byKey.set(k, [...(byKey.get(k) ?? []), ps]);
-    byCode.set(s.code, [...(byCode.get(s.code) ?? []), ps]);
+  });
+
+  const selectedEntries = Object.entries(actionMap);
+  if (selectedEntries.length === 0) {
+    const aB = subjects.reduce((x, s) => x + s.attendedBefore, 0);
+    const cB = subjects.reduce((x, s) => x + s.conductedBefore, 0);
+    return {
+      subjects,
+      overallBefore: pct(aB, cB),
+      overallAfter: pct(aB, cB),
+      delta: 0,
+      affectedDays: 0,
+      attendedDays: 0,
+      totalHeld: 0,
+      totalMissed: 0,
+      through: null,
+      atRiskSubjects: subjects.filter((s) => !s.isSafe),
+      safeSubjects: subjects.filter((s) => s.isSafe),
+      hasDebarmentRisk: subjects.some((s) => !s.isSafe),
+    };
   }
 
-  /**
-   * Applies one day's classes to the right rows, and returns how many periods
-   * that day held. `attended` decides whether it is a day you sit or take off.
-   */
-  function applyDay(dayOrder: number | null, attended: boolean): number {
-    const counts = classesByKey(dayOrders, dayOrder);
-    let total = 0;
-    for (const [k, { code, n }] of counts) {
-      // Exact match on code AND lab-ness first.
-      let rows = byKey.get(k);
-      if (!rows?.length) {
-        // **Nothing matched on lab-ness, so fall back to the course itself.**
-        // The timetable decides lab-ness from the slot (P##/L##) while the
-        // attendance row decides it from the portal's own category text, and
-        // the two can disagree. When they did, the class was dropped in
-        // silence, understating the damage in the one direction that matters.
-        //
-        // Only when the course has exactly ONE row, where there is no ambiguity
-        // about where the hit belongs. A course with both a theory and a
-        // practical row always matches one of them exactly, so this cannot
-        // misroute a split course.
-        const single = byCode.get(code);
-        rows = single?.length === 1 ? single : undefined;
-      }
-      // A course the attendance page has never heard of cannot be projected.
-      if (!rows?.length) continue;
-
-      total += n;
-      for (const subj of rows) {
-        subj.conductedAfter += n;
-        subj.held += n;
-        if (attended) subj.attendedAfter += n;
-        else subj.missed += n;
+  // Handle Past OD/ML Credits (Ratio'd logic: past absences credited back)
+  for (const [date, act] of selectedEntries) {
+    if (act !== "od" || date >= today) continue;
+    const calDay = calendar.find((c) => c.date === date);
+    if (!calDay || calDay.dayOrder == null || calDay.isHoliday) continue;
+    const sched = dayOrders.find((d) => d.dayOrder === calDay.dayOrder);
+    for (const cl of sched?.classes ?? []) {
+      const match = findMatchingSubject(cl.code, cl.title, cl.isLab, subjects);
+      if (match) {
+        const hours = getSlotHours(cl);
+        match.odCredited += hours;
       }
     }
-    return total;
   }
 
-  // Deduped: the same day off twice is still one day off. The picker cannot
-  // currently produce a repeat, but nothing in this function's contract says
-  // it will not, and a silent double count would overstate the damage.
-  const leave = new Set(leaveDates);
-  const through = leave.size ? [...leave].sort().at(-1)! : null;
+  // Apply past OD credits (capped at current absences)
+  for (const s of subjects) {
+    if (s.odCredited > 0) {
+      const absent = Math.max(0, s.conductedBefore - s.attendedBefore);
+      const cred = Math.min(s.odCredited, absent);
+      s.attendedAfter += cred;
+    }
+  }
+
+  // Future projection window:
+  // Starts today (or tomorrow if today is past / marked) through the latest selected date.
+  const futureEntries = selectedEntries.filter(([d]) => d >= today);
+  const futureDates = futureEntries.map(([d]) => d).sort();
+  const through = futureDates.length > 0 ? futureDates[futureDates.length - 1] : null;
 
   let affectedDays = 0;
   let attendedDays = 0;
@@ -165,40 +343,99 @@ export function projectAttendance(opts: {
   let totalMissed = 0;
 
   if (through) {
-    // Every calendar day from today to the last date picked. A holiday has no
-    // day order and so contributes nothing, which is exactly right: a holiday
-    // inside a plan neither costs attendance nor earns it.
     for (const day of calendar) {
       if (day.date < today || day.date > through) continue;
-      if (day.dayOrder == null) continue;
-      const isLeave = leave.has(day.date);
-      const n = applyDay(day.dayOrder, !isLeave);
-      if (n === 0) continue;
-      totalHeld += n;
-      if (isLeave) {
-        affectedDays++;
-        totalMissed += n;
-      } else {
-        attendedDays++;
+      if (day.dayOrder == null || day.isHoliday) continue;
+
+      const sched = dayOrders.find((d) => d.dayOrder === day.dayOrder);
+      if (!sched?.classes?.length) continue;
+
+      const act = actionMap[day.date]; // 'leave' | 'od' | undefined
+      let dayHeld = 0;
+      let isLeaveDay = act === "leave";
+
+      for (const cl of sched.classes) {
+        const match = findMatchingSubject(cl.code, cl.title, cl.isLab, subjects);
+        if (!match) continue;
+
+        const hours = getSlotHours(cl);
+        dayHeld += hours;
+        match.held += hours;
+        match.conductedAfter += hours;
+
+        if (act === "leave") {
+          // Missed
+          match.missed += hours;
+        } else {
+          // Attended (regular day in between, or future OD excused)
+          match.attendedAfter += hours;
+        }
+      }
+
+      if (dayHeld > 0) {
+        totalHeld += dayHeld;
+        if (isLeaveDay) {
+          affectedDays++;
+          totalMissed += dayHeld;
+        } else {
+          attendedDays++;
+        }
       }
     }
   }
 
-  for (const s of subjects) s.pctAfter = pct(s.attendedAfter, s.conductedAfter);
+  // Recompute percentages, margins, and changes for every subject
+  for (const s of subjects) {
+    s.pctAfter = pct(s.attendedAfter, s.conductedAfter);
+    const mAfter = calculateSubjectMargin(s.attendedAfter, s.conductedAfter, TARGET);
+    s.marginAfter = mAfter.val;
+    s.labelAfter = mAfter.label;
+    s.isSafe = mAfter.isSafe;
+    s.hasChanged =
+      s.marginAfter !== s.marginBefore ||
+      s.labelAfter !== s.labelBefore ||
+      s.missed > 0 ||
+      s.odCredited > 0;
+
+    if (!s.isSafe && through) {
+      s.recoveryDate = findRecoveryDate(s, through, calendar, dayOrders);
+    }
+  }
 
   const aB = subjects.reduce((x, s) => x + s.attendedBefore, 0);
   const cB = subjects.reduce((x, s) => x + s.conductedBefore, 0);
   const aA = subjects.reduce((x, s) => x + s.attendedAfter, 0);
   const cA = subjects.reduce((x, s) => x + s.conductedAfter, 0);
 
+  const overallBefore = pct(aB, cB);
+  const overallAfter = pct(aA, cA);
+  const delta = overallAfter - overallBefore;
+
+  // Split into At-Risk (Action Required) and Safe subjects, matching Ratio'd layout
+  const atRiskSubjects = subjects
+    .filter((s) => !s.isSafe)
+    .sort((a, b) => b.marginAfter - a.marginAfter);
+
+  const safeSubjects = subjects
+    .filter((s) => s.isSafe)
+    .sort((a, b) => {
+      // Affected subjects first, then lowest margin
+      if (a.hasChanged !== b.hasChanged) return a.hasChanged ? -1 : 1;
+      return a.marginAfter - b.marginAfter;
+    });
+
   return {
     subjects,
-    overallBefore: pct(aB, cB),
-    overallAfter: pct(aA, cA),
+    overallBefore,
+    overallAfter,
+    delta,
     affectedDays,
     attendedDays,
     totalHeld,
     totalMissed,
     through,
+    atRiskSubjects,
+    safeSubjects,
+    hasDebarmentRisk: atRiskSubjects.length > 0,
   };
 }
