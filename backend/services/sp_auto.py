@@ -66,7 +66,7 @@ async def auto_login_and_fetch(username: str, password: str) -> Tuple[str, Optio
             if reason == "account_locked":
                 raise StudentPortalClientError("Your account has been temporarily locked due to multiple unsuccessful attempts. Please try again after 5 minutes.")
             if reason == "invalid_credentials":
-                raise StudentPortalClientError(f"Incorrect NetID or password ({msg}). Note that your Student Portal password is your SRM student email password, often different from your Academia password.")
+                raise StudentPortalClientError(f"Incorrect NetID or password ({msg}). Note that your Student Portal password is often different from your Academia password.")
             raise StudentPortalClientError(msg)
 
         except StudentPortalClientError as e:

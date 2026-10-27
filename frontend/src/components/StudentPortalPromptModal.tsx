@@ -188,7 +188,7 @@ export default function StudentPortalPromptModal() {
       if (isAuthErr) {
         setError(
           err.message ||
-            "Incorrect NetID or password. Remember: your Student Portal password is often different from your Academia password (it is your SRM student email password)."
+            "Incorrect NetID or password. Remember: your Student Portal password is often different from your Academia password."
         );
       } else {
         setError(
@@ -239,10 +239,9 @@ export default function StudentPortalPromptModal() {
             to view your real-time attendance, margins, and internal marks.
           </p>
           <div className="mt-2.5 flex items-start gap-2 rounded-lg border border-line-soft bg-ink-2/80 p-2 text-caption text-text-2">
-            <span className="shrink-0 text-accent font-bold">ℹ️ Tip:</span>
+            <span className="shrink-0 text-accent font-bold">ℹ️ Note:</span>
             <span>
-              Your Student Portal password is your <strong>SRM student email password</strong>,
-              which is often <em>different</em> from your Academia password.
+              Your Student Portal password is often <em>different</em> from your Academia password.
             </span>
           </div>
         </div>

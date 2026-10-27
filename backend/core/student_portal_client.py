@@ -570,7 +570,7 @@ async def submit_login_and_fetch(req_data: StudentPortalLoginRequest) -> Tuple[s
         if reason == "wrong_captcha":
             raise StudentPortalClientError("Invalid captcha.")
         if reason == "invalid_credentials":
-            raise StudentPortalClientError(f"Incorrect NetID or password ({msg}). Note that your Student Portal password is your SRM student email password, often different from your Academia password.")
+            raise StudentPortalClientError(f"Incorrect NetID or password ({msg}). Note that your Student Portal password is often different from your Academia password.")
         raise StudentPortalClientError(msg)
 
     att_html, marks_html, tt_html = await asyncio.gather(
