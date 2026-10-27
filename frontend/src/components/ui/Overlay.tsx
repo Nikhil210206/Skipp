@@ -239,6 +239,90 @@ export function Sheet({
   );
 }
 
+// ---------- Centered Modal --------------------------------------
+
+export function Modal({
+  open,
+  onClose,
+  title,
+  children,
+  footer,
+  maxWidth = "max-w-md",
+}: {
+  open: boolean;
+  onClose: () => void;
+  title?: string;
+  children: React.ReactNode;
+  footer?: React.ReactNode;
+  maxWidth?: string;
+}) {
+  const present = usePresence(open, 260);
+  const scrim = useRef<HTMLDivElement>(null);
+  const panel = useRef<HTMLDivElement>(null);
+  useLockScroll(present);
+  useDismissKey(open, onClose);
+  useFocusTrap(open, panel);
+
+  useEffect(() => {
+    const p = panel.current;
+    const s = scrim.current;
+    if (!p || !s || !present) return;
+    const reduced = prefersReducedMotion();
+    if (reduced) {
+      gsap.set([s, p], { opacity: 1, scale: 1 });
+      return;
+    }
+    if (open) {
+      gsap.killTweensOf([s, p]);
+      gsap.fromTo(s, { opacity: 0 }, { opacity: 1, duration: DUR.quick, ease: EASE.out });
+      gsap.fromTo(
+        p,
+        { scale: 0.94, opacity: 0, y: 8 },
+        { scale: 1, opacity: 1, y: 0, duration: DUR.base, ease: EASE.emphasis },
+      );
+    } else {
+      gsap.to(s, { opacity: 0, duration: DUR.quick, ease: EASE.in });
+      gsap.to(p, { scale: 0.94, opacity: 0, y: 8, duration: DUR.quick, ease: EASE.in });
+    }
+  }, [open, present]);
+
+  if (!present || typeof document === "undefined") return null;
+  return createPortal(
+    <div
+      className="fixed inset-0 z-50 flex items-center justify-center p-4 sm:p-6"
+      role="dialog"
+      aria-modal="true"
+      aria-label={title || "Dialog"}
+    >
+      <div
+        ref={scrim}
+        onClick={onClose}
+        className="fixed inset-0 bg-black/65 backdrop-blur-[2px]"
+      />
+      <div
+        ref={panel}
+        className={`relative z-10 w-full ${maxWidth} my-auto flex max-h-[90vh] flex-col rounded-2xl border border-line bg-ink-1 shadow-float overflow-hidden`}
+      >
+        {title && (
+          <div className="flex items-center justify-between border-b border-line-soft px-5 py-3.5">
+            <h2 className="text-title">{title}</h2>
+            <IconButton onClick={onClose} label="Close" variant="quiet">
+              <IconClose size={20} />
+            </IconButton>
+          </div>
+        )}
+        <div className="min-h-0 flex-1 overflow-y-auto px-5 py-4">{children}</div>
+        {footer && (
+          <div className="shrink-0 border-t border-line-soft px-5 py-3.5">
+            {footer}
+          </div>
+        )}
+      </div>
+    </div>,
+    document.body,
+  );
+}
+
 // ---------- Full-screen panel ------------------------------------
 
 export function Panel({

@@ -13,6 +13,7 @@ import WhatsNewSheet from "./WhatsNewSheet";
 import NewThemeSheet from "./NewThemeSheet";
 import AttendanceBackSheet from "./AttendanceBackSheet";
 import MarksBackSheet from "./MarksBackSheet";
+import StudentPortalPromptModal from "./StudentPortalPromptModal";
 import { CREATOR } from "@/lib/creator";
 import { Skeleton } from "./ui";
 import { pageIn } from "@/lib/motion";
@@ -260,6 +261,7 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
             as being handed news reads as a survey, and it would also be asking
             what they think of a change they had not seen yet. Its date is not
             consumed when it loses, so it simply comes round next launch. */}
+        <StudentPortalPromptModal />
         <AttendanceBackSheet open={showAttendance} />
         <MarksBackSheet open={showMarks} />
         <NewThemeSheet open={showTheme} />

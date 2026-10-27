@@ -237,6 +237,7 @@ type SessionValue = {
   importAttendanceHtml: (attendanceHtml?: string, marksHtml?: string) => Promise<void>;
   /** Automatically login and import attendance via OCR backend. */
   autoImportAttendance: (req: Credentials) => Promise<void>;
+  portalAtt: PortalOverride | null;
   /** Discard imported attendance and fall back to academia. */
   clearImportedAttendance: () => void;
   marks: Marks | null;
@@ -1190,6 +1191,7 @@ export function SessionProvider({ children }: { children: React.ReactNode }) {
       importAttendanceHtml,
       autoImportAttendance,
       clearImportedAttendance,
+      portalAtt,
       marks: portalMarks
         ? enrichMarkTitles(portalMarks, courseTitles)
         : snapshot?.marks
