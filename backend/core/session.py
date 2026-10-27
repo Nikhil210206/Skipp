@@ -218,12 +218,15 @@ class Session:
         """
         resp = self.client.get(page_url(page_name), headers=APP_PAGE_HEADERS)
         if resp.status_code == 403:
+            log.warning("fetch_page('%s') returned HTTP 403: %s", page_name, resp.text[:300].strip())
             raise PageInaccessible(
                 f"'{page_name}' is currently unavailable on the portal."
             )
         if resp.status_code == 404:
+            log.warning("fetch_page('%s') returned HTTP 404: %s", page_name, resp.text[:300].strip())
             raise PageNotFound(f"'{page_name}' does not exist for this account.")
         if resp.status_code != 200:
+            log.warning("fetch_page('%s') returned HTTP %d: %s", page_name, resp.status_code, resp.text[:300].strip())
             raise PageError(
                 f"'{page_name}' returned HTTP {resp.status_code}."
             )
