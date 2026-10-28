@@ -5335,6 +5335,26 @@ Everything in §7's roadmap is built, and both halves are deployed on Vercel. Wh
    up the list after deploying, see the note on datacenter egress in the Vercel entry.
 4. Test the PWA install on real phones.
 
+### UPDATE (2026-10-27/28): Leave Predictor, PWA Cache, and Student Portal Prompt
+
+1. **Leave Predictor Overhaul (`frontend/src/lib/leavePredictor.ts`)**:
+   - **Multi-slot duration calculation (`getSlotHours`)**: Accurately computes duration across multi-period formats (e.g. `L51-L52`, `P37-P38-P39`, theory slots `A-B` or bare `A` = 1 hour).
+   - **Two-pass Course Matching (`findMatchingSubject`)**: Matches exact course codes first, then falls back to normalized base code (e.g., matching timetable slot `21CSC302J` with `21CSC302JTheory` / `Lab`).
+   - Ensures exact percentage and margin match under all leave prediction scenarios.
+
+2. **PWA Service Worker Invalidation Rule (`frontend/public/sw.js`)**:
+   - The frontend is an installable PWA using a hand-written Service Worker (`sw.js`).
+   - **CRITICAL**: Whenever shipping UI changes, bug fixes, or new components to production, **ALWAYS bump the cache version** (`CACHE = "skipp-vX"`) in `frontend/public/sw.js`. Otherwise, mobile devices and PWA home-screen installs continue serving stale cached JS bundles.
+
+3. **SRM Portals Architecture: Academia vs Student Portal**:
+   - **Academia (`academia.srmist.edu.in`)**: Zoho Creator app. Admin frequently gates `My_Attendance` (HTTP 403) during the term.
+   - **Student Portal (`sp.srmist.edu.in`)**: Java servlet app where attendance is actively published and updated daily.
+   - **Centered Login Prompt (`StudentPortalPromptModal.tsx`)**: When a student signs in via Academia and attendance is gated or missing, a centered modal appears prompting them to connect their SRM Student Portal credentials (`sp.srmist.edu.in`) to view live attendance & marks. Captcha is solved automatically via background OCR (`/sp/auto-login`), with manual fallback if needed.
+   - **Credential Note**: Note that Student Portal password is often different from Academia password, but do NOT assume or state it is their email password since users may have changed it.
+
+4. **Git Privacy Rule (CRITICAL)**:
+   - **NEVER** mention competitor apps (e.g., `ratiod`, `getratiod.lol`) in any git commit message, PR description, or public code comments. Keep all commits focused strictly on Skipp.
+
 **Local dev:** backend `cd backend && ./.venv/bin/uvicorn main:app --host 0.0.0.0 --reload`
 (port 8000); frontend `cd frontend && npm run dev` (port 3000). Do **not** run `npm run build`
 while the dev server is running, it corrupts `.next`; use `npx tsc --noEmit` and `npx eslint src`
