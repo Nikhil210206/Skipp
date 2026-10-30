@@ -1294,6 +1294,19 @@ html[data-theme="stone"] [data-mark-group] > div > span:nth-child(4) [data-lette
 html[data-theme="stone"] [data-mark-group] > div > span:nth-child(5) [data-letter] {
   color: var(--ms-yellow);
 }
+/* ...and the four are what bursts off the line when the cap lands. */
+html[data-theme="stone"] [data-toss-dot]:nth-child(4n + 1) {
+  fill: var(--ms-red);
+}
+html[data-theme="stone"] [data-toss-dot]:nth-child(4n + 2) {
+  fill: var(--ms-green);
+}
+html[data-theme="stone"] [data-toss-dot]:nth-child(4n + 3) {
+  fill: var(--ms-blue);
+}
+html[data-theme="stone"] [data-toss-dot]:nth-child(4n + 4) {
+  fill: var(--ms-yellow);
+}
 
 html {
   -webkit-tap-highlight-color: transparent;
@@ -1440,6 +1453,11 @@ body {
     transform: scaleX(0);
     transform-origin: left center;
   }
+  /* The launch's moving parts, so the first frame painted from the server's
+     HTML is the empty ground the toss starts from, not the finished mark. */
+  html.js [data-toss-hide] {
+    opacity: 0;
+  }
 }
 
 :focus-visible {
@@ -1459,6 +1477,17 @@ body {
    silently does nothing. */
 [data-field] :focus-visible {
   outline: none;
+}
+
+/* The Calendar's day popup takes focus as it opens, so a screen reader reads
+   the day out. The card arriving is the indicator: an accent ring round all
+   of it would be a second, louder one, and the accent is the action's. Its
+   close button still rings. Unlayered for the same reason as the rule above,
+   and the radius has to come back too: the ring's 6px corners are part of the
+   rule above, and replaced Brutal's square card and Ink's 18px one. */
+[data-day-peek]:focus-visible {
+  outline: none;
+  border-radius: var(--radius-card);
 }
 
 /* An optional class, under the themes that replace the timeline with cards.

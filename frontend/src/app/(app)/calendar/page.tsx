@@ -1,7 +1,8 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useCallback, useMemo, useRef, useState } from "react";
 import { useSession } from "@/context/SessionContext";
+import DayPeek from "@/components/DayPeek";
 import { todayISO } from "@/lib/schedule";
 import { revealIn, useGsap } from "@/lib/motion";
 import { Button, IconButton, StateView } from "@/components/ui";
@@ -26,6 +27,7 @@ const WEEKDAYS = ["M", "T", "W", "T", "F", "S", "S"];
 /**
  * The term as one full-bleed grid. The selected day is written out above it in
  * words rather than boxed in a card, so the grid itself is the whole screen.
+ * Tapping a date also pops that day's classes up at the date (`DayPeek`).
  */
 export default function CalendarPage() {
   const { timetable } = useSession();
@@ -56,6 +58,10 @@ export default function CalendarPage() {
 
   const holidays = useMemo(() => termHolidays(cal, today), [cal, today]);
   const [allOpen, setAllOpen] = useState(false);
+  // The date whose classes are popped up over the grid, or null.
+  const [peek, setPeek] = useState<string | null>(null);
+  const closePeek = useCallback(() => setPeek(null), []);
+  const grid = useRef<HTMLDivElement>(null);
 
   const scope = useGsap(({ self, reduced }) => revealIn(self, reduced, { y: 12 }), [ym]);
 
@@ -98,6 +104,13 @@ export default function CalendarPage() {
   const workingAll = cal.filter((d) => d.dayOrder != null);
   const workingDone = workingAll.filter((d) => d.date < today).length;
   const termPct = workingAll.length > 0 ? (workingDone / workingAll.length) * 100 : 0;
+  // The planner runs wider than the term (July to December against teaching
+  // from late July to early December), so a date with no day order may be a
+  // weekend or may be past the end of term. The popup says which.
+  const term =
+    workingAll.length > 0
+      ? { first: workingAll[0].date, last: workingAll[workingAll.length - 1].date }
+      : null;
 
   return (
     <>
@@ -164,7 +177,10 @@ export default function CalendarPage() {
               label="Previous month"
               variant="quiet"
               disabled={monthIdx <= 0}
-              onClick={() => monthIdx > 0 && setYm(months[monthIdx - 1])}
+              onClick={() => {
+                setPeek(null);
+                if (monthIdx > 0) setYm(months[monthIdx - 1]);
+              }}
             >
               <IconChevronLeft size={18} />
             </IconButton>
@@ -172,15 +188,19 @@ export default function CalendarPage() {
               label="Next month"
               variant="quiet"
               disabled={monthIdx >= months.length - 1}
-              onClick={() => monthIdx < months.length - 1 && setYm(months[monthIdx + 1])}
+              onClick={() => {
+                setPeek(null);
+                if (monthIdx < months.length - 1) setYm(months[monthIdx + 1]);
+              }}
             >
               <IconChevronRight size={18} />
             </IconButton>
           </div>
         </div>
 
-        {/* Full-bleed grid */}
-        <div data-reveal className="bleed bleed-pad">
+        {/* Full-bleed grid. Positioned, because the day's popup is placed
+            inside it, against the date it belongs to. */}
+        <div data-reveal ref={grid} className="bleed bleed-pad relative">
           <div className="grid grid-cols-7">
             {WEEKDAYS.map((w, i) => (
               <div
@@ -201,8 +221,17 @@ export default function CalendarPage() {
               return (
                 <button
                   key={i}
-                  onClick={() => setSelected(date)}
+                  onClick={() => {
+                    setSelected(date);
+                    // The same date again closes its popup; another moves it.
+                    setPeek((p) => (p === date ? null : date));
+                  }}
                   aria-pressed={isSel}
+                  aria-haspopup="dialog"
+                  aria-expanded={peek === date}
+                  // What the popup finds its date by, and what tells it a tap
+                  // landed on a date rather than outside.
+                  data-date={date}
                   aria-label={`${d} ${MONTHS[month0]}${
                     works
                       ? `, day order ${day!.dayOrder}`
@@ -282,6 +311,13 @@ export default function CalendarPage() {
               );
             })}
           </div>
+          <DayPeek
+            date={peek}
+            days={byDate}
+            term={term}
+            container={grid}
+            onClose={closePeek}
+          />
         </div>
 
         <div data-reveal className="pt-6">
@@ -367,6 +403,7 @@ export default function CalendarPage() {
         holidays={holidays}
         today={today}
         onPick={(date) => {
+          setPeek(null);
           setYm(date.slice(0, 7));
           setSelected(date);
         }}

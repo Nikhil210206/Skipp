@@ -157,7 +157,9 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
               masthead sits inside PullToRefresh's transformed wrapper, which is
               its own stacking context, so any overlay raised above the content
               would also cover the profile mark and stop it being tappable. */}
-          <header className="sticky top-0 z-20 shrink-0 pt-[env(safe-area-inset-top)]">
+          {/* `data-masthead`: popups measure the room above them to its
+              bottom edge, since it is sticky and would cover them. */}
+          <header data-masthead className="sticky top-0 z-20 shrink-0 pt-[env(safe-area-inset-top)]">
             <ScrollEdge />
             <div className="relative flex h-14 items-center justify-between px-[var(--gutter)] lg:px-10 xl:px-16">
               <button

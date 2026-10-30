@@ -40,6 +40,16 @@ export const TASSEL_PIVOT = { x: 28.2, y: 10.7 } as const;
 export const RULE = { x: 2.6, y: 25.6, w: 26.4, h: 1.8, r: 0.9 } as const;
 
 /**
+ * The lowest point of the cap, where the launch lands it on the line and
+ * squashes it. Worked out from BODY rather than eyeballed: its curve runs
+ * y = 19.3 + 9.6(1 - t)t², which bottoms out two thirds of the way along.
+ */
+export const CAP_FOOT = { x: 16.2, y: 20.72 } as const;
+
+/** The middle of the cap, board and body together, which it tumbles about. */
+export const CAP_CENTRE = { x: 16, y: 13 } as const;
+
+/**
  * The mark as a standalone SVG document, for the PNG icons.
  *
  * `bg` null leaves the tile transparent. `radius` is in the same 32 unit space

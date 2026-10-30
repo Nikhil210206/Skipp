@@ -12,6 +12,11 @@ const config: CapacitorConfig = {
   appId: "life.skipp.app",
   appName: "Skipp",
   webDir: "public",
+  // The web view's own colour while the site is still loading. Unset it is
+  // white, which flashed between the black launch screen and the black launch
+  // animation. Black is Ink's ground; a student on a light look sees black
+  // only until the page paints.
+  backgroundColor: "#000000",
   // The simulator shares the Mac's network, so it can reach a local dev server
   // at localhost. Set SKIPP_NATIVE_DEV=1 to load the dev build (with unshipped
   // changes) instead of production, for on-device testing.

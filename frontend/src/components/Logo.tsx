@@ -15,9 +15,12 @@ import {
  * is set beside. The tassel is the accent: it is the detail that makes a cap a
  * cap, and the one vertical against all those horizontals.
  *
- * `data-cap`, `data-tassel` and `data-rule` are here so the launch can
- * choreograph the pieces. Nothing else should animate them: two systems writing
- * one transform is the standing trap in this codebase.
+ * **No data attributes on the pieces.** The rule used to carry `data-rule`
+ * for the launch to animate, and `data-rule` is also the editorial hairline
+ * (`ui/editorial.tsx`) that Brutal, Terminal, Clay, Stone and Ticket hide and
+ * Register pencils in: so in six themes the mark lost its line, or had it
+ * stretched into a pencil stroke. The launch draws its own copy now
+ * (`Splash.tsx`), so nothing here needs a hook.
  */
 export default function Logo({
   size = 28,
@@ -38,11 +41,9 @@ export default function Logo({
       aria-hidden
       className={className}
     >
-      <g data-cap>
-        <path d={BOARD} fill="currentColor" />
-        <path d={BODY} fill="currentColor" />
-      </g>
-      <g data-tassel>
+      <path d={BOARD} fill="currentColor" />
+      <path d={BODY} fill="currentColor" />
+      <g>
         <path
           d={TASSEL_CORD}
           strokeWidth={TASSEL_CORD_W}
@@ -60,7 +61,6 @@ export default function Logo({
         />
       </g>
       <rect
-        data-rule
         x={RULE.x}
         y={RULE.y}
         width={RULE.w}

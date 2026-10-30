@@ -16,7 +16,12 @@
     </style>
 
 
+    <!-- Black, the ground the web launch (Splash.tsx) starts from, so opening
+         the app is one continuous black from the tap to the toss. Android 12
+         and later show their own splash, the icon on windowSplashScreenBackground;
+         older versions draw @drawable/splash, which is plain black too. -->
     <style name="AppTheme.NoActionBarLaunch" parent="Theme.SplashScreen">
         <item name="android:background">@drawable/splash</item>
+        <item name="windowSplashScreenBackground">#000000</item>
     </style>
 </resources>

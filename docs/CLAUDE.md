@@ -345,7 +345,130 @@ is deployment and true push notifications.
 Entries below are newest first. **When something breaks, read the relevant entry first**: most
 oddities here (login shell, empty calendar, 429s, duplicated course codes) are already diagnosed.
 
-### DONE: The front door, in one language, and Arcade is gone (2026-10-26, latest)
+### DONE: Tap a date, see its classes (2026-10-31, latest)
+
+Asked for as "if we click on any date in the calendar, a small pop should show
+that day's timetable". `components/DayPeek.tsx` is a card that pops up at the
+tapped date: the date, the day order (or the holiday's name), a count with the
+day's span ("6 classes, 08:00 to 02:50"), then one line a class with its start
+time, its name (with "Lab" or "Optional" beside it) and the room. Tapping a
+date still writes the day out above the grid as before.
+
+- **It is the day sheet removed on 2026-08-08, asked for again, so it is kept
+  small**: a card at the date, the classes and nothing else. No free gaps, no
+  styled empty state; a day without classes says why in one line ("Saturday",
+  "Outside the term", or the holiday's name).
+- **The classes are Schedule's**: `mergeRuns(daySchedule(...), { labsOnly:
+  true })`, so theory hours stay separate, labs stay whole, the student's own
+  classes are in and optional ones are faded, exactly as Schedule draws them.
+- **Tap the same date again to close it**, another date to move it there.
+  Anywhere else, Escape, the close button or a month change closes it, and
+  Escape hands focus back to the date. It opens focused (`role="dialog"`)
+  so a screen reader reads the day out.
+- **Placed above the date where it fits, so a thumb does not cover it**, then
+  below, and when it fits neither, on the roomier side with its list cut to
+  fit and scrolling inside. **The room is measured between the masthead and
+  the tab bar**, not the screen's edges: a first version measured only the
+  masthead, and a date in the middle of the screen sent the card under the tab
+  bar with its last two classes hidden. AppShell's header carries a new
+  `data-masthead` for it, and the tab bar (`[data-nav]`) is `lg:hidden` on a
+  laptop, where it measures nothing and the window's bottom stands in.
+- **One line a class.** The first build gave each class two lines and measured
+  463px tall on a phone, most of the month it sits over; it is 337px for six
+  classes now. Names wrap rather than truncate, the rule Marks already keeps.
+- It sits inside the grid's box rather than portalled, so it scrolls with its
+  date. Nothing in it is `position: fixed`, so the portal rule does not apply.
+- **`shadow-float` does not theme.** Tailwind v4 bakes a theme shadow's value
+  into that utility, so the card had Ink's soft shadow under every look. It is
+  `shadow-(--shadow-float)`, which reads the variable: Brutal's hard offset,
+  Clay's puff, Terminal's glow. Use the variable form for any themed shadow.
+- **The global `:focus-visible` rule also sets `border-radius: 6px`.** An
+  opt-out has to put the radius back as well as the outline, or a focused
+  card loses its look's corners. `[data-day-peek]:focus-visible` does both,
+  unlayered like the `[data-field]` rule beside it.
+- Start times go through `fmtTime` like the end times. The dev fixture's
+  start strings are 24 hour, so Schedule, which prints the portal string,
+  reads "14:00" over "02:50" against `?fixture=1`; the real portal's strings
+  are already in that 12 hour shape.
+
+Verified in the DevTools browser against `?fixture=1` with no backend running,
+so no sign-in was spent: open, close on the same date, move, outside, Escape
+(focus back on the date), the close button, a month change, a Saturday, a date
+past the end of term and a holiday. Placement checked at 390x844 (above the
+date, and the roomier side for a mid-screen date), 1440x900 (clamped inside the
+grid, no tab bar) and 844x390 (cut to 97px with the list scrolling). Ink and
+Brutal seen; Clay, Terminal, Ticket, Stone, Register and Paper measured. Reduced
+motion is a fade with no transform. No console errors, `tsc` and `eslint` on
+the changed files clean. **Not verified:** a real phone, and VoiceOver or
+TalkBack reading it.
+
+### DONE: The launch is a toss (2026-10-30)
+
+Asked for as "the skipp logo animation, the one when we open the app each time"
+being made more creative. `components/Splash.tsx` is rewritten; **the drop
+described in the 2026-07-30 mark entry below is gone.** Three directions were
+mocked as looping phones beside the old one on a design canvas
+(claude.ai/artifact/NmEuvSZf7tt9sAXY8EEZLa): A, the cap skipping like a stone
+and landing as the dot of the i; B, the toss; C, a register of dots that lights
+up into the mark. **B was chosen.**
+
+- **The sequence.** The line draws and waits (0 to 0.4s). The cap is thrown up
+  from below the bottom edge, tumbling (a scaleY through zero, not a 3D flip),
+  peaks at 0.5s, and lands at 0.7s. The line gives like a trampoline, each half
+  turning 12.8 degrees about its outer end, then springs past flat. The cap
+  squashes about its foot, is flung back up and settles, dots burst off the
+  line, the tassel whips, and the word jumps up from the middle out. It lifts
+  at 1.45s (`markLaunchLifted`) and is gone at 1.87s, against 1.79s before.
+- **Splash draws its own mark rather than using `Logo`**, because the toss
+  needs the pieces nested the way they move: flight carries tumble, tumble
+  carries squash, and the tassel swings inside all three so it stays tied to
+  the board. Every tween moves in the mark's 32 unit space; `CAP_FOOT` and
+  `CAP_CENTRE` joined `lib/logo.ts`, the foot worked out from the BODY curve.
+- **The throw is measured from the screen.** It starts 40px below whatever the
+  bottom edge is, and the peak is 170px above the mark but clamped to clear the
+  top: on an 844x390 landscape phone it peaks 30px from the top.
+- **The first painted frame is now the empty ground.** The server's HTML used
+  to paint the finished mark, which then vanished when the timeline took over
+  at hydration. `html.js [data-toss-hide]` hides the moving parts under
+  `prefers-reduced-motion: no-preference`, so reduced motion still paints the
+  mark from the first frame.
+- **A `fromTo` renders its from state the moment it is made**, wherever it
+  sits in the timeline. The burst's fade was written that way and left every
+  dot showing on the line for the whole throw; it carries
+  `immediateRender: false` now. Check this on any fromTo placed late in a
+  timeline.
+- **`stagger.each` with `from: "center"` doubles per step** (five letters spread
+  over 0.24s, not 0.12), so the ends were still settling as the launch lifted.
+  It is `amount: 0.12`.
+- **A 4s failsafe** takes the overlay away if the timeline never finishes,
+  since a hidden tab draws no frames and a tween can throw.
+- Reduced motion: the finished mark stands still, holds 0.35s, then fades over
+  0.3s. Measured: no transform on anything in any frame, gone at 0.8s.
+- Stone keeps its four colours on the letters (the `[data-mark-group] > div >
+  span > [data-letter]` shape is unchanged) and its burst dots take them too.
+- **Fixed in passing: the mark lost its line in six themes.** `Logo`'s rule
+  carried `data-rule`, which is also the editorial hairline that Brutal,
+  Terminal, Clay, Stone and Ticket set to `display: none` and Register
+  stretches to 8px at 45% opacity. Confirmed with a control element carrying
+  the old markup under both themes. `Logo` carries no data attributes now.
+- **The native shells were showing Capacitor's placeholder** (a blue X on
+  white) and a white web view before the page painted. All 14 launch images
+  (iOS imageset, Android drawables) are plain black at their original sizes,
+  the iOS storyboard background is black, Android 12+ gets
+  `windowSplashScreenBackground` black, and `capacitor.config.ts` sets the web
+  view's `backgroundColor` to black. **None of that reaches a device until
+  `npx cap sync` and a native rebuild.**
+
+Verified in the DevTools browser against the dev server, with motion forced on,
+by sampling every frame and by pausing the timeline at chosen moments (a
+temporary hook, since removed): 112 frames in 1.87s at 390x844 and at
+1440x900, the word settled at 1.40s, no dot visible before the landing, the
+hero's entrance starting at 1.53s, Ink, Stone, Ticket and Brutal checked, no
+console errors, `tsc` and `eslint` on the changed files clean. **Not verified:**
+a real phone, an installed PWA, and the native launch screens, which need a
+rebuild.
+
+### DONE: The front door, in one language, and Arcade is gone (2026-10-26)
 
 A signed out visit is now: the **hero** (`components/front/Hero.tsx`), the
 install offer on a phone, a four chapter **tour** (`components/front/Tour.tsx`),
@@ -2940,6 +3063,8 @@ rather than restyled. **Any device built on the spine needs this same pass.**
 **A day sheet on the Calendar was built and removed on request** (it listed the
 day's classes, the free gaps and a styled empty state). Tapping a date does what
 it always did: writes the day out above the grid. Do not rebuild it.
+**Superseded 2026-10-31:** a date's classes were asked for again, as a small
+popup at the date rather than a sheet. See "Tap a date, see its classes".
 
 **On a holiday the NAME leads and "Holiday" is the supporting line.** The
 category is already obvious from the coloured square; which holiday it is, is
