@@ -2,12 +2,12 @@ import type { Metadata, Viewport } from "next";
 import {
   Bricolage_Grotesque,
   Caveat,
-  Fredoka,
   Geist,
   Geist_Mono,
   Space_Grotesk,
   Unbounded,
 } from "next/font/google";
+import localFont from "next/font/local";
 import "./globals.css";
 import { SessionProvider } from "@/context/SessionContext";
 import { THEME_INIT_SCRIPT } from "@/lib/themeScript";
@@ -62,11 +62,21 @@ const display = Bricolage_Grotesque({
  * Clay's puffy masthead title, and nothing else. `preload: false` IS LOAD
  * BEARING: the root layout preloads every font it declares, so without it every
  * student would download a face only a student on Clay ever uses.
+ *
+ * Fredoka, shipped in the repo rather than fetched from Google at build time.
+ * On 2026-10-30 the production build on Vercel died resolving this one font
+ * ("next/font/google queries have exactly one entry") with layout.tsx
+ * unchanged since builds that passed, while every other Google font in this
+ * file resolved and the same build passed on a laptop: whatever Google served
+ * Vercel's builder for Fredoka, Turbopack could not parse it. A file in the
+ * repo cannot change under us. It is the latin subset of the variable font
+ * (OFL), so one file covers both weights Clay uses.
  */
-const puffy = Fredoka({
+const puffy = localFont({
+  src: "./fonts/fredoka-latin.woff2",
   variable: "--font-puffy-src",
-  subsets: ["latin"],
-  weight: ["600", "700"],
+  weight: "600 700",
+  display: "swap",
   preload: false,
 });
 
