@@ -4,7 +4,7 @@
 
 // Bumped whenever the shipped assets must supersede what a phone already has.
 // A byte-identical sw.js is never treated as an update by the browser.
-const CACHE = "skipp-v9";
+const CACHE = "skipp-v10";
 
 self.addEventListener("install", () => self.skipWaiting());
 

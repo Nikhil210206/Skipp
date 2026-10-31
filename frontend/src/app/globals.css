@@ -1490,6 +1490,15 @@ body {
   border-radius: var(--radius-card);
 }
 
+/* Sheets, the Modal and the Panel take focus themselves as they open (see
+   useFocusTrap), for the same reason. `revert-layer` hands the corners back to
+   the panel's own rounded utility, which the 6px above would otherwise
+   replace. */
+[data-overlay]:focus-visible {
+  outline: none;
+  border-radius: revert-layer;
+}
+
 /* An optional class, under the themes that replace the timeline with cards.
    Ink and the skins break the spine beside the row to say it; these three hide
    the spine, so the card's own edge carries it instead. Clay draws no border at

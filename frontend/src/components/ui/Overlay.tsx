@@ -74,7 +74,11 @@ function useFocusTrap(open: boolean, ref: React.RefObject<HTMLElement | null>) {
         ),
       ).filter((el) => el.offsetParent !== null);
 
-    focusable()[0]?.focus();
+    // Into the panel itself, not its first control. That control is usually
+    // the close button, and an overlay that opens on its own (no tap first)
+    // counts as keyboard focus, so the X wore the accent ring on arrival. The
+    // panel being there is the indicator; Tab goes on to the first control.
+    root.focus({ preventScroll: true });
 
     const onKey = (e: KeyboardEvent) => {
       if (e.key !== "Tab") return;
@@ -82,7 +86,7 @@ function useFocusTrap(open: boolean, ref: React.RefObject<HTMLElement | null>) {
       if (items.length === 0) return;
       const first = items[0];
       const last = items[items.length - 1];
-      if (e.shiftKey && document.activeElement === first) {
+      if (e.shiftKey && (document.activeElement === first || document.activeElement === root)) {
         e.preventDefault();
         last.focus();
       } else if (!e.shiftKey && document.activeElement === last) {
@@ -211,6 +215,8 @@ export function Sheet({
       <div
         ref={panel}
         data-sheet
+        data-overlay
+        tabIndex={-1}
         className="absolute inset-x-0 bottom-0 mx-auto flex max-h-[88vh] w-full max-w-md flex-col rounded-t-sheet border-t border-line bg-ink-1 shadow-float"
       >
         <div
@@ -247,11 +253,14 @@ export function Modal({
   title,
   children,
   footer,
+  label,
   maxWidth = "max-w-md",
 }: {
   open: boolean;
   onClose: () => void;
   title?: string;
+  /** What a screen reader calls it when the caller draws its own heading. */
+  label?: string;
   children: React.ReactNode;
   footer?: React.ReactNode;
   maxWidth?: string;
@@ -292,7 +301,7 @@ export function Modal({
       className="fixed inset-0 z-50 flex items-center justify-center p-4 sm:p-6"
       role="dialog"
       aria-modal="true"
-      aria-label={title || "Dialog"}
+      aria-label={title || label || "Dialog"}
     >
       <div
         ref={scrim}
@@ -301,7 +310,14 @@ export function Modal({
       />
       <div
         ref={panel}
-        className={`relative z-10 w-full ${maxWidth} my-auto flex max-h-[90vh] flex-col rounded-2xl border border-line bg-ink-1 shadow-float overflow-hidden`}
+        // The look's own corners and shadow, read at runtime: `rounded-2xl` and
+        // `shadow-float` are fixed values, so the box looked like Ink in every
+        // look (Tailwind bakes a theme shadow into that utility). `data-sheet`
+        // lets Stone square it and light its top edge as it does a sheet.
+        data-sheet
+        data-overlay
+        tabIndex={-1}
+        className={`relative z-10 w-full ${maxWidth} my-auto flex max-h-[90dvh] flex-col overflow-hidden rounded-card border border-line bg-ink-1 shadow-(--shadow-float)`}
       >
         {title && (
           <div className="flex items-center justify-between border-b border-line-soft px-5 py-3.5">
@@ -380,6 +396,8 @@ export function Panel({
       role="dialog"
       aria-modal="true"
       aria-label={title}
+      data-overlay
+      tabIndex={-1}
       className="fixed inset-0 z-50 flex flex-col bg-ink-0"
     >
       <header
