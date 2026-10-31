@@ -6,6 +6,14 @@ import { Button, IconButton, Label } from "@/components/ui";
 import { IconClose } from "@/components/Icons";
 import { useSession } from "@/context/SessionContext";
 import {
+  CaptchaField,
+  NetIdField,
+  PortalPasswordField,
+  PortalPromise,
+  PortalStatus,
+  portalInputError,
+} from "@/components/PortalFields";
+import {
   AuthError,
   initStudentPortalLogin,
   type StudentPortalCaptchaResponse,
@@ -31,7 +39,6 @@ export default function StudentPortalPromptModal() {
   const [open, setOpen] = useState(false);
   const [username, setUsername] = useState("");
   const [password, setPassword] = useState("");
-  const [showPassword, setShowPassword] = useState(false);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [success, setSuccess] = useState(false);
@@ -124,20 +131,9 @@ export default function StudentPortalPromptModal() {
       ? rawUser.split("@")[0].trim()
       : rawUser;
 
-    if (!cleanUser) {
-      setError("Enter your Net ID.");
-      return;
-    }
-
-    if (isRegistrationNumber(cleanUser)) {
-      setError(
-        "The Student Portal signs in with your Net ID, like ab1234, not your registration number."
-      );
-      return;
-    }
-
-    if (!password) {
-      setError("Enter your Student Portal password.");
+    const invalid = portalInputError(cleanUser, password, isRegistrationNumber);
+    if (invalid) {
+      setError(invalid);
       return;
     }
 
@@ -229,105 +225,32 @@ export default function StudentPortalPromptModal() {
       </p>
 
       <form onSubmit={handleSubmit} className="mt-5 flex flex-col gap-3" noValidate>
-        <PortalField id="portal-username" label="Net ID" suffix="@srmist.edu.in">
-          <input
-            id="portal-username"
-            type="text"
-            value={username}
-            onChange={(e) => setUsername(e.target.value)}
-            autoComplete="username"
-            autoCapitalize="none"
-            autoCorrect="off"
-            spellCheck={false}
-            disabled={locked}
-            className={INPUT}
-          />
-        </PortalField>
-
-        <div>
-          <PortalField
-            id="portal-password"
-            label="Student Portal password"
-            action={
-              <button
-                type="button"
-                onClick={() => setShowPassword((v) => !v)}
-                aria-pressed={showPassword}
-                // 44px tall to tap, pulled back out of the row with negative
-                // margins so the label line keeps its height.
-                className="-my-3 -mr-2 min-h-11 px-2 text-label uppercase text-text-2 hover:text-text-1"
-              >
-                {showPassword ? "Hide" : "Show"}
-              </button>
-            }
-          >
-            <input
-              id="portal-password"
-              type={showPassword ? "text" : "password"}
-              value={password}
-              onChange={(e) => setPassword(e.target.value)}
-              autoComplete="current-password"
-              disabled={locked}
-              className={INPUT}
-            />
-          </PortalField>
-          <p className="mt-1.5 px-1 text-callout text-text-3">
-            Often not the same as your Academia password.
-          </p>
-        </div>
+        <NetIdField id="portal-username" value={username} onChange={setUsername} disabled={locked} />
+        <PortalPasswordField
+          id="portal-password"
+          value={password}
+          onChange={setPassword}
+          disabled={locked}
+        />
 
         {/* Only when reading the security check automatically failed. */}
-        {captchaSession && (
-          <PortalField
+        {(captchaSession || loadingCaptcha) && (
+          <CaptchaField
             id="portal-captcha"
-            label="Type the letters you see"
-            action={
-              <button
-                type="button"
-                onClick={() => void loadManualCaptcha()}
-                disabled={loadingCaptcha || busy}
-                className="-my-3 -mr-2 min-h-11 px-2 text-label uppercase text-text-2 hover:text-text-1 disabled:opacity-40"
-              >
-                {loadingCaptcha ? "Loading" : "New one"}
-              </button>
-            }
-          >
-            <div className="flex items-center gap-3">
-              {/* On white whatever the look: the portal draws dark letters on
-                  a transparent ground, unreadable on a dark card. */}
-              {/* eslint-disable-next-line @next/next/no-img-element */}
-              <img
-                src={captchaSession.captchaBase64}
-                alt="Security check letters"
-                className="h-10 w-auto shrink-0 select-none rounded-control bg-white object-contain px-2 py-0.5"
-              />
-              <input
-                id="portal-captcha"
-                type="text"
-                value={captchaInput}
-                onChange={(e) => setCaptchaInput(e.target.value.toUpperCase())}
-                maxLength={6}
-                autoComplete="off"
-                autoCapitalize="characters"
-                autoCorrect="off"
-                spellCheck={false}
-                disabled={busy}
-                className={`${INPUT} tnum uppercase tracking-[0.2em]`}
-              />
-            </div>
-          </PortalField>
+            session={captchaSession}
+            loading={loadingCaptcha}
+            error={null}
+            value={captchaInput}
+            onChange={setCaptchaInput}
+            onReload={() => void loadManualCaptcha()}
+            disabled={busy}
+          />
         )}
 
-        {/* Polite, so a screen reader hears the error or the result without
-            losing its place in the form. */}
-        <div aria-live="polite">
-          {error && <p className="px-1 text-callout text-risk">{error}</p>}
-          {success && (
-            <p className="px-1 text-callout text-text-2">
-              Connected. Loading your attendance and marks.
-            </p>
-          )}
-        </div>
+        <PortalStatus
+          error={error}
+          done={success ? "Connected. Loading your attendance and marks." : null}
+        />
 
         <div className="mt-1 flex flex-col gap-1">
           <Button
@@ -344,51 +267,8 @@ export default function StudentPortalPromptModal() {
           </Button>
         </div>
 
-        <p className="px-1 pb-1 text-center text-callout text-text-3">
-          Your password is encrypted on this device and never stored on our
-          servers.
-        </p>
+        <PortalPromise />
       </form>
     </Modal>
-  );
-}
-
-const INPUT =
-  "min-w-0 w-full flex-1 appearance-none bg-transparent text-headline text-text-1 outline-none focus:outline-none focus-visible:outline-none placeholder:text-text-3 disabled:opacity-60";
-
-/**
- * The sign-in screen's field, on the popup's raised card: the whole box is the
- * label, so a tap anywhere in it focuses the input, and `data-field` gives it
- * each look's field treatment (Stone cuts it into the wall) and drops the
- * global focus ring for the box's own accent border.
- */
-function PortalField({
-  id,
-  label,
-  suffix,
-  action,
-  children,
-}: {
-  id: string;
-  label: string;
-  suffix?: string;
-  action?: React.ReactNode;
-  children: React.ReactNode;
-}) {
-  return (
-    <label
-      htmlFor={id}
-      data-field
-      className="block cursor-text rounded-control border border-line bg-ink-2 px-4 py-3 transition-colors focus-within:border-accent"
-    >
-      <span className="flex items-center justify-between gap-2">
-        <span className="text-label uppercase text-text-3">{label}</span>
-        {action}
-      </span>
-      <span className="mt-1.5 flex items-baseline gap-1">
-        {children}
-        {suffix && <span className="shrink-0 text-headline text-text-3">{suffix}</span>}
-      </span>
-    </label>
   );
 }
