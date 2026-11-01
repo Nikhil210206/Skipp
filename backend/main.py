@@ -17,14 +17,16 @@ webhook and keeps nothing.
 """
 from fastapi import FastAPI, HTTPException, Request
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.responses import JSONResponse
+from fastapi.responses import HTMLResponse, JSONResponse
 from pydantic import BaseModel, Field
 
 import logging
 import os
 import time
 from datetime import datetime, timezone
+from typing import Optional
 
+from core.audit import record_activity, render_activity_html, get_activity_history
 from core.client import (
     TimeBudgetExceeded,
     PAGE_ACADEMIC_PLANNER,
@@ -81,12 +83,19 @@ from services.timetable import parse_timetable
 from services.unified_timetable import parse_unified_timetable
 
 
-# The root logger defaults to WARNING with no attached handler, so an INFO
-# call is silently dropped rather than reaching stdout. Every existing log
-# call in this codebase is a `warning`, which is why that went unnoticed
-# until an `info` call (the sign-in log below) needed to actually show up.
+# Logging configuration: clean info logs for Skipp, silence noisy 3rd-party loggers
 logging.basicConfig(level=logging.INFO)
 log = logging.getLogger("skipp.api")
+
+for noisy_logger in (
+    "httpx",
+    "httpcore",
+    "urllib3",
+    "ddddocr",
+    "onnxruntime",
+    "watchfiles",
+):
+    logging.getLogger(noisy_logger).setLevel(logging.WARNING)
 
 # Attendance and marks both render on the attendance page; marks appears once
 # the university publishes internal assessments.
@@ -265,28 +274,74 @@ def _fail(status: int, code: str, message: str) -> HTTPException:
     return HTTPException(status_code=status, detail={"code": code, "message": message})
 
 
-def _login_or_4xx(req: LoginRequest):
+def _login_or_4xx(
+    req: LoginRequest,
+    action: str = "Academia Login",
+    ip: str = "unknown",
+    t0: float = 0.0,
+):
     """Authenticate, mapping login failures to clean HTTP errors.
 
-    Logs the net id (never the password) on a successful sign-in only, to
-    stdout, so it shows up in the platform's runtime log stream and nowhere
-    more permanent: not a database, not a file on disk.
+    Logs student activity and outcome cleanly to stdout and activity history.
+    Never stores or logs passwords.
     """
     try:
         session = login(req.username, req.password)
     except UserNotFound as e:
+        record_activity(
+            action=action,
+            username=req.username,
+            status="USER_NOT_FOUND",
+            status_code=404,
+            details="User not found on portal",
+            duration_s=time.monotonic() - t0 if t0 else 0.0,
+            ip=ip,
+        )
         raise _fail(404, "user_not_found", str(e)) from e
     except InvalidCredentials as e:
+        record_activity(
+            action=action,
+            username=req.username,
+            status="WRONG_PASSWORD",
+            status_code=401,
+            details="Invalid username or password",
+            duration_s=time.monotonic() - t0 if t0 else 0.0,
+            ip=ip,
+        )
         raise _fail(401, "wrong_password", str(e)) from e
     except CaptchaRequired as e:
+        record_activity(
+            action=action,
+            username=req.username,
+            status="CAPTCHA_REQUIRED",
+            status_code=429,
+            details="Captcha required by portal",
+            duration_s=time.monotonic() - t0 if t0 else 0.0,
+            ip=ip,
+        )
         raise _fail(429, "captcha", str(e)) from e
     except SignInLimitReached as e:
+        record_activity(
+            action=action,
+            username=req.username,
+            status="SIGNIN_LIMIT",
+            status_code=429,
+            details="Daily sign-in limit reached on portal",
+            duration_s=time.monotonic() - t0 if t0 else 0.0,
+            ip=ip,
+        )
         raise _fail(429, "signin_limit", str(e)) from e
     except PortalError as e:
+        record_activity(
+            action=action,
+            username=req.username,
+            status="PORTAL_ERROR",
+            status_code=502,
+            details=str(e),
+            duration_s=time.monotonic() - t0 if t0 else 0.0,
+            ip=ip,
+        )
         raise _fail(502, "portal", str(e)) from e
-    # TimeBudgetExceeded is deliberately NOT caught here: the app-level handler
-    # turns it into a 504 wherever it is raised, login or page fetch alike.
-    log.info("signed in: %s", req.username)
     return session
 
 
@@ -298,18 +353,57 @@ def timetable(req: LoginRequest, request: Request) -> Timetable:
     best-effort: if the unified time table or planner can't be fetched/parsed,
     we still return the course list (empty dayOrders/calendar).
     """
+    t0 = time.monotonic()
+    ip = _client_ip(request)
     _rate_check(request, req.username)
-    session = _login_or_4xx(req)
+    session = _login_or_4xx(req, action="Academia Timetable", ip=ip, t0=t0)
     try:
         tt = parse_timetable(session.fetch_page(PAGE_TIMETABLE))
-        log.info("student: %s (section %s)", tt.student.name, tt.student.section)
         _enrich_with_day_orders(session, tt)
+        record_activity(
+            action="Academia Timetable",
+            username=req.username,
+            student_name=tt.student.name if tt.student else None,
+            section=tt.student.section if tt.student else None,
+            status="SUCCESS",
+            status_code=200,
+            details=f"{len(tt.courses)} courses",
+            duration_s=time.monotonic() - t0,
+            ip=ip,
+        )
         return tt
     except PageEmptyError as e:
+        record_activity(
+            action="Academia Timetable",
+            username=req.username,
+            status="PAGE_EMPTY",
+            status_code=502,
+            details=str(e),
+            duration_s=time.monotonic() - t0,
+            ip=ip,
+        )
         raise HTTPException(status_code=502, detail=str(e)) from e
     except PageNotFound as e:
+        record_activity(
+            action="Academia Timetable",
+            username=req.username,
+            status="PAGE_NOT_FOUND",
+            status_code=404,
+            details=str(e),
+            duration_s=time.monotonic() - t0,
+            ip=ip,
+        )
         raise HTTPException(status_code=404, detail=str(e)) from e
     except (AppSessionError, PageError) as e:
+        record_activity(
+            action="Academia Timetable",
+            username=req.username,
+            status="PAGE_ERROR",
+            status_code=502,
+            details=str(e),
+            duration_s=time.monotonic() - t0,
+            ip=ip,
+        )
         raise HTTPException(status_code=502, detail=str(e)) from e
     finally:
         session.close()
@@ -323,11 +417,12 @@ def refresh(req: LoginRequest, request: Request) -> Snapshot:
     single Zoho sign-in (which is daily-capped). Only a timetable failure is
     fatal; attendance/marks each carry their own status (ready/gated/error).
     """
+    t0 = time.monotonic()
+    ip = _client_ip(request)
     _rate_check(request, req.username)
-    session = _login_or_4xx(req)
+    session = _login_or_4xx(req, action="Academia Refresh", ip=ip, t0=t0)
     try:
         tt = parse_timetable(session.fetch_page(PAGE_TIMETABLE))
-        log.info("student: %s (section %s)", tt.student.name, tt.student.section)
         _enrich_with_day_orders(session, tt)
 
         att, att_status, att_msg = _try_section(
@@ -342,6 +437,19 @@ def refresh(req: LoginRequest, request: Request) -> Snapshot:
             titles = {c.code: c.title for c in tt.courses}
             for s in marks.subjects:
                 s.title = titles.get(s.code, s.code)
+
+        details = f"{len(tt.courses)} courses, Att: {att_status.upper()}, Marks: {marks_status.upper()}"
+        record_activity(
+            action="Academia Refresh",
+            username=req.username,
+            student_name=tt.student.name if tt.student else None,
+            section=tt.student.section if tt.student else None,
+            status="SUCCESS",
+            status_code=200,
+            details=details,
+            duration_s=time.monotonic() - t0,
+            ip=ip,
+        )
         return Snapshot(
             timetable=tt,
             attendance=att,
@@ -353,10 +461,37 @@ def refresh(req: LoginRequest, request: Request) -> Snapshot:
             fetched_at=datetime.now(timezone.utc).isoformat(),
         )
     except PageEmptyError as e:
+        record_activity(
+            action="Academia Refresh",
+            username=req.username,
+            status="PAGE_EMPTY",
+            status_code=502,
+            details=str(e),
+            duration_s=time.monotonic() - t0,
+            ip=ip,
+        )
         raise HTTPException(status_code=502, detail=str(e)) from e
     except PageNotFound as e:
+        record_activity(
+            action="Academia Refresh",
+            username=req.username,
+            status="PAGE_NOT_FOUND",
+            status_code=404,
+            details=str(e),
+            duration_s=time.monotonic() - t0,
+            ip=ip,
+        )
         raise HTTPException(status_code=404, detail=str(e)) from e
     except (AppSessionError, PageError) as e:
+        record_activity(
+            action="Academia Refresh",
+            username=req.username,
+            status="PAGE_ERROR",
+            status_code=502,
+            details=str(e),
+            duration_s=time.monotonic() - t0,
+            ip=ip,
+        )
         raise HTTPException(status_code=502, detail=str(e)) from e
     finally:
         session.close()
@@ -406,14 +541,44 @@ def attendance(req: LoginRequest, request: Request) -> Attendance:
     The `My_Attendance` page is admin-gated at semester start; until it's live
     we return a clean 503. Once populated, the parser runs automatically.
     """
+    t0 = time.monotonic()
+    ip = _client_ip(request)
     _rate_check(request, req.username)
-    session = _login_or_4xx(req)
+    session = _login_or_4xx(req, action="Academia Attendance", ip=ip, t0=t0)
     try:
         raw = session.fetch_page(PAGE_ATTENDANCE)
-        return parse_attendance(raw)
+        att = parse_attendance(raw)
+        record_activity(
+            action="Academia Attendance",
+            username=req.username,
+            status="SUCCESS",
+            status_code=200,
+            details=f"{len(att.subjects)} subjects",
+            duration_s=time.monotonic() - t0,
+            ip=ip,
+        )
+        return att
     except (PageInaccessible, AttendanceUnavailable) as e:
+        record_activity(
+            action="Academia Attendance",
+            username=req.username,
+            status="GATED",
+            status_code=503,
+            details="Attendance is gated",
+            duration_s=time.monotonic() - t0,
+            ip=ip,
+        )
         raise HTTPException(status_code=503, detail=_GATED_MSG) from e
     except PageNotFound as e:
+        record_activity(
+            action="Academia Attendance",
+            username=req.username,
+            status="NOT_FOUND",
+            status_code=404,
+            details=str(e),
+            duration_s=time.monotonic() - t0,
+            ip=ip,
+        )
         raise HTTPException(status_code=404, detail=str(e)) from e
     except (AppSessionError, PageEmptyError, PageError) as e:
         raise HTTPException(status_code=502, detail=str(e)) from e
@@ -428,12 +593,33 @@ def marks(req: LoginRequest, request: Request) -> Marks:
     Marks publish onto the attendance page once assessments happen; until then
     this returns a clean 503, then works automatically.
     """
+    t0 = time.monotonic()
+    ip = _client_ip(request)
     _rate_check(request, req.username)
-    session = _login_or_4xx(req)
+    session = _login_or_4xx(req, action="Academia Marks", ip=ip, t0=t0)
     try:
         raw = session.fetch_page(PAGE_MARKS)
-        return parse_marks(raw)
+        m = parse_marks(raw)
+        record_activity(
+            action="Academia Marks",
+            username=req.username,
+            status="SUCCESS",
+            status_code=200,
+            details=f"{len(m.subjects)} subjects",
+            duration_s=time.monotonic() - t0,
+            ip=ip,
+        )
+        return m
     except (PageInaccessible, MarksUnavailable) as e:
+        record_activity(
+            action="Academia Marks",
+            username=req.username,
+            status="GATED",
+            status_code=503,
+            details="Marks are gated",
+            duration_s=time.monotonic() - t0,
+            ip=ip,
+        )
         raise HTTPException(status_code=503, detail=_MARKS_GATED_MSG) from e
     except PageNotFound as e:
         raise HTTPException(status_code=404, detail=str(e)) from e
@@ -452,11 +638,22 @@ def feedback(req: FeedbackRequest, request: Request) -> dict:
     feedback box that accepts a message and drops it is worse than no feedback
     box, because the student believes they have been heard.
     """
+    t0 = time.monotonic()
+    ip = _client_ip(request)
     _feedback_rate_check(request)
     try:
         deliver_feedback(req, request.headers.get("user-agent"))
     except FeedbackNotConfigured as e:
         log.warning("feedback received but no webhook is configured")
+        record_activity(
+            action="Student Feedback",
+            username="anonymous",
+            status="CONFIG_ERROR",
+            status_code=503,
+            details="No webhook configured",
+            duration_s=time.monotonic() - t0,
+            ip=ip,
+        )
         raise _fail(
             503,
             "feedback_off",
@@ -464,14 +661,29 @@ def feedback(req: FeedbackRequest, request: Request) -> dict:
         ) from e
     except FeedbackDeliveryFailed as e:
         log.warning("feedback delivery failed: %s", e)
+        record_activity(
+            action="Student Feedback",
+            username="anonymous",
+            status="FAILED",
+            status_code=502,
+            details=str(e),
+            duration_s=time.monotonic() - t0,
+            ip=ip,
+        )
         raise _fail(
             502,
             "feedback_failed",
             "Couldn't send that just now. Try again in a bit.",
         ) from e
-    # Never the message itself, and never who sent it: the channel is the
-    # record, the log is not a second copy of it.
-    log.info("feedback delivered: %s, %s stars", req.kind, req.rating)
+    record_activity(
+        action="Student Feedback",
+        username="anonymous",
+        status="DELIVERED",
+        status_code=200,
+        details=f"{req.kind}, {req.rating}★",
+        duration_s=time.monotonic() - t0,
+        ip=ip,
+    )
     return {"ok": True}
 
 
@@ -532,6 +744,8 @@ def _get_fallback_calendar() -> list[CalendarDay]:
 @app.post("/sp/parse", response_model=StudentPortalSnapshot)
 def sp_parse(req: StudentPortalParseRequest, request: Request) -> StudentPortalSnapshot:
     """Parse report HTML captured from an authenticated student portal session."""
+    t0 = time.monotonic()
+    ip = _client_ip(request)
     _sp_rate_check(request)
 
     if not req.attendance_html and not req.marks_html:
@@ -572,7 +786,15 @@ def sp_parse(req: StudentPortalParseRequest, request: Request) -> StudentPortalS
     else:
         marks_status, marks_msg = "gated", "Marks were not fetched."
 
-    log.info("student portal parsed: attendance=%s marks=%s", att_status, marks_status)
+    record_activity(
+        action="Student Portal Parse (WebView)",
+        username="webview session",
+        status="SUCCESS",
+        status_code=200,
+        details=f"Att: {att_status.upper()}, Marks: {marks_status.upper()}",
+        duration_s=time.monotonic() - t0,
+        ip=ip,
+    )
 
     return StudentPortalSnapshot(
         attendance=attendance,
@@ -590,6 +812,8 @@ def sp_parse(req: StudentPortalParseRequest, request: Request) -> StudentPortalS
 @app.post("/sp/login", response_model=StudentPortalSnapshot)
 async def sp_login(req: StudentPortalLoginRequest, request: Request) -> StudentPortalSnapshot:
     """Submit credentials and captcha, simulate anti-bot payload, and fetch attendance."""
+    t0 = time.monotonic()
+    ip = _client_ip(request)
     _sp_rate_check(request)
 
     clean_username = req.username.strip()
@@ -616,7 +840,15 @@ async def sp_login(req: StudentPortalLoginRequest, request: Request) -> StudentP
         att_html, marks_html, tt_html, cookies = await submit_login_and_fetch(req)
     except StudentPortalClientError as e:
         msg = str(e)
-        log.warning("StudentPortalClientError raised: %s", msg)
+        record_activity(
+            action="Student Portal Login (Manual)",
+            username=clean_username,
+            status="FAILED",
+            status_code=400,
+            details=msg,
+            duration_s=time.monotonic() - t0,
+            ip=ip,
+        )
         if "temporarily locked" in msg.lower():
             raise _fail(429, "account_locked", msg)
         if "Invalid captcha" in msg or "Failed to solve CAPTCHA" in msg:
@@ -629,11 +861,20 @@ async def sp_login(req: StudentPortalLoginRequest, request: Request) -> StudentP
             raise _fail(503, "portal_unreachable", msg)
         raise _fail(400, "login_failed", msg)
     except Exception as e:
+        record_activity(
+            action="Student Portal Login (Manual)",
+            username=clean_username,
+            status="ERROR",
+            status_code=500,
+            details=str(e),
+            duration_s=time.monotonic() - t0,
+            ip=ip,
+        )
         log.exception("Unhandled exception in sp_login: %s", e)
         raise _fail(500, "internal_error", f"Internal server error: {str(e)}")
 
     if tt_html:
-        log.info("student portal timetable html fetched, length: %d", len(tt_html))
+        log.debug("student portal timetable html fetched, length: %d", len(tt_html))
         try:
             from pathlib import Path
             p = Path(__file__).parent / "captures" / "last_sp_timetable.html"
@@ -695,7 +936,21 @@ async def sp_login(req: StudentPortalLoginRequest, request: Request) -> StudentP
         except Exception as e:
             log.warning("Failed to parse student portal timetable: %s", e)
 
-    log.info("student portal parsed: attendance=%s marks=%s timetable=%s", att_status, marks_status, bool(timetable))
+    s_name = timetable.student.name if (timetable and timetable.student) else None
+    s_sec = timetable.student.section if (timetable and timetable.student) else None
+    details = f"Att: {att_status.upper()}, Marks: {marks_status.upper()}, TT: {'OK' if timetable else 'None'}"
+
+    record_activity(
+        action="Student Portal Login (Manual)",
+        username=clean_username,
+        student_name=s_name,
+        section=s_sec,
+        status="SUCCESS",
+        status_code=200,
+        details=details,
+        duration_s=time.monotonic() - t0,
+        ip=ip,
+    )
 
     return StudentPortalSnapshot(
         attendance=attendance,
@@ -715,6 +970,8 @@ async def sp_login(req: StudentPortalLoginRequest, request: Request) -> StudentP
 @app.post("/sp/refresh", response_model=StudentPortalSnapshot)
 async def sp_refresh(req: StudentPortalRefreshRequest, request: Request) -> StudentPortalSnapshot:
     """Use an active session cookie to refresh attendance and marks without re-authenticating."""
+    t0 = time.monotonic()
+    ip = _client_ip(request)
     _sp_rate_check(request)
 
     if not req.session_cookie or not req.session_cookie.strip():
@@ -724,12 +981,30 @@ async def sp_refresh(req: StudentPortalRefreshRequest, request: Request) -> Stud
         att_html, marks_html, tt_html, updated_cookies = await refresh_session_and_fetch(req.session_cookie)
     except StudentPortalClientError as e:
         msg = str(e)
+        record_activity(
+            action="Student Portal Refresh (Cookie)",
+            username="cookie session",
+            status="FAILED",
+            status_code=400,
+            details=msg,
+            duration_s=time.monotonic() - t0,
+            ip=ip,
+        )
         if "session_expired" in msg.lower() or "expired" in msg.lower():
             raise _fail(401, "session_expired", "Student portal session expired. Please enter captcha to renew.")
         if "network error" in msg.lower() or "timeout" in msg.lower() or "failed to fetch" in msg.lower() or "proxy" in msg.lower():
             raise _fail(503, "portal_unreachable", msg)
         raise _fail(400, "refresh_failed", msg)
     except Exception as e:
+        record_activity(
+            action="Student Portal Refresh (Cookie)",
+            username="cookie session",
+            status="ERROR",
+            status_code=500,
+            details=str(e),
+            duration_s=time.monotonic() - t0,
+            ip=ip,
+        )
         log.exception("Unhandled exception in sp_refresh: %s", e)
         raise _fail(500, "internal_error", f"Internal server error: {str(e)}")
 
@@ -760,6 +1035,16 @@ async def sp_refresh(req: StudentPortalRefreshRequest, request: Request) -> Stud
     else:
         marks_status, marks_msg = "gated", "Marks were not fetched."
 
+    record_activity(
+        action="Student Portal Refresh (Cookie)",
+        username="cookie session",
+        status="SUCCESS",
+        status_code=200,
+        details=f"Att: {att_status.upper()}, Marks: {marks_status.upper()}",
+        duration_s=time.monotonic() - t0,
+        ip=ip,
+    )
+
     return StudentPortalSnapshot(
         attendance=attendance,
         attendance_status=att_status,
@@ -777,6 +1062,8 @@ async def sp_refresh(req: StudentPortalRefreshRequest, request: Request) -> Stud
 @app.post("/sp/auto-login", response_model=StudentPortalSnapshot)
 async def sp_auto_login(req: LoginRequest, request: Request) -> StudentPortalSnapshot:
     """Submit credentials and use OCR to bypass captcha automatically."""
+    t0 = time.monotonic()
+    ip = _client_ip(request)
     _sp_rate_check(request)
 
     clean_username = req.username.strip()
@@ -800,6 +1087,15 @@ async def sp_auto_login(req: LoginRequest, request: Request) -> StudentPortalSna
         att_html, marks_html, tt_html, cookies = await auto_login_and_fetch(clean_username, clean_password)
     except StudentPortalClientError as e:
         msg = str(e)
+        record_activity(
+            action="Student Portal Auto-Login",
+            username=clean_username,
+            status="FAILED",
+            status_code=400,
+            details=msg,
+            duration_s=time.monotonic() - t0,
+            ip=ip,
+        )
         if "temporarily locked" in msg.lower():
             raise _fail(429, "account_locked", msg)
         if "Invalid captcha" in msg or "Failed to solve CAPTCHA" in msg:
@@ -812,11 +1108,20 @@ async def sp_auto_login(req: LoginRequest, request: Request) -> StudentPortalSna
             raise _fail(503, "portal_unreachable", msg)
         raise _fail(400, "login_failed", msg)
     except Exception as e:
+        record_activity(
+            action="Student Portal Auto-Login",
+            username=clean_username,
+            status="ERROR",
+            status_code=500,
+            details=str(e),
+            duration_s=time.monotonic() - t0,
+            ip=ip,
+        )
         log.exception("Unhandled exception in sp_auto_login: %s", e)
         raise _fail(500, "internal_error", f"Internal server error: {str(e)}")
 
     if tt_html:
-        log.info("student portal timetable html fetched, length: %d", len(tt_html))
+        log.debug("student portal timetable html fetched, length: %d", len(tt_html))
         try:
             from pathlib import Path
             p = Path(__file__).parent / "captures" / "last_sp_timetable.html"
@@ -825,7 +1130,7 @@ async def sp_auto_login(req: LoginRequest, request: Request) -> StudentPortalSna
             pass
 
     if marks_html:
-        log.info("student portal marks html fetched, length: %d", len(marks_html))
+        log.debug("student portal marks html fetched, length: %d", len(marks_html))
         try:
             from pathlib import Path
             p = Path(__file__).parent / "captures" / "last_sp_marks.html"
@@ -886,7 +1191,21 @@ async def sp_auto_login(req: LoginRequest, request: Request) -> StudentPortalSna
         except Exception as e:
             log.warning("Failed to parse student portal timetable: %s", e)
 
-    log.info("student portal auto-parsed: attendance=%s marks=%s timetable=%s", att_status, marks_status, bool(timetable))
+    s_name = timetable.student.name if (timetable and timetable.student) else None
+    s_sec = timetable.student.section if (timetable and timetable.student) else None
+    details = f"Att: {att_status.upper()}, Marks: {marks_status.upper()}, TT: {'OK' if timetable else 'None'}"
+
+    record_activity(
+        action="Student Portal Auto-Login",
+        username=clean_username,
+        student_name=s_name,
+        section=s_sec,
+        status="SUCCESS",
+        status_code=200,
+        details=details,
+        duration_s=time.monotonic() - t0,
+        ip=ip,
+    )
 
     return StudentPortalSnapshot(
         attendance=attendance,
@@ -901,6 +1220,24 @@ async def sp_auto_login(req: LoginRequest, request: Request) -> StudentPortalSna
         session_cookie=cookies,
         fetched_at=datetime.now(timezone.utc).isoformat(),
     )
+
+
+@app.get("/activity", response_class=HTMLResponse)
+def activity_view(request: Request, key: Optional[str] = None):
+    """Clean arranged web dashboard for viewing student logins and access history."""
+    admin_key = os.environ.get("SKIPP_ADMIN_KEY")
+    if admin_key and key != admin_key:
+        raise HTTPException(status_code=401, detail="Unauthorized. Provide valid ?key= parameter.")
+    return render_activity_html(admin_key_configured=bool(admin_key))
+
+
+@app.get("/activity/json")
+def activity_json(request: Request, key: Optional[str] = None, limit: int = 100):
+    """JSON API for activity logs."""
+    admin_key = os.environ.get("SKIPP_ADMIN_KEY")
+    if admin_key and key != admin_key:
+        raise HTTPException(status_code=401, detail="Unauthorized. Provide valid ?key= parameter.")
+    return get_activity_history(limit=limit)
 
 
 _GATED_MSG = (

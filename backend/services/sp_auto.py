@@ -33,7 +33,7 @@ async def auto_login_and_fetch(username: str, password: str) -> Tuple[str, Optio
 
         session = PortalSession()
         try:
-            log.info(f"Auto-login captcha fetch {fetch_attempt + 1} for {clean_username}")
+            log.debug(f"Auto-login captcha fetch {fetch_attempt + 1} for {clean_username}")
             info = await session.load_captcha()
             if not session.captcha_bytes:
                 continue
@@ -42,11 +42,11 @@ async def auto_login_and_fetch(username: str, password: str) -> Tuple[str, Optio
             captcha_text = re.sub(r"[^a-zA-Z0-9]", "", raw_captcha).strip()
 
             if len(captcha_text) != 6:
-                log.info(f"Fetch {fetch_attempt + 1}: OCR returned invalid length {len(captcha_text)} ({captcha_text}), refreshing captcha...")
+                log.debug(f"Fetch {fetch_attempt + 1}: OCR returned invalid length {len(captcha_text)} ({captcha_text}), refreshing captcha...")
                 continue
 
             submissions_done += 1
-            log.info(f"Submitting login attempt {submissions_done}/1 for {clean_username} with captcha '{captcha_text}'")
+            log.debug(f"Submitting login attempt {submissions_done}/1 for {clean_username} with captcha '{captcha_text}'")
             res = await session.login(clean_username, password, captcha_text)
 
             if res.get("ok"):
