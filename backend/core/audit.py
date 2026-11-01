@@ -439,7 +439,7 @@ def render_activity_html(admin_key_configured: bool = False) -> str:
         <input type="text" id="searchInput" class="search-box" placeholder="Filter by student name, NetID, section, or action..." oninput="filterTable()">
         <button class="refresh-btn" onclick="location.reload()">↻ Refresh</button>
         <label class="auto-refresh">
-            <input type="checkbox" id="autoRefreshToggle" checked onchange="toggleAutoRefresh(this.checked)"> Auto-refresh (5s)
+            <input type="checkbox" id="autoRefreshToggle" onchange="toggleAutoRefresh(this.checked)"> Auto-refresh (5s)
         </label>
     </div>
 
@@ -483,7 +483,8 @@ def render_activity_html(admin_key_configured: bool = False) -> str:
                 }}, 5000);
             }}
         }}
-        toggleAutoRefresh(true);
+        // Auto-refresh is disabled by default
+        toggleAutoRefresh(false);
     </script>
 </body>
 </html>
