@@ -110,6 +110,45 @@ export default function BottomNav() {
     return () => ro.disconnect();
   }, []);
 
+  // Re-place the selection whenever the bar itself changes size: a phone
+  // rotating, a window resized. The indicator is positioned in pixels measured
+  // from the tabs, and it used to be placed on navigation only, so after a
+  // rotation it stayed where the old tab had been and straddled two. Any look
+  // that paints it solid (Brutal, Clay, Ticket, Register, Zine) showed that
+  // plainly. Instant, since nobody chose to move it, and never mid drag, where
+  // the finger owns it.
+  useEffect(() => {
+    const list = bar.current;
+    const marker = dot.current;
+    const block = pill.current;
+    if (!list || !marker || !block) return;
+    const ro = new ResizeObserver(() => {
+      if (list.hasAttribute("data-dragging")) return;
+      const active = list.querySelector<HTMLElement>('[aria-current="page"]');
+      if (!active) return;
+      const to = {
+        x: active.offsetLeft,
+        y: active.offsetTop,
+        width: active.offsetWidth,
+        height: active.offsetHeight,
+      };
+      // The observer also reports once on observe, when nothing has moved.
+      const from = lastPlacement;
+      if (
+        from &&
+        from.x === to.x &&
+        from.y === to.y &&
+        from.width === to.width &&
+        from.height === to.height
+      ) {
+        return;
+      }
+      placeIndicator(marker, block, to, false);
+    });
+    ro.observe(list);
+    return () => ro.disconnect();
+  }, []);
+
   // Settle the selection on whatever the route now is.
   //
   // Usually there is nothing left to do here: a tap moves the indicator before

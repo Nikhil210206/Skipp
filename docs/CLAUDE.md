@@ -433,12 +433,25 @@ Zine (the Student Portal prompt was seen once and looked right), the photo
 path on a real photograph, and the README's palette image, which still shows
 six looks.
 
-**Found and left, both older than Zine:** after a tab change, `pageIn`'s 14px
-nudge can leave the document 14px wide until something forces a layout, since
-Chrome does not recompute the scroll area for a compositor-only transform.
-Other looks happen to trigger a layout soon after; Zine's transform-only title
-does not. And the tab bar re-places its pill on navigation only, never on a
-resize or a rotation, which any look with a solid pill shows plainly.
+**Found and left, older than Zine:** after a tab change, `pageIn`'s 14px nudge
+can leave the document 14px wide until something forces a layout, since Chrome
+does not recompute the scroll area for a compositor-only transform. Measured on
+a 390 phone: 400 wide for two to three seconds, never zoomed. Other looks happen
+to trigger a layout sooner; Zine's transform-only title does not. (The tab bar
+pill not following a rotation was found at the same time and is fixed, below.)
+
+### DONE: The tab bar's selection follows a rotation (2026-11-03)
+
+The pill and dot in `BottomNav` were placed on navigation only, in pixels
+measured from the tabs, so after a phone rotated or a window resized they
+stayed where the old tab had been and straddled two. Any look that paints the
+pill solid showed it plainly (Brutal, Clay, Ticket, Register, Zine). A
+`ResizeObserver` on the tab list now re-places them instantly when the bar's
+size changes: never mid drag, where the finger owns them, and not on the
+observer's first report, when nothing has moved (it compares against
+`lastPlacement`). Verified in the DevTools browser in Zine: pill on the active
+tab at 390, 320, 844x390 landscape and back to 390 without a reload, and a tap
+still carries it to the new tab. `tsc` and eslint clean. Not seen on a phone.
 
 ### DONE: Tap a date, see its classes (2026-10-31)
 
