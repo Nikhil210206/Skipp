@@ -8,7 +8,12 @@
 // radius, shadow and border weight, which is why those are tokens.
 
 import { useSyncExternalStore } from "react";
-import { LEGACY_THEMES, THEME_STORAGE_KEY } from "./themeScript";
+import {
+  LEGACY_THEMES,
+  THEME_STORAGE_KEY,
+  ZINE_NIGHT_BAR,
+  ZINE_STOCK_KEY,
+} from "./themeScript";
 
 export type Theme =
   | "ink"
@@ -52,7 +57,7 @@ export const THEMES: ThemeInfo[] = [
   {
     id: "zine",
     name: "Zine",
-    note: "Two inks on pink stock",
+    note: "Two inks, day or night",
     // The COMPOSITED page, not ink-0: the paper grain is multiplied into the
     // page and does not reach the status bar, so ink-0 there would paint a
     // brighter strip above a duller page. Same rule Paper and Stone follow.
@@ -233,13 +238,19 @@ function readTheme(): Theme {
   return normalizeTheme(document.documentElement.dataset.theme ?? null);
 }
 
+/** The status bar for a theme, which for Zine depends on its stock. */
+function barFor(t: Theme): string | undefined {
+  if (t === "zine" && readStock() === "night") return ZINE_NIGHT_BAR;
+  return THEMES.find((x) => x.id === t)?.bar;
+}
+
 export function setTheme(t: Theme): void {
   document.documentElement.dataset.theme = t;
-  const info = THEMES.find((x) => x.id === t);
-  if (info) {
+  const bar = barFor(t);
+  if (bar) {
     document
       .querySelector('meta[name="theme-color"]')
-      ?.setAttribute("content", info.bar);
+      ?.setAttribute("content", bar);
   }
   try {
     localStorage.setItem(THEME_STORAGE_KEY, t);
@@ -259,6 +270,58 @@ function subscribe(cb: () => void): () => void {
 /** The active theme, kept in sync with the DOM attribute. */
 export function useTheme(): Theme {
   return useSyncExternalStore(subscribe, readTheme, () => "ink" as Theme);
+}
+
+/**
+ * ZINE'S TWO STOCKS. The day print is blue ink on pink stock; the night run is
+ * a cyanotype, the stock itself gone blueprint blue and the print left cream.
+ * The same two drums run in both: one prints everything, the other prints
+ * trouble (red by day, coral by night) and nothing else.
+ *
+ * It is a property of Zine rather than a theme of its own, so Profile offers
+ * it once Zine is chosen and the look order stays one tile long. The colours
+ * here paint the proofs in the picker; the stylesheet owns the real tokens.
+ */
+export type ZineStock = "day" | "night";
+
+export const ZINE_STOCKS: {
+  id: ZineStock;
+  name: string;
+  note: string;
+  paper: string;
+  ink: string;
+  trouble: string;
+}[] = [
+  { id: "day", name: "Day print", note: "Blue on pink", paper: "#eed7dc", ink: "#26246f", trouble: "#b51f30" },
+  { id: "night", name: "Night run", note: "Cream on blueprint", paper: ZINE_NIGHT_BAR, ink: "#f2ede0", trouble: "#ff8f7a" },
+];
+
+function readStock(): ZineStock {
+  return document.documentElement.dataset.stock === "night" ? "night" : "day";
+}
+
+export function setZineStock(s: ZineStock): void {
+  const root = document.documentElement;
+  if (s === "night") root.dataset.stock = "night";
+  else delete root.dataset.stock;
+  const bar = barFor(readTheme());
+  if (bar) {
+    document
+      .querySelector('meta[name="theme-color"]')
+      ?.setAttribute("content", bar);
+  }
+  try {
+    if (s === "night") localStorage.setItem(ZINE_STOCK_KEY, "night");
+    else localStorage.removeItem(ZINE_STOCK_KEY);
+  } catch {
+    /* storage unavailable, the stock still applies for this session */
+  }
+  for (const l of listeners) l();
+}
+
+/** Zine's stock, whether or not Zine is the look on screen. */
+export function useZineStock(): ZineStock {
+  return useSyncExternalStore(subscribe, readStock, () => "day" as ZineStock);
 }
 
 /**

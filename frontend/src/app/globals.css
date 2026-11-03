@@ -2210,6 +2210,44 @@ html[data-theme="zine"] {
   --radius-sheet: 22px;
   --shadow-lift: none;
   --shadow-float: 0 2px 0 rgb(38 36 111 / 0.85), 0 18px 40px -24px rgb(38 36 111 / 0.45);
+  /* The masthead's soft tail, in the composited stock. */
+  --zine-tail: rgb(238 215 220 / 0.8);
+}
+
+/* THE NIGHT RUN, Zine's second stock (`data-stock`, chosen on Profile).
+
+   A cyanotype: the stock goes blueprint blue and the print is what is left
+   cream, so every rule above still holds with the two swapped. The cream
+   prints everything, the one action included, and the second drum is coral,
+   because the day's red is lost on a blue ground (2.1 to 1). Coral is 6.3 to
+   1 as text and the ground knocked out of it is 6.2, so it still serves as
+   text and as a stamp. Every object is a mask painted in `currentColor`, so
+   the keys, the wire and the matchbox print cream with no files of their own.
+
+   Surfaces are the cream at 5, 10 and 16 percent coverage over the ground, so
+   a card sits LIGHTER than the page here: the print adds the light this time.
+   The page is set a hair above its composite, #16285d, which is the status
+   bar (ZINE_NIGHT_BAR), for the reason the day stock's note gives. */
+html[data-theme="zine"][data-stock="night"] {
+  color-scheme: dark;
+  --color-ink-0: #16295f;
+  --color-ink-1: #213365;
+  --color-ink-2: #2c3d6c;
+  --color-ink-3: #394874;
+  --color-line: #586486;
+  --color-line-soft: #354471;
+  --color-line-strong: #f2ede0;
+  /* On the composited page: 12.0, 8.9 and 6.5 to 1. */
+  --color-text-1: #f2ede0;
+  --color-text-2: #c9cddb;
+  --color-text-3: #a9b0c8;
+  --color-accent: #f2ede0;
+  --color-accent-ink: #16295f;
+  --color-safe: #f2ede0;
+  --color-watch: #ff8f7a;
+  --color-risk: #ff8f7a;
+  --shadow-float: 0 2px 0 rgb(242 237 224 / 0.85), 0 18px 40px -20px rgb(0 0 0 / 0.55);
+  --zine-tail: rgb(22 40 93 / 0.8);
 }
 
 /* The composed pieces' faces. Archivo is set at its narrowest, where it reads
@@ -2232,6 +2270,38 @@ html[data-theme="zine"] {
 /* The barb that marks 75% on a subject's meter. */
 .zine-barb {
   mask: var(--zine-barb) center / contain no-repeat;
+}
+
+/* The stock picker's proofs (ZineStockPicker): a proof gives under a finger,
+   and the "on press" stamp is thumped onto the one just chosen, the same blow
+   as the masthead's stamp. `scale` is its own property, so it composes with
+   the proof's and the stamp's resting `rotate` and `translate`. */
+[data-proof] {
+  transition: scale 150ms ease-out;
+}
+[data-proof]:active {
+  scale: 0.97;
+}
+@media (prefers-reduced-motion: no-preference) {
+  .zine-thump {
+    animation: zine-thump 0.42s both;
+  }
+}
+@keyframes zine-thump {
+  0% {
+    scale: 1.8;
+    opacity: 0;
+    animation-timing-function: cubic-bezier(0.55, 0, 1, 0.45);
+  }
+  43% {
+    scale: 0.96;
+    opacity: 1;
+    animation-timing-function: cubic-bezier(0.34, 1.9, 0.64, 1);
+  }
+  100% {
+    scale: 1;
+    opacity: 1;
+  }
 }
 
 /* The big figures and the headings are printed; the labels are typed. Body
@@ -2332,7 +2402,7 @@ html[data-theme="zine"] [data-scroll-edge] {
   background-blend-mode: multiply;
 }
 html[data-theme="zine"] [data-scroll-edge] > div {
-  background-image: linear-gradient(to bottom, rgb(238 215 220 / 0.8), transparent);
+  background-image: linear-gradient(to bottom, var(--zine-tail), transparent);
 }
 
 /* Buttons: the primary is the solid blue block already (the accent is the

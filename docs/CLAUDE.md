@@ -345,7 +345,51 @@ is deployment and true push notifications.
 Entries below are newest first. **When something breaks, read the relevant entry first**: most
 oddities here (login shell, empty calendar, 429s, duplicated course codes) are already diagnosed.
 
-### DONE: Zine, the seventh full look (2026-11-03, latest)
+### DONE: Zine prints by day or by night (2026-11-03, latest)
+
+The "night run" board on the Zine canvas (cream on blueprint blue, a
+cyanotype) was asked about after the look shipped, and then asked for as a
+choice made when Zine is picked. **It is a STOCK of Zine, not an eighth look**:
+`data-stock="night"` on `<html>`, read only by
+`html[data-theme="zine"][data-stock="night"]` in `globals.css`.
+
+- **The choice is a pop-up, on purpose.** It was first built as a section that
+  unfolded under the look tiles, and was rejected as something nobody would
+  notice down there. `components/ZineStockPicker.tsx` is a centred `Modal`:
+  tapping the Zine tile on Profile applies Zine and asks "Day or night?", and
+  tapping the tile again asks again. The tile's note names the stock in use.
+- **Two proofs**, each a thumbnail of the Home cover on its own stock (the
+  countdown, the keys, a "must go" stamp in the second drum), painted in fixed
+  colours (`ZINE_STOCKS` in `lib/theme.ts`). A tap applies the stock at once,
+  so the app AND the pop-up repaint, and thumps "On press" across that proof
+  (`.zine-thump`, only under `no-preference`, and only on the proof just
+  tapped, so reopening does not re-thump). The thumbnail and the stamp size in
+  `cqw` with the card: at a fixed 15px the stamp landed on the name at 320.
+- **Stored apart from the theme** (`skipp.zine-stock`, absent means day), so
+  leaving Zine and coming back keeps it. `THEME_INIT_SCRIPT` sets
+  `data-stock` before paint and gives the status bar `ZINE_NIGHT_BAR`
+  (`#16285d`, the page composited under the paper grain); `setTheme` and
+  `setZineStock` share `barFor()`, so every path picks the right bar.
+- **The palette.** Ground `#16295f`, cream `#f2ede0` prints everything (text
+  and the one action), text levels 12.0, 8.9 and 6.5 to 1, and the trouble
+  drum is coral `#ff8f7a` (6.3 to 1, and 6.2 knocked out), because the day's
+  red is 2.1 on the blue. Surfaces are cream at 5, 10 and 16 percent, so a card
+  sits LIGHTER than the page by night. `color-scheme: dark`. The masthead's
+  tail colour is a token now (`--zine-tail`) rather than a hard rgb.
+- **No new files for the objects**: they are masks painted in
+  `currentColor`, so the keys, wire and matchbox print cream as they are, and
+  the key caps' knocked out labels follow `text-ink-0`. The misprinted figure
+  still reads as a misprint: coral over a cream fringe.
+
+Verified in the DevTools browser against `?fixture=1` with no backend: the
+pop-up from Ticket at 390x844 and 320x568 (nothing to scroll), night applied
+live with the bar and the saved choice, Print it, reopening, Ticket and back
+keeping the night stock, Day clearing it; Home, Attendance and Calendar on the
+night stock; no console errors; `tsc` and eslint clean. **Not verified:** a real
+phone, Schedule and Marks by night, the tour (picking Zine there gives the day
+print and does not ask), and the desktop side rail.
+
+### DONE: Zine, the seventh full look (2026-11-03)
 
 Asked for from a reference post (stippled riso style objects, blue ink on pink
 stock), mocked on a design canvas first (claude.ai/artifact/ReknxC48yAuSbFyC1k1JjX),

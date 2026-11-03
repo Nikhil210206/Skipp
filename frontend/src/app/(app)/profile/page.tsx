@@ -3,12 +3,13 @@
 import { useRouter } from "next/navigation";
 import { useState } from "react";
 import { useSession } from "@/context/SessionContext";
-import { setTheme, THEMES, useTheme } from "@/lib/theme";
+import { setTheme, THEMES, useTheme, useZineStock, ZINE_STOCKS } from "@/lib/theme";
 import { revealIn, revealRows, useGsap } from "@/lib/motion";
 import { Button } from "@/components/ui";
 import { Marginalia, Rule, SectionHead, StickyAction } from "@/components/ui/editorial";
 import CreatorCredit from "@/components/CreatorCredit";
 import SkinPicker from "@/components/SkinPicker";
+import ZineStockPicker from "@/components/ZineStockPicker";
 import NotificationSetting from "@/components/NotificationSetting";
 import FeedbackSheet from "@/components/FeedbackSheet";
 import { IconChevronRight, IconSpeech } from "@/components/Icons";
@@ -39,10 +40,15 @@ export default function ProfilePage() {
   } = useSession();
 
   const theme = useTheme();
+  // Zine's tile shows the stock it will print on, not always the pink.
+  const stock = useZineStock();
+  const zine = ZINE_STOCKS.find((s) => s.id === stock)!;
+  const zineSwatch = [zine.paper, zine.ink, zine.trouble];
   const [name, setName] = useState(displayName);
   const [seededFrom, setSeededFrom] = useState(displayName);
   const [saved, setSaved] = useState(false);
   const [picking, setPicking] = useState(false);
+  const [stockOpen, setStockOpen] = useState(false);
   const [saying, setSaying] = useState(false);
   /** The skin in use, or null while one of the full looks is on. */
   const skin = SKINS.find((t) => t.id === theme) ?? null;
@@ -169,7 +175,12 @@ export default function ProfilePage() {
                     key={t.id}
                     role="radio"
                     aria-checked={active}
-                    onClick={() => setTheme(t.id)}
+                    onClick={() => {
+                      setTheme(t.id);
+                      // Zine prints on two stocks, so choosing it asks which,
+                      // and tapping it again is how the stock is changed.
+                      if (t.id === "zine") setStockOpen(true);
+                    }}
                     // An odd count leaves the last look alone in a row, which
                     // reads as the overflow it is, so that one takes the width.
                     className={`flex items-center gap-3 rounded-control border px-3 py-3 text-left transition-colors [&:last-child:nth-child(odd)]:col-span-2 ${
@@ -182,7 +193,7 @@ export default function ProfilePage() {
                       aria-hidden
                       className="flex size-8 shrink-0 overflow-hidden rounded-full border border-line"
                     >
-                      {t.swatch.map((c, i) => (
+                      {(t.id === "zine" ? zineSwatch : t.swatch).map((c, i) => (
                         <span
                           key={i}
                           className="h-full flex-1"
@@ -195,7 +206,7 @@ export default function ProfilePage() {
                         {t.name}
                       </span>
                       <span className="block truncate text-callout text-text-3">
-                        {t.note}
+                        {t.id === "zine" && active ? zine.name : t.note}
                       </span>
                     </span>
                   </button>
@@ -365,6 +376,7 @@ export default function ProfilePage() {
         </StickyAction>
       </div>
       <SkinPicker open={picking} onClose={() => setPicking(false)} />
+      <ZineStockPicker open={stockOpen} onClose={() => setStockOpen(false)} />
       <FeedbackSheet open={saying} onClose={() => setSaying(false)} />
     </>
   );

@@ -2,6 +2,14 @@
 
 export const THEME_STORAGE_KEY = "skipp.theme";
 
+/** Zine prints on one of two stocks. Kept apart from the theme, so a student
+ *  who leaves Zine and comes back finds the stock they chose. */
+export const ZINE_STOCK_KEY = "skipp.zine-stock";
+
+/** The night run's status bar: its page as composited under the paper grain,
+ *  for the same reason Zine's day bar is (see THEMES). */
+export const ZINE_NIGHT_BAR = "#16285d";
+
 /** Renames. A saved preference must survive one, or the student silently gets
  *  Ink back on their next launch. */
 export const LEGACY_THEMES: Record<string, string> = {
@@ -69,8 +77,9 @@ const BARS: Record<string, string> = {
 /**
  * Runs before paint. Marks the document as JS-capable (so animated elements can
  * start hidden without ever hiding content from a no-JS reader) and applies the
- * saved theme, defaulting to dark.
+ * saved theme, defaulting to dark. Zine's stock rides on `data-stock`, set
+ * whatever the theme, and only Zine's rules read it.
  */
 export const THEME_INIT_SCRIPT = `(function(){var d=document.documentElement;d.classList.add("js");var L=${JSON.stringify(LEGACY_THEMES)},V=${JSON.stringify(
   VALID,
-)},B=${JSON.stringify(BARS)};try{var t=localStorage.getItem("${THEME_STORAGE_KEY}");t=L[t]||t;t=V.indexOf(t)>-1?t:"ink";d.dataset.theme=t;var m=document.querySelector('meta[name="theme-color"]');if(m)m.setAttribute("content",B[t])}catch(e){d.dataset.theme="ink"}})();`;
+)},B=${JSON.stringify(BARS)};try{var t=localStorage.getItem("${THEME_STORAGE_KEY}");t=L[t]||t;t=V.indexOf(t)>-1?t:"ink";d.dataset.theme=t;var s=localStorage.getItem("${ZINE_STOCK_KEY}")==="night";if(s)d.dataset.stock="night";var m=document.querySelector('meta[name="theme-color"]');if(m)m.setAttribute("content",t==="zine"&&s?"${ZINE_NIGHT_BAR}":B[t])}catch(e){d.dataset.theme="ink"}})();`;
