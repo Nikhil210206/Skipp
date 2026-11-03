@@ -21,6 +21,7 @@ import registerHome from "@/assets/front/register-home.webp";
 import clayHome from "@/assets/front/clay-home.webp";
 import stoneHome from "@/assets/front/stone-home.webp";
 import inkHome from "@/assets/front/ink-home.webp";
+import zineHome from "@/assets/front/zine-home.webp";
 
 /**
  * THE TOUR.
@@ -769,6 +770,7 @@ function Maker({ nav }: { nav: Nav }) {
 
 /** In the order they are offered everywhere, then the default. */
 const LOOKS = [
+  { id: "zine", src: zineHome, screen: "#eed7dc" },
   { id: "ticket", src: ticketHome, screen: "#f6f3ec" },
   { id: "brutal", src: brutalHome, screen: "#fdf6e3" },
   { id: "terminal", src: terminalHome, screen: "#040705" },
@@ -801,12 +803,16 @@ function Look({ nav }: { nav: Nav }) {
       numeral="04"
       head={
         <Head lead="now make it" hand="yours.">
-          Six looks rebuild the whole app, and {MORE} more colours wait in
+          Seven looks rebuild the whole app, and {MORE} more colours wait in
           Profile. Tap one to try it on.
         </Head>
       }
       object={
-        <div className="mx-auto flex w-full max-w-[24rem] items-center gap-4 lg:max-w-[30rem] lg:gap-8">
+        // Eight choices now, and on a 375x667 phone the chapter ran 24px over
+        // and scrolled. The room comes out of gaps and margins, never off a
+        // 44px target: 2px between the chips, and 6px off each side of the
+        // object, on short phones only.
+        <div className="mx-auto flex w-full max-w-[24rem] items-center gap-4 short:-my-1.5 lg:max-w-[30rem] lg:gap-8">
           <div data-phone className="w-[46%] max-w-[176px] shrink-0 lg:max-w-[230px]">
             <PhoneFrame screen={shown.screen}>
               {LOOKS.map((l) => {
@@ -823,7 +829,7 @@ function Look({ nav }: { nav: Nav }) {
               })}
             </PhoneFrame>
           </div>
-          <div className="flex min-w-0 flex-1 flex-col gap-1.5 short:gap-1">
+          <div className="flex min-w-0 flex-1 flex-col gap-1.5 short:gap-0.5">
             {LOOKS.map((l) => {
               const info = THEMES.find((t) => t.id === l.id);
               const on = l.id === shown.id;

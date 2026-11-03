@@ -23,6 +23,7 @@ import { useTheme, type Theme } from "@/lib/theme";
  * | terminal | typed as a shell path, with a blinking block cursor     |
  * | register | rises out of its own line, then the loud cell is ticked |
  * | ticket   | the perforation tears along, then the word drops on it  |
+ * | zine     | a rubber stamp, thumped onto the page at its own tilt   |
  *
  * **Every one fits the 56px bar, level.** A first pass of the hand was 40px and
  * tilted -2 degrees: the tilt lifted the end of the word into the top edge of
@@ -34,7 +35,7 @@ import { useTheme, type Theme } from "@/lib/theme";
  * flight hands the element back to plain CSS, which shows it. Reduced motion
  * skips all of it. The typography lives in `globals.css` under `[data-mt]`.
  */
-type Look = "hand" | "brutal" | "stone" | "clay" | "terminal" | "register" | "ticket";
+type Look = "hand" | "brutal" | "stone" | "clay" | "terminal" | "register" | "ticket" | "zine";
 
 function lookFor(theme: Theme): Look {
   switch (theme) {
@@ -44,6 +45,7 @@ function lookFor(theme: Theme): Look {
     case "terminal":
     case "register":
     case "ticket":
+    case "zine":
       return theme;
     default:
       return "hand";
@@ -191,6 +193,15 @@ export default function MastheadTitle({ text }: { text: string }) {
             { y: 0, rotation: 0, opacity: 1, duration: 0.5, ease: "back.out(2)", clearProps: "transform,opacity" },
             "-=0.15",
           );
+          break;
+        }
+        case "zine": {
+          // Thumped on: in from above the page, fast and hard, a fraction past
+          // flat as the rubber gives, then still. Scale and opacity only: the
+          // stamp's tilt is the CSS `rotate` property, which this transform
+          // composes with, so it lands at its own angle.
+          tl.fromTo(word, { scale: 1.8, opacity: 0 }, { scale: 0.96, opacity: 1, duration: 0.18, ease: "power3.in" });
+          tl.to(word, { scale: 1, duration: 0.24, ease: "back.out(3)", clearProps: "transform,opacity" });
           break;
         }
       }

@@ -345,7 +345,102 @@ is deployment and true push notifications.
 Entries below are newest first. **When something breaks, read the relevant entry first**: most
 oddities here (login shell, empty calendar, 429s, duplicated course codes) are already diagnosed.
 
-### DONE: Tap a date, see its classes (2026-10-31, latest)
+### DONE: Zine, the seventh full look (2026-11-03, latest)
+
+Asked for from a reference post (stippled riso style objects, blue ink on pink
+stock), mocked on a design canvas first (claude.ai/artifact/ReknxC48yAuSbFyC1k1JjX),
+then built. **Zine leads the look order now: Zine, Ticket, Brutal, Terminal,
+Register, Clay, Stone**, in `THEMES`, Profile and the tour.
+
+- **Two drums, and the colour rule is the second one.** The blue drum
+  (`#26246f`) prints everything, the one action included: the accent IS the
+  ink. The red drum (`#b51f30`) prints trouble and nothing else. "On the line"
+  and "short" are both red and told apart by SHAPE, a hollow stamp against a
+  solid one, always with words. There is no amber, because two inks have none.
+  On the composited page the three text levels are 9.8, 6.5 and 5.1 to 1, and
+  the red is 4.8 as text and 4.8 with the paper knocked out of it.
+- **Composed, like Register and Ticket.** `useComposition()` returns `zine`,
+  and `components/looks/ZineHome.tsx` and `ZineAttendance.tsx` are drawn from
+  `ZineParts.tsx`. Every other screen is restyled by the `html[data-theme="zine"]`
+  block at the end of `globals.css`: typed labels, printed headings, the day
+  orders as copier keys, a barb for every meter's threshold, a holiday as a
+  solid block with its date knocked out, today circled with a stamp, a selected
+  date boxed (one ink cannot say "selected" in colour), the open tab a solid
+  block. The masthead title is a rubber stamp thumped on (`MastheadTitle`).
+- **Home is a zine cover**: the issue number is the semester, a set of keys
+  hangs from the rule with today's day order on a cap (live text laid over the
+  drawing), the countdown is inked, attendance is a strand of barbed wire with
+  its barb at 75%, and the foot carries a barcode of the registration number
+  and the disclaimer in a price box. A class in a short subject is stamped MUST
+  GO in red, except the one you are sitting in.
+- **Attendance**: the inked term figure, the wire, and the margin as a box of
+  SAFETY SKIPS with the count on its label (a full, low or empty box). The
+  number is the figure; the matches only agree with it, which is the tally
+  lesson from Register. Subjects come trouble first, and a short figure is
+  MISPRINTED, red over blue a hair off, inside `isolate` so the multiply stays
+  local to the figure.
+- **The objects are MASKS.** `scripts/make-print.mjs` writes black-with-alpha
+  PNGs to `public/print/` (about 157KB in all, fetched only in Zine) and they
+  are painted with `currentColor`, so one file prints in either drum. **They
+  are drawn stand-ins, and the Stone lesson applies: photograph the real
+  things.** Drop photos into `scripts/print-src/` named after the object
+  (`keys.jpg`, `matchbox-full.jpg`, `matchbox-low.jpg`, `matchbox-empty.jpg`),
+  shot on a white sheet in soft light, and rerun the script. The sheet prints
+  nothing, as on a copier. The wire is always drawn, because its knot is data.
+  The photo path was run on a synthetic photo with uneven light, and it found
+  two bugs: padding the fitted photo with pure white made the real sheet read
+  as grey and print as speckle, and the surface texture was adding ink to bare
+  paper. Bare paper now prints nothing at all. If a drawing's frame changes,
+  the overlays measured against it move with it (the matchbox label, the key
+  caps); both are noted where they live.
+- **Archivo, not Anton.** The reference headline looks like Anton, and
+  measured, Anton's figures are not tabular: its "1" is a third narrower than
+  its other digits and `tnum` changes nothing, so a countdown set in it jitters
+  on every tick. Archivo at `font-stretch: 62%`, weight 900, reads almost the
+  same and is genuinely tabular. Loaded through `next/font/google` with
+  `axes: ["wdth"]` and `preload: false`; Courier Prime for the typed labels,
+  `preload: false` as well.
+- **Grain is a mask, so never on reading text or on anything focusable**: a
+  mask clips a focus ring along with everything else outside the box. The
+  disclaimer's price box had grain and it broke the letters at 9.5px, so it was
+  taken off.
+- **The countdown is sized by its length.** Three characters ("12h") are
+  1.32em wide against two's 0.88em, and at full size the lowest key's blade cut
+  into the "h". Measured clear at 390 and 320.
+- **`data-scroll-edge`** marks the masthead's scroll strip, so Zine can grain
+  it: a flat strip over a grained page read as a lighter band under the
+  masthead. Paper has the same band and was left alone.
+- **A dev trap that cost real time.** With Turbopack's persistent dev cache, a
+  Tailwind class added in a TSX file reaches the dev CSS only when
+  `globals.css` itself changes. A restart does not fix it and `touch` does not
+  fix it; stopping the server and clearing `.next` does. A production build
+  scans everything and is unaffected. **If a new utility does nothing in dev,
+  look for its selector in the loaded CSS before debugging the component.**
+- **The tour's look chapter** has Zine first, with a real screenshot
+  (`assets/front/zine-home.webp`, 780x1688 like the rest). Eight choices ran
+  24px over at 375x667; 2px between the chips and 6px off each side of the
+  object on short phones bought it back without touching a 44px target.
+
+Verified in the DevTools browser against `?fixture=1` with no backend running,
+so no sign-in was spent: Home (in class, and at 8pm with tomorrow's short class
+stamped), Attendance, Schedule, Calendar (November, and September for a
+holiday), Marks and Profile at 390x844; Home and Attendance at 320x700; with
+reduced motion and with full motion, nothing left hidden or offset; the
+masthead stamp measured (1.8x to 0.975 at 250ms, settled by 450ms); the tour
+chapter fitting 375x667; no console errors; `tsc` and eslint on the changed
+files clean. **Not verified:** a real phone, the desktop side rail, sheets in
+Zine (the Student Portal prompt was seen once and looked right), the photo
+path on a real photograph, and the README's palette image, which still shows
+six looks.
+
+**Found and left, both older than Zine:** after a tab change, `pageIn`'s 14px
+nudge can leave the document 14px wide until something forces a layout, since
+Chrome does not recompute the scroll area for a compositor-only transform.
+Other looks happen to trigger a layout soon after; Zine's transform-only title
+does not. And the tab bar re-places its pill on navigation only, never on a
+resize or a rotation, which any look with a solid pill shows plainly.
+
+### DONE: Tap a date, see its classes (2026-10-31)
 
 Asked for as "if we click on any date in the calendar, a small pop should show
 that day's timetable". `components/DayPeek.tsx` is a card that pops up at the

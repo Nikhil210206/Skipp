@@ -6,6 +6,7 @@ import gsap from "gsap";
 import Countdown from "@/components/Countdown";
 import RegisterHome from "@/components/looks/RegisterHome";
 import TicketHome from "@/components/looks/TicketHome";
+import ZineHome from "@/components/looks/ZineHome";
 import { greeting, useHomeData } from "@/lib/home";
 import { useComposition } from "@/lib/theme";
 import { countTo, revealIn, useGsap } from "@/lib/motion";
@@ -26,11 +27,12 @@ import { SectionHead, TrackRule } from "@/components/ui/editorial";
 const THRESHOLD = 75;
 
 export default function DashboardPage() {
-  // Register and Ticket compose Home from their own pieces. Every other look
-  // is the cover below, restyled by its CSS.
+  // Register, Ticket and Zine compose Home from their own pieces. Every other
+  // look is the cover below, restyled by its CSS.
   const look = useComposition();
   if (look === "register") return <RegisterHome />;
   if (look === "ticket") return <TicketHome />;
+  if (look === "zine") return <ZineHome />;
   return <CoverHome />;
 }
 

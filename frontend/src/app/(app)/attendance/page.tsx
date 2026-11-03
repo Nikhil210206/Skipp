@@ -4,6 +4,7 @@ import { useRef, useState } from "react";
 import PredictModal from "@/components/PredictModal";
 import RegisterAttendance from "@/components/looks/RegisterAttendance";
 import TicketAttendance from "@/components/looks/TicketAttendance";
+import ZineAttendance from "@/components/looks/ZineAttendance";
 import { useComposition } from "@/lib/theme";
 import {
   ImportAttendanceAction,
@@ -44,7 +45,7 @@ function AttendanceScreen() {
   const { attendance, attendanceState, attendanceMessage, attendanceSource } =
     useSession();
   const [predictOpen, setPredictOpen] = useState(false);
-  // Register and Ticket draw the ready screen from their own pieces. The
+  // Register, Ticket and Zine draw the ready screen from their own pieces. The
   // loading, gated and error states stay shared: those are words, and every
   // look already restyles words.
   const look = useComposition();
@@ -140,6 +141,9 @@ function AttendanceScreen() {
         )}
         {attendanceState === "ready" && attendance && look === "ticket" && (
           <TicketAttendance onPlan={() => setPredictOpen(true)} />
+        )}
+        {attendanceState === "ready" && attendance && look === "zine" && (
+          <ZineAttendance onPlan={() => setPredictOpen(true)} />
         )}
 
         {attendanceState === "ready" && attendance && look === null && (

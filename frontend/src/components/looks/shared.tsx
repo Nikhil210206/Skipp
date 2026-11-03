@@ -207,6 +207,8 @@ export function Notch({
  *   data-look-stamp  a rubber stamp thumped on
  *   data-hand-draw   a pen stroke drawn on from its start
  *   data-hand-hatch  a bar's hatching shaded in from the left
+ *   data-zine-stamp  Zine's stamps, thumped on at their own tilt
+ *   data-zine-reg    the red drum, arriving out of register and snapping in
  *
  * It settles on a tab change exactly as the rest of the app does, so the page
  * fade stays the only entrance. Every tween is a `from` that clears itself, so
@@ -244,4 +246,10 @@ export function lookEntrance(self: HTMLElement, reduced: boolean): void {
       { scale: 1, opacity: 1, rotation: -12, duration: 0.55, ease: "back.out(2.2)", delay: 0.75, clearProps: "opacity" },
     );
   }
+  // Zine. The red drum is the second pass through the press, so trouble lands
+  // a beat after the blue and a little out of register, then snaps in. A stamp
+  // is scale and opacity only: its tilt is the CSS `rotate` property, which a
+  // transform composes with, so it lands at its own angle.
+  run("[data-zine-reg]", { x: 12, y: -8, opacity: 0, duration: 0.45, ease: "expo.out", delay: 0.35, stagger: 0.07, clearProps: "transform,opacity" });
+  run("[data-zine-stamp]", { scale: 1.7, opacity: 0, duration: 0.34, ease: "back.out(1.7)", delay: 0.55, stagger: 0.08, clearProps: "transform,opacity" });
 }

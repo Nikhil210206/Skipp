@@ -22,6 +22,7 @@ export type Theme =
   | "stone"
   | "register"
   | "ticket"
+  | "zine"
   | "rose"
   | "ember"
   | "gold"
@@ -46,8 +47,19 @@ export type ThemeInfo = {
 };
 
 export const THEMES: ThemeInfo[] = [
-  // The full looks, in the order they are offered everywhere: Ticket and
-  // Brutal first, then Terminal and Register, then Clay and Stone.
+  // The full looks, in the order they are offered everywhere: Zine, the
+  // newest, then Ticket and Brutal, Terminal and Register, Clay and Stone.
+  {
+    id: "zine",
+    name: "Zine",
+    note: "Two inks on pink stock",
+    // The COMPOSITED page, not ink-0: the paper grain is multiplied into the
+    // page and does not reach the status bar, so ink-0 there would paint a
+    // brighter strip above a duller page. Same rule Paper and Stone follow.
+    bar: "#eed7dc",
+    swatch: ["#eed7dc", "#26246f", "#b51f30"],
+    structural: true,
+  },
   {
     id: "ticket",
     name: "Ticket",
@@ -250,18 +262,19 @@ export function useTheme(): Theme {
 }
 
 /**
- * The two full looks that change how Home and Attendance are COMPOSED, not only
+ * The full looks that change how Home and Attendance are COMPOSED, not only
  * how they are styled.
  *
  * Every other look is CSS over the shared screens, through the markers on the
- * primitives. These two need pieces the shared markup cannot draw: Register's
- * tick box grid and period strip, Ticket's passes with their stubs and stamp.
- * So those two screens swap in their own composition, and every other screen
- * stays shared and is restyled by CSS like any other look.
+ * primitives. These three need pieces the shared markup cannot draw: Register's
+ * tick box grid and period strip, Ticket's passes with their stubs and stamp,
+ * Zine's printed objects (keys, a matchbox, a strand of barbed wire) and its
+ * rubber stamps. So those two screens swap in their own composition, and every
+ * other screen stays shared and is restyled by CSS like any other look.
  */
-export type Composition = "register" | "ticket";
+export type Composition = "register" | "ticket" | "zine";
 
 export function useComposition(): Composition | null {
   const t = useTheme();
-  return t === "register" || t === "ticket" ? t : null;
+  return t === "register" || t === "ticket" || t === "zine" ? t : null;
 }

@@ -947,7 +947,10 @@ html[data-theme="clay"] [data-day].is-today {
    `main` and a transformed element becomes the containing block for its own
    fixed background. */
 html[data-theme="paper"] body,
-html[data-theme="paper"] .bg-ink-0 {
+html[data-theme="paper"] .bg-ink-0,
+/* Zine prints on the same stock, tinted pink: same tile, same origin. */
+html[data-theme="zine"] body,
+html[data-theme="zine"] .bg-ink-0 {
   background-color: var(--color-ink-0);
   background-image: var(--paper-image);
   background-size: var(--paper-size);
@@ -955,7 +958,8 @@ html[data-theme="paper"] .bg-ink-0 {
   background-blend-mode: multiply;
 }
 
-html[data-theme="paper"] main.bg-ink-0 {
+html[data-theme="paper"] main.bg-ink-0,
+html[data-theme="zine"] main.bg-ink-0 {
   background-position: center calc(-3.5rem - env(safe-area-inset-top));
 }
 
@@ -2136,4 +2140,312 @@ html[data-theme="register"] [data-rule] {
 /* The tags and chips the shared screens use are hand cut. */
 :is(html[data-theme="register"], html[data-theme="ticket"]) [data-chip] {
   border-radius: 255px 15px 225px 15px / 15px 225px 15px 255px;
+}
+
+/* ============================================================
+   ZINE, the seventh full look: a two ink print on pink stock.
+
+   The colour rule, made physical. A risograph runs one drum per ink, and a
+   second drum is a second pass through the machine, so you only run it when
+   it matters. Here the BLUE drum prints everything (every word, every figure,
+   the one action) and the RED drum prints trouble and nothing else. A healthy
+   term is one quiet ink; a short subject is the only red on the page.
+
+   "On the line" and "short" share the red and are told apart by SHAPE: a
+   hollow stamp against a solid one, always with the words on it. There is no
+   amber, because two inks have none.
+
+   Texture lives on objects, stamps, solid blocks and the one big figure per
+   screen, never on words you read: grain on body copy reads as blur, which is
+   the complaint Arcade's haze drew three times. Every texture is a MASK over a
+   token fill (`--zine-grain`, and the printed objects in /print), so one file
+   prints in either drum.
+
+   Home and Attendance are composed (components/looks/ZineHome.tsx and
+   ZineAttendance.tsx, drawn with ZineParts.tsx); every other screen is
+   restyled here through the usual markers.
+   ============================================================ */
+html[data-theme="zine"] {
+  color-scheme: light;
+  --paper-image: url("/textures/paper.webp");
+  --paper-size: 512px 512px;
+  /* The page is set a step above the reference pink because the paper grain is
+     multiplied into it: #f3dce1 under a tile whose mean is 249.5 composites to
+     #eed7dc, the stock the look was drawn on. The status bar is that composite
+     (see THEMES), since the grain never reaches it. */
+  --color-ink-0: #f3dce1;
+  /* Tints of the blue drum over the stock, the way a print makes a surface:
+     5, 10 and 16 percent coverage. A card is darker than the page here, as it
+     is in Paper, because ink only ever takes light away. */
+  --color-ink-1: #e4ced6;
+  --color-ink-2: #dac5d1;
+  --color-ink-3: #cebaca;
+  --color-line: #b2a1bb;
+  --color-line-soft: #d0bccb;
+  --color-line-strong: #26246f;
+  /* On the composited page: 9.8, 6.5 and 5.1 to 1. */
+  --color-text-1: #26246f;
+  --color-text-2: #46437f;
+  --color-text-3: #57548b;
+  /* The one action is a solid block of the blue drum with the paper knocked
+     out of it, so the accent IS the ink. */
+  --color-accent: #26246f;
+  --color-accent-ink: #f3dce1;
+  /* Safe is uncoloured: it prints in the blue drum like everything else. */
+  --color-safe: #26246f;
+  /* 4.8 to 1 on the page, and the page knocked out of it is 4.8 to 1 too, so
+     one red serves as text and as a stamp. */
+  --color-watch: #b51f30;
+  --color-risk: #b51f30;
+
+  --zine-grain: url("/print/grain.png");
+  /* The threshold tick: an X of barbs with the wire's coil through it, the same
+     knot the big meters draw at 75%. */
+  --zine-barb: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 14 14'%3E%3Cpath d='M2.5 2.5L11.5 11.5M11.5 2.5L2.5 11.5' stroke='black' stroke-width='2' stroke-linecap='round'/%3E%3Cpath d='M7 3v8' stroke='black' stroke-width='3.2'/%3E%3C/svg%3E");
+  --font-look: var(--font-zine-src), var(--font-geist-sans), sans-serif;
+  --font-typed: var(--font-typed-src), ui-monospace, monospace;
+
+  --radius-control: 10px;
+  --radius-card: 12px;
+  --radius-sheet: 22px;
+  --shadow-lift: none;
+  --shadow-float: 0 2px 0 rgb(38 36 111 / 0.85), 0 18px 40px -24px rgb(38 36 111 / 0.45);
+}
+
+/* The composed pieces' faces. Archivo is set at its narrowest, where it reads
+   like the reference's headline and keeps genuinely tabular figures. */
+.zine-print {
+  font-family: var(--font-zine-src), var(--font-geist-sans), sans-serif;
+  font-stretch: 62%;
+  font-weight: 900;
+  font-feature-settings: "tnum";
+}
+.zine-typed {
+  font-family: var(--font-typed-src), ui-monospace, monospace;
+}
+/* Ink that went through a drum: mostly solid, with clumped voids. A mask, so
+   it takes whatever colour the element prints in. Never on anything focusable:
+   a mask clips the focus ring along with everything else outside the box. */
+.zine-grain {
+  mask: var(--zine-grain) 0 0 / 128px 128px;
+}
+/* The barb that marks 75% on a subject's meter. */
+.zine-barb {
+  mask: var(--zine-barb) center / contain no-repeat;
+}
+
+/* The big figures and the headings are printed; the labels are typed. Body
+   copy and every column of figures stay in Geist, so nothing that lines up
+   today moves. */
+html[data-theme="zine"] main :is(h1, h2, .text-poster, .text-display, .text-mega):not(.text-label) {
+  font-family: var(--font-look);
+  font-stretch: 62%;
+  font-weight: 900;
+  letter-spacing: -0.005em;
+}
+html[data-theme="zine"] .text-label {
+  font-family: var(--font-typed);
+  font-weight: 400;
+  letter-spacing: 0.05em;
+}
+html[data-theme="zine"] [data-band] {
+  font-weight: 700;
+  color: var(--color-text-1);
+}
+html[data-theme="zine"] [data-band] + span {
+  height: 2px;
+  background: var(--color-text-1);
+}
+
+/* Meters: a light track, a solid fill, and the threshold drawn as a barb. */
+html[data-theme="zine"] [data-meter] {
+  height: 3px;
+  background: color-mix(in oklab, var(--color-text-1) 18%, transparent);
+}
+html[data-theme="zine"] [data-meter] > span[aria-hidden] {
+  top: -5.5px;
+  width: 14px;
+  height: 14px;
+  margin-left: -7px;
+  background: var(--color-text-1);
+  mask: var(--zine-barb) center / contain no-repeat;
+}
+
+/* THE MASTHEAD TITLE is a rubber stamp, thumped on (MastheadTitle). */
+[data-mt="zine"] [data-mt-word] {
+  font-family: var(--font-zine-src), var(--font-geist-sans), sans-serif;
+  font-stretch: 62%;
+  font-weight: 900;
+  font-size: 1.3125rem;
+  line-height: 1;
+  letter-spacing: 0.03em;
+  text-transform: uppercase;
+  color: var(--color-text-1);
+  padding: 0.3125rem 0.5625rem 0.25rem;
+  border: 2.5px solid var(--color-text-1);
+  rotate: -2deg;
+  mask: var(--zine-grain) 0 0 / 128px 128px;
+}
+
+/* The tab bar is printed: a heavy rule, ink icons, and the open tab a solid
+   block with its icon knocked out. The block is a pseudo element INSIDE the
+   pill, because the pill is sized to the whole tab by the bar's own script
+   and a full tab of solid ink is a slab rather than a selection. */
+html[data-theme="zine"] [data-nav] .rule {
+  height: 2px;
+  background: var(--color-text-1);
+}
+html[data-theme="zine"] [data-nav-dot] {
+  display: none;
+}
+html[data-theme="zine"] [data-nav-pill] {
+  background: none;
+}
+html[data-theme="zine"] [data-nav-pill]::before {
+  content: "";
+  position: absolute;
+  inset: 5px 12px;
+  border-radius: 10px;
+  background: var(--color-text-1);
+  mask: var(--zine-grain) 0 0 / 128px 128px;
+}
+html[data-theme="zine"] [data-nav-item] {
+  color: var(--color-text-1);
+}
+html[data-theme="zine"] [data-nav-item][aria-current="page"],
+html[data-theme="zine"] [data-nav-item][data-drag-active] {
+  color: var(--color-ink-0);
+}
+/* While dragging, the route's own tab goes back to ink, or its knocked out
+   icon would be paper on paper once the block has moved off it. */
+html[data-theme="zine"] [data-dragging] [data-nav-item]:not([data-drag-active]) {
+  color: var(--color-text-1);
+}
+
+/* The masthead's strip, when the page scrolls under it, is the same grained
+   stock as the page rather than flat ink-0, which read as a lighter band. The
+   grain's phase cannot line up with a page that moves under a fixed strip, and
+   does not need to: a phase offset in noise is close to invisible (Stone). */
+html[data-theme="zine"] [data-scroll-edge] {
+  background-image: var(--paper-image);
+  background-size: var(--paper-size);
+  background-blend-mode: multiply;
+}
+html[data-theme="zine"] [data-scroll-edge] > div {
+  background-image: linear-gradient(to bottom, rgb(238 215 220 / 0.8), transparent);
+}
+
+/* Buttons: the primary is the solid blue block already (the accent is the
+   ink); its label is set like a stamp. Outlines are printed rules. */
+html[data-theme="zine"] [data-btn][data-variant="primary"] {
+  font-family: var(--font-look);
+  font-stretch: 62%;
+  font-weight: 900;
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+}
+html[data-theme="zine"] [data-btn][data-variant="outline"] {
+  border: 2px solid var(--color-text-1);
+  color: var(--color-text-1);
+}
+
+/* Chips are small stamps. */
+html[data-theme="zine"] [data-chip] {
+  border-radius: 3px;
+  border-width: 1.5px;
+  font-family: var(--font-look);
+  font-stretch: 62%;
+  font-weight: 900;
+  letter-spacing: 0.05em;
+  rotate: -2deg;
+}
+
+/* CALENDAR. A day off takes the most ink: a solid block with the date knocked
+   out of it, which makes it the loudest date in the grid without a colour of
+   its own (the red drum is for trouble). Today is circled with a stamp, and a
+   selected date is boxed, because in a one ink look the accent colour cannot
+   say "selected" on its own. */
+html[data-theme="zine"] [data-holiday] {
+  display: grid;
+  place-items: center;
+  width: 2rem;
+  height: 1.75rem;
+  margin: -2px 0;
+  border-radius: 3px;
+  background: var(--color-text-1);
+  color: var(--color-ink-0);
+  mask: var(--zine-grain) 0 0 / 128px 128px;
+}
+/* The holiday's dot stays under its block. It is redundant there, but the
+   legend under the grid says "a dot is a holiday" in every look, and in this
+   one it has to stay true. */
+html[data-theme="zine"] [data-day][data-today] > span.absolute.bottom-1\.5 {
+  display: none;
+}
+/* The stamp circles the date AND its day order, centred on the cell: sized to
+   the date alone, it cut straight through the day order figure under it. */
+html[data-theme="zine"] [data-day][data-today]::after {
+  content: "";
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  width: 2.75rem;
+  height: 2.75rem;
+  margin: -1.375rem 0 0 -1.375rem;
+  box-sizing: border-box;
+  border: 2.5px solid var(--color-text-1);
+  border-radius: 50%;
+  mask: var(--zine-grain) 0 0 / 128px 128px;
+  pointer-events: none;
+}
+html[data-theme="zine"] [data-day][aria-pressed="true"]:not([data-today])::before {
+  content: "";
+  position: absolute;
+  inset: 4px 6px;
+  border: 2px solid var(--color-text-1);
+  border-radius: 8px;
+  pointer-events: none;
+}
+
+/* SCHEDULE. The day orders are copier keys: boxed, printed numerals, and the
+   chosen one a solid key with its numeral knocked out. Today's dot and the
+   next day's ring follow the knock out on the solid key. */
+html[data-theme="zine"] [data-do-marker] {
+  display: none;
+}
+html[data-theme="zine"] button[data-do]:not([data-day]) {
+  margin: 0 4px;
+  padding: 10px 0 8px;
+  gap: 6px;
+  justify-content: center;
+  border: 2px solid var(--color-text-1);
+  border-radius: 8px;
+}
+html[data-theme="zine"] button[data-do]:not([data-day]) [data-track] {
+  display: none;
+}
+html[data-theme="zine"] button[data-do]:not([data-day]) > span:first-of-type {
+  font-family: var(--font-look);
+  font-stretch: 62%;
+  font-weight: 900;
+  font-size: 1.625rem;
+  line-height: 1;
+  color: var(--color-text-1);
+}
+html[data-theme="zine"] button[data-do][aria-pressed="true"]:not([data-day]) {
+  background: var(--color-text-1);
+}
+html[data-theme="zine"] button[data-do][aria-pressed="true"]:not([data-day]) > span:first-of-type {
+  color: var(--color-ink-0);
+}
+html[data-theme="zine"] button[data-do][aria-pressed="true"]:not([data-day]) .bg-accent {
+  background: var(--color-ink-0);
+}
+html[data-theme="zine"] button[data-do][aria-pressed="true"]:not([data-day]) .border-text-3 {
+  border-color: var(--color-ink-0);
+}
+/* The timeline's spine is printed heavier. Not on an optional class, whose
+   spine is a dashed border with no width of its own. */
+html[data-theme="zine"] [data-surface]:not([data-optional]) > [data-spine] {
+  width: 2px;
 }

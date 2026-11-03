@@ -1,7 +1,9 @@
 import type { Metadata, Viewport } from "next";
 import {
+  Archivo,
   Bricolage_Grotesque,
   Caveat,
+  Courier_Prime,
   Geist,
   Geist_Mono,
   Space_Grotesk,
@@ -92,6 +94,32 @@ const ticketFace = Unbounded({
   preload: false,
 });
 
+/**
+ * Zine's print face: Archivo at its narrowest and heaviest, for the big
+ * figures, the stamps and the masthead. The width axis is asked for because
+ * the whole look is set at `font-stretch: 62%`. `preload: false`, so only a
+ * student running Zine fetches it.
+ *
+ * **Not Anton, which is what the reference's headline looks like.** Measured:
+ * Anton's "1" is a third narrower than its other digits and `tnum` changes
+ * nothing, so a countdown set in it jitters on every tick. Archivo at 62%
+ * reads almost the same and its figures are genuinely tabular.
+ */
+const zineFace = Archivo({
+  variable: "--font-zine-src",
+  subsets: ["latin"],
+  axes: ["wdth"],
+  preload: false,
+});
+
+/** Zine's typed labels: "typed, then photocopied". Labels and meta only. */
+const typedFace = Courier_Prime({
+  variable: "--font-typed-src",
+  subsets: ["latin"],
+  weight: ["400", "700"],
+  preload: false,
+});
+
 export const metadata: Metadata = {
   title: "Skipp, know before you bunk",
   description:
@@ -124,7 +152,7 @@ export default function RootLayout({
     <html
       lang="en"
       suppressHydrationWarning
-      className={`${geistSans.variable} ${geistMono.variable} ${signature.variable} ${display.variable} ${hand.variable} ${puffy.variable} ${ticketFace.variable} h-full antialiased`}
+      className={`${geistSans.variable} ${geistMono.variable} ${signature.variable} ${display.variable} ${hand.variable} ${puffy.variable} ${ticketFace.variable} ${zineFace.variable} ${typedFace.variable} h-full antialiased`}
     >
       <head>
         {/* Applies the saved theme before paint so there is no flash. */}

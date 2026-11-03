@@ -331,6 +331,10 @@ function ScrollEdge() {
       // Now the bar is a clean opaque strip and the soft edge is a short 20px
       // tail that starts where the bar ends.
       className="pointer-events-none absolute inset-x-0 top-0 h-full bg-[var(--color-ink-0)]"
+      // Marked, so a look whose page is textured can texture the strip too:
+      // Zine multiplies a grain into its page, and a flat strip over it read
+      // as a lighter band under the masthead the moment the page scrolled.
+      data-scroll-edge
     >
       <div className="absolute inset-x-0 top-full h-5 bg-gradient-to-b from-ink-0/80 to-transparent" />
     </div>
