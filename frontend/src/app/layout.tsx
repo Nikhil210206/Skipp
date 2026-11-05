@@ -7,7 +7,6 @@ import {
   Geist,
   Geist_Mono,
   Space_Grotesk,
-  Unbounded,
 } from "next/font/google";
 import localFont from "next/font/local";
 import "./globals.css";
@@ -86,11 +85,15 @@ const puffy = localFont({
  * Ticket's display face: wide and loud on the big figures and headings. Body
  * copy and every column of figures stay in Geist, so nothing lines up
  * differently. `preload: false`, so only a student running Ticket fetches it.
+ *
+ * Unbounded, shipped locally in the repo (just like Fredoka) to protect Vercel
+ * Turbopack from "next/font/google queries have exactly one entry" crashes.
  */
-const ticketFace = Unbounded({
+const ticketFace = localFont({
+  src: "./fonts/unbounded-latin.woff2",
   variable: "--font-ticket-src",
-  subsets: ["latin"],
-  weight: ["600", "700"],
+  weight: "600 700",
+  display: "swap",
   preload: false,
 });
 
