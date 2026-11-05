@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useSession } from "@/context/SessionContext";
 import DayPeek from "@/components/DayPeek";
 import { todayISO } from "@/lib/schedule";
@@ -45,13 +45,23 @@ export default function CalendarPage() {
 
   const [selectedYear, setSelectedYear] = useState<CohortYear>(() => {
     if (typeof window !== "undefined") {
+      const manual = localStorage.getItem("skipp.calendar.userPicked");
       const saved = localStorage.getItem("skipp.calendar.cohortYear");
-      if (saved && ["1", "2", "3", "4"].includes(saved)) {
+      if (manual && saved && ["1", "2", "3", "4"].includes(saved)) {
         return Number(saved) as CohortYear;
       }
     }
     return detectedYear;
   });
+
+  useEffect(() => {
+    if (typeof window !== "undefined") {
+      const manual = localStorage.getItem("skipp.calendar.userPicked");
+      if (!manual && detectedYear) {
+        setSelectedYear(detectedYear);
+      }
+    }
+  }, [detectedYear]);
 
   const cohort = useMemo(() => getCohortInfo(selectedYear), [selectedYear]);
 
@@ -157,6 +167,7 @@ export default function CalendarPage() {
               setSelectedYear(y);
               if (typeof window !== "undefined") {
                 localStorage.setItem("skipp.calendar.cohortYear", String(y));
+                localStorage.setItem("skipp.calendar.userPicked", "true");
               }
             }}
             options={[
