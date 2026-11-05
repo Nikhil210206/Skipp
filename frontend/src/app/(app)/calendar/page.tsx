@@ -5,7 +5,7 @@ import { useSession } from "@/context/SessionContext";
 import DayPeek from "@/components/DayPeek";
 import { todayISO } from "@/lib/schedule";
 import { revealIn, useGsap } from "@/lib/motion";
-import { Button, IconButton, StateView } from "@/components/ui";
+import { Button, IconButton, Segmented, StateView } from "@/components/ui";
 import { Marginalia, Rule, SectionHead, TrackRule } from "@/components/ui/editorial";
 import { IconChevronLeft, IconChevronRight } from "@/components/Icons";
 import HolidaysSheet from "@/components/HolidaysSheet";
@@ -19,7 +19,13 @@ import {
   shortDate,
   termHolidays,
 } from "@/lib/holidays";
-import { FALLBACK_ACADEMIC_CALENDAR } from "@/lib/academicCalendar";
+import {
+  CohortYear,
+  FALLBACK_ACADEMIC_CALENDAR,
+  getCohortInfo,
+  getStudentYear,
+  scopeCalendarToYear,
+} from "@/lib/academicCalendar";
 import type { CalendarDay } from "@/types";
 
 const WEEKDAYS = ["M", "T", "W", "T", "F", "S", "S"];
@@ -31,10 +37,29 @@ const WEEKDAYS = ["M", "T", "W", "T", "F", "S", "S"];
  */
 export default function CalendarPage() {
   const { timetable } = useSession();
+
+  const detectedYear = useMemo(
+    () => getStudentYear(timetable?.student, timetable?.courses),
+    [timetable?.student, timetable?.courses],
+  );
+
+  const [selectedYear, setSelectedYear] = useState<CohortYear>(() => {
+    if (typeof window !== "undefined") {
+      const saved = localStorage.getItem("skipp.calendar.cohortYear");
+      if (saved && ["1", "2", "3", "4"].includes(saved)) {
+        return Number(saved) as CohortYear;
+      }
+    }
+    return detectedYear;
+  });
+
+  const cohort = useMemo(() => getCohortInfo(selectedYear), [selectedYear]);
+
   const cal = useMemo(() => {
     const raw = timetable?.calendar ?? [];
-    return raw.length > 0 ? raw : FALLBACK_ACADEMIC_CALENDAR;
-  }, [timetable]);
+    const base = raw.length > 0 ? raw : FALLBACK_ACADEMIC_CALENDAR;
+    return scopeCalendarToYear(base, selectedYear);
+  }, [timetable, selectedYear]);
 
   const byDate = useMemo(() => {
     const m = new Map<string, CalendarDay>();
@@ -115,6 +140,34 @@ export default function CalendarPage() {
   return (
     <>
       <div ref={scope} className="flex flex-1 flex-col">
+        {/* Academic year cohort selector */}
+        <div data-reveal className="pb-5 pt-2">
+          <div className="flex items-center justify-between pb-2">
+            <p className="text-label uppercase text-text-3">
+              {cohort.name} ({cohort.group})
+            </p>
+            <p className="tnum text-label uppercase text-accent font-medium">
+              Last day: {cohort.lastWorkingDayLabel}
+            </p>
+          </div>
+          <Segmented<CohortYear>
+            label="Select academic year"
+            value={selectedYear}
+            onChange={(y) => {
+              setSelectedYear(y);
+              if (typeof window !== "undefined") {
+                localStorage.setItem("skipp.calendar.cohortYear", String(y));
+              }
+            }}
+            options={[
+              { value: 1, label: "1st Yr" },
+              { value: 2, label: "2nd Yr" },
+              { value: 3, label: "3rd Yr" },
+              { value: 4, label: "4th Yr" },
+            ]}
+          />
+        </div>
+
         {/* The term as one measurement */}
         <div data-reveal className="pb-9 pt-3">
           <div className="flex items-baseline justify-between gap-4">
@@ -130,7 +183,7 @@ export default function CalendarPage() {
           <TrackRule value={termPct} className="bleed mt-4" />
           <Marginalia>
             <span className="mt-4 block tnum">
-              {workingDone} of {workingAll.length} working days behind you
+              {workingDone} of {workingAll.length} working days behind you · ends {cohort.lastWorkingDayLabel}
             </span>
           </Marginalia>
         </div>

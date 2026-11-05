@@ -136,16 +136,37 @@ import {
   saveDisplayName,
   saveOptionalCourses,
 } from "@/lib/customClasses";
-import { FALLBACK_ACADEMIC_CALENDAR } from "@/lib/academicCalendar";
+import {
+  FALLBACK_ACADEMIC_CALENDAR,
+  getStudentYear,
+  scopeCalendarToYear,
+} from "@/lib/academicCalendar";
 
-function getValidCalendar(cal?: CalendarDay[] | null): CalendarDay[] {
-  if (!cal || cal.length === 0) return FALLBACK_ACADEMIC_CALENDAR;
-  const sep21 = cal.find((d) => d.date === "2026-09-21");
-  const sep11 = cal.find((d) => d.date === "2026-09-11");
-  if (!sep21 || sep21.dayOrder !== 1 || !sep11 || sep11.dayOrder !== 1) {
-    return FALLBACK_ACADEMIC_CALENDAR;
+function getValidCalendar(
+  cal?: CalendarDay[] | null,
+  student?: { registrationNumber?: string | null; semester?: string | null } | null,
+  courses?: Course[] | null,
+): CalendarDay[] {
+  let baseCal = cal;
+  if (!baseCal || baseCal.length === 0) {
+    baseCal = FALLBACK_ACADEMIC_CALENDAR;
+  } else {
+    // Invalidate stale cached calendar if it contains phantom working days
+    const dec31 = baseCal.find((d) => d.date === "2026-12-31");
+    const jul01 = baseCal.find((d) => d.date === "2026-07-01");
+    if (dec31?.dayOrder != null || jul01?.dayOrder != null) {
+      baseCal = FALLBACK_ACADEMIC_CALENDAR;
+    } else {
+      const sep21 = baseCal.find((d) => d.date === "2026-09-21");
+      const sep11 = baseCal.find((d) => d.date === "2026-09-11");
+      if (!sep21 || sep21.dayOrder !== 1 || !sep11 || sep11.dayOrder !== 1) {
+        baseCal = FALLBACK_ACADEMIC_CALENDAR;
+      }
+    }
   }
-  return cal;
+
+  const year = getStudentYear(student, courses);
+  return scopeCalendarToYear(baseCal, year);
 }
 
 function synthesizePortalSnapshot(
@@ -187,6 +208,8 @@ function synthesizePortalSnapshot(
     sp.timetable?.calendar && sp.timetable.calendar.length > 0
       ? sp.timetable.calendar
       : sp.calendar,
+    student,
+    courses,
   );
 
   return {
@@ -344,7 +367,11 @@ export function SessionProvider({ children }: { children: React.ReactNode }) {
       const needsDayOrders =
         !effectiveSnap.timetable.dayOrders ||
         effectiveSnap.timetable.dayOrders.length === 0;
-      const validCal = getValidCalendar(effectiveSnap.timetable.calendar);
+      const validCal = getValidCalendar(
+        effectiveSnap.timetable.calendar,
+        effectiveSnap.timetable.student,
+        effectiveSnap.timetable.courses,
+      );
       const needsCalendarUpdate = effectiveSnap.timetable.calendar !== validCal;
 
       if (needsDayOrders || needsCalendarUpdate) {
@@ -421,7 +448,11 @@ export function SessionProvider({ children }: { children: React.ReactNode }) {
           const needsDayOrders =
             !snapToUse.timetable.dayOrders ||
             snapToUse.timetable.dayOrders.length === 0;
-          const validCal = getValidCalendar(snapToUse.timetable.calendar);
+          const validCal = getValidCalendar(
+            snapToUse.timetable.calendar,
+            snapToUse.timetable.student,
+            snapToUse.timetable.courses,
+          );
           const needsCalendar = snapToUse.timetable.calendar !== validCal;
 
           if (needsDayOrders || needsCalendar) {
