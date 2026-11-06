@@ -152,16 +152,17 @@ function getValidCalendar(
     baseCal = FALLBACK_ACADEMIC_CALENDAR;
   } else {
     // Invalidate stale cached calendar if it contains phantom working days
+    // or if it cuts off before Dec 7th
     const dec31 = baseCal.find((d) => d.date === "2026-12-31");
     const jul01 = baseCal.find((d) => d.date === "2026-07-01");
-    if (dec31?.dayOrder != null || jul01?.dayOrder != null) {
+    const dec07 = baseCal.find((d) => d.date === "2026-12-07");
+    if (
+      dec31?.dayOrder != null ||
+      jul01?.dayOrder != null ||
+      !dec07 ||
+      dec07.dayOrder == null
+    ) {
       baseCal = FALLBACK_ACADEMIC_CALENDAR;
-    } else {
-      const sep21 = baseCal.find((d) => d.date === "2026-09-21");
-      const sep11 = baseCal.find((d) => d.date === "2026-09-11");
-      if (!sep21 || sep21.dayOrder !== 1 || !sep11 || sep11.dayOrder !== 1) {
-        baseCal = FALLBACK_ACADEMIC_CALENDAR;
-      }
     }
   }
 
