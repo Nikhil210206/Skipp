@@ -43,7 +43,9 @@ export default function CalendarPage() {
 
   const cal = useMemo(() => {
     const raw = timetable?.calendar ?? [];
-    const base = raw.length > 0 ? raw : FALLBACK_ACADEMIC_CALENDAR;
+    const nov06 = raw.find((d) => d.date === "2026-11-06");
+    const base =
+      raw.length > 0 && nov06?.dayOrder === 2 ? raw : FALLBACK_ACADEMIC_CALENDAR;
     return scopeCalendarToYear(base, detectedYear);
   }, [timetable, detectedYear]);
 
