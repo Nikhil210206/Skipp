@@ -1,13 +1,12 @@
 import type { Metadata, Viewport } from "next";
-import {
-  Archivo,
-  Bricolage_Grotesque,
-  Caveat,
-  Courier_Prime,
-  Geist,
-  Geist_Mono,
-  Space_Grotesk,
-} from "next/font/google";
+// EVERY FACE SHIPS IN THE REPO (src/app/fonts), none comes from Google at build
+// time. `next/font/google` downloads each font while building, and when that
+// download hiccups Turbopack fails the whole build with the unhelpful
+// "next/font/google queries have exactly one entry". It killed production for Fredoka on
+// 2026-10-30, for Unbounded after that, and for Space Grotesk on 2026-11-14 with
+// the same code building fine on a laptop. A file in the repo cannot fail to
+// download. Each is the latin subset Google serves (all OFL), and every one but
+// Courier Prime is a variable font, so one file covers all its weights.
 import localFont from "next/font/local";
 import "./globals.css";
 import { SessionProvider } from "@/context/SessionContext";
@@ -17,22 +16,28 @@ import Splash from "@/components/Splash";
 import { Analytics } from "@vercel/analytics/next";
 import { SpeedInsights } from "@vercel/speed-insights/next";
 
-const geistSans = Geist({
+const geistSans = localFont({
+  src: "./fonts/geist-latin.woff2",
   variable: "--font-geist-sans",
-  subsets: ["latin"],
+  weight: "100 900",
+  display: "swap",
 });
 
-const geistMono = Geist_Mono({
+const geistMono = localFont({
+  src: "./fonts/geist-mono-latin.woff2",
   variable: "--font-geist-mono",
-  subsets: ["latin"],
+  weight: "100 900",
+  display: "swap",
+  adjustFontFallback: false,
 });
 
 // Used only for the maker's signature, so it reads as a mark rather than as
 // part of the interface.
-const signature = Space_Grotesk({
+const signature = localFont({
+  src: "./fonts/space-grotesk-latin.woff2",
   variable: "--font-signature-src",
-  subsets: ["latin"],
-  weight: ["400", "500"],
+  weight: "300 700",
+  display: "swap",
 });
 
 /**
@@ -44,19 +49,22 @@ const signature = Space_Grotesk({
  * it counts up, and long copy in it is measurably harder to read on a phone.
  * The notebook is a surface; what is written on it stays legible.
  */
-const hand = Caveat({
+const hand = localFont({
+  src: "./fonts/caveat-latin.woff2",
   variable: "--font-hand-src",
-  subsets: ["latin"],
-  weight: ["500", "600", "700"],
+  weight: "400 700",
+  display: "swap",
 });
 
 // The entry screens only: sign-in and onboarding. Those screens are the pitch
 // and get to have a voice, while the app itself stays in Geist, because a
 // screen full of attendance figures wants a neutral face and dependable
 // tabular numerals. Deliberately not wired to --font-sans.
-const display = Bricolage_Grotesque({
+const display = localFont({
+  src: "./fonts/bricolage-grotesque-latin.woff2",
   variable: "--font-display-src",
-  subsets: ["latin"],
+  weight: "200 800",
+  display: "swap",
 });
 
 /**
@@ -64,14 +72,7 @@ const display = Bricolage_Grotesque({
  * BEARING: the root layout preloads every font it declares, so without it every
  * student would download a face only a student on Clay ever uses.
  *
- * Fredoka, shipped in the repo rather than fetched from Google at build time.
- * On 2026-10-30 the production build on Vercel died resolving this one font
- * ("next/font/google queries have exactly one entry") with layout.tsx
- * unchanged since builds that passed, while every other Google font in this
- * file resolved and the same build passed on a laptop: whatever Google served
- * Vercel's builder for Fredoka, Turbopack could not parse it. A file in the
- * repo cannot change under us. It is the latin subset of the variable font
- * (OFL), so one file covers both weights Clay uses.
+ * Fredoka, the first face moved into the repo (see the note on the imports).
  */
 const puffy = localFont({
   src: "./fonts/fredoka-latin.woff2",
@@ -85,9 +86,6 @@ const puffy = localFont({
  * Ticket's display face: wide and loud on the big figures and headings. Body
  * copy and every column of figures stay in Geist, so nothing lines up
  * differently. `preload: false`, so only a student running Ticket fetches it.
- *
- * Unbounded, shipped locally in the repo (just like Fredoka) to protect Vercel
- * Turbopack from "next/font/google queries have exactly one entry" crashes.
  */
 const ticketFace = localFont({
   src: "./fonts/unbounded-latin.woff2",
@@ -108,18 +106,25 @@ const ticketFace = localFont({
  * nothing, so a countdown set in it jitters on every tick. Archivo at 62%
  * reads almost the same and its figures are genuinely tabular.
  */
-const zineFace = Archivo({
+const zineFace = localFont({
+  src: "./fonts/archivo-latin.woff2",
   variable: "--font-zine-src",
-  subsets: ["latin"],
-  axes: ["wdth"],
+  weight: "100 900",
+  // The width axis is what the look is set on, so the face has to declare it
+  // or `font-stretch: 62%` would be ignored.
+  declarations: [{ prop: "font-stretch", value: "62% 125%" }],
+  display: "swap",
   preload: false,
 });
 
 /** Zine's typed labels: "typed, then photocopied". Labels and meta only. */
-const typedFace = Courier_Prime({
+const typedFace = localFont({
+  src: [
+    { path: "./fonts/courier-prime-400-latin.woff2", weight: "400", style: "normal" },
+    { path: "./fonts/courier-prime-700-latin.woff2", weight: "700", style: "normal" },
+  ],
   variable: "--font-typed-src",
-  subsets: ["latin"],
-  weight: ["400", "700"],
+  display: "swap",
   preload: false,
 });
 
