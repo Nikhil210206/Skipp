@@ -4,7 +4,7 @@
 
 // Bumped whenever the shipped assets must supersede what a phone already has.
 // A byte-identical sw.js is never treated as an update by the browser.
-const CACHE = "skipp-v18";
+const CACHE = "skipp-v19";
 
 self.addEventListener("install", () => self.skipWaiting());
 
@@ -20,9 +20,9 @@ self.addEventListener("activate", (event) => {
 
 // Local notifications only: there is no `push` listener, deliberately.
 // Nothing on a server sends to this app. Notifications are raised by the page
-// itself via `registration.showNotification` when it notices a class is close
-// or that the portal recorded attendance. This handler exists so that TAPPING
-// one still opens the right screen.
+// itself via `registration.showNotification` when it notices a class is close,
+// that the portal recorded attendance, or that a test has been marked. This
+// handler exists so that TAPPING one still opens the right screen.
 self.addEventListener("notificationclick", (event) => {
   event.notification.close();
   const target = event.notification.data?.url || "/dashboard";

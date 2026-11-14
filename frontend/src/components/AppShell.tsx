@@ -14,6 +14,8 @@ import NewThemeSheet from "./NewThemeSheet";
 import AttendanceBackSheet from "./AttendanceBackSheet";
 import MarksBackSheet from "./MarksBackSheet";
 import StudentPortalPromptModal from "./StudentPortalPromptModal";
+import WhatChanged from "./WhatChanged";
+import { usePendingUpdates } from "@/lib/updates";
 import { CREATOR } from "@/lib/creator";
 import { Skeleton } from "./ui";
 import { pageIn } from "@/lib/motion";
@@ -91,10 +93,16 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
   // Attendance leads the queue: it is the only notice here about the app's own
   // core number being readable again, and it asks for an action. A skin and a
   // calendar feature can wait a launch.
-  const showAttendance = !seenAttendance && !gateUp;
-  const showMarks = !seenMarks && !showAttendance && !gateUp;
-  const showTheme = !seenTheme && !showMarks && !showAttendance && !gateUp;
-  const showHolidays = !seenHolidays && !showTheme && !showMarks && !showAttendance && !gateUp;
+  //
+  // What changed since they last looked goes ahead of all of them: it is the
+  // student's own numbers, and it is only true for a while. The notices are
+  // about the app and keep for a launch.
+  const updatesWaiting = usePendingUpdates(student?.registrationNumber ?? null).length > 0;
+  const quiet = !gateUp && !updatesWaiting;
+  const showAttendance = !seenAttendance && quiet;
+  const showMarks = !seenMarks && !showAttendance && quiet;
+  const showTheme = !seenTheme && !showMarks && !showAttendance && quiet;
+  const showHolidays = !seenHolidays && !showTheme && !showMarks && !showAttendance && quiet;
   function tapMasthead() {
     taps.current += 1;
     if (timer.current) window.clearTimeout(timer.current);
@@ -264,13 +272,14 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
             what they think of a change they had not seen yet. Its date is not
             consumed when it loses, so it simply comes round next launch. */}
         <StudentPortalPromptModal />
+        <WhatChanged blocked={gateUp} />
         <AttendanceBackSheet open={showAttendance} />
         <MarksBackSheet open={showMarks} />
         <NewThemeSheet open={showTheme} />
         <WhatsNewSheet open={showHolidays} />
         <FeedbackPrompt
           open={
-            feedbackDue && !showMarks && !showAttendance && !showTheme && !showHolidays && !gateUp
+            feedbackDue && !showMarks && !showAttendance && !showTheme && !showHolidays && quiet
           }
         />
       </div>

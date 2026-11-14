@@ -78,8 +78,9 @@ export default function NotificationSetting() {
       <div className="flex items-start justify-between gap-5">
         <div className="min-w-0 flex-1">
           <p className="text-body text-text-2">
-            A nudge {LEADS.join(" and ")} minutes before each class, and a note
-            when the portal has recorded attendance. Once each, never repeated.
+            A nudge {LEADS.join(" and ")} minutes before each class, and one for
+            every change the portal makes: attendance marked, with your margin
+            before and after, and every new mark. Once each, never repeated.
           </p>
           <p className="mt-2 text-callout leading-relaxed text-text-3">
             {state === "needs-install"
@@ -88,7 +89,7 @@ export default function NotificationSetting() {
                 ? "Blocked in your browser settings. Allow notifications for Skipp there, then reload."
                 : state === "unsupported"
                   ? "This browser cannot show notifications."
-                  : "These appear when you open Skipp, and stay in your notification tray afterwards. Nothing of yours is stored on my server, so nothing can watch the portal while the app is closed."}
+                  : "These arrive when Skipp opens and checks the portal, and stay in your notification tray afterwards. Nothing of yours is stored on my server, so nothing can watch the portal while the app is closed."}
           </p>
         </div>
 

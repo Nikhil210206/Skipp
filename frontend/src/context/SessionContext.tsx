@@ -53,7 +53,8 @@ import {
   optionalKeysForCourse,
   optionalKeysForDayOrder,
 } from "@/lib/schedule";
-import { notifyAttendanceChanges } from "@/lib/notify";
+import { notifyUpdates } from "@/lib/notify";
+import { detectUpdates, forgetUpdates } from "@/lib/updates";
 import {
   clearCredentials,
   clearLoginMode,
@@ -411,12 +412,10 @@ export function SessionProvider({ children }: { children: React.ReactNode }) {
         effectiveSnap.attendance,
         loadSeenAttendance(id),
       );
+      // Feeds Home's Reminders only. Notifications and the "what changed"
+      // pop-up come from `detectUpdates` below, which also sees the student
+      // portal's numbers; this diff only ever saw academia's.
       setChanges(diffed);
-      // The same diff, raised as a real notification rather than only as a line
-      // in the Reminders feed. Local, and raised here because this is the single
-      // door fresh data enters by, so it fires once per genuine change rather
-      // than once per glance at the app.
-      void notifyAttendanceChanges(diffed);
       saveSeenAttendance(id, effectiveSnap.attendance);
     }
     setSnapshot(effectiveSnap);
@@ -1186,10 +1185,10 @@ export function SessionProvider({ children }: { children: React.ReactNode }) {
     }
   }, [creds, portalCreds, snapshot, loginSource, installSnapshot, portalAtt, getPortalCredentials, autoImportAttendance, refreshPortalAttendance]);
 
-  const value = useMemo<SessionValue>(() => {
-    const sectionState = (s: SectionStatus | undefined): SectionState =>
-      creds && !snapshot ? "loading" : (s ?? "loading");
-
+  // The attendance and marks actually on screen, and where they came from.
+  // Its own memo so the update detector below can watch exactly this and
+  // nothing else.
+  const shown = useMemo(() => {
     // The imported portal override takes precedence when present, since the
     // student explicitly linked their student portal credentials or imported
     // attendance. If cleared, it falls back cleanly to academia.
@@ -1213,6 +1212,30 @@ export function SessionProvider({ children }: { children: React.ReactNode }) {
         c.title,
       ]),
     );
+    return {
+      usePortal,
+      usePortalMarks,
+      attendance: usePortal ? portalAtt.attendance : (snapshot?.attendance ?? null),
+      attendanceSource: (usePortal ? "portal" : academiaReady ? "academia" : null) as
+        | "academia"
+        | "portal"
+        | null,
+      marks: portalMarks
+        ? enrichMarkTitles(portalMarks, courseTitles)
+        : snapshot?.marks
+          ? enrichMarkTitles(snapshot.marks, courseTitles)
+          : null,
+      marksSource: (usePortalMarks ? "portal" : academiaMarksReady ? "academia" : null) as
+        | "academia"
+        | "portal"
+        | null,
+    };
+  }, [snapshot, portalAtt]);
+
+  const value = useMemo<SessionValue>(() => {
+    const sectionState = (s: SectionStatus | undefined): SectionState =>
+      creds && !snapshot ? "loading" : (s ?? "loading");
+    const { usePortal, usePortalMarks } = shown;
 
     return {
       creds,
@@ -1223,31 +1246,25 @@ export function SessionProvider({ children }: { children: React.ReactNode }) {
         snapshot?.timetable.dayOrders ?? [],
         optionalCourses,
       ),
-      attendance: usePortal
-        ? portalAtt.attendance
-        : (snapshot?.attendance ?? null),
+      attendance: shown.attendance,
       attendanceState: usePortal
         ? "ready"
         : sectionState(snapshot?.attendanceStatus),
       attendanceMessage: usePortal ? null : (snapshot?.attendanceMessage ?? null),
-      attendanceSource: usePortal ? "portal" : academiaReady ? "academia" : null,
-      reportedPeriod: usePortal ? portalAtt.reportedPeriod : null,
+      attendanceSource: shown.attendanceSource,
+      reportedPeriod: usePortal ? (portalAtt?.reportedPeriod ?? null) : null,
       canImportAttendance: true, // we can always try to import via OCR
       importAttendance,
       importAttendanceHtml,
       autoImportAttendance,
       clearImportedAttendance,
       portalAtt,
-      marks: portalMarks
-        ? enrichMarkTitles(portalMarks, courseTitles)
-        : snapshot?.marks
-        ? enrichMarkTitles(snapshot.marks, courseTitles)
-        : null,
+      marks: shown.marks,
       marksState: usePortalMarks ? "ready" : sectionState(snapshot?.marksStatus),
       marksMessage: usePortalMarks ? null : (snapshot?.marksMessage ?? null),
-      marksSource: usePortalMarks ? "portal" : academiaMarksReady ? "academia" : null,
+      marksSource: shown.marksSource,
       fetchedAt: usePortal
-        ? (portalAtt.fetchedAt ?? snapshot?.fetchedAt ?? null)
+        ? (portalAtt?.fetchedAt ?? snapshot?.fetchedAt ?? null)
         : (snapshot?.fetchedAt ?? null),
       isAuthed: creds != null,
       loginSource,
@@ -1373,6 +1390,7 @@ export function SessionProvider({ children }: { children: React.ReactNode }) {
       },
       refresh,
       logout() {
+        forgetUpdates(reg);
         setCreds(null);
         setPortalCreds(null);
         setSnapshot(null);
@@ -1403,7 +1421,30 @@ export function SessionProvider({ children }: { children: React.ReactNode }) {
     importAttendanceHtml,
     autoImportAttendance,
     clearImportedAttendance,
+    shown,
   ]);
+
+  // What moved since the student last looked, from whichever portal is on
+  // screen. Watching the EFFECTIVE numbers rather than hooking each place data
+  // arrives (an academia refresh, a portal refresh, an import, a rehydrate) is
+  // what makes the student portal path count: it never passes through
+  // `installSnapshot`. The detector moves its own baseline as it reports, so
+  // re-running on an identical object finds nothing.
+  //
+  // Read from `shown`, not from `value`: the context value carries callbacks
+  // that touch refs, and the compiler lint (rightly) refuses to let render
+  // read through it.
+  useEffect(() => {
+    if (!reg) return;
+    const found = detectUpdates({
+      reg,
+      attendance: shown.attendance,
+      attendanceSource: shown.attendanceSource,
+      marks: shown.marks,
+      marksSource: shown.marksSource,
+    });
+    void notifyUpdates(found);
+  }, [reg, shown]);
 
   return (
     <SessionContext.Provider value={value}>{children}</SessionContext.Provider>

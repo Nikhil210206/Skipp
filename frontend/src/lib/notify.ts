@@ -4,8 +4,8 @@
 //
 // **There is no server involved and no push subscription.** The app asks the
 // browser for permission once, then raises notifications locally when it
-// notices something worth saying: a class about to start, or attendance the
-// portal has recorded since the last look.
+// notices something worth saying: a class about to start, attendance the portal
+// has recorded since the last look, or a test that has been marked.
 //
 // **What that means, stated plainly, because the UI has to say it too:** these
 // arrive when Skipp is OPENED, not while it is closed. The web has no way to
@@ -20,7 +20,13 @@
 // So the honest framing is a notification that persists in the tray after you
 // glance at the app, not an alarm clock.
 
-import type { AttendanceChange } from "./reminders";
+import {
+  attendanceDelta,
+  attendanceTone,
+  attendanceWhat,
+  fmtMark,
+  type Update,
+} from "./updates";
 import { todayISO, type ScheduleItem } from "./schedule";
 
 /**
@@ -190,42 +196,111 @@ async function show(
 }
 
 /**
- * What the portal recorded since the last snapshot.
- *
- * Raised from `installSnapshot`, the single door fresh data enters by. The
- * signature guard is belt and braces on top of that: a refresh that re-reports
- * the same marks, or a second install of an identical snapshot, says nothing a
- * second time.
+ * How many changes get a notification of their own. Past this the rest fold
+ * into one line, because twelve buzzes in a row on the morning marks land is a
+ * phone being taken away from you, not news.
  */
-export async function notifyAttendanceChanges(
-  changes: AttendanceChange[],
-): Promise<boolean> {
-  if (changes.length === 0) return false;
+const UPDATE_LIMIT = 5;
 
-  const id = `attn-${hash(
-    changes
-      .map((c) => `${c.title}:${c.held}:${c.present}:${c.percentage.toFixed(1)}`)
-      .sort()
-      .join("|"),
-  )}`;
-  if (alreadySent(id)) return false;
+/** Bad news first, then marks, then attendance that went the right way. */
+function urgency(u: Update): number {
+  if (u.kind === "mark") return 1;
+  const tone = attendanceTone(u);
+  return tone === "risk" ? 0 : tone === "watch" ? 0.5 : 2;
+}
 
-  const missed = changes.filter((c) => c.held - c.present > 0);
+/** Title and body for one change. No arrows or dashes: "8 to 9" reads fine. */
+export function describeUpdate(u: Update): { title: string; body: string } {
+  if (u.kind === "mark") {
+    const max = fmtMark(u.max);
+    return u.before === null
+      ? {
+          title: `New marks: ${u.title}`,
+          body: `${u.test}: ${fmtMark(u.after)}/${max} scored`,
+        }
+      : {
+          title: `Marks updated: ${u.title}`,
+          body: `${u.test}: ${fmtMark(u.before)} to ${fmtMark(u.after)} out of ${max}`,
+        };
+  }
+
+  const { held, present, missed } = attendanceDelta(u);
+  const b = u.before.margin;
+  const a = u.after.margin;
   const title =
-    missed.length > 0
-      ? `${missed.length === 1 ? missed[0].title : `${missed.length} subjects`} marked absent`
-      : "Attendance updated";
-  const body =
-    changes.length === 1
-      ? `${changes[0].held} class${changes[0].held === 1 ? "" : "es"} recorded, now at ${changes[0].percentage.toFixed(1)}%`
-      : `${changes.length} subjects updated since you last looked`;
+    missed > 0
+      ? `Marked absent: ${u.title}`
+      : held > 0
+        ? `Attendance up: ${u.title}`
+        : `Attendance corrected: ${u.title}`;
+  const what = attendanceWhat(held, present, missed, u);
+  const t = u.threshold;
+  const margin =
+    a < 0
+      ? `attend ${-a} to get back to ${t}%`
+      : b < 0
+        ? a === 0
+          ? `back above ${t}%, no skips left yet`
+          : `back above ${t}%, ${a} to spare`
+        : a === 0
+          ? `margin ${b} to 0, no skips left`
+          : a === b
+            ? `margin holds at ${a}`
+            : `margin ${b} to ${a}`;
+  return { title, body: `${what}, ${margin}. ${u.after.percentage.toFixed(1)}% now` };
+}
 
-  const shown = await show(title, {
-    body,
-    tag: "attendance-change",
-    data: { url: "/attendance" },
-  });
-  if (shown) markSent(id);
+/**
+ * What the portal recorded since the last look, one notification per change.
+ *
+ * Raised from SessionContext the moment `detectUpdates` finds something, which
+ * is once per real change: the detector moves its baseline as it reports, so
+ * the same numbers never come back as news. The sent log is belt and braces on
+ * top, for a second tab running the same detection.
+ *
+ * Tagged per change, so a subject that moves twice in a day replaces its own
+ * entry in the tray instead of stacking a stale one under the new.
+ */
+export async function notifyUpdates(updates: Update[]): Promise<number> {
+  if (updates.length === 0 || !notificationsOn()) return 0;
+  const ordered = [...updates].sort((x, y) => urgency(x) - urgency(y));
+  const own = ordered.length > UPDATE_LIMIT ? ordered.slice(0, UPDATE_LIMIT - 1) : ordered;
+  const rest = ordered.length - own.length;
+
+  let shown = 0;
+  for (const u of own) {
+    const sig =
+      u.kind === "mark"
+        ? `${u.id}:${u.before}:${u.after}`
+        : `${u.id}:${u.after.attended}/${u.after.conducted}`;
+    const id = `upd-${hash(sig)}`;
+    if (alreadySent(id)) continue;
+    const { title, body } = describeUpdate(u);
+    const ok = await show(title, {
+      body,
+      tag: `upd-${hash(u.id)}`,
+      data: { url: u.kind === "mark" ? "/marks" : "/attendance" },
+    });
+    if (ok) {
+      markSent(id);
+      shown += 1;
+    }
+  }
+
+  if (rest > 0) {
+    const id = `upd-more-${hash(ordered.map((u) => u.id).join("|"))}`;
+    if (!alreadySent(id)) {
+      const ok = await show(`${rest} more update${rest === 1 ? "" : "s"} in Skipp`, {
+        body: "Open Skipp to see everything that changed.",
+        tag: "upd-more",
+        data: { url: "/dashboard" },
+      });
+      if (ok) {
+        markSent(id);
+        shown += 1;
+      }
+    }
+  }
   return shown;
 }
 

@@ -345,7 +345,66 @@ is deployment and true push notifications.
 Entries below are newest first. **When something breaks, read the relevant entry first**: most
 oddities here (login shell, empty calendar, 429s, duplicated course codes) are already diagnosed.
 
-### DONE: Zine prints by day or by night (2026-11-03, latest)
+### DONE: What changed, as notifications and as a pop-up (2026-11-14, latest)
+
+Asked for from a screenshot of another app's notification tray: one
+notification per change ("New marks: X, PBL-II: 19/20 scored", "Attendance
+increased: Y, margin 8 to 9"), plus a pop-up the first time the app is opened
+after something changed, saying what moved from what to what.
+
+- **`lib/updates.ts` is the one detector**, and it watches the EFFECTIVE
+  attendance and marks (whichever portal is on screen), not `installSnapshot`.
+  That is the point: the student portal path never passes through
+  `installSnapshot`, so the old attendance diff in `reminders.ts` never saw
+  it. SessionContext now derives the on-screen pair in its own `shown` memo
+  and an effect hands it to `detectUpdates`; the context value carries
+  ref-touching callbacks, so the compiler lint refuses to let render read it.
+- **Two stores per registration number.** The baseline
+  (`skipp.updates.base.<reg>`) is stamped with the SOURCE per section; a
+  missing baseline, or one from the other portal, is seeded silently, since a
+  first sign-in is not news and the two portals name tests differently. The
+  pending list (`skipp.updates.pending.<reg>`) is what the pop-up shows and
+  clears; changes found across several refreshes merge, keeping the OLDEST
+  before and newest after, and a change that undid itself drops out.
+- **A new attendance row is not news; a new marks subject is**, because that
+  is what a subject looks like the day its first test is marked.
+- **Notifications** (`notifyUpdates` in `lib/notify.ts`): one per change,
+  bad news first, at most five with the rest folded into one, tagged per
+  change so a subject that moves twice replaces its own entry. The old single
+  summary (`notifyAttendanceChanges`) is gone. **Still local**: they fire when
+  Skipp opens and refreshes, never while it is closed. Nothing about the
+  push decision changed.
+- **The pop-up** (`components/WhatChanged.tsx`): a Modal, first in AppShell's
+  one-at-a-time order after the install gate, after the launch hold, and it
+  waits for any other open dialog (the Student Portal prompt opens at 700ms)
+  by watching the body rather than a shared queue. Each row arrives on its OLD
+  figure, the old value is struck through, and the digits roll to the new one
+  on reels (an odometer with a blank cell, so a new mark rolls in from
+  nothing); the house meter slides from before to after and the margin rolls
+  beside it. Rows go one after another, the whole run under about three
+  seconds. "Notify me" in the footer turns notifications on where they would
+  work.
+- **The markup is rendered at the NEW values** and wound back before first
+  paint, so reduced motion (or a failed animation) shows the right numbers.
+  Measured: under reduced motion every reel reads its final digit at once.
+- **Trap: GSAP reads an inline `translateY(%)` back as pixel `y`** and then
+  stacks `yPercent` on top. Every reel landed on the wrong digit until the
+  start state set `y: 0` as well.
+- **Trap: a scaled pop-in needs an inline block, and an inline block cannot
+  break**, so the red "attend 8 to get back" clause jumped to its own line
+  with its comma first. Clauses fade (`data-wc-soft`); only short labels pop.
+
+Verified in the DevTools browser against `?fixture=1` with no backend, by
+editing the stored baseline to older numbers: five changes found and shown,
+the sequence sampled frame by frame (count rolls, each row shows its old
+figure then rolls), "Got it" clears the list and the baseline stays moved, it
+waits behind the portal prompt and rises once that closes, reduced motion,
+320 and 390 wide in Ink and Zine night, no console errors; 15 assertions on
+the detector and the wording against the real modules (jiti). **Not
+verified:** a real notification in a tray (needs a granted permission on a
+device), a real portal refresh producing a change, and the other looks.
+
+### DONE: Zine prints by day or by night (2026-11-03)
 
 The "night run" board on the Zine canvas (cream on blueprint blue, a
 cyanotype) was asked about after the look shipped, and then asked for as a
