@@ -107,9 +107,9 @@ export default function StudentPortalPromptModal() {
     setOpen(false);
   };
 
-  const loadManualCaptcha = async () => {
+  const loadManualCaptcha = async (preserveError = false) => {
     setLoadingCaptcha(true);
-    setError(null);
+    if (!preserveError) setError(null);
     setCaptchaInput("");
     try {
       const data = await initStudentPortalLogin();
@@ -191,7 +191,7 @@ export default function StudentPortalPromptModal() {
             ? err.message
             : "The portal wants a security check. Type the letters below."
         );
-        void loadManualCaptcha();
+        void loadManualCaptcha(true);
       }
     } finally {
       setBusy(false);

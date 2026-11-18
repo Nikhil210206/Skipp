@@ -275,6 +275,8 @@ class PortalSession:
         })
         fp_body[self.domain_field_name] = dtoken
         fp_body[self.captcha_field_name] = cptoken
+        if self.honeypot_field:
+            fp_body[self.honeypot_field] = ""
 
         resp = await self.client.post(LOGIN_SUBMIT_URL, data=fp_body)
         body = resp.text or ""
@@ -549,20 +551,40 @@ async def submit_login_and_fetch(req_data: StudentPortalLoginRequest) -> Tuple[s
         clean_username = clean_username.split("@")[0].strip()
 
     sid = None
+    proxy = None
     if req_data.session_cookie:
         for part in req_data.session_cookie.split(';'):
             part = part.strip()
             if part.startswith('SKIPP_SID='):
                 sid = part.split('=', 1)[1].strip()
-                break
+            elif part.startswith('SKIPP_PROXY_ID='):
+                proxy = part.split('=', 1)[1].strip()
 
-    session = _active_portal_sessions.pop(sid, None) if sid else None
+    session = _active_portal_sessions.get(sid, None) if sid else None
     if not session:
-        session = PortalSession()
-        await session.load_captcha()
+        log.info("Reconstructing PortalSession from client session metadata")
+        session = PortalSession(proxy=proxy)
+        if req_data.session_cookie:
+            for part in req_data.session_cookie.split(';'):
+                part = part.strip()
+                if not part or part.startswith('SKIPP_'):
+                    continue
+                if '=' in part:
+                    k, v = part.split('=', 1)
+                    session.client.cookies.set(k.strip(), v.strip(), domain="sp.srmist.edu.in", path="/")
+
+        session.nonce = req_data.nonce or None
+        session.domain_field_name = req_data.domain_field or "dtoken_x"
+        session.captcha_field_name = req_data.captcha_field or "cptoken_x"
+        session.random_delimiter = req_data.random_delim or "0000"
+        session.honeypot_field = req_data.honeypot_field or "ph_cf19b370"
+        session.load_ms = int(req_data.page_load_time * 1000) if req_data.page_load_time else int(time.time() * 1000)
+        session.captcha_page = "restored"
 
     res = await session.login(clean_username, req_data.password, req_data.captcha)
     if not res.get("ok"):
+        if sid:
+            _active_portal_sessions.pop(sid, None)
         reason = res.get("reason", "login_failed")
         msg = res.get("message", "Login failed")
         if reason == "account_locked":
@@ -572,6 +594,9 @@ async def submit_login_and_fetch(req_data: StudentPortalLoginRequest) -> Tuple[s
         if reason == "invalid_credentials":
             raise StudentPortalClientError(f"Incorrect NetID or password ({msg}). Note that your Student Portal password is often different from your Academia password.")
         raise StudentPortalClientError(msg)
+
+    if sid:
+        _active_portal_sessions.pop(sid, None)
 
     att_html, marks_html, tt_html = await asyncio.gather(
         session.get_attendance_html(),

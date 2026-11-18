@@ -196,14 +196,15 @@ export function CaptchaField({
             id={id}
             type="text"
             value={value}
-            onChange={(e) => onChange(e.target.value.toUpperCase())}
+            onChange={(e) => onChange(e.target.value.replace(/\s+/g, ""))}
             maxLength={6}
             autoComplete="off"
-            autoCapitalize="characters"
+            autoCapitalize="none"
             autoCorrect="off"
             spellCheck={false}
             disabled={disabled || loading || !session}
-            className={`${PORTAL_INPUT} tnum uppercase tracking-[0.2em]`}
+            className={`${PORTAL_INPUT} tnum tracking-[0.2em]`}
+            placeholder="6 chars"
           />
         </span>
       )}
