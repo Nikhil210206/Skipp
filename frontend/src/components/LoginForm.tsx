@@ -175,6 +175,7 @@ export default function LoginForm({
               randomDelim: captchaSession.randomDelim,
               honeypotField: captchaSession.honeypotField,
               nonce: captchaSession.nonce,
+              secureToken: captchaSession.secureToken,
               pageLoadTime: captchaSession.pageLoadTime,
             },
           );

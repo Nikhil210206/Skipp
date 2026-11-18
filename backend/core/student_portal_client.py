@@ -174,6 +174,7 @@ class PortalSession:
         )
         self.nonce: Optional[str] = None
         self.login_form_fields: Dict[str, str] = {}
+        self.secure_token: Optional[str] = None
         self.captcha_page: Optional[str] = None
         self.exposed_captcha_text: Optional[str] = None
         self.domain_field_name: str = "dtoken_x"
@@ -205,10 +206,18 @@ class PortalSession:
         rd = re.search(r"""randomDelimiter\s*=\s*['"]([^'"]+)['"]""", text)
         self.random_delimiter = rd.group(1) if rd else "0000"
 
+        from bs4 import BeautifulSoup
+        soup = BeautifulSoup(text, "html.parser")
+        form = soup.find("form")
         fields = {}
-        for inp in re.finditer(r"<input[^>]*name=['\"]([^'\"]+)['\"][^>]*>", text):
-            fields[inp.group(1)] = ""
+        if form:
+            for inp in form.find_all("input"):
+                n = inp.get("name")
+                v = inp.get("value", "")
+                if n:
+                    fields[n] = v
         self.login_form_fields = fields
+        self.secure_token = fields.get("secureToken", "")
 
         m_cap = re.search(r"SCaptchaServlet[^'\" ]*", text)
         captcha_url = None
@@ -237,6 +246,7 @@ class PortalSession:
             "captcha_field": self.captcha_field_name,
             "random_delim": self.random_delimiter,
             "honeypot_field": self.honeypot_field,
+            "secure_token": self.secure_token or "",
         }
 
     async def login(self, username: str, password: str, captcha: str) -> Dict[str, any]:
@@ -277,6 +287,8 @@ class PortalSession:
         fp_body[self.captcha_field_name] = cptoken
         if self.honeypot_field:
             fp_body[self.honeypot_field] = ""
+        if hasattr(self, "secure_token") and self.secure_token:
+            fp_body["secureToken"] = self.secure_token
 
         resp = await self.client.post(LOGIN_SUBMIT_URL, data=fp_body)
         body = resp.text or ""
@@ -530,6 +542,8 @@ async def init_login_session() -> StudentPortalCaptchaResponse:
         cookie_parts.append(f"SKIPP_PROXY_ID={session.proxy}")
     if session.nonce:
         cookie_parts.append(f"SKIPP_NONCE={session.nonce}")
+    if info.get("secure_token"):
+        cookie_parts.append(f"SKIPP_SECURE_TOKEN={info['secure_token']}")
     for c in session.client.cookies.jar:
         cookie_parts.append(f"{c.name}={c.value}")
 
@@ -541,6 +555,7 @@ async def init_login_session() -> StudentPortalCaptchaResponse:
         random_delim=info["random_delim"],
         honeypot_field=info["honeypot_field"],
         nonce=info["nonce"],
+        secure_token=info.get("secure_token", ""),
         captcha_base64=info["captcha_image"],
         page_load_time=time.time()
     )
@@ -552,6 +567,7 @@ async def submit_login_and_fetch(req_data: StudentPortalLoginRequest) -> Tuple[s
 
     sid = None
     proxy = None
+    secure_token = getattr(req_data, "secure_token", None) or None
     if req_data.session_cookie:
         for part in req_data.session_cookie.split(';'):
             part = part.strip()
@@ -559,6 +575,8 @@ async def submit_login_and_fetch(req_data: StudentPortalLoginRequest) -> Tuple[s
                 sid = part.split('=', 1)[1].strip()
             elif part.startswith('SKIPP_PROXY_ID='):
                 proxy = part.split('=', 1)[1].strip()
+            elif not secure_token and part.startswith('SKIPP_SECURE_TOKEN='):
+                secure_token = part.split('=', 1)[1].strip()
 
     session = _active_portal_sessions.get(sid, None) if sid else None
     if not session:
@@ -579,7 +597,10 @@ async def submit_login_and_fetch(req_data: StudentPortalLoginRequest) -> Tuple[s
         session.random_delimiter = req_data.random_delim or "0000"
         session.honeypot_field = req_data.honeypot_field or "ph_cf19b370"
         session.load_ms = int(req_data.page_load_time * 1000) if req_data.page_load_time else int(time.time() * 1000)
+        session.secure_token = secure_token or ""
         session.captcha_page = "restored"
+    elif secure_token and not session.secure_token:
+        session.secure_token = secure_token
 
     res = await session.login(clean_username, req_data.password, req_data.captcha)
     if not res.get("ok"):

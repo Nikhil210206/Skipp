@@ -126,6 +126,7 @@ export type StudentPortalCaptchaResponse = {
   randomDelim: string;
   honeypotField: string;
   nonce?: string;
+  secureToken?: string;
   captchaBase64: string;
   pageLoadTime?: number;
 };
@@ -138,6 +139,7 @@ export type StudentPortalLoginRequest = Credentials & {
   randomDelim: string;
   honeypotField: string;
   nonce?: string;
+  secureToken?: string;
   pageLoadTime?: number;
 };
 

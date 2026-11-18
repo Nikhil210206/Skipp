@@ -317,6 +317,7 @@ type SessionValue = {
       randomDelim: string;
       honeypotField: string;
       nonce?: string;
+      secureToken?: string;
       pageLoadTime?: number;
     },
   ) => Promise<void>;
@@ -1355,6 +1356,7 @@ export function SessionProvider({ children }: { children: React.ReactNode }) {
             randomDelim: manual.randomDelim,
             honeypotField: manual.honeypotField,
             nonce: manual.nonce,
+            secureToken: manual.secureToken,
             pageLoadTime: manual.pageLoadTime ?? Date.now() / 1000,
           });
         } else {
