@@ -88,6 +88,22 @@ export function IconChevronRight(p: IconProps) {
   );
 }
 
+export function IconPlus(p: IconProps) {
+  return (
+    <Svg {...p}>
+      <path d="M12 5v14M5 12h14" />
+    </Svg>
+  );
+}
+
+export function IconMinus(p: IconProps) {
+  return (
+    <Svg {...p}>
+      <path d="M5 12h14" />
+    </Svg>
+  );
+}
+
 export function IconClose(p: IconProps) {
   return (
     <Svg {...p}>

@@ -179,7 +179,9 @@ For a target T (default 75%): given `attended (a)` and `conducted (c)`:
 
 ### Marks target calculator (BUILT, THEN REMOVED)
 Was `components/MarksCalculator.tsx`. Removed on request 2026-07-25; the marks page now shows a
-total scored/max summary instead. Kept here only so nobody rebuilds it by accident.
+total scored/max summary instead. Kept here only so nobody rebuilds it by accident. (The CGPA
+planner of 2026-11-19, §11, is a different thing: it was asked for, and it plans grades across
+the term rather than asking for typed-in marks.)
 
 ### Leave planner (what replaced it, see §11)
 `lib/leavePredictor.ts` projects attendance across the dates a student plans to take off. Each
@@ -345,7 +347,54 @@ is deployment and true push notifications.
 Entries below are newest first. **When something breaks, read the relevant entry first**: most
 oddities here (login shell, empty calendar, 429s, duplicated course codes) are already diagnosed.
 
-### DONE: What changed, as notifications and as a pop-up (2026-11-14, latest)
+### DONE: The CGPA planner (2026-11-19, latest)
+
+Asked for as "a cgpa grade predictor built in". `components/CgpaPlanner.tsx`
+is a full screen `Panel` opened from a new "Plan your CGPA" action at the foot
+of Marks, which makes it Marks' counterpart to Attendance's leave planner. The
+logic is `lib/cgpa.ts`, pure, tested with 48 assertions through jiti.
+
+- **It plans, it does not predict, and that is the answer to why GPA was
+  removed from Marks before** (a projection built on projections, quoted to two
+  decimals). Every course starts on the grade its marks are on pace for and the
+  student moves it. The marks decide what each grade COSTS (the exam figure on
+  the paper they sit, from the same arithmetic as `forecastSubject`) and whether
+  it is still reachable.
+- **Every grade can be picked, on request.** The first build disabled grades the
+  marks could no longer reach and was rejected: "let them select anything and
+  check". An unreachable pick still counts toward the figure, turns red, says
+  how many marks short it falls even with full marks from here and what the exam
+  would take ("76/75"), and the hero says how many picks are out of reach.
+  **Hit a target, by contrast, only ever plans with reachable grades**, since a
+  plan is something you are meant to carry out.
+- **Two modes, one question from both ends.** Pick grades gives the projected
+  CGPA; Hit a target takes a CGPA, works out the SGPA this term needs, and finds
+  the cheapest grades that reach it (`cheapestPlan`, greedy over credit weighted
+  points per mark). "Use these grades" (the screen's one accent) copies the plan
+  into Pick grades.
+- **The one currency is marks out of 100 above your pace**, the same for every
+  course, which is what lets the planner compare raising a 4 credit lab against
+  a 3 credit theory paper.
+- **The record so far is typed, not scraped**: CGPA and credits, stored on the
+  device as `skipp.cgpa.<reg>` with the chosen grades, the target and the mode.
+  Credits default to (semester - 1) times this term's credits and say they are
+  an estimate. A first semester student is not asked for a record.
+- **Unmarked courses start from the student's record** (`totalForPoints` turns a
+  CGPA back into a total on the cutoffs), failing that this term's average pace,
+  failing that an A. Theory and lab rows sharing a code are pooled into one
+  grade as equal halves; with one row the figures equal `forecastSubject`'s.
+- CGPA is **truncated** to two places like a grade sheet; a NEEDED SGPA is
+  **rounded up** (`fmtNeed`), or it would send a student for a figure that falls
+  short. Courses with no credit are left out and named in the small print.
+
+Verified in the DevTools browser against `?fixture=1` with no backend: both
+modes, an unreachable O (counts, red, 76/75), an out of reach target (footer
+gone, ceiling stated), 390 and 320 wide (chips 44px after tightening their gap),
+Ink and Brutal, no console errors, `tsc` and eslint clean. **Not verified:** a
+real phone, real portal marks with theory and lab rows sharing a code, and the
+other looks.
+
+### DONE: What changed, as notifications and as a pop-up (2026-11-14)
 
 Asked for from a screenshot of another app's notification tray: one
 notification per change ("New marks: X, PBL-II: 19/20 scored", "Attendance

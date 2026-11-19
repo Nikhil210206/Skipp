@@ -6,13 +6,15 @@ import MaintenanceView from "@/components/MaintenanceView";
 import { MAINTENANCE } from "@/lib/maintenance";
 import { revealIn, revealRows, useGsap } from "@/lib/motion";
 import { forecastSubject, type SubjectForecast } from "@/lib/grades";
-import { Skeleton, StateView } from "@/components/ui";
+import { Button, Skeleton, StateView } from "@/components/ui";
+import CgpaPlanner from "@/components/CgpaPlanner";
 import { IconChevronRight } from "@/components/Icons";
 import {
   Amount,
   Marginalia,
   Rule,
   SectionHead,
+  StickyAction,
   TrackRule,
 } from "@/components/ui/editorial";
 import {
@@ -87,6 +89,16 @@ function MarksScreen() {
    * letting every row stand open rebuilds the wall it replaced.
    */
   const [open, setOpen] = useState<string | null>(null);
+
+  /**
+   * The CGPA planner, Marks' counterpart to Attendance's leave planner. It
+   * needs only the registration list's credits, so it is offered even before
+   * a mark is published: planning a term is most useful at its start.
+   */
+  const [planOpen, setPlanOpen] = useState(false);
+  const canPlan =
+    (marksState === "ready" || marksState === "gated") &&
+    (timetable?.courses ?? []).some((c) => (c.credit ?? 0) > 0);
 
   const scope = useGsap(
     ({ self, reduced }) => {
@@ -294,7 +306,17 @@ function MarksScreen() {
             </section>
           </>
         )}
+
+        {canPlan && (
+          <StickyAction>
+            <Button variant="outline" size="lg" full onClick={() => setPlanOpen(true)}>
+              Plan your CGPA
+            </Button>
+          </StickyAction>
+        )}
       </div>
+
+      <CgpaPlanner open={planOpen} onClose={() => setPlanOpen(false)} />
     </>
   );
 }
